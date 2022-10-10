@@ -120,7 +120,7 @@ impl Participant {
                 // keyshare values that presign needs to operate
                 let (optional_presign_record, messages) = self
                     .presign_participant
-                    .process_message(message, &self.main_storage)?;
+                    .process_message(rng, message, &self.main_storage)?;
 
                 if let Some(presign_record) = optional_presign_record {
                     self.main_storage.store(
