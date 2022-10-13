@@ -20,7 +20,6 @@ use crate::presign::round_three::RoundThreeInput;
 use crate::presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic};
 use crate::presign::round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic};
 use crate::protocol::ParticipantIdentifier;
-use crate::run_only_once;
 use crate::storage::StorableType;
 use crate::storage::Storage;
 use crate::utils::{
@@ -90,11 +89,7 @@ impl PresignParticipant {
                     self.handle_round_three_msg(rng, message, main_storage)?;
                 Ok((presign_record_option, messages))
             }
-            _ => {
-                return bail!(
-                    "Attempting to process a non-presign message with a presign participant"
-                );
-            }
+            _ => bail!("Attempting to process a non-presign message with a presign participant"),
         }
     }
 
@@ -396,7 +391,7 @@ impl PresignParticipant {
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     fn handle_round_three_msg<R: RngCore + CryptoRng>(
         &mut self,
-        rng: &mut R,
+        _rng: &mut R,
         message: &Message,
         main_storage: &Storage,
     ) -> Result<(Option<PresignRecord>, Vec<Message>)> {

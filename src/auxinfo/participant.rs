@@ -84,12 +84,9 @@ impl AuxInfoParticipant {
         match message.message_type() {
             MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash) => {
                 let (broadcast_option, mut messages) = self.handle_broadcast(rng, message)?;
-                match broadcast_option {
-                    Some(bmsg) => {
-                        let more_messages = self.handle_round_one_msg(rng, &bmsg, main_storage)?;
-                        messages.extend_from_slice(&more_messages);
-                    }
-                    None => {}
+                if let Some(bmsg) = broadcast_option {
+                    let more_messages = self.handle_round_one_msg(rng, &bmsg, main_storage)?;
+                    messages.extend_from_slice(&more_messages);
                 };
                 Ok(messages)
             }
@@ -105,11 +102,9 @@ impl AuxInfoParticipant {
                 let messages = self.handle_round_three_msg(rng, message, main_storage)?;
                 Ok(messages)
             }
-            MessageType::Auxinfo(_) => return bail!("This message must be broadcasted!"),
+            MessageType::Auxinfo(_) => bail!("This message must be broadcasted!"),
             _ => {
-                return bail!(
-                    "Attempting to process a non-auxinfo message with a auxinfo participant"
-                );
+                bail!("Attempting to process a non-auxinfo message with a auxinfo participant")
             }
         }
     }

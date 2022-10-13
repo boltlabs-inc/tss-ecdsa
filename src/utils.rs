@@ -187,7 +187,7 @@ pub(crate) fn bn_to_scalar(x: &BigNumber) -> Option<k256::Scalar> {
 pub(crate) fn k256_order() -> BigNumber {
     // Set order = q
     let order_bytes: [u8; 32] = k256::Secp256k1::ORDER.to_be_bytes();
-    BigNumber::from_slice(&order_bytes)
+    BigNumber::from_slice(order_bytes)
 }
 
 #[cfg(test)]
@@ -234,7 +234,7 @@ lazy_static::lazy_static! {
 pub(crate) fn get_safe_primes() -> Vec<BigNumber> {
     let safe_primes: Vec<BigNumber> = crate::safe_primes_512::SAFE_PRIMES
         .iter()
-        .map(|s| BigNumber::from_slice(&hex::decode(&s).unwrap()))
+        .map(|s| BigNumber::from_slice(&hex::decode(s).unwrap()))
         .collect();
     safe_primes
 }

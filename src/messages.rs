@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 /////////////////
 
 /// An enum consisting of all message types
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MessageType {
     /// Auxinfo messages
     Auxinfo(AuxinfoMessageType),
@@ -31,7 +31,7 @@ pub enum MessageType {
 }
 
 /// An enum consisting of all auxinfo message types
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AuxinfoMessageType {
     /// Signals that auxinfo generation is ready
     Ready,
@@ -46,7 +46,7 @@ pub enum AuxinfoMessageType {
 }
 
 /// An enum consisting of all keygen message types
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum KeygenMessageType {
     /// Signals that keyshare generation is ready
     Ready,
@@ -61,7 +61,7 @@ pub enum KeygenMessageType {
 }
 
 /// An enum consisting of all presign message types
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PresignMessageType {
     /// Signals that presigning is ready
     Ready,
@@ -73,7 +73,7 @@ pub enum PresignMessageType {
     RoundThree,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BroadcastMessageType {
     /// First round: sender sends their message to everyone
     Disperse,
