@@ -82,7 +82,9 @@ impl BroadcastParticipant {
                 let (output_option, messages) = self.handle_round_two_msg(rng, message)?;
                 Ok((output_option, messages))
             }
-            _ => bail!("Attempting to process a non-broadcast message with a broadcast participant")
+            _ => {
+                bail!("Attempting to process a non-broadcast message with a broadcast participant")
+            }
         }
     }
 
