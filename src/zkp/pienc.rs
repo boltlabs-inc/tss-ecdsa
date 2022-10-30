@@ -7,19 +7,19 @@
 
 //! Implements the ZKP from Figure 14 of <https://eprint.iacr.org/2021/060.pdf>
 //!
-//! Proves that the plaintext of the Paillier ciphertext K_i lies within the range
-//! [1, 2^{ELL+EPSILON}]
+//! Proves that the plaintext of the Paillier ciphertext K_i lies within the
+//! range [1, 2^{ELL+EPSILON}]
 
 use super::Proof;
-use crate::utils::{
-    k256_order, modpow, plusminus_bn_random_from_transcript, random_bn_in_range,
-    random_bn_in_z_star,
-};
-use crate::zkp::setup::ZkSetupParameters;
 use crate::{
     errors::*,
     paillier::PaillierCiphertext,
     parameters::{ELL, EPSILON},
+    utils::{
+        k256_order, modpow, plusminus_bn_random_from_transcript, random_bn_in_range,
+        random_bn_in_z_star,
+    },
+    zkp::setup::ZkSetupParameters,
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -120,8 +120,8 @@ impl Proof for PiEncProof {
             &[S.to_bytes(), A.to_bytes(), C.to_bytes()].concat(),
         );
 
-        // Verifier is supposed to sample from e in +- q (where q is the group order), we sample from
-        // [0, 2*q] instead
+        // Verifier is supposed to sample from e in +- q (where q is the group order),
+        // we sample from [0, 2*q] instead
         let e = plusminus_bn_random_from_transcript(
             &mut transcript,
             &(BigNumber::from(2) * &k256_order()),
@@ -209,8 +209,7 @@ impl Proof for PiEncProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::paillier::PaillierEncryptionKey;
-    use crate::utils::random_bn_in_range_min;
+    use crate::{paillier::PaillierEncryptionKey, utils::random_bn_in_range_min};
     use libpaillier::*;
     use rand::rngs::OsRng;
 

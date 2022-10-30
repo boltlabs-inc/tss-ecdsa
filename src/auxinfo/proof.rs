@@ -5,13 +5,16 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::errors::Result;
-use crate::messages::{AuxinfoMessageType, MessageType};
-use crate::zkp::pifac::{PiFacInput, PiFacProof, PiFacSecret};
-use crate::zkp::pimod::{PiModInput, PiModProof, PiModSecret};
-use crate::zkp::setup::ZkSetupParameters;
-use crate::Identifier;
-use crate::Message;
+use crate::{
+    errors::Result,
+    messages::{AuxinfoMessageType, MessageType},
+    zkp::{
+        pifac::{PiFacInput, PiFacProof, PiFacSecret},
+        pimod::{PiModInput, PiModProof, PiModSecret},
+        setup::ZkSetupParameters,
+    },
+    Identifier, Message,
+};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
@@ -26,7 +29,9 @@ pub(crate) struct AuxInfoProof {
 impl AuxInfoProof {
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         if message.message_type() != MessageType::Auxinfo(AuxinfoMessageType::R3Proof) {
-            return bail!("Wrong message type, expected MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash)");
+            return bail!(
+                "Wrong message type, expected MessageType::Auxinfo(AuxinfoMessageType::R3Proof)"
+            );
         }
         let auxinfo_proof: AuxInfoProof = deserialize!(&message.unverified_bytes)?;
         Ok(auxinfo_proof)

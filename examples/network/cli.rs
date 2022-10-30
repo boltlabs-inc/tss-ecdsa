@@ -5,8 +5,10 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::client::{invoke_auxinfo, invoke_keygen, invoke_presign, invoke_sign_from_presign};
-use crate::common::Result;
+use crate::{
+    client::{invoke_auxinfo, invoke_keygen, invoke_presign, invoke_sign_from_presign},
+    common::Result,
+};
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::rngs::OsRng;
 use std::collections::HashMap;
@@ -27,8 +29,7 @@ struct CliOption {
 }
 
 pub(crate) async fn render_cli(ports_to_ids: &HashMap<u16, ParticipantIdentifier>) -> Result {
-    use dialoguer::theme::ColorfulTheme;
-    use dialoguer::{Input, Select};
+    use dialoguer::{theme::ColorfulTheme, Input, Select};
 
     let mut auxinfos: Vec<Identifier> = vec![];
     let mut keypairs: Vec<Identifier> = vec![];

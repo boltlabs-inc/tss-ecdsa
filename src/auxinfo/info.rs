@@ -5,17 +5,21 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::errors::Result;
-use crate::paillier::{PaillierDecryptionKey, PaillierEncryptionKey};
-use crate::zkp::setup::ZkSetupParameters;
+use crate::{
+    errors::Result,
+    paillier::{PaillierDecryptionKey, PaillierEncryptionKey},
+    zkp::setup::ZkSetupParameters,
+};
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
 
+/// The private key corresponding to a given Participant's [AuxInfoPublic]
 #[derive(Serialize, Deserialize)]
 pub(crate) struct AuxInfoPrivate {
     pub(crate) sk: PaillierDecryptionKey,
 }
 
+/// The public Auxilary Information corresponding to a given Participant
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct AuxInfoPublic {
     pub(crate) pk: PaillierEncryptionKey,
@@ -23,8 +27,8 @@ pub(crate) struct AuxInfoPublic {
 }
 
 impl AuxInfoPublic {
-    /// Verifies that the public key's modulus matches the ZKSetupParameters modulus
-    /// N, and that the parameters have appropriate s and t values.
+    /// Verifies that the public key's modulus matches the ZKSetupParameters
+    /// modulus N, and that the parameters have appropriate s and t values.
     pub(crate) fn verify(&self) -> Result<()> {
         if self.pk.n() != &self.params.N {
             return verify_err!("Mismatch with pk.n() and params.N");

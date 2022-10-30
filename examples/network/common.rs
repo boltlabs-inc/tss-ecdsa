@@ -5,8 +5,10 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use rocket::response::{self, Responder};
-use rocket::Request;
+use rocket::{
+    response::{self, Responder},
+    Request,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tss_ecdsa::{ParticipantConfig, ParticipantIdentifier};

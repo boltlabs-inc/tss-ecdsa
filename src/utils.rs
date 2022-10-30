@@ -7,25 +7,21 @@
 
 use std::collections::HashMap;
 
-use crate::auxinfo::info::AuxInfoPublic;
-use crate::errors::Result;
-use crate::Message;
+use crate::{auxinfo::info::AuxInfoPublic, errors::Result, Message};
 use generic_array::GenericArray;
-use k256::elliptic_curve::bigint::Encoding;
-use k256::elliptic_curve::group::ff::PrimeField;
-use k256::elliptic_curve::AffinePoint;
-use k256::elliptic_curve::Curve;
-use k256::Secp256k1;
+use k256::{
+    elliptic_curve::{bigint::Encoding, group::ff::PrimeField, AffinePoint, Curve},
+    Secp256k1,
+};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
-use rand::Rng;
-use rand::{CryptoRng, RngCore};
+use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::storage::StorableType;
-use crate::storage::Storage;
-use crate::Identifier;
-use crate::ParticipantIdentifier;
+use crate::{
+    storage::{StorableType, Storage},
+    Identifier, ParticipantIdentifier,
+};
 
 const MAX_ITER: usize = 50_000usize;
 
@@ -36,7 +32,8 @@ pub struct CurvePoint(pub k256::ProjectivePoint);
 
 impl CurvePoint {
     pub(crate) const GENERATOR: Self = CurvePoint(k256::ProjectivePoint::GENERATOR);
-    /// The identity point, used to initialize the aggregation of a verification key
+    /// The identity point, used to initialize the aggregation of a verification
+    /// key
     pub const IDENTITY: Self = CurvePoint(k256::ProjectivePoint::IDENTITY);
 }
 
@@ -97,7 +94,8 @@ pub(crate) fn random_bn_in_range<R: RngCore + CryptoRng>(rng: &mut R, n: usize) 
     }
 }
 
-/// Generate a random BigNumber x in the range -2^n, ..., 0, ..., 2^n, where |x| > 2^min_bound
+/// Generate a random BigNumber x in the range -2^n, ..., 0, ..., 2^n, where |x|
+/// > 2^min_bound
 #[cfg(test)]
 pub(crate) fn random_bn_in_range_min<R: RngCore + CryptoRng>(
     rng: &mut R,
@@ -239,8 +237,9 @@ pub(crate) fn get_safe_primes() -> Vec<BigNumber> {
     safe_primes
 }
 
-/// We sample safe primes that are 512 bits long. This comes from the security parameter
-/// setting of κ = 128, and safe primes being of length 4κ (Figure 6, Round 1 of the CGGMP'21 paper)
+/// We sample safe primes that are 512 bits long. This comes from the security
+/// parameter setting of κ = 128, and safe primes being of length 4κ (Figure 6,
+/// Round 1 of the CGGMP'21 paper)
 #[cfg(test)]
 pub(crate) fn get_random_safe_prime_512() -> BigNumber {
     // FIXME: should just return BigNumber::safe_prime(PRIME_BITS);
@@ -266,10 +265,11 @@ pub(crate) fn has_collected_all_of_others(
     Ok(storage.contains_batch(&indices).is_ok())
 }
 
-/// Aggregate the other participants' public keyshares from storage. But don't remove them
-/// from storage.
+/// Aggregate the other participants' public keyshares from storage. But don't
+/// remove them from storage.
 ///
-/// This returns a HashMap with the key as the participant id and the value as the KeygenPublic
+/// This returns a HashMap with the key as the participant id and the value as
+/// the KeygenPublic
 pub(crate) fn get_other_participants_public_auxinfo(
     other_ids: &[ParticipantIdentifier],
     storage: &Storage,
@@ -286,7 +286,7 @@ pub(crate) fn get_other_participants_public_auxinfo(
             identifier,
             other_participant_id,
         )?;
-        hm.insert(other_participant_id, deserialize!(&val)?);
+        let _ = hm.insert(other_participant_id, deserialize!(&val)?);
     }
     Ok(hm)
 }
@@ -302,7 +302,8 @@ pub(crate) fn process_ready_message(
 
     let mut messages = vec![];
 
-    // If message is coming from self, then tell the other participants that we are ready
+    // If message is coming from self, then tell the other participants that we are
+    // ready
     if message.from() == self_id {
         for &other_id in other_ids {
             messages.push(Message::new(

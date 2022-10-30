@@ -8,8 +8,7 @@
 //! Contains the functions and definitions for dealing with messages that are
 //! passed between participants
 
-use crate::protocol::Identifier;
-use crate::protocol::ParticipantIdentifier;
+use crate::protocol::{Identifier, ParticipantIdentifier};
 use displaydoc::Display;
 use serde::{Deserialize, Serialize};
 
@@ -41,7 +40,8 @@ pub enum AuxinfoMessageType {
     R1CommitHash,
     /// The information committed to in Round 1
     R2Decommit,
-    /// A proof of knowledge of the discrete log of the value decommitted in Round 2
+    /// A proof of knowledge of the discrete log of the value decommitted in
+    /// Round 2
     R3Proof,
 }
 
@@ -56,7 +56,8 @@ pub enum KeygenMessageType {
     R1CommitHash,
     /// The information committed to in Round 1
     R2Decommit,
-    /// A proof of knowledge of the discrete log of the value decommitted in Round 2
+    /// A proof of knowledge of the discrete log of the value decommitted in
+    /// Round 2
     R3Proof,
 }
 

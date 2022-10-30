@@ -9,8 +9,7 @@ use crate::{
     auxinfo::info::AuxInfoPublic,
     errors::Result,
     messages::{AuxinfoMessageType, Message, MessageType},
-    protocol::Identifier,
-    protocol::ParticipantIdentifier,
+    protocol::{Identifier, ParticipantIdentifier},
 };
 use merlin::Transcript;
 use rand::RngCore;

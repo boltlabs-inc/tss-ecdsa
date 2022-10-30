@@ -7,8 +7,7 @@
 
 //! Implements the ZKP from Figure 17 of <https://eprint.iacr.org/2021/060.pdf>
 
-use crate::errors::*;
-use crate::utils::*;
+use crate::{errors::*, utils::*};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};

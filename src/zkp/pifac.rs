@@ -8,10 +8,12 @@
 //! Implements the ZKP from Figure 28 of <https://eprint.iacr.org/2021/060.pdf>
 
 use super::Proof;
-use crate::errors::*;
-use crate::parameters::{ELL, EPSILON};
-use crate::utils::{k256_order, modpow, plusminus_bn_random_from_transcript, random_bn_plusminus};
-use crate::zkp::setup::ZkSetupParameters;
+use crate::{
+    errors::*,
+    parameters::{ELL, EPSILON},
+    utils::{k256_order, modpow, plusminus_bn_random_from_transcript, random_bn_plusminus},
+    zkp::setup::ZkSetupParameters,
+};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use num_bigint::{BigInt, Sign};

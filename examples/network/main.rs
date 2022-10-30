@@ -13,7 +13,6 @@
 //!
 //! Then, spin up a client which connects to each of the servers:
 //! `cargo run --example network -- -r client -s 8000 -s 8001 -s 8002`
-//!
 
 #[macro_use]
 extern crate rocket;

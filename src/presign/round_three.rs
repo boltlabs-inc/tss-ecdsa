@@ -5,16 +5,21 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::auxinfo::info::AuxInfoPublic;
-use crate::errors::Result;
-use crate::messages::PresignMessageType;
-use crate::messages::{Message, MessageType};
-use crate::presign::round_one::PublicBroadcast as RoundOnePublicBroadcast;
-use crate::presign::round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic};
-use crate::utils::k256_order;
-use crate::zkp::pilog::{PiLogInput, PiLogProof};
-use crate::zkp::Proof;
-use crate::CurvePoint;
+use crate::{
+    auxinfo::info::AuxInfoPublic,
+    errors::Result,
+    messages::{Message, MessageType, PresignMessageType},
+    presign::{
+        round_one::PublicBroadcast as RoundOnePublicBroadcast,
+        round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
+    },
+    utils::k256_order,
+    zkp::{
+        pilog::{PiLogInput, PiLogProof},
+        Proof,
+    },
+    CurvePoint,
+};
 use k256::Scalar;
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};

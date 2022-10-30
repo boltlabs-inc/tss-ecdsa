@@ -5,35 +5,35 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::auxinfo::auxinfo_commit::{AuxInfoCommit, AuxInfoDecommit};
-use crate::auxinfo::proof::AuxInfoProof;
-use crate::broadcast::participant::{BroadcastOutput, BroadcastParticipant};
-use crate::errors::Result;
-use crate::messages::AuxinfoMessageType;
-use crate::messages::{Message, MessageType};
-use crate::paillier::PaillierDecryptionKey;
-use crate::paillier::PaillierEncryptionKey;
-use crate::parameters::PRIME_BITS;
-use crate::participant::{Broadcast, ProtocolParticipant};
-use crate::protocol::ParticipantIdentifier;
-use crate::run_only_once;
-use crate::storage::StorableType;
-use crate::storage::Storage;
-use crate::utils::process_ready_message;
-use crate::zkp::setup::ZkSetupParameters;
-use libpaillier::DecryptionKey;
-use libpaillier::EncryptionKey;
-use rand::prelude::IteratorRandom;
-use rand::{CryptoRng, RngCore};
+use crate::{
+    auxinfo::{
+        auxinfo_commit::{AuxInfoCommit, AuxInfoDecommit},
+        proof::AuxInfoProof,
+    },
+    broadcast::participant::{BroadcastOutput, BroadcastParticipant},
+    errors::Result,
+    messages::{AuxinfoMessageType, Message, MessageType},
+    paillier::{PaillierDecryptionKey, PaillierEncryptionKey},
+    parameters::PRIME_BITS,
+    participant::{Broadcast, ProtocolParticipant},
+    protocol::ParticipantIdentifier,
+    run_only_once,
+    storage::{StorableType, Storage},
+    utils::process_ready_message,
+    zkp::setup::ZkSetupParameters,
+};
+use libpaillier::{DecryptionKey, EncryptionKey};
+use rand::{prelude::IteratorRandom, CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
 use super::info::{AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct AuxInfoParticipant {
     /// A unique identifier for this participant
     id: ParticipantIdentifier,
-    /// A list of all other participant identifiers participating in the protocol
+    /// A list of all other participant identifiers participating in the
+    /// protocol
     other_participant_ids: Vec<ParticipantIdentifier>,
     /// Local storage for this participant to store secrets
     storage: Storage,
@@ -276,7 +276,8 @@ impl AuxInfoParticipant {
         message: &Message,
         main_storage: &mut Storage,
     ) -> Result<Vec<Message>> {
-        // We must receive all commitments in round 1 before we start processing decommits in round 2.
+        // We must receive all commitments in round 1 before we start processing
+        // decommits in round 2.
         let r1_done = self
             .storage
             .contains_for_all_ids(
@@ -369,7 +370,8 @@ impl AuxInfoParticipant {
         )?)?;
 
         let mut global_rid = my_decom.rid;
-        // xor all the rids together. In principle, many different options for combining these should be okay
+        // xor all the rids together. In principle, many different options for combining
+        // these should be okay
         for rid in rids.iter() {
             for i in 0..32 {
                 global_rid[i] ^= rid[i];
@@ -542,8 +544,10 @@ fn new_auxinfo<R: RngCore + CryptoRng>(
 mod tests {
     use super::*;
     use crate::Identifier;
-    use rand::rngs::{OsRng, StdRng};
-    use rand::{CryptoRng, Rng, RngCore, SeedableRng};
+    use rand::{
+        rngs::{OsRng, StdRng},
+        CryptoRng, Rng, RngCore, SeedableRng,
+    };
     use std::collections::HashMap;
 
     impl AuxInfoParticipant {
@@ -653,7 +657,8 @@ mod tests {
 
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
-    // This test is cheap. Try a bunch of message permutations to decrease error likelihood
+    // This test is cheap. Try a bunch of message permutations to decrease error
+    // likelihood
     fn test_run_auxinfo_protocol_many_times() -> Result<()> {
         for _ in 0..20 {
             test_run_auxinfo_protocol()?;
@@ -672,7 +677,7 @@ mod tests {
         let mut inboxes = HashMap::new();
         let mut main_storages: Vec<Storage> = vec![];
         for participant in &quorum {
-            inboxes.insert(participant.id, vec![]);
+            let _ = inboxes.insert(participant.id, vec![]);
             main_storages.append(&mut vec![Storage::new()]);
         }
 
@@ -686,7 +691,8 @@ mod tests {
             process_messages(&mut quorum, &mut inboxes, &mut rng, &mut main_storages)?;
         }
 
-        // check that all players have a PublicKeyshare stored for every player and that these values all match
+        // check that all players have a PublicKeyshare stored for every player and that
+        // these values all match
         for player in quorum.iter() {
             let player_id = player.id;
             let mut stored_values = vec![];
@@ -704,7 +710,8 @@ mod tests {
             }
         }
 
-        // check that each player's own AuxInfoPublic corresponds to their AuxInfoPrivate
+        // check that each player's own AuxInfoPublic corresponds to their
+        // AuxInfoPrivate
         for index in 0..quorum.len() {
             let player = quorum.get(index).unwrap();
             let player_id = player.id;

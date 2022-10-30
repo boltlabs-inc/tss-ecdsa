@@ -9,17 +9,16 @@
 //!
 //! Proves that the prover knows an x and y where X = g^x and y is the
 //! plaintext of a Paillier ciphertext
-//!
 
 use super::Proof;
-use crate::utils::{
-    self, k256_order, modpow, plusminus_bn_random_from_transcript, random_bn_in_range,
-    random_bn_in_z_star, random_bn_plusminus,
-};
-use crate::zkp::setup::ZkSetupParameters;
 use crate::{
     errors::*,
     parameters::{ELL, ELL_PRIME, EPSILON},
+    utils::{
+        self, k256_order, modpow, plusminus_bn_random_from_transcript, random_bn_in_range,
+        random_bn_in_z_star, random_bn_plusminus,
+    },
+    zkp::setup::ZkSetupParameters,
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -337,8 +336,7 @@ impl Proof for PiAffgProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::paillier::PaillierEncryptionKey;
-    use crate::utils::random_bn_in_range_min;
+    use crate::{paillier::PaillierEncryptionKey, utils::random_bn_in_range_min};
     use libpaillier::*;
     use rand::rngs::OsRng;
 

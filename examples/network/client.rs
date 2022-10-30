@@ -5,14 +5,13 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::cli::{finish_progress_bar, render_cli, start_progress_bar};
-use crate::common::{Args, ParticipantInitConfig, Result};
-use crate::server::{
-    AuxInfoParameters, KeygenParameters, PresignParameters, SignFromPresignParameters,
+use crate::{
+    cli::{finish_progress_bar, render_cli, start_progress_bar},
+    common::{Args, ParticipantInitConfig, Result},
+    server::{AuxInfoParameters, KeygenParameters, PresignParameters, SignFromPresignParameters},
 };
 use generic_array::GenericArray;
-use k256::ecdsa::signature::DigestVerifier;
-use k256::ecdsa::VerifyingKey;
+use k256::ecdsa::{signature::DigestVerifier, VerifyingKey};
 use rand::rngs::OsRng;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;

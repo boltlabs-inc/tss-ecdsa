@@ -23,19 +23,22 @@
 //! using [secp256k1](https://en.bitcoin.it/wiki/Secp256k1) as the elliptic curve.
 //!
 //! Note that this library only provides the low-level interfaces for executing
-//! each of the rounds of the protocol, notably without handling communication and
-//! parallel execution. The main interfaces allow for a [Participant] to
-//! process a message from another participant, producing a set of outgoing messages
-//! that in turn must be delivered to other participants.
+//! each of the rounds of the protocol, notably without handling communication
+//! and parallel execution. The main interfaces allow for a [Participant] to
+//! process a message from another participant, producing a set of outgoing
+//! messages that in turn must be delivered to other participants.
 //!
 //! For an example of how to actually integrate this library into a higher-level
 //! application that handles the communication between participants in parallel,
 //! take a look at the provided [network example](./examples/network/README.md).
-//!
-//!
 
 #![allow(non_snake_case)] // FIXME: To be removed in the future
 #![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
+#![warn(unused_results)]
+#![warn(future_incompatible)]
+#![warn(unused)]
+#![forbid(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(feature = "flame_it", feature(proc_macro_hygiene))]
 #[cfg(feature = "flame_it")]
 extern crate flame;

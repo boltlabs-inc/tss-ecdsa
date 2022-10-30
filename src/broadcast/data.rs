@@ -5,9 +5,11 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::errors::Result;
-use crate::messages::{BroadcastMessageType, Message, MessageType};
-use crate::ParticipantIdentifier;
+use crate::{
+    errors::Result,
+    messages::{BroadcastMessageType, Message, MessageType},
+    ParticipantIdentifier,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]

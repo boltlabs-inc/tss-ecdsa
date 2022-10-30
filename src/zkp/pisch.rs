@@ -8,9 +8,11 @@
 //! Implements the ZKP from Figure 22 of <https://eprint.iacr.org/2021/060.pdf>
 
 use super::Proof;
-use crate::errors::*;
-use crate::messages::{KeygenMessageType, Message, MessageType};
-use crate::utils::{self, positive_bn_random_from_transcript};
+use crate::{
+    errors::*,
+    messages::{KeygenMessageType, Message, MessageType},
+    utils::{self, positive_bn_random_from_transcript},
+};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
