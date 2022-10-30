@@ -428,14 +428,6 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_run_protocol_many_times() -> Result<()> {
-        for _ in 0..30 {
-            test_run_protocol()?;
-        }
-        Ok(())
-    }
-
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
     fn test_run_protocol() -> Result<()> {
