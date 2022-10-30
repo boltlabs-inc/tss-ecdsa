@@ -17,18 +17,22 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct Private {
-    pub(crate) k: BigNumber,
-    pub(crate) rho: BigNumber,
-    pub(crate) gamma: BigNumber,
-    pub(crate) nu: BigNumber,
-    pub(crate) G: PaillierCiphertext, // Technically can be public but is only one per party
-    pub(crate) K: PaillierCiphertext, // Technically can be public but is only one per party
+    pub k: BigNumber,
+    pub rho: BigNumber,
+    pub gamma: BigNumber,
+    pub nu: BigNumber,
+    pub G: PaillierCiphertext, // Technically can be public but is only one per party
+    pub K: PaillierCiphertext, // Technically can be public but is only one per party
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct Public {
-    pub(crate) K: PaillierCiphertext,
-    pub(crate) G: PaillierCiphertext,
-    pub(crate) proof: PiEncProof,
+    pub proof: PiEncProof,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct PublicBroadcast {
+    pub K: PaillierCiphertext,
+    pub G: PaillierCiphertext,
 }
 
 impl Public {
@@ -39,9 +43,13 @@ impl Public {
         &self,
         receiver_setup_params: &ZkSetupParameters,
         sender_modulus: &BigNumber,
+        broadcasted_params: &PublicBroadcast,
     ) -> Result<()> {
-        let input =
-            crate::zkp::pienc::PiEncInput::new(receiver_setup_params, sender_modulus, &self.K);
+        let input = crate::zkp::pienc::PiEncInput::new(
+            receiver_setup_params,
+            sender_modulus,
+            &broadcasted_params.K,
+        );
 
         self.proof.verify(&input)
     }
@@ -50,13 +58,18 @@ impl Public {
         message: &Message,
         receiver_keygen_public: &AuxInfoPublic,
         sender_keygen_public: &AuxInfoPublic,
+        broadcasted_params: &PublicBroadcast,
     ) -> Result<Self> {
         if message.message_type() != MessageType::Presign(PresignMessageType::RoundOne) {
             return bail!("Wrong message type, expected MessageType::RoundOne");
         }
         let round_one_public: Self = deserialize!(&message.unverified_bytes)?;
 
-        match round_one_public.verify(&receiver_keygen_public.params, sender_keygen_public.pk.n()) {
+        match round_one_public.verify(
+            &receiver_keygen_public.params,
+            sender_keygen_public.pk.n(),
+            broadcasted_params,
+        ) {
             Ok(()) => Ok(round_one_public),
             Err(e) => bail!("Failed to verify round one public: {}", e),
         }

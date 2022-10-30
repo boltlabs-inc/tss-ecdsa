@@ -10,7 +10,7 @@ use crate::{
     errors::Result,
     messages::{Message, MessageType, PresignMessageType},
     presign::{
-        round_one::Public as RoundOnePublic,
+        round_one::PublicBroadcast as RoundOnePublicBroadcast,
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
     },
     utils::k256_order,
@@ -26,20 +26,20 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct Private {
-    pub(crate) k: BigNumber,
-    pub(crate) chi: Scalar,
-    pub(crate) Gamma: CurvePoint,
-    pub(crate) delta: Scalar,
-    pub(crate) Delta: CurvePoint,
+    pub k: BigNumber,
+    pub chi: Scalar,
+    pub Gamma: CurvePoint,
+    pub delta: Scalar,
+    pub Delta: CurvePoint,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct Public {
-    pub(crate) delta: Scalar,
-    pub(crate) Delta: CurvePoint,
-    pub(crate) psi_double_prime: PiLogProof,
+    pub delta: Scalar,
+    pub Delta: CurvePoint,
+    pub psi_double_prime: PiLogProof,
     /// Gamma value included for convenience
-    pub(crate) Gamma: CurvePoint,
+    pub Gamma: CurvePoint,
 }
 
 impl Public {
@@ -47,13 +47,13 @@ impl Public {
         &self,
         receiver_keygen_public: &AuxInfoPublic,
         sender_keygen_public: &AuxInfoPublic,
-        sender_r1_public: &RoundOnePublic,
+        sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
         let psi_double_prime_input = PiLogInput::new(
             &receiver_keygen_public.params,
             &k256_order(),
             sender_keygen_public.pk.n(),
-            &sender_r1_public.K.0,
+            &sender_r1_public_broadcast.K.0,
             &self.Delta,
             &self.Gamma,
         );
@@ -66,7 +66,7 @@ impl Public {
         message: &Message,
         receiver_auxinfo_public: &AuxInfoPublic,
         sender_auxinfo_public: &AuxInfoPublic,
-        sender_r1_public: &super::round_one::Public,
+        sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<Self> {
         if message.message_type() != MessageType::Presign(PresignMessageType::RoundThree) {
             return bail!("Wrong message type, expected MessageType::RoundThree");
@@ -77,7 +77,7 @@ impl Public {
         match round_three_public.verify(
             receiver_auxinfo_public,
             sender_auxinfo_public,
-            sender_r1_public,
+            sender_r1_public_broadcast,
         ) {
             Ok(()) => Ok(round_three_public),
             Err(e) => bail!("Failed to verify round three public: {}", e),
@@ -87,7 +87,7 @@ impl Public {
 
 /// Used to bundle the inputs passed to round_three() together
 pub(crate) struct RoundThreeInput {
-    pub(crate) auxinfo_public: AuxInfoPublic,
-    pub(crate) r2_private: RoundTwoPrivate,
-    pub(crate) r2_public: RoundTwoPublic,
+    pub auxinfo_public: AuxInfoPublic,
+    pub r2_private: RoundTwoPrivate,
+    pub r2_public: RoundTwoPublic,
 }

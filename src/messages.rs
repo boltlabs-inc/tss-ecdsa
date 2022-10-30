@@ -68,6 +68,8 @@ pub enum PresignMessageType {
     Ready,
     /// First round of presigning
     RoundOne,
+    /// Broadcasted portion of the first round
+    RoundOneBroadcast,
     /// Second round of presigning
     RoundTwo,
     /// Third round of presigning

@@ -167,7 +167,7 @@ impl Participant {
         auxinfo_identifier: Identifier,
         keyshare_identifier: Identifier,
         identifier: Identifier,
-    ) -> Message {
+    ) -> Result<Message> {
         self.presign_participant.initialize_presign_message(
             auxinfo_identifier,
             keyshare_identifier,
@@ -229,18 +229,17 @@ impl Participant {
         presign_identifier: Identifier,
         digest: sha2::Sha256,
     ) -> Result<SignatureShare> {
-        let presign_record: PresignRecord = deserialize!(&self.main_storage.retrieve(
-            StorableType::PresignRecord,
-            presign_identifier,
-            self.id
-        )?)?;
+        let pr_bytes =
+            self.main_storage
+                .retrieve(StorableType::PresignRecord, presign_identifier, self.id)?;
+        let presign_record: PresignRecord = deserialize!(&pr_bytes)?;
         let (r, s) = presign_record.sign(digest);
         let ret = SignatureShare { r: Some(r), s };
 
         // Clear the presign record after being used once
-        self.main_storage
-            .delete(StorableType::PresignRecord, presign_identifier, self.id)?;
-
+        let _ =
+            self.main_storage
+                .delete(StorableType::PresignRecord, presign_identifier, self.id)?;
         Ok(ret)
     }
 }
@@ -359,11 +358,15 @@ impl std::fmt::Display for Identifier {
 mod tests {
     use super::*;
     use k256::ecdsa::signature::DigestVerifier;
-    use rand::{prelude::IteratorRandom, rngs::OsRng};
+    use rand::{
+        prelude::IteratorRandom,
+        rngs::{OsRng, StdRng},
+        SeedableRng,
+    };
     use sha2::{Digest, Sha256};
     use std::collections::HashMap;
 
-    /// Delivers all messages into their respective participant's inboxes
+    /// Delivers all messages into their respective participant's inboxes   
     fn deliver_all(
         messages: &[Message],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
@@ -420,9 +423,10 @@ mod tests {
             return Ok(());
         }
 
-        // FIXME: Should be able to handle randomly selected messages, see
-        // https://github.com/novifinancial/tss-ecdsa/issues/33
-        let message = inbox.remove(0);
+        // Process a random message in the participant's inbox
+        // This is done to simulate arbitrary message arrival ordering
+        let index = rng.gen_range(0..inbox.len());
+        let message = inbox.remove(index);
         let messages = participant.process_single_message(&message, rng)?;
         deliver_all(&messages, inboxes)?;
 
@@ -432,7 +436,12 @@ mod tests {
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
     fn test_run_protocol() -> Result<()> {
-        let mut rng = OsRng;
+        let mut osrng = OsRng;
+        let seed = osrng.next_u64();
+        // uncomment this line to test a specific seed
+        // let seed: u64 = 1707185616306954430;
+        let mut rng = StdRng::seed_from_u64(seed);
+        println!("Initializing run with seed {}", seed);
         let mut quorum = Participant::new_quorum(3, &mut rng)?;
         let mut inboxes = HashMap::new();
         for participant in &quorum {
@@ -465,7 +474,7 @@ mod tests {
                 auxinfo_identifier,
                 keyshare_identifier,
                 presign_identifier,
-            );
+            )?;
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(message);
         }

@@ -256,7 +256,7 @@ async fn presign(state: &State<ParticipantState>, parameters: Json<PresignParame
         auxinfo_identifier,
         keygen_identifier,
         presign_identifier,
-    );
+    )?;
 
     *state_participant = Some(participant.clone());
     drop(state_participant); // Release the lock

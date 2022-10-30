@@ -18,13 +18,12 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 #[derive(Debug, Copy, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub(crate) enum StorableType {
-    AuxInfoReady,
     KeygenReady,
     KeygenCommit,
     KeygenDecommit,
     KeygenSchnorrPrecom,
     KeygenGlobalRid,
-    PresignReady,
+    AuxInfoReady,
     AuxInfoPrivate,
     AuxInfoPublic,
     AuxInfoCommit,
@@ -33,12 +32,14 @@ pub(crate) enum StorableType {
     AuxInfoWitnesses,
     PrivateKeyshare,
     PublicKeyshare,
-    RoundOnePrivate,
-    RoundOnePublic,
-    RoundTwoPrivate,
-    RoundTwoPublic,
-    RoundThreePrivate,
-    RoundThreePublic,
+    PresignReady,
+    PresignRoundOnePrivate,
+    PresignRoundOnePublic,
+    PresignRoundOnePublicBroadcast,
+    PresignRoundTwoPrivate,
+    PresignRoundTwoPublic,
+    PresignRoundThreePrivate,
+    PresignRoundThreePublic,
     PresignRecord,
     MessageQueue,
     ProgressStore,
@@ -100,7 +101,7 @@ impl Storage {
         storable_type: StorableType,
         identifier: Identifier,
         participant: ParticipantIdentifier,
-    ) -> Result<()> {
+    ) -> Result<Vec<u8>> {
         self.delete_index(StorableIndex {
             storable_type,
             identifier,
@@ -162,15 +163,14 @@ impl Storage {
         Ok(ret)
     }
 
-    fn delete_index<I: Storable>(&mut self, storable_index: I) -> Result<()> {
+    fn delete_index<I: Storable>(&mut self, storable_index: I) -> Result<Vec<u8>> {
         let key = serialize!(&storable_index)?;
-        let _ = self.0.remove(&key).ok_or_else(|| {
+        self.0.remove(&key).ok_or_else(|| {
             bail_context!(
                 "Could not find {:?} when getting from storage",
                 storable_index
             )
-        })?;
-        Ok(())
+        })
     }
 
     fn contains_index_batch<I: Storable>(&self, storable_indices: &[I]) -> Result<()> {

@@ -54,7 +54,26 @@ pub(crate) trait ProtocolParticipant {
         message_type: MessageType,
         sid: Identifier,
     ) -> Result<Vec<Message>> {
-        let mut message_storage =
+        let mut message_storage = self.get_message_queue(sid)?;
+        let messages = message_storage.retrieve_all(message_type, sid)?;
+        self.write_message_queue(sid, message_storage)?;
+        Ok(messages)
+    }
+
+    fn fetch_messages_by_sender(
+        &mut self,
+        message_type: MessageType,
+        sid: Identifier,
+        sender: ParticipantIdentifier,
+    ) -> Result<Vec<Message>> {
+        let mut message_storage = self.get_message_queue(sid)?;
+        let messages = message_storage.retrieve(message_type, sid, sender)?;
+        self.write_message_queue(sid, message_storage)?;
+        Ok(messages)
+    }
+
+    fn get_message_queue(&mut self, sid: Identifier) -> Result<MessageQueue> {
+        let message_storage =
             match self
                 .storage()
                 .retrieve(StorableType::MessageQueue, sid, self.id())
@@ -62,15 +81,17 @@ pub(crate) trait ProtocolParticipant {
                 Err(_) => MessageQueue::new(),
                 Ok(message_storage_bytes) => deserialize!(&message_storage_bytes)?,
             };
-        let messages = message_storage.retrieve_all(message_type, sid)?;
+        Ok(message_storage)
+    }
+
+    fn write_message_queue(&mut self, sid: Identifier, message_queue: MessageQueue) -> Result<()> {
         let my_id = self.id();
         self.storage_mut().store(
             StorableType::MessageQueue,
             sid,
             my_id,
-            &serialize!(&message_storage)?,
-        )?;
-        Ok(messages)
+            &serialize!(&message_queue)?,
+        )
     }
 
     fn write_progress(&mut self, func_name: String, sid: Identifier) -> Result<()> {
@@ -111,6 +132,7 @@ pub(crate) trait ProtocolParticipant {
         Ok(result)
     }
 }
+
 pub(crate) trait Broadcast {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant;
 
