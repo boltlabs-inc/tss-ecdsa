@@ -9,7 +9,7 @@ use crate::auxinfo::info::AuxInfoPublic;
 use crate::errors::Result;
 use crate::messages::PresignMessageType;
 use crate::messages::{Message, MessageType};
-use crate::presign::round_one::Public as RoundOnePublic;
+use crate::presign::round_one::PublicBroadcast as RoundOnePublicBroadcast;
 use crate::presign::round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic};
 use crate::utils::k256_order;
 use crate::zkp::pilog::{PiLogInput, PiLogProof};
@@ -42,13 +42,13 @@ impl Public {
         &self,
         receiver_keygen_public: &AuxInfoPublic,
         sender_keygen_public: &AuxInfoPublic,
-        sender_r1_public: &RoundOnePublic,
+        sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
         let psi_double_prime_input = PiLogInput::new(
             &receiver_keygen_public.params,
             &k256_order(),
             sender_keygen_public.pk.n(),
-            &sender_r1_public.K.0,
+            &sender_r1_public_broadcast.K.0,
             &self.Delta,
             &self.Gamma,
         );
@@ -61,7 +61,7 @@ impl Public {
         message: &Message,
         receiver_auxinfo_public: &AuxInfoPublic,
         sender_auxinfo_public: &AuxInfoPublic,
-        sender_r1_public: &super::round_one::Public,
+        sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<Self> {
         if message.message_type() != MessageType::Presign(PresignMessageType::RoundThree) {
             return bail!("Wrong message type, expected MessageType::RoundThree");
@@ -72,7 +72,7 @@ impl Public {
         match round_three_public.verify(
             receiver_auxinfo_public,
             sender_auxinfo_public,
-            sender_r1_public,
+            sender_r1_public_broadcast,
         ) {
             Ok(()) => Ok(round_three_public),
             Err(e) => bail!("Failed to verify round three public: {}", e),

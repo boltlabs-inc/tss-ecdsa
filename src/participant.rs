@@ -72,6 +72,31 @@ pub(crate) trait ProtocolParticipant {
         Ok(messages)
     }
 
+    fn fetch_messages_by_sender(
+        &mut self,
+        message_type: MessageType,
+        sid: Identifier,
+        sender: ParticipantIdentifier,
+    ) -> Result<Vec<Message>> {
+        let mut message_storage =
+            match self
+                .storage()
+                .retrieve(StorableType::MessageQueue, sid, self.id())
+            {
+                Err(_) => MessageQueue::new(),
+                Ok(message_storage_bytes) => deserialize!(&message_storage_bytes)?,
+            };
+        let messages = message_storage.retrieve(message_type, sid, sender)?;
+        let my_id = self.id();
+        self.storage_mut().store(
+            StorableType::MessageQueue,
+            sid,
+            my_id,
+            &serialize!(&message_storage)?,
+        )?;
+        Ok(messages)
+    }
+
     fn write_progress(&mut self, func_name: String, sid: Identifier) -> Result<()> {
         let mut progress_storage =
             match self

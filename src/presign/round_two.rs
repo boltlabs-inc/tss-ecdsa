@@ -11,7 +11,9 @@ use crate::keygen::keyshare::KeySharePublic;
 use crate::messages::PresignMessageType;
 use crate::messages::{Message, MessageType};
 use crate::paillier::PaillierCiphertext;
-use crate::presign::round_one::{Private as RoundOnePrivate, Public as RoundOnePublic};
+use crate::presign::round_one::{
+    Private as RoundOnePrivate, PublicBroadcast as RoundOnePublicBroadcast,
+};
 use crate::utils::k256_order;
 use crate::zkp::piaffg::{PiAffgInput, PiAffgProof};
 use crate::zkp::pilog::{PiLogInput, PiLogProof};
@@ -45,7 +47,7 @@ impl Public {
         sender_auxinfo_public: &AuxInfoPublic,
         sender_keyshare_public: &KeySharePublic,
         receiver_r1_private: &RoundOnePrivate,
-        sender_r1_public: &RoundOnePublic,
+        sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
         let g = CurvePoint::GENERATOR;
 
@@ -80,7 +82,7 @@ impl Public {
             &receiver_auxinfo_public.params,
             &k256_order(),
             sender_auxinfo_public.pk.n(),
-            &sender_r1_public.G.0,
+            &sender_r1_public_broadcast.G.0,
             &self.Gamma,
             &g,
         );
@@ -94,8 +96,8 @@ impl Public {
         receiver_auxinfo_public: &AuxInfoPublic,
         sender_auxinfo_public: &AuxInfoPublic,
         sender_keyshare_public: &KeySharePublic,
-        receiver_r1_private: &super::round_one::Private,
-        sender_r1_public: &super::round_one::Public,
+        receiver_r1_private: &RoundOnePrivate,
+        sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<Self> {
         if message.message_type() != MessageType::Presign(PresignMessageType::RoundTwo) {
             return bail!("Wrong message type, expected MessageType::RoundTwo");
@@ -107,7 +109,7 @@ impl Public {
             sender_auxinfo_public,
             sender_keyshare_public,
             receiver_r1_private,
-            sender_r1_public,
+            sender_r1_public_broadcast,
         ) {
             Ok(()) => Ok(round_two_public),
             Err(e) => bail!("Failed to verify round two public: {}", e),

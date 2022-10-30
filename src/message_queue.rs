@@ -8,15 +8,14 @@
 use crate::errors::Result;
 use crate::messages::{Message, MessageType};
 use crate::protocol::Identifier;
+use crate::ParticipantIdentifier;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-/// A message that can be posted to (and read from) the broadcast channel
 #[derive(Debug, Serialize, Deserialize)]
 struct MessageIndex {
     message_type: MessageType,
-    /// The unique identifier associated with this stored value
     identifier: Identifier,
 }
 
@@ -28,6 +27,7 @@ impl MessageQueue {
         Self(HashMap::new())
     }
 
+    /// Store a message in the MessageQueue.
     pub(crate) fn store(
         &mut self,
         message_type: MessageType,
@@ -48,6 +48,7 @@ impl MessageQueue {
         Ok(())
     }
 
+    /// Retrieve (and remove) all messages of a given type from the MessageQueue.
     pub(crate) fn retrieve_all(
         &mut self,
         message_type: MessageType,
@@ -64,5 +65,35 @@ impl MessageQueue {
             None => vec![],
         };
         Ok(queue)
+    }
+
+    /// Retrieve (and remove) all messages of a given type from a given sender from the MessageQueue.
+    pub(crate) fn retrieve(
+        &mut self,
+        message_type: MessageType,
+        identifier: Identifier,
+        sender: ParticipantIdentifier,
+    ) -> Result<Vec<Message>> {
+        let message_index = MessageIndex {
+            message_type,
+            identifier,
+        };
+        let key = serialize!(&message_index)?;
+        let queue = match self.0.get_mut(&key) {
+            Some(a) => a,
+            None => return Ok(vec![]),
+        };
+        let mut out_messages = Vec::new();
+        let mut indexes_to_remove = Vec::new();
+        for (i, message) in queue.iter_mut().enumerate() {
+            if message.from() == sender {
+                indexes_to_remove.push(i);
+                out_messages.push(message.clone());
+            }
+        }
+        for i in indexes_to_remove.iter().rev() {
+            queue.remove(*i);
+        }
+        Ok(out_messages)
     }
 }
