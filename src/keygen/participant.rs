@@ -5,31 +5,33 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::broadcast::participant::{BroadcastOutput, BroadcastParticipant};
-use crate::errors::Result;
-use crate::keygen::keygen_commit::{KeygenCommit, KeygenDecommit};
-use crate::keygen::keyshare::KeySharePrivate;
-use crate::keygen::keyshare::KeySharePublic;
-use crate::messages::KeygenMessageType;
-use crate::messages::{Message, MessageType};
-use crate::participant::{Broadcast, ProtocolParticipant};
-use crate::protocol::ParticipantIdentifier;
-use crate::run_only_once;
-use crate::storage::StorableType;
-use crate::storage::Storage;
-use crate::utils::{k256_order, process_ready_message};
-use crate::zkp::pisch::{PiSchInput, PiSchPrecommit, PiSchProof, PiSchSecret};
-use crate::CurvePoint;
+use crate::{
+    broadcast::participant::{BroadcastOutput, BroadcastParticipant},
+    errors::Result,
+    keygen::{
+        keygen_commit::{KeygenCommit, KeygenDecommit},
+        keyshare::{KeySharePrivate, KeySharePublic},
+    },
+    messages::{KeygenMessageType, Message, MessageType},
+    participant::{Broadcast, ProtocolParticipant},
+    protocol::ParticipantIdentifier,
+    run_only_once,
+    storage::{StorableType, Storage},
+    utils::{k256_order, process_ready_message},
+    zkp::pisch::{PiSchInput, PiSchPrecommit, PiSchProof, PiSchSecret},
+    CurvePoint,
+};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct KeygenParticipant {
     /// A unique identifier for this participant
     id: ParticipantIdentifier,
-    /// A list of all other participant identifiers participating in the protocol
+    /// A list of all other participant identifiers participating in the
+    /// protocol
     other_participant_ids: Vec<ParticipantIdentifier>,
     /// Local storage for this participant to store secrets
     storage: Storage,
@@ -70,9 +72,10 @@ impl KeygenParticipant {
         }
     }
 
-    /// Processes the incoming message given the storage from the protocol participant
-    /// (containing auxinfo and keygen artifacts). Optionally produces a [KeysharePrivate]
-    /// and [KeysharePublic] once keygen is complete.
+    /// Processes the incoming message given the storage from the protocol
+    /// participant (containing auxinfo and keygen artifacts). Optionally
+    /// produces a [KeysharePrivate] and [KeysharePublic] once keygen is
+    /// complete.
     #[cfg_attr(feature = "flame_it", flame("keygen"))]
     pub(crate) fn process_message<R: RngCore + CryptoRng>(
         &mut self,
@@ -276,7 +279,8 @@ impl KeygenParticipant {
         message: &Message,
         main_storage: &mut Storage,
     ) -> Result<Vec<Message>> {
-        // We must receive all commitments in round 1 before we start processing decommits in round 2.
+        // We must receive all commitments in round 1 before we start processing
+        // decommits in round 2.
         let r1_done = self
             .storage
             .contains_for_all_ids(
@@ -361,7 +365,8 @@ impl KeygenParticipant {
             self.id
         )?)?;
         let mut global_rid = my_decom.rid;
-        // xor all the rids together. In principle, many different options for combining these should be okay
+        // xor all the rids together. In principle, many different options for combining
+        // these should be okay
         for rid in rids.iter() {
             for i in 0..32 {
                 global_rid[i] ^= rid[i];
@@ -527,8 +532,10 @@ fn new_keyshare() -> Result<(KeySharePrivate, KeySharePublic)> {
 mod tests {
     use super::*;
     use crate::Identifier;
-    use rand::rngs::{OsRng, StdRng};
-    use rand::{CryptoRng, Rng, RngCore, SeedableRng};
+    use rand::{
+        rngs::{OsRng, StdRng},
+        CryptoRng, Rng, RngCore, SeedableRng,
+    };
     use std::collections::HashMap;
 
     impl KeygenParticipant {
@@ -633,7 +640,8 @@ mod tests {
 
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
-    // This test is cheap. Try a bunch of message permutations to decrease error likelihood
+    // This test is cheap. Try a bunch of message permutations to decrease error
+    // likelihood
     fn test_run_keygen_protocol_many_times() -> Result<()> {
         for _ in 0..20 {
             test_run_keygen_protocol()?;
@@ -652,7 +660,7 @@ mod tests {
         let mut inboxes = HashMap::new();
         let mut main_storages: Vec<Storage> = vec![];
         for participant in &quorum {
-            inboxes.insert(participant.id, vec![]);
+            let _ = inboxes.insert(participant.id, vec![]);
             main_storages.append(&mut vec![Storage::new()]);
         }
 
@@ -666,7 +674,8 @@ mod tests {
             process_messages(&mut quorum, &mut inboxes, &mut rng, &mut main_storages)?;
         }
 
-        // check that all players have a PublicKeyshare stored for every player and that these values all match
+        // check that all players have a PublicKeyshare stored for every player and that
+        // these values all match
         for player in quorum.iter() {
             let player_id = player.id;
             let mut stored_values = vec![];
@@ -684,7 +693,8 @@ mod tests {
             }
         }
 
-        // check that each player's own PublicKeyshare corresponds to their PrivateKeyshare
+        // check that each player's own PublicKeyshare corresponds to their
+        // PrivateKeyshare
         for index in 0..quorum.len() {
             let player = quorum.get(index).unwrap();
             let player_id = player.id;

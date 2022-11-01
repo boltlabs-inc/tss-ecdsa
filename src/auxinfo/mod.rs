@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Creates an [AuxInfoPublic] and [AuxInfoPrivate]
+//! Creates an [info::AuxInfoPublic] and [info::AuxInfoPrivate]
 
 pub(crate) mod auxinfo_commit;
 pub(crate) mod info;

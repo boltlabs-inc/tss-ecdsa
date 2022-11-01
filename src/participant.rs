@@ -5,14 +5,15 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::broadcast::participant::{BroadcastOutput, BroadcastParticipant};
-use crate::errors::Result;
-use crate::message_queue::MessageQueue;
-use crate::messages::{Message, MessageType};
-use crate::protocol::ParticipantIdentifier;
-use crate::storage::StorableType;
-use crate::storage::Storage;
-use crate::Identifier;
+use crate::{
+    broadcast::participant::{BroadcastOutput, BroadcastParticipant},
+    errors::Result,
+    message_queue::MessageQueue,
+    messages::{Message, MessageType},
+    protocol::ParticipantIdentifier,
+    storage::{StorableType, Storage},
+    Identifier,
+};
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -107,7 +108,7 @@ pub(crate) trait ProtocolParticipant {
                 Ok(progress_storage_bytes) => deserialize!(&progress_storage_bytes)?,
             };
         let key = serialize!(&ProgressIndex { func_name, sid })?;
-        progress_storage.insert(key, true);
+        let _ = progress_storage.insert(key, true);
         let my_id = self.id();
         self.storage_mut().store(
             StorableType::ProgressStore,
@@ -175,8 +176,8 @@ pub(crate) trait Broadcast {
 }
 
 #[macro_export]
-/// A macro to keep track of which functions have already been run in a given session
-/// Must be a self.function() so that we can access storage
+/// A macro to keep track of which functions have already been run in a given
+/// session Must be a self.function() so that we can access storage
 macro_rules! run_only_once {
     ($self:ident . $func_name:ident $args:tt, $sid:expr) => {{
         if $self.read_progress(stringify!($func_name).to_string(), $sid)? {
@@ -190,7 +191,8 @@ macro_rules! run_only_once {
 }
 
 #[macro_export]
-/// A macro to keep track of which function||tag combos have already been run in a given session
+/// A macro to keep track of which function||tag combos have already been run in
+/// a given session
 macro_rules! run_only_once_per_tag {
     ($self:ident . $func_name:ident $args:tt, $sid:expr, $tag:expr) => {{
         if $self.read_progress(stringify!($func_name).to_string() + $tag, $sid)? {

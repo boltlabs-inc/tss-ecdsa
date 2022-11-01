@@ -28,6 +28,28 @@ jobs:
         with:
           command: test
 
+  doc:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    name: doc
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+      - name: Run cargo doc
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --all-features --no-deps
+
   clippy:
     name: cargo clippy
     runs-on: ubuntu-latest

@@ -5,21 +5,20 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::utils::bn_to_scalar;
-use crate::CurvePoint;
+use crate::{utils::bn_to_scalar, CurvePoint};
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 
 use super::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic};
-use k256::elliptic_curve::AffineXCoordinate;
-use k256::elliptic_curve::PrimeField;
+use k256::elliptic_curve::{AffineXCoordinate, PrimeField};
 
 pub(crate) struct RecordPair {
     pub(crate) private: RoundThreePrivate,
     pub(crate) publics: Vec<RoundThreePublic>,
 }
 
+/// The precomputation used to create a partial signature
 #[derive(Serialize, Deserialize)]
 pub(crate) struct PresignRecord {
     R: CurvePoint,

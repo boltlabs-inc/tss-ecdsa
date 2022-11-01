@@ -5,13 +5,14 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::errors::Result;
-use crate::messages::{Message, MessageType};
-use crate::protocol::Identifier;
-use crate::ParticipantIdentifier;
+use crate::{
+    errors::Result,
+    messages::{Message, MessageType},
+    protocol::Identifier,
+    ParticipantIdentifier,
+};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MessageIndex {
@@ -44,11 +45,12 @@ impl MessageQueue {
             None => vec![],
         };
         queue.push(message);
-        self.0.insert(key, queue);
+        let _ = self.0.insert(key, queue);
         Ok(())
     }
 
-    /// Retrieve (and remove) all messages of a given type from the MessageQueue.
+    /// Retrieve (and remove) all messages of a given type from the
+    /// MessageQueue.
     pub(crate) fn retrieve_all(
         &mut self,
         message_type: MessageType,
@@ -59,7 +61,8 @@ impl MessageQueue {
             identifier,
         };
         let key = serialize!(&message_index)?;
-        // delete retrieved messages from storage so that they aren't accidentally processed again
+        // delete retrieved messages from storage so that they aren't accidentally
+        // processed again
         let queue = match self.0.remove(&key) {
             Some(a) => a,
             None => vec![],
@@ -67,7 +70,8 @@ impl MessageQueue {
         Ok(queue)
     }
 
-    /// Retrieve (and remove) all messages of a given type from a given sender from the MessageQueue.
+    /// Retrieve (and remove) all messages of a given type from a given sender
+    /// from the MessageQueue.
     pub(crate) fn retrieve(
         &mut self,
         message_type: MessageType,
@@ -88,11 +92,11 @@ impl MessageQueue {
         for (i, message) in queue.iter_mut().enumerate() {
             if message.from() == sender {
                 indexes_to_remove.push(i);
-                out_messages.push(message.clone());
             }
         }
         for i in indexes_to_remove.iter().rev() {
-            queue.remove(*i);
+            let message = queue.remove(*i);
+            out_messages.push(message);
         }
         Ok(out_messages)
     }

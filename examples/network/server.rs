@@ -7,14 +7,10 @@
 
 use crate::common::{Args, ErrorWrapper, ParticipantInitConfig, Result};
 use rand::rngs::OsRng;
-use rocket::data::ToByteUnit;
-use rocket::serde::json::Json;
-use rocket::State;
+use rocket::{data::ToByteUnit, serde::json::Json, State};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::Notify;
-use tokio::sync::RwLock;
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::{Notify, RwLock};
 use tss_ecdsa::{CurvePoint, Identifier, Message, Participant};
 
 pub(crate) struct ParticipantState {
@@ -260,7 +256,7 @@ async fn presign(state: &State<ParticipantState>, parameters: Json<PresignParame
         auxinfo_identifier,
         keygen_identifier,
         presign_identifier,
-    );
+    )?;
 
     *state_participant = Some(participant.clone());
     drop(state_participant); // Release the lock
@@ -287,9 +283,9 @@ async fn presign(state: &State<ParticipantState>, parameters: Json<PresignParame
     Ok(())
 }
 
-/// Seems like k256::Scalar serialization/deserialization is broken, so we cannot
-/// return a Json<Signature> here. Instead, we are going for the uglier fix of
-/// returning two Vec<u8>s, one for r and one for s.
+/// Seems like k256::Scalar serialization/deserialization is broken, so we
+/// cannot return a Json<Signature> here. Instead, we are going for the uglier
+/// fix of returning two Vec<u8>s, one for r and one for s.
 #[post("/sign_from_presign", data = "<parameters>")]
 async fn sign_from_presign(
     state: &State<ParticipantState>,

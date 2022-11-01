@@ -8,14 +8,14 @@
 //! Implements the ZKP from Figure 25 of <https://eprint.iacr.org/2021/060.pdf>
 
 use super::Proof;
-use crate::utils::{
-    self, modpow, plusminus_bn_random_from_transcript, random_bn_in_range, random_bn_in_z_star,
-    random_bn_plusminus,
-};
-use crate::zkp::setup::ZkSetupParameters;
 use crate::{
     errors::*,
     parameters::{ELL, EPSILON},
+    utils::{
+        self, modpow, plusminus_bn_random_from_transcript, random_bn_in_range, random_bn_in_z_star,
+        random_bn_plusminus,
+    },
+    zkp::setup::ZkSetupParameters,
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -237,8 +237,7 @@ impl Proof for PiLogProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::paillier::*;
-    use crate::utils::random_bn_in_range_min;
+    use crate::{paillier::*, utils::random_bn_in_range_min};
     use libpaillier::*;
     use rand::rngs::OsRng;
 
@@ -276,7 +275,8 @@ mod tests {
         // Sampling x in the range 2^ELL should always succeed
         random_paillier_log_proof(&x_small)?;
 
-        // Sampling x in the range (2^{ELL + EPSILON}, 2^{ELL + EPSILON + 1}] should fail
+        // Sampling x in the range (2^{ELL + EPSILON}, 2^{ELL + EPSILON + 1}] should
+        // fail
         assert!(random_paillier_log_proof(&x_large).is_err());
 
         Ok(())

@@ -5,25 +5,26 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::broadcast::data::BroadcastData;
-use crate::errors::Result;
-use crate::messages::BroadcastMessageType;
-use crate::messages::{Message, MessageType};
-use crate::participant::ProtocolParticipant;
-use crate::protocol::ParticipantIdentifier;
-use crate::run_only_once_per_tag;
-use crate::storage::StorableType;
-use crate::storage::Storage;
-use crate::Identifier;
+use crate::{
+    broadcast::data::BroadcastData,
+    errors::Result,
+    messages::{BroadcastMessageType, Message, MessageType},
+    participant::ProtocolParticipant,
+    protocol::ParticipantIdentifier,
+    run_only_once_per_tag,
+    storage::{StorableType, Storage},
+    Identifier,
+};
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct BroadcastParticipant {
     /// A unique identifier for this participant
     id: ParticipantIdentifier,
-    /// A list of all other participant identifiers participating in the protocol
+    /// A list of all other participant identifiers participating in the
+    /// protocol
     other_participant_ids: Vec<ParticipantIdentifier>,
     /// Local storage for this participant to store secrets
     storage: Storage,
@@ -128,7 +129,8 @@ impl BroadcastParticipant {
         // for a given tag and sid, only run once
         let data = BroadcastData::from_message(message)?;
         let tag = data.tag.clone();
-        // it's possible that all Redisperse messages are received before the original Disperse, causing an output
+        // it's possible that all Redisperse messages are received before the original
+        // Disperse, causing an output
         let output_option = self.process_vote(data, message.id(), message.from())?;
         let messages = run_only_once_per_tag!(
             self.gen_round_two_msgs(rng, message, message.from()),
@@ -161,7 +163,7 @@ impl BroadcastParticipant {
         if message_votes.contains_key(&idx) {
             return Ok(None);
         }
-        message_votes.insert(idx, data.data.clone());
+        let _ = message_votes.insert(idx, data.data.clone());
 
         self.storage.store(
             StorableType::BroadcastSet,
@@ -189,7 +191,7 @@ impl BroadcastParticipant {
         for vote in redispersed_messages.iter() {
             let mut count = tally.remove(vote).unwrap_or(0);
             count += 1;
-            tally.insert(vote.clone(), count);
+            let _ = tally.insert(vote.clone(), count);
         }
 
         // output if every node voted for the same message

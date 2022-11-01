@@ -8,8 +8,7 @@
 //! Implements the ZKP from Figure 16 of <https://eprint.iacr.org/2021/060.pdf>
 
 use super::Proof;
-use crate::errors::*;
-use crate::utils::*;
+use crate::{errors::*, utils::*};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
@@ -290,7 +289,8 @@ fn jacobi(numerator: &BigNumber, denominator: &BigNumber) -> isize {
     0
 }
 
-/// Finds the two x's such that x^2 = n (mod p), where p is a prime that is 3 (mod 4)
+/// Finds the two x's such that x^2 = n (mod p), where p is a prime that is 3
+/// (mod 4)
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
 fn square_roots_mod_prime(n: &BigNumber, p: &BigNumber) -> Result<(BigNumber, BigNumber)> {
     // Compute r = +- n^{p+1/4} (mod p)
@@ -332,7 +332,8 @@ fn chinese_remainder_theorem(
     Ok(bn_mod(&x, &(p * q)))
 }
 
-/// Finds the four x's such that x^2 = n (mod pq), where p,q are primes that are 3 (mod 4)
+/// Finds the four x's such that x^2 = n (mod pq), where p,q are primes that are
+/// 3 (mod 4)
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
 fn square_roots_mod_composite(
     n: &BigNumber,
@@ -390,8 +391,8 @@ fn y_prime_from_y(y: &BigNumber, w: &BigNumber, a: usize, b: usize, N: &BigNumbe
     y_prime
 }
 
-/// Finds unique a,b in {0,1} such that, for y' = (-1)^a * w^b * y, there is an x such that
-/// x^4 = y (mod pq)
+/// Finds unique a,b in {0,1} such that, for y' = (-1)^a * w^b * y, there is an
+/// x such that x^4 = y (mod pq)
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
 fn y_prime_combinations(
     w: &BigNumber,

@@ -8,10 +8,8 @@
 use crate::{
     errors::Result,
     keygen::keyshare::KeySharePublic,
-    messages::KeygenMessageType,
-    messages::{Message, MessageType},
-    protocol::Identifier,
-    protocol::ParticipantIdentifier,
+    messages::{KeygenMessageType, Message, MessageType},
+    protocol::{Identifier, ParticipantIdentifier},
     utils::CurvePoint,
     zkp::pisch::PiSchPrecommit,
 };

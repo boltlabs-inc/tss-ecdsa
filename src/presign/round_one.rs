@@ -5,13 +5,13 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::auxinfo::info::AuxInfoPublic;
-use crate::errors::Result;
-use crate::messages::PresignMessageType;
-use crate::messages::{Message, MessageType};
-use crate::paillier::PaillierCiphertext;
-use crate::zkp::Proof;
-use crate::zkp::{pienc::PiEncProof, setup::ZkSetupParameters};
+use crate::{
+    auxinfo::info::AuxInfoPublic,
+    errors::Result,
+    messages::{Message, MessageType, PresignMessageType},
+    paillier::PaillierCiphertext,
+    zkp::{pienc::PiEncProof, setup::ZkSetupParameters, Proof},
+};
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
 

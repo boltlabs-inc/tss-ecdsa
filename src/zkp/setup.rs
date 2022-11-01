@@ -47,7 +47,8 @@ impl ZkSetupParameters {
         let t = tau.modpow(&BigNumber::from(2), N);
         let s = t.modpow(&lambda, N);
 
-        //let pimod = PiModProof::prove(rng, &PiModInput::new(N), &PiModSecret::new(p, q))?;
+        //let pimod = PiModProof::prove(rng, &PiModInput::new(N), &PiModSecret::new(p,
+        // q))?;
         let piprm = PiPrmProof::prove(
             rng,
             &PiPrmInput::new(N, &s, &t),

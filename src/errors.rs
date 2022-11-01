@@ -19,7 +19,8 @@ pub enum InternalError {
     NoSquareRoots,
     /// Elements are not coprime
     NotCoprime,
-    /// Could not find uniqueness for fourth roots combination in Paillier-Blum modulus proof
+    /**Could not find uniqueness for fourth roots combination in Paillier-Blum
+    modulus proof*/
     NonUniqueFourthRootsCombination,
     /// Could not invert a BigNumber
     CouldNotInvertBigNumber,
@@ -57,9 +58,6 @@ macro_rules! bail {
     ($msg:literal $(,)?) => {
         Err(bail_context!($msg))
     };
-    ($err:expr $(,)?) => {
-        Err(bail_context!($err))
-    };
     ($fmt:expr, $($arg:tt)*) => {
         Err(bail_context!($fmt, $($arg)*))
     };
@@ -68,9 +66,6 @@ macro_rules! bail {
 macro_rules! bail_context {
     ($msg:literal $(,)?) => {
         crate::errors::InternalError::BailError(String::from($msg))
-    };
-    ($err:expr $(,)?) => {
-        crate::errors::InternalError::BailError(String::from($err))
     };
     ($fmt:expr, $($arg:tt)*) => {
         crate::errors::InternalError::BailError(format!($fmt, $($arg)*))

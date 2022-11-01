@@ -7,21 +7,17 @@
 
 //! Contains the main protocol that is executed through a [Participant]
 
-use crate::auxinfo::participant::AuxInfoParticipant;
-use crate::errors::Result;
-use crate::keygen::keyshare::KeySharePublic;
-use crate::keygen::participant::KeygenParticipant;
-use crate::messages::AuxinfoMessageType;
-use crate::messages::KeygenMessageType;
-use crate::messages::MessageType;
-use crate::presign::participant::PresignParticipant;
-use crate::presign::record::PresignRecord;
-use crate::storage::StorableType;
-use crate::storage::Storage;
-use crate::utils::CurvePoint;
-use crate::Message;
-use k256::elliptic_curve::Field;
-use k256::elliptic_curve::IsHigh;
+use crate::{
+    auxinfo::participant::AuxInfoParticipant,
+    errors::Result,
+    keygen::{keyshare::KeySharePublic, participant::KeygenParticipant},
+    messages::{AuxinfoMessageType, KeygenMessageType, MessageType},
+    presign::{participant::PresignParticipant, record::PresignRecord},
+    storage::{StorableType, Storage},
+    utils::CurvePoint,
+    Message,
+};
+use k256::elliptic_curve::{Field, IsHigh};
 use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -31,14 +27,16 @@ use std::fmt::Debug;
 /////////////////////
 
 /// Each participant has an inbox which can contain messages.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Participant {
     /// A unique identifier for this participant
     pub id: ParticipantIdentifier,
-    /// A list of all other participant identifiers participating in the protocol
+    /// A list of all other participant identifiers participating in the
+    /// protocol
     pub other_participant_ids: Vec<ParticipantIdentifier>,
-    /// Local storage for this participant to store finalized auxinfo, keygen, and presign
-    /// values. This storage is not responsible for storing round-specific material.
+    /// Local storage for this participant to store finalized auxinfo, keygen,
+    /// and presign values. This storage is not responsible for storing
+    /// round-specific material.
     main_storage: Storage,
     /// Participant subprotocol for handling auxinfo messages
     auxinfo_participant: AuxInfoParticipant,
@@ -61,8 +59,8 @@ impl Participant {
         })
     }
 
-    /// Instantiate a new quorum of participants of a specified size. Random identifiers
-    /// are selected
+    /// Instantiate a new quorum of participants of a specified size. Random
+    /// identifiers are selected
     pub fn new_quorum<R: RngCore + CryptoRng>(
         quorum_size: usize,
         rng: &mut R,
@@ -91,9 +89,9 @@ impl Participant {
         Ok(participants)
     }
 
-    /// Pulls the first message from the participant's inbox, and then potentially
-    /// outputs a bunch of messages that need to be delivered to other participants'
-    /// inboxes.
+    /// Pulls the first message from the participant's inbox, and then
+    /// potentially outputs a bunch of messages that need to be delivered to
+    /// other participants' inboxes.
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn process_single_message<R: RngCore + CryptoRng>(
         &mut self,
@@ -137,8 +135,8 @@ impl Participant {
         }
     }
 
-    /// Produces a message to signal to this participant that auxinfo generation is
-    /// ready for the specified identifier
+    /// Produces a message to signal to this participant that auxinfo generation
+    /// is ready for the specified identifier
     pub fn initialize_auxinfo_message(&self, auxinfo_identifier: Identifier) -> Message {
         Message::new(
             MessageType::Auxinfo(AuxinfoMessageType::Ready),
@@ -149,8 +147,8 @@ impl Participant {
         )
     }
 
-    /// Produces a message to signal to this participant that keyshare generation is
-    /// ready for the specified identifier
+    /// Produces a message to signal to this participant that keyshare
+    /// generation is ready for the specified identifier
     pub fn initialize_keygen_message(&self, keygen_identifier: Identifier) -> Message {
         Message::new(
             MessageType::Keygen(KeygenMessageType::Ready),
@@ -161,15 +159,15 @@ impl Participant {
         )
     }
 
-    /// Produces a message to signal to this participant that presignature generation is
-    /// ready for the specified identifier. This also requires supplying the associated
-    /// auxinfo identifier and keyshare identifier.
+    /// Produces a message to signal to this participant that presignature
+    /// generation is ready for the specified identifier. This also requires
+    /// supplying the associated auxinfo identifier and keyshare identifier.
     pub fn initialize_presign_message(
         &mut self,
         auxinfo_identifier: Identifier,
         keyshare_identifier: Identifier,
         identifier: Identifier,
-    ) -> Message {
+    ) -> Result<Message> {
         self.presign_participant.initialize_presign_message(
             auxinfo_identifier,
             keyshare_identifier,
@@ -177,7 +175,8 @@ impl Participant {
         )
     }
 
-    /// Returns whether or not auxinfo generation has completed for this identifier
+    /// Returns whether or not auxinfo generation has completed for this
+    /// identifier
     pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<()> {
         let mut fetch = vec![];
         for participant in self.other_participant_ids.clone() {
@@ -189,7 +188,8 @@ impl Participant {
         self.main_storage.contains_batch(&fetch)
     }
 
-    /// Returns whether or not keyshare generation has completed for this identifier
+    /// Returns whether or not keyshare generation has completed for this
+    /// identifier
     pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> Result<()> {
         let mut fetch = vec![];
         for participant in self.other_participant_ids.clone() {
@@ -201,7 +201,8 @@ impl Participant {
         self.main_storage.contains_batch(&fetch)
     }
 
-    /// Returns whether or not presignature generation has completed for this identifier
+    /// Returns whether or not presignature generation has completed for this
+    /// identifier
     pub fn is_presigning_done(&self, presign_identifier: Identifier) -> Result<()> {
         self.main_storage.contains_batch(&[(
             StorableType::PresignRecord,
@@ -210,7 +211,8 @@ impl Participant {
         )])
     }
 
-    /// Retrieves this participant's associated public keyshare for this identifier
+    /// Retrieves this participant's associated public keyshare for this
+    /// identifier
     pub fn get_public_keyshare(&self, identifier: Identifier) -> Result<CurvePoint> {
         let keyshare_public: KeySharePublic = deserialize!(&self.main_storage.retrieve(
             StorableType::PublicKeyshare,
@@ -227,17 +229,13 @@ impl Participant {
         presign_identifier: Identifier,
         digest: sha2::Sha256,
     ) -> Result<SignatureShare> {
-        let presign_record: PresignRecord = deserialize!(&self.main_storage.retrieve(
+        let presign_record: PresignRecord = deserialize!(&self.main_storage.delete(
             StorableType::PresignRecord,
             presign_identifier,
             self.id
         )?)?;
         let (r, s) = presign_record.sign(digest);
         let ret = SignatureShare { r: Some(r), s };
-
-        // Clear the presign record after being used once
-        self.main_storage
-            .delete(StorableType::PresignRecord, presign_identifier, self.id)?;
 
         Ok(ret)
     }
@@ -357,9 +355,11 @@ impl std::fmt::Display for Identifier {
 mod tests {
     use super::*;
     use k256::ecdsa::signature::DigestVerifier;
-    use rand::rngs::OsRng;
-    use rand::SeedableRng;
-    use rand::{prelude::IteratorRandom, rngs::StdRng};
+    use rand::{
+        prelude::IteratorRandom,
+        rngs::{OsRng, StdRng},
+        SeedableRng,
+    };
     use sha2::{Digest, Sha256};
     use std::collections::HashMap;
 
@@ -440,7 +440,7 @@ mod tests {
         let mut quorum = Participant::new_quorum(3, &mut rng)?;
         let mut inboxes = HashMap::new();
         for participant in &quorum {
-            inboxes.insert(participant.id, vec![]);
+            let _ = inboxes.insert(participant.id, vec![]);
         }
 
         let auxinfo_identifier = Identifier::random(&mut rng);
@@ -469,7 +469,7 @@ mod tests {
                 auxinfo_identifier,
                 keyshare_identifier,
                 presign_identifier,
-            );
+            )?;
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(message);
         }

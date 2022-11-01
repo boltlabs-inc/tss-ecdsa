@@ -7,9 +7,11 @@
 
 use libpaillier::unknown_order::BigNumber;
 
-use std::fs::OpenOptions;
-use std::io::prelude::*;
-use std::time::{Duration, Instant};
+use std::{
+    fs::OpenOptions,
+    io::prelude::*,
+    time::{Duration, Instant},
+};
 
 /// Used to pre-generate 512-bit safe primes, so that they can
 /// be stored in a text file to make testing this library faster
