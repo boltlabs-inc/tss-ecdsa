@@ -48,7 +48,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --all-features --no-deps
+          args: --no-deps
 
   clippy:
     name: cargo clippy
