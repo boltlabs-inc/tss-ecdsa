@@ -1,0 +1,28 @@
+# -- CI Tasks --
+[tasks.ci]
+dependencies = ["ci-format", "ci-clippy", "ci-build", "ci-test", "ci-doc-test", "ci-docs"]
+
+[tasks.ci-format]
+command = "cargo"
+args = ["fmt", "--all", "--check"]
+
+[tasks.ci-clippy]
+command = "cargo"
+args = ["clippy", "--all-targets", "--workspace", "--", "-Dwarnings"]
+
+[tasks.ci-build]
+command = "cargo"
+args = ["build", "--all-targets", "--workspace"]
+
+[tasks.ci-test]
+command = "cargo"
+args = ["test", "--lib", "--bins", "--workspace"]
+
+[tasks.ci-doc-test]
+command = "cargo"
+args = ["test", "--doc", "--workspace"]
+
+[tasks.ci-docs]
+env = { "RUSTDOCFLAGS" = "-Dwarnings" }
+command = "cargo"
+args = ["doc", "--no-deps", "--workspace"]
