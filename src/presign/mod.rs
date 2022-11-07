@@ -5,7 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Runs the presignature generation protocol, producing a [record::PresignRecord]
+//! Runs the presignature generation protocol, producing a
+//! [record::PresignRecord]
 
 pub(crate) mod participant;
 pub(crate) mod record;

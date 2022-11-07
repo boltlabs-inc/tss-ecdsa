@@ -407,7 +407,7 @@ mod tests {
     }
 
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut Vec<Participant>,
+        quorum: &mut [Participant],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
     ) -> Result<()> {
