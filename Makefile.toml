@@ -8,21 +8,21 @@ args = ["fmt", "--all", "--check"]
 
 [tasks.ci-clippy]
 command = "cargo"
-args = ["clippy", "--all-features", "--all-targets", "--workspace", "--", "-Dwarnings"]
+args = ["clippy", "--all-targets", "--workspace", "--", "-Dwarnings"]
 
 [tasks.ci-build]
 command = "cargo"
-args = ["build", "--all-features", "--all-targets", "--workspace"]
+args = ["build", "--all-targets", "--workspace"]
 
 [tasks.ci-test]
 command = "cargo"
-args = ["test", "--all-features", "--lib", "--bins", "--workspace"]
+args = ["test", "--lib", "--bins", "--workspace"]
 
 [tasks.ci-doc-test]
 command = "cargo"
-args = ["test", "--all-features", "--doc", "--workspace"]
+args = ["test", "--doc", "--workspace"]
 
 [tasks.ci-docs]
 env = { "RUSTDOCFLAGS" = "-Dwarnings" }
 command = "cargo"
-args = ["doc", "--all-features", "--no-deps", "--workspace"]
+args = ["doc", "--no-deps", "--workspace"]
