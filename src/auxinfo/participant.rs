@@ -628,7 +628,7 @@ mod tests {
         quorum: &mut Vec<AuxInfoParticipant>,
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
-        main_storages: &mut Vec<Storage>,
+        main_storages: &mut [Storage],
     ) -> Result<()> {
         // Pick a random participant to process
         let index = rng.gen_range(0..quorum.len());
@@ -705,7 +705,7 @@ mod tests {
                 stored_values.push(pk_bytes);
             }
             let base = stored_values.pop();
-            while stored_values.len() > 0 {
+            while !stored_values.is_empty() {
                 assert!(base == stored_values.pop());
             }
         }
