@@ -178,7 +178,6 @@ pub(crate) trait Broadcast {
 macro_rules! run_only_once {
     ($self:ident . $func_name:ident $args:tt, $sid:expr) => {{
         if $self.read_progress(stringify!($func_name).to_string(), $sid)? {
-            println!("Attempted to rerun a run_only_once function");
             Ok(vec![])
         } else {
             $self.write_progress(stringify!($func_name).to_string(), $sid)?;
@@ -193,7 +192,6 @@ macro_rules! run_only_once {
 macro_rules! run_only_once_per_tag {
     ($self:ident . $func_name:ident $args:tt, $sid:expr, $tag:expr) => {{
         if $self.read_progress(stringify!($func_name).to_string() + $tag, $sid)? {
-            println!("Attempted to rerun a run_only_once_per_tag function");
             Ok(vec![])
         } else {
             $self.write_progress(stringify!($func_name).to_string(), $sid)?;

@@ -10,7 +10,8 @@ use core::fmt::Debug;
 use displaydoc::Display;
 use thiserror::Error;
 
-pub(crate) type Result<T> = std::result::Result<T, InternalError>;
+/// The default Result type used in this crate
+pub type Result<T> = std::result::Result<T, InternalError>;
 
 /// Represents an error in the manipulation of internal cryptographic data
 #[derive(Clone, Display, Eq, Hash, PartialEq, Error, Debug)]
