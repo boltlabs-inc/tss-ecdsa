@@ -25,6 +25,9 @@ use crate::{
 
 const MAX_ITER: usize = 50_000usize;
 
+#[cfg(not(debug_assertions))]
+use crate::parameters::PRIME_BITS;
+
 /// Wrapper around k256::ProjectivePoint so that we can define our own
 /// serialization/deserialization for it
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
@@ -223,10 +226,10 @@ mod tests {
 // Generate safe primes from a file. Usually, generating safe primes takes
 // awhile (0-5 minutes per 512-bit safe prime on my laptop, average 50 seconds)
 lazy_static::lazy_static! {
-    static ref POOL_OF_PRIMES: Vec<BigNumber> = get_safe_primes();
+    static ref POOL_OF_PRIMES: Vec<BigNumber> = get_safe_primes_from_file();
 }
 
-pub(crate) fn get_safe_primes() -> Vec<BigNumber> {
+fn get_safe_primes_from_file() -> Vec<BigNumber> {
     let safe_primes: Vec<BigNumber> = crate::safe_primes_512::SAFE_PRIMES
         .iter()
         .map(|s| BigNumber::from_slice(&hex::decode(s).unwrap()))
@@ -237,10 +240,17 @@ pub(crate) fn get_safe_primes() -> Vec<BigNumber> {
 /// We sample safe primes that are 512 bits long. This comes from the security
 /// parameter setting of κ = 128, and safe primes being of length 4κ (Figure 6,
 /// Round 1 of the CGGMP'21 paper)
-#[cfg(test)]
-pub(crate) fn get_random_safe_prime_512() -> BigNumber {
-    // FIXME: should just return BigNumber::safe_prime(PRIME_BITS);
-    POOL_OF_PRIMES[rand::thread_rng().gen_range(0..POOL_OF_PRIMES.len())].clone()
+pub(crate) fn get_random_safe_prime_512<R: RngCore + CryptoRng>(rng: &mut R) -> BigNumber {
+    // If we're building in release mode, generate fresh safe primes.
+    // Otherwise, use pre-generated ones so that tests run faster.
+    #[cfg(not(debug_assertions))]
+    {
+        BigNumber::safe_prime_from_rng(PRIME_BITS, rng)
+    }
+    #[cfg(debug_assertions)]
+    {
+        POOL_OF_PRIMES[rng.gen_range(0..POOL_OF_PRIMES.len())].clone()
+    }
 }
 
 ////////////////////////////////

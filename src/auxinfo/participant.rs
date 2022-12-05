@@ -15,7 +15,6 @@ use crate::{
     errors::Result,
     messages::{AuxinfoMessageType, Message, MessageType},
     paillier::{PaillierDecryptionKey, PaillierEncryptionKey},
-    parameters::PRIME_BITS,
     participant::{Broadcast, ProtocolParticipant},
     protocol::ParticipantIdentifier,
     run_only_once,
@@ -24,7 +23,7 @@ use crate::{
     zkp::setup::ZkSetupParameters,
 };
 use libpaillier::{DecryptionKey, EncryptionKey};
-use rand::{prelude::IteratorRandom, CryptoRng, RngCore};
+use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
 use super::info::{AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses};
@@ -138,7 +137,7 @@ impl AuxInfoParticipant {
         rng: &mut R,
         message: &Message,
     ) -> Result<Vec<Message>> {
-        let (auxinfo_private, auxinfo_public, auxinfo_witnesses) = new_auxinfo(rng, PRIME_BITS)?;
+        let (auxinfo_private, auxinfo_public, auxinfo_witnesses) = new_auxinfo(rng)?;
         self.storage.store(
             StorableType::AuxInfoPrivate,
             message.id(),
@@ -511,20 +510,9 @@ impl AuxInfoParticipant {
 #[cfg_attr(feature = "flame_it", flame("auxinfo"))]
 fn new_auxinfo<R: RngCore + CryptoRng>(
     rng: &mut R,
-    _prime_bits: usize,
 ) -> Result<(AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses)> {
-    // Pull in pre-generated safe primes from text file (not a safe operation!).
-    // This is meant to save on the time needed to generate these primes, but
-    // should not be done in a production environment!
-    let safe_primes = crate::utils::get_safe_primes();
-    let two_safe_primes = safe_primes.iter().choose_multiple(rng, 2);
-
-    // FIXME: do proper safe prime generation
-    //let p = BigNumber::safe_prime(prime_bits);
-    //let q = BigNumber::safe_prime(prime_bits);
-
-    let p = two_safe_primes[0].clone();
-    let q = two_safe_primes[1].clone();
+    let p = crate::utils::get_random_safe_prime_512(rng);
+    let q = crate::utils::get_random_safe_prime_512(rng);
 
     let sk = PaillierDecryptionKey(
         DecryptionKey::with_primes_unchecked(&p, &q)
