@@ -5,6 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use crate::broadcast::participant::BroadcastTag;
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant},
     errors::Result,
@@ -182,7 +183,7 @@ impl KeygenParticipant {
             &MessageType::Keygen(KeygenMessageType::R1CommitHash),
             com_bytes.clone(),
             message.id(),
-            "KeyGenR1CommitHash",
+            BroadcastTag::KeyGenR1CommitHash,
         )?;
         Ok(messages)
     }
@@ -194,7 +195,7 @@ impl KeygenParticipant {
         broadcast_message: &BroadcastOutput,
         main_storage: &mut Storage,
     ) -> Result<Vec<Message>> {
-        if broadcast_message.tag != "KeyGenR1CommitHash" {
+        if broadcast_message.tag != BroadcastTag::KeyGenR1CommitHash {
             return bail!("Incorrect tag for Keygen R1!");
         }
         let message = &broadcast_message.msg;

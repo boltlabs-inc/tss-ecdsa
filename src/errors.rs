@@ -33,6 +33,8 @@ pub enum InternalError {
     FailedToVerifyProof(String),
     /// `{0}`
     BailError(String),
+    /// Represents some code assumption that was checked at runtime but failed to be true.
+    InternalInvariantFailed,
 }
 
 macro_rules! serialize {

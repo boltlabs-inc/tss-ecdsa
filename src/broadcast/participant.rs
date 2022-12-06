@@ -30,16 +30,23 @@ pub(crate) struct BroadcastParticipant {
     storage: Storage,
 }
 
+#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Clone, Debug)]
+pub(crate) enum BroadcastTag {
+    AuxinfoR1CommitHash,
+    KeyGenR1CommitHash,
+    PresignR1Ciphertexts,
+}
+
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
-struct BroadcastIndex {
-    tag: String,
+pub(crate) struct BroadcastIndex {
+    tag: BroadcastTag,
     leader: ParticipantIdentifier,
     other_id: ParticipantIdentifier,
 }
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct BroadcastOutput {
-    pub(crate) tag: String,
+    pub(crate) tag: BroadcastTag,
     pub(crate) msg: Message,
 }
 
@@ -95,11 +102,11 @@ impl BroadcastParticipant {
         message_type: &MessageType,
         data: Vec<u8>,
         sid: Identifier,
-        tag: &str,
+        tag: BroadcastTag,
     ) -> Result<Vec<Message>> {
         let b_data = BroadcastData {
             leader: self.id,
-            tag: tag.to_owned(),
+            tag,
             message_type: *message_type,
             data,
         };

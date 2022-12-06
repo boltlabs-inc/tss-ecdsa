@@ -5,6 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use super::participant::BroadcastTag;
 use crate::{
     errors::Result,
     messages::{BroadcastMessageType, Message, MessageType},
@@ -15,7 +16,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 pub(crate) struct BroadcastData {
     pub(crate) leader: ParticipantIdentifier,
-    pub(crate) tag: String,
+    pub(crate) tag: BroadcastTag,
     pub(crate) message_type: MessageType,
     pub(crate) data: Vec<u8>,
 }

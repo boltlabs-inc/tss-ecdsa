@@ -5,6 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use crate::broadcast::participant::BroadcastTag;
 use crate::{
     auxinfo::{
         auxinfo_commit::{AuxInfoCommit, AuxInfoDecommit},
@@ -179,7 +180,7 @@ impl AuxInfoParticipant {
             &MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash),
             com_bytes.clone(),
             message.id(),
-            "AuxinfoR1CommitHash",
+            BroadcastTag::AuxinfoR1CommitHash,
         )?;
         Ok(messages)
     }
@@ -191,7 +192,7 @@ impl AuxInfoParticipant {
         broadcast_message: &BroadcastOutput,
         main_storage: &mut Storage,
     ) -> Result<Vec<Message>> {
-        if broadcast_message.tag != "AuxinfoR1CommitHash" {
+        if broadcast_message.tag != BroadcastTag::AuxinfoR1CommitHash {
             return bail!("Incorrect tag for Auxinfo R1!");
         }
         let message = &broadcast_message.msg;

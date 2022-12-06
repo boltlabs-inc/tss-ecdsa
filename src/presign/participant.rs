@@ -5,6 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use crate::broadcast::participant::BroadcastTag;
+use crate::errors::InternalError::InternalInvariantFailed;
 use crate::{
     auxinfo::info::{AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant},
@@ -238,7 +240,7 @@ impl PresignParticipant {
             &MessageType::Presign(PresignMessageType::RoundOneBroadcast),
             serialize!(&r1_public_broadcast)?,
             message.id(),
-            "PresignR1Ciphertexts",
+            BroadcastTag::PresignR1Ciphertexts,
         )?;
         out_messages.append(&mut broadcast_messages);
 
@@ -252,9 +254,15 @@ impl PresignParticipant {
         for msg in retrieved_messages {
             let (pr, mut r2_msg) = self.handle_round_one_msg(rng, &msg, main_storage)?;
             out_messages.append(&mut r2_msg);
-            // pr will be Some at most once
-            if pr.is_some() {
-                presign_record = pr;
+
+            // Check that pr is only ever assigned to at most once.
+            match (pr, &presign_record) {
+                // Found some _pr_ and presign_record has never been assigned to. Assign to it.
+                (Some(pr), None) => presign_record = Some(pr),
+                // We have already assigned to presign_record once! This should not happen again!
+                // TODO: Add logging message here once we have logging set up.
+                (Some(_), Some(_)) => return Err(InternalInvariantFailed),
+                (None, _) => { /* Nothing to do */ }
             }
         }
 
@@ -267,7 +275,7 @@ impl PresignParticipant {
         broadcast_message: &BroadcastOutput,
         main_storage: &Storage,
     ) -> Result<(Option<PresignRecord>, Vec<Message>)> {
-        if broadcast_message.tag != "PresignR1Ciphertexts" {
+        if broadcast_message.tag != BroadcastTag::PresignR1Ciphertexts {
             return bail!("Incorrect tag for Presign R1 Broadcast!");
         }
         let message = &broadcast_message.msg;
@@ -565,11 +573,16 @@ impl PresignParticipant {
             MessageType::Presign(PresignMessageType::RoundThree),
             message.id(),
         )?;
-        for msg in retrieved_messages.iter() {
-            let (pr, _) = self.handle_round_three_msg(rng, msg, main_storage)?;
-            // pr will be Some at most once
-            if pr.is_some() {
-                presign_record = pr;
+        for msg in retrieved_messages {
+            let (pr, _) = self.handle_round_three_msg(rng, &msg, main_storage)?;
+            // Check that pr is only ever assigned to at most once.
+            match (pr, &presign_record) {
+                // Found some _pr_ and presign_record has never been assigned to. Assign to it.
+                (Some(pr), None) => presign_record = Some(pr),
+                // We have already assigned to presign_record once! This should not happen again!
+                // TODO: Add logging message here once we have logging set up.
+                (Some(_), Some(_)) => return Err(InternalInvariantFailed),
+                (None, _) => { /* Nothing to do */ }
             }
         }
 

@@ -5,6 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use crate::broadcast::participant::BroadcastTag;
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant},
     errors::Result,
@@ -142,7 +143,7 @@ pub(crate) trait Broadcast {
         message_type: &MessageType,
         data: Vec<u8>,
         sid: Identifier,
-        tag: &str,
+        tag: BroadcastTag,
     ) -> Result<Vec<Message>> {
         let mut messages =
             self.broadcast_participant()
@@ -191,7 +192,8 @@ macro_rules! run_only_once {
 /// a given session
 macro_rules! run_only_once_per_tag {
     ($self:ident . $func_name:ident $args:tt, $sid:expr, $tag:expr) => {{
-        if $self.read_progress(stringify!($func_name).to_string() + $tag, $sid)? {
+        let tag_str = format!("{:?}", $tag);
+        if $self.read_progress(stringify!($func_name).to_string() + &tag_str, $sid)? {
             Ok(vec![])
         } else {
             $self.write_progress(stringify!($func_name).to_string(), $sid)?;
