@@ -3,6 +3,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use rand::{prelude::IteratorRandom, rngs::OsRng, CryptoRng, Rng, RngCore};
 use std::collections::HashMap;
 use tss_ecdsa::{errors::Result, Identifier, Message, Participant, ParticipantIdentifier};
+
 /// Delivers all messages into their respective participant's inboxes
 fn deliver_all(
     messages: &[Message],
@@ -139,66 +140,28 @@ fn init_new_player_set(
     (quorum, inboxes)
 }
 
-fn criterion_benchmark(c: &mut Criterion) {
+fn run_benchmarks_for_given_size(c: &mut Criterion, num_players: usize) {
     let mut rng = OsRng;
-    let (mut players_3, mut inboxes_3) = init_new_player_set(3);
-    let (mut players_10, mut inboxes_10) = init_new_player_set(10);
-    let (mut players_20, mut inboxes_20) = init_new_player_set(20);
+    let (mut players, mut inboxes) = init_new_player_set(num_players);
 
     let keygen_identifier = Identifier::random(&mut rng);
     // Use cloned values for the quorum and inboxes to keep runs independent
-    c.bench_function("Keygen with 3 nodes", |b| {
+    c.bench_function(&format!("Keygen with {} nodes", num_players), |b| {
         b.iter(|| {
             run_keygen(
-                &mut players_3.clone(),
-                &mut inboxes_3.clone(),
-                keygen_identifier,
-            )
-        })
-    });
-    c.bench_function("Keygen with 10 nodes", |b| {
-        b.iter(|| {
-            run_keygen(
-                &mut players_10.clone(),
-                &mut inboxes_10.clone(),
-                keygen_identifier,
-            )
-        })
-    });
-    c.bench_function("Keygen with 20 nodes", |b| {
-        b.iter(|| {
-            run_keygen(
-                &mut players_20.clone(),
-                &mut inboxes_20.clone(),
+                &mut players.clone(),
+                &mut inboxes.clone(),
                 keygen_identifier,
             )
         })
     });
 
     let auxinfo_identifier = Identifier::random(&mut rng);
-    c.bench_function("Auxinfo with 3 nodes", |b| {
+    c.bench_function(&format!("Auxinfo with {} nodes", num_players), |b| {
         b.iter(|| {
             run_auxinfo(
-                &mut players_3.clone(),
-                &mut inboxes_3.clone(),
-                auxinfo_identifier,
-            )
-        })
-    });
-    c.bench_function("Auxinfo with 10 nodes", |b| {
-        b.iter(|| {
-            run_auxinfo(
-                &mut players_10.clone(),
-                &mut inboxes_10.clone(),
-                auxinfo_identifier,
-            )
-        })
-    });
-    c.bench_function("Auxinfo with 20 nodes", |b| {
-        b.iter(|| {
-            run_auxinfo(
-                &mut players_20.clone(),
-                &mut inboxes_20.clone(),
+                &mut players.clone(),
+                &mut inboxes.clone(),
                 auxinfo_identifier,
             )
         })
@@ -206,47 +169,27 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     // Presign needs Keygen and Auxinfo to be completed before it can run,
     // so we run those first
-    run_keygen(&mut players_3, &mut inboxes_3, keygen_identifier).unwrap();
-    run_keygen(&mut players_10, &mut inboxes_10, keygen_identifier).unwrap();
-    run_keygen(&mut players_20, &mut inboxes_20, keygen_identifier).unwrap();
-    run_auxinfo(&mut players_3, &mut inboxes_3, auxinfo_identifier).unwrap();
-    run_auxinfo(&mut players_10, &mut inboxes_10, auxinfo_identifier).unwrap();
-    run_auxinfo(&mut players_20, &mut inboxes_20, auxinfo_identifier).unwrap();
+    run_keygen(&mut players, &mut inboxes, keygen_identifier).unwrap();
+    run_auxinfo(&mut players, &mut inboxes, auxinfo_identifier).unwrap();
 
     let presign_identifier = Identifier::random(&mut rng);
-    c.bench_function("Presign with 3 nodes", |b| {
+    c.bench_function(&format!("Presign with {} nodes", num_players), |b| {
         b.iter(|| {
             run_presign(
-                &mut players_3.clone(),
-                &mut inboxes_3.clone(),
+                &mut players.clone(),
+                &mut inboxes.clone(),
                 auxinfo_identifier,
                 keygen_identifier,
                 presign_identifier,
             )
         })
     });
-    c.bench_function("Presign with 10 nodes", |b| {
-        b.iter(|| {
-            run_presign(
-                &mut players_10.clone(),
-                &mut inboxes_10.clone(),
-                auxinfo_identifier,
-                keygen_identifier,
-                presign_identifier,
-            )
-        })
-    });
-    c.bench_function("Presign with 20 nodes", |b| {
-        b.iter(|| {
-            run_presign(
-                &mut players_20.clone(),
-                &mut inboxes_20.clone(),
-                auxinfo_identifier,
-                keygen_identifier,
-                presign_identifier,
-            )
-        })
-    });
+}
+
+fn criterion_benchmark(c: &mut Criterion) {
+    run_benchmarks_for_given_size(c, 3);
+    run_benchmarks_for_given_size(c, 10);
+    run_benchmarks_for_given_size(c, 20);
 }
 
 criterion_group!(benches, criterion_benchmark);
