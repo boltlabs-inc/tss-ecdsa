@@ -343,9 +343,9 @@ mod tests {
     fn random_paillier_affg_proof(x: &BigNumber, y: &BigNumber) -> Result<()> {
         let mut rng = OsRng;
 
-        let p0 = crate::utils::get_random_safe_prime_512(&mut rng);
+        let p0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
         let q0 = loop {
-            let q0 = crate::utils::get_random_safe_prime_512(&mut rng);
+            let q0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
             if p0 != q0 {
                 break q0;
             }
@@ -353,9 +353,9 @@ mod tests {
 
         let N0 = &p0 * &q0;
 
-        let p1 = crate::utils::get_random_safe_prime_512(&mut rng);
+        let p1 = crate::utils::get_prime_from_pool_insecure(&mut rng);
         let q1 = loop {
-            let q1 = crate::utils::get_random_safe_prime_512(&mut rng);
+            let q1 = crate::utils::get_prime_from_pool_insecure(&mut rng);
             if p1 != q1 {
                 break q1;
             }

@@ -25,7 +25,6 @@ use crate::{
 
 const MAX_ITER: usize = 50_000usize;
 
-#[cfg(not(debug_assertions))]
 use crate::parameters::PRIME_BITS;
 
 /// Wrapper around k256::ProjectivePoint so that we can define our own
@@ -241,16 +240,13 @@ fn get_safe_primes_from_file() -> Vec<BigNumber> {
 /// parameter setting of κ = 128, and safe primes being of length 4κ (Figure 6,
 /// Round 1 of the CGGMP'21 paper)
 pub(crate) fn get_random_safe_prime_512<R: RngCore + CryptoRng>(rng: &mut R) -> BigNumber {
-    // If we're building in release mode, generate fresh safe primes.
-    // Otherwise, use pre-generated ones so that tests run faster.
-    #[cfg(not(debug_assertions))]
-    {
-        BigNumber::safe_prime_from_rng(PRIME_BITS, rng)
-    }
-    #[cfg(debug_assertions)]
-    {
-        POOL_OF_PRIMES[rng.gen_range(0..POOL_OF_PRIMES.len())].clone()
-    }
+    BigNumber::safe_prime_from_rng(PRIME_BITS, rng)
+}
+
+/// Function to read from a precompiled list of safe primes. For testing purposes only
+#[cfg(test)]
+pub(crate) fn get_prime_from_pool_insecure<R: RngCore + CryptoRng>(rng: &mut R) -> BigNumber {
+    POOL_OF_PRIMES[rng.gen_range(0..POOL_OF_PRIMES.len())].clone()
 }
 
 ////////////////////////////////

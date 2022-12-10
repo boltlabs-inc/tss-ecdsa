@@ -22,15 +22,14 @@ pub(crate) struct ZkSetupParameters {
     pub(crate) N: BigNumber,
     pub(crate) s: BigNumber,
     pub(crate) t: BigNumber,
-    //pimod: PiModProof,
     piprm: PiPrmProof,
 }
 
 impl ZkSetupParameters {
     #[cfg(test)]
     pub(crate) fn gen<R: RngCore + CryptoRng>(rng: &mut R) -> Result<Self> {
-        let p = crate::utils::get_random_safe_prime_512(rng);
-        let q = crate::utils::get_random_safe_prime_512(rng);
+        let p = crate::utils::get_prime_from_pool_insecure(rng);
+        let q = crate::utils::get_prime_from_pool_insecure(rng);
         let N = &p * &q;
         Self::gen_from_primes(rng, &N, &p, &q)
     }

@@ -435,14 +435,14 @@ fn y_prime_combinations(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::get_random_safe_prime_512;
+    use crate::utils::get_prime_from_pool_insecure;
     use rand::{rngs::OsRng, RngCore};
 
     #[test]
     fn test_jacobi() {
         let mut rng = OsRng;
-        let p = get_random_safe_prime_512(&mut rng);
-        let q = get_random_safe_prime_512(&mut rng);
+        let p = get_prime_from_pool_insecure(&mut rng);
+        let q = get_prime_from_pool_insecure(&mut rng);
         let N = &p * &q;
 
         for _ in 0..100 {
@@ -472,7 +472,7 @@ mod tests {
     #[test]
     fn test_square_roots_mod_prime() {
         let mut rng = OsRng;
-        let p = get_random_safe_prime_512(&mut rng);
+        let p = get_prime_from_pool_insecure(&mut rng);
 
         for _ in 0..100 {
             let a = BigNumber::from_rng(&p, &mut rng);
@@ -498,8 +498,8 @@ mod tests {
     #[test]
     fn test_square_roots_mod_composite() {
         let mut rng = OsRng;
-        let p = get_random_safe_prime_512(&mut rng);
-        let q = get_random_safe_prime_512(&mut rng);
+        let p = get_prime_from_pool_insecure(&mut rng);
+        let q = get_prime_from_pool_insecure(&mut rng);
         let N = &p * &q;
 
         // Loop until we've confirmed enough successes
@@ -530,8 +530,8 @@ mod tests {
     #[test]
     fn test_fourth_roots_mod_composite() {
         let mut rng = OsRng;
-        let p = get_random_safe_prime_512(&mut rng);
-        let q = get_random_safe_prime_512(&mut rng);
+        let p = get_prime_from_pool_insecure(&mut rng);
+        let q = get_prime_from_pool_insecure(&mut rng);
         let N = &p * &q;
 
         // Loop until we've confirmed enough successes
@@ -562,8 +562,8 @@ mod tests {
     #[test]
     fn test_chinese_remainder_theorem() {
         let mut rng = OsRng;
-        let p = get_random_safe_prime_512(&mut rng);
-        let q = get_random_safe_prime_512(&mut rng);
+        let p = get_prime_from_pool_insecure(&mut rng);
+        let q = get_prime_from_pool_insecure(&mut rng);
 
         for _ in 0..100 {
             let a1 = BigNumber::from_rng(&p, &mut rng);

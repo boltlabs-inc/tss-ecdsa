@@ -432,9 +432,9 @@ mod tests {
     fn random_no_small_factors_proof() -> Result<(PiFacInput, PiFacProof)> {
         let mut rng = OsRng;
 
-        let p0 = crate::utils::get_random_safe_prime_512(&mut rng);
+        let p0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
         let q0 = loop {
-            let q0 = crate::utils::get_random_safe_prime_512(&mut rng);
+            let q0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
             if p0 != q0 {
                 break q0;
             }
@@ -463,7 +463,7 @@ mod tests {
 
         let incorrect_N = PiFacInput::new(
             &input.setup_params,
-            &crate::utils::get_random_safe_prime_512(&mut rng),
+            &crate::utils::get_prime_from_pool_insecure(&mut rng),
         );
         assert!(proof.verify(&incorrect_N).is_err());
 
@@ -471,9 +471,9 @@ mod tests {
             PiFacInput::new(&ZkSetupParameters::gen(&mut rng)?, &input.N0);
         assert!(proof.verify(&incorrect_startup_params).is_err());
 
-        let not_p0 = crate::utils::get_random_safe_prime_512(&mut rng);
+        let not_p0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
         let not_q0 = loop {
-            let not_q0 = crate::utils::get_random_safe_prime_512(&mut rng);
+            let not_q0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
             if not_p0 != not_q0 {
                 break not_q0;
             }
@@ -490,7 +490,7 @@ mod tests {
             PiFacProof::prove(&mut rng, &input, &PiFacSecret::new(&small_p, &small_q))?;
         assert!(small_proof.verify(&small_input).is_err());
 
-        let regular_sized_q = crate::utils::get_random_safe_prime_512(&mut rng);
+        let regular_sized_q = crate::utils::get_prime_from_pool_insecure(&mut rng);
         let mixed_input = PiFacInput::new(&setup_params, &(&small_p * &regular_sized_q));
         let mixed_proof = PiFacProof::prove(
             &mut rng,
@@ -516,9 +516,9 @@ mod tests {
     // didn't change in a way that would mess up the sqrt funtion
     fn test_bignum_bigint_byte_representation() -> Result<()> {
         let mut rng = OsRng;
-        let p0 = crate::utils::get_random_safe_prime_512(&mut rng);
+        let p0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
         let q0 = loop {
-            let q0 = crate::utils::get_random_safe_prime_512(&mut rng);
+            let q0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
             if p0 != q0 {
                 break q0;
             }
