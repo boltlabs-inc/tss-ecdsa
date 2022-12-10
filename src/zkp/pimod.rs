@@ -441,8 +441,7 @@ mod tests {
     #[test]
     fn test_jacobi() {
         let mut rng = OsRng;
-        let p = get_prime_from_pool_insecure(&mut rng);
-        let q = get_prime_from_pool_insecure(&mut rng);
+        let (p, q) = crate::utils::get_prime_pair_from_pool_insecure(&mut rng);
         let N = &p * &q;
 
         for _ in 0..100 {
@@ -498,8 +497,7 @@ mod tests {
     #[test]
     fn test_square_roots_mod_composite() {
         let mut rng = OsRng;
-        let p = get_prime_from_pool_insecure(&mut rng);
-        let q = get_prime_from_pool_insecure(&mut rng);
+        let (p, q) = crate::utils::get_prime_pair_from_pool_insecure(&mut rng);
         let N = &p * &q;
 
         // Loop until we've confirmed enough successes
@@ -530,8 +528,7 @@ mod tests {
     #[test]
     fn test_fourth_roots_mod_composite() {
         let mut rng = OsRng;
-        let p = get_prime_from_pool_insecure(&mut rng);
-        let q = get_prime_from_pool_insecure(&mut rng);
+        let (p, q) = crate::utils::get_prime_pair_from_pool_insecure(&mut rng);
         let N = &p * &q;
 
         // Loop until we've confirmed enough successes
@@ -562,8 +559,7 @@ mod tests {
     #[test]
     fn test_chinese_remainder_theorem() {
         let mut rng = OsRng;
-        let p = get_prime_from_pool_insecure(&mut rng);
-        let q = get_prime_from_pool_insecure(&mut rng);
+        let (p, q) = crate::utils::get_prime_pair_from_pool_insecure(&mut rng);
 
         for _ in 0..100 {
             let a1 = BigNumber::from_rng(&p, &mut rng);

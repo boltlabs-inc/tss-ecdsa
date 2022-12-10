@@ -218,6 +218,16 @@ mod tests {
         let scalar = bn_to_scalar(&neg1).unwrap();
         assert_eq!(k256::Scalar::ZERO, scalar.add(&k256::Scalar::ONE));
     }
+
+    #[test]
+    fn test_get_random_safe_prime_512() -> Result<()> {
+        let mut rng = OsRng;
+        let p = get_random_safe_prime_512(&mut rng);
+        assert!(p.is_prime());
+        let q: BigNumber = (p - 1) / 2;
+        assert!(q.is_prime());
+        Ok(())
+    }
 }
 
 // Prime generation functions
@@ -247,6 +257,22 @@ pub(crate) fn get_random_safe_prime_512<R: RngCore + CryptoRng>(rng: &mut R) -> 
 #[cfg(test)]
 pub(crate) fn get_prime_from_pool_insecure<R: RngCore + CryptoRng>(rng: &mut R) -> BigNumber {
     POOL_OF_PRIMES[rng.gen_range(0..POOL_OF_PRIMES.len())].clone()
+}
+
+/// Function to read from a precompiled list of safe primes. For testing purposes only
+/// Returns two unique primes
+#[cfg(test)]
+pub(crate) fn get_prime_pair_from_pool_insecure<R: RngCore + CryptoRng>(
+    rng: &mut R,
+) -> (BigNumber, BigNumber) {
+    let p = POOL_OF_PRIMES[rng.gen_range(0..POOL_OF_PRIMES.len())].clone();
+    let q = loop {
+        let q = POOL_OF_PRIMES[rng.gen_range(0..POOL_OF_PRIMES.len())].clone();
+        if p != q {
+            break q;
+        }
+    };
+    (p, q)
 }
 
 ////////////////////////////////

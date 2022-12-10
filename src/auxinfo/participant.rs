@@ -511,8 +511,13 @@ impl AuxInfoParticipant {
 fn new_auxinfo<R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> Result<(AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses)> {
-    let p = crate::utils::get_random_safe_prime_512(rng);
-    let q = crate::utils::get_random_safe_prime_512(rng);
+    #[cfg(not(test))]
+    let (p, q) = (
+        crate::utils::get_random_safe_prime_512(rng),
+        crate::utils::get_random_safe_prime_512(rng),
+    );
+    #[cfg(test)]
+    let (p, q) = crate::utils::get_prime_pair_from_pool_insecure(rng);
 
     let sk = PaillierDecryptionKey(
         DecryptionKey::with_primes_unchecked(&p, &q)
@@ -659,7 +664,7 @@ mod tests {
         let mut osrng = OsRng;
         let seed = osrng.next_u64();
         // uncomment this line to test a specific seed
-        // let seed: u64 = 11129769151581080362;
+        // let seed: u64 = 14167330344348201948;
         let mut rng = StdRng::seed_from_u64(seed);
         println!("Initializing run with seed {}", seed);
         let mut quorum = AuxInfoParticipant::new_quorum(3, &mut rng)?;
