@@ -432,14 +432,7 @@ mod tests {
     fn random_no_small_factors_proof() -> Result<(PiFacInput, PiFacProof)> {
         let mut rng = OsRng;
 
-        let p0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
-        let q0 = loop {
-            let q0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
-            if p0 != q0 {
-                break q0;
-            }
-        };
-
+        let (p0, q0) = crate::utils::get_prime_pair_from_pool_insecure(&mut rng);
         let N0 = &p0 * &q0;
         let setup_params = ZkSetupParameters::gen(&mut rng)?;
 
@@ -471,13 +464,7 @@ mod tests {
             PiFacInput::new(&ZkSetupParameters::gen(&mut rng)?, &input.N0);
         assert!(proof.verify(&incorrect_startup_params).is_err());
 
-        let not_p0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
-        let not_q0 = loop {
-            let not_q0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
-            if not_p0 != not_q0 {
-                break not_q0;
-            }
-        };
+        let (not_p0, not_q0) = crate::utils::get_prime_pair_from_pool_insecure(&mut rng);
         let incorrect_factors =
             PiFacProof::prove(&mut rng, &input, &PiFacSecret::new(&not_p0, &not_q0))?;
         assert!(incorrect_factors.verify(&input).is_err());
@@ -516,13 +503,7 @@ mod tests {
     // didn't change in a way that would mess up the sqrt funtion
     fn test_bignum_bigint_byte_representation() -> Result<()> {
         let mut rng = OsRng;
-        let p0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
-        let q0 = loop {
-            let q0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
-            if p0 != q0 {
-                break q0;
-            }
-        };
+        let (p0, q0) = crate::utils::get_prime_pair_from_pool_insecure(&mut rng);
 
         let num = &p0 * &q0;
         let num_bigint: BigInt = BigInt::from_bytes_be(Sign::Plus, &num.to_bytes());

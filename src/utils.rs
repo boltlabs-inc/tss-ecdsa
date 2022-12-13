@@ -234,10 +234,12 @@ mod tests {
 
 // Generate safe primes from a file. Usually, generating safe primes takes
 // awhile (0-5 minutes per 512-bit safe prime on my laptop, average 50 seconds)
+#[cfg(test)]
 lazy_static::lazy_static! {
     static ref POOL_OF_PRIMES: Vec<BigNumber> = get_safe_primes_from_file();
 }
 
+#[cfg(test)]
 fn get_safe_primes_from_file() -> Vec<BigNumber> {
     let safe_primes: Vec<BigNumber> = crate::safe_primes_512::SAFE_PRIMES
         .iter()

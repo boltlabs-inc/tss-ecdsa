@@ -1,10 +1,12 @@
 // Copyright (c) Facebook, Inc. and its affiliates.
+// Modifications Copyright (c) 2022 Bolt Labs Holdings, Inc
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+#[cfg(test)]
 pub(crate) const SAFE_PRIMES: &[&str] = &[
    "85c8c2ced07b104334097906e117c1b733632a391f9319bb5a68e69dcd7f2f46868d9508585a4945092c989c35b4056b6fe139ce567b6c598ef5f39e75ea3dbb",
    "ee22d7946155f99b09cfe8d4e1c3af0235c87d252a415909c069fdf460630d1eaf4ac93401a7c8bf0b0aced93c6b9452c13ac9f2f0c363361afde667661123f7",

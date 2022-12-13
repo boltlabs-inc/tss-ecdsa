@@ -511,6 +511,8 @@ impl AuxInfoParticipant {
 fn new_auxinfo<R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> Result<(AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses)> {
+    // As generating safe primes is very computationally expensive (> one minute per prime in github CI),
+    // we read precomputed ones from a file (but only in tests!)
     #[cfg(not(test))]
     let (p, q) = (
         crate::utils::get_random_safe_prime_512(rng),

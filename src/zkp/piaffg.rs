@@ -342,24 +342,10 @@ mod tests {
 
     fn random_paillier_affg_proof(x: &BigNumber, y: &BigNumber) -> Result<()> {
         let mut rng = OsRng;
-
-        let p0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
-        let q0 = loop {
-            let q0 = crate::utils::get_prime_from_pool_insecure(&mut rng);
-            if p0 != q0 {
-                break q0;
-            }
-        };
-
+        let (p0, q0) = crate::utils::get_prime_pair_from_pool_insecure(&mut rng);
         let N0 = &p0 * &q0;
 
-        let p1 = crate::utils::get_prime_from_pool_insecure(&mut rng);
-        let q1 = loop {
-            let q1 = crate::utils::get_prime_from_pool_insecure(&mut rng);
-            if p1 != q1 {
-                break q1;
-            }
-        };
+        let (p1, q1) = crate::utils::get_prime_pair_from_pool_insecure(&mut rng);
         let N1 = &p1 * &q1;
 
         let sk0 = DecryptionKey::with_primes_unchecked(&p0, &q0).unwrap();
