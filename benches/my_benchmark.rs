@@ -10,7 +10,7 @@ fn deliver_all(
     inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
 ) -> Result<()> {
     for message in messages {
-        for (id, inbox) in inboxes.into_iter() {
+        for (id, inbox) in inboxes.iter_mut() {
             if *id == message.to() {
                 inbox.push(message.clone());
                 break;
