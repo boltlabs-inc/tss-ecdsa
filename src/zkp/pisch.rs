@@ -193,32 +193,34 @@ impl PiSchProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::rngs::OsRng;
 
-    fn random_schnorr_proof(additive: bool) -> Result<(PiSchInput, PiSchProof)> {
-        let mut rng = OsRng;
-
+    fn random_schnorr_proof<R: RngCore + CryptoRng>(
+        rng: &mut R,
+        additive: bool,
+    ) -> Result<(PiSchInput, PiSchProof)> {
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
 
-        let mut x = crate::utils::random_positive_bn(&mut rng, &q);
+        let mut x = crate::utils::random_positive_bn(rng, &q);
         let X = CurvePoint(g.0 * utils::bn_to_scalar(&x).unwrap());
         if additive {
-            x += crate::utils::random_positive_bn(&mut rng, &q);
+            x += crate::utils::random_positive_bn(rng, &q);
         }
 
         let input = PiSchInput::new(&g, &q, &X);
-        let proof = PiSchProof::prove(&mut rng, &input, &PiSchSecret::new(&x))?;
+        let proof = PiSchProof::prove(rng, &input, &PiSchSecret::new(&x))?;
 
         Ok((input, proof))
     }
 
     #[test]
     fn test_schnorr_proof() -> Result<()> {
-        let (input, proof) = random_schnorr_proof(false)?;
+        let mut rng = crate::utils::get_test_rng();
+
+        let (input, proof) = random_schnorr_proof(&mut rng, false)?;
         proof.verify(&input)?;
 
-        let (input, proof) = random_schnorr_proof(true)?;
+        let (input, proof) = random_schnorr_proof(&mut rng, true)?;
         assert!(proof.verify(&input).is_err());
 
         Ok(())
@@ -226,7 +228,7 @@ mod tests {
 
     #[test]
     fn test_precommit_proof() -> Result<()> {
-        let mut rng = OsRng;
+        let mut rng = crate::utils::get_test_rng();
 
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);

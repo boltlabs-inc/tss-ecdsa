@@ -429,32 +429,32 @@ mod tests {
     use crate::paillier::prime_gen;
 
     use super::*;
-    use rand::rngs::OsRng;
 
-    fn random_no_small_factors_proof() -> Result<(PiFacInput, PiFacProof)> {
-        let mut rng = OsRng;
-
-        let (p0, q0) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+    fn random_no_small_factors_proof<R: RngCore + CryptoRng>(
+        rng: &mut R,
+    ) -> Result<(PiFacInput, PiFacProof)> {
+        let (p0, q0) = prime_gen::get_prime_pair_from_pool_insecure(rng).unwrap();
         let N0 = &p0 * &q0;
-        let setup_params = ZkSetupParameters::gen(&mut rng)?;
+        let setup_params = ZkSetupParameters::gen(rng)?;
 
         let input = PiFacInput::new(&setup_params, &N0);
-        let proof = PiFacProof::prove(&mut rng, &input, &PiFacSecret::new(&p0, &q0))?;
+        let proof = PiFacProof::prove(rng, &input, &PiFacSecret::new(&p0, &q0))?;
 
         Ok((input, proof))
     }
 
     #[test]
     fn test_no_small_factors_proof() -> Result<()> {
-        let (input, proof) = random_no_small_factors_proof()?;
+        let mut rng = crate::utils::get_test_rng();
+        let (input, proof) = random_no_small_factors_proof(&mut rng)?;
         proof.verify(&input)?;
         Ok(())
     }
 
     #[test]
     fn test_no_small_factors_proof_negative_cases() -> Result<()> {
-        let mut rng = OsRng;
-        let (input, proof) = random_no_small_factors_proof()?;
+        let mut rng = crate::utils::get_test_rng();
+        let (input, proof) = random_no_small_factors_proof(&mut rng)?;
 
         let incorrect_N = PiFacInput::new(
             &input.setup_params,
@@ -504,7 +504,7 @@ mod tests {
     // Make sure the bytes representations for BigNum and BigInt
     // didn't change in a way that would mess up the sqrt funtion
     fn test_bignum_bigint_byte_representation() -> Result<()> {
-        let mut rng = OsRng;
+        let mut rng = crate::utils::get_test_rng();
         let (p0, q0) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
 
         let num = &p0 * &q0;

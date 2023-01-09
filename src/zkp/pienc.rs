@@ -211,17 +211,17 @@ impl Proof for PiEncProof {
 mod tests {
     use super::*;
     use crate::{paillier::PaillierDecryptionKey, utils::random_bn_in_range_min};
-    use rand::rngs::OsRng;
 
-    fn random_paillier_encryption_in_range_proof(k: &BigNumber) -> Result<()> {
-        let mut rng = OsRng;
-
-        let (decryption_key, p, q) = PaillierDecryptionKey::new(&mut rng)?;
+    fn random_paillier_encryption_in_range_proof<R: RngCore + CryptoRng>(
+        rng: &mut R,
+        k: &BigNumber,
+    ) -> Result<()> {
+        let (decryption_key, p, q) = PaillierDecryptionKey::new(rng)?;
         let pk = decryption_key.encryption_key();
         let N = &p * &q;
 
-        let (K, rho) = pk.encrypt(k)?;
-        let setup_params = ZkSetupParameters::gen(&mut rng)?;
+        let (K, rho) = pk.encrypt(rng, k)?;
+        let setup_params = ZkSetupParameters::gen(rng)?;
 
         let input = PiEncInput {
             setup_params,
@@ -229,7 +229,7 @@ mod tests {
             K: PaillierCiphertext(K),
         };
 
-        let proof = PiEncProof::prove(&mut rng, &input, &PiEncSecret { k: k.clone(), rho })?;
+        let proof = PiEncProof::prove(rng, &input, &PiEncSecret { k: k.clone(), rho })?;
 
         let proof_bytes = bincode::serialize(&proof).unwrap();
         let roundtrip_proof: PiEncProof = bincode::deserialize(&proof_bytes).unwrap();
@@ -241,16 +241,16 @@ mod tests {
 
     #[test]
     fn test_paillier_encryption_in_range_proof() -> Result<()> {
-        let mut rng = OsRng;
+        let mut rng = crate::utils::get_test_rng();
 
         let k_small = random_bn_in_range(&mut rng, ELL);
         let k_large = random_bn_in_range_min(&mut rng, ELL + EPSILON + 1, ELL + EPSILON)?;
 
         // Sampling k in the range 2^ELL should always succeed
-        random_paillier_encryption_in_range_proof(&k_small)?;
+        random_paillier_encryption_in_range_proof(&mut rng, &k_small)?;
 
         // Sampling k in the range (2^{ELL + EPSILON, 2^{ELL + EPSILON + 1}] should fail
-        assert!(random_paillier_encryption_in_range_proof(&k_large).is_err());
+        assert!(random_paillier_encryption_in_range_proof(&mut rng, &k_large).is_err());
 
         Ok(())
     }

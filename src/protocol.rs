@@ -353,11 +353,7 @@ impl std::fmt::Display for Identifier {
 mod tests {
     use super::*;
     use k256::ecdsa::signature::DigestVerifier;
-    use rand::{
-        prelude::IteratorRandom,
-        rngs::{OsRng, StdRng},
-        SeedableRng,
-    };
+    use rand::seq::IteratorRandom;
     use sha2::{Digest, Sha256};
     use std::collections::HashMap;
 
@@ -436,12 +432,7 @@ mod tests {
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
     fn test_run_protocol() -> Result<()> {
-        let mut osrng = OsRng;
-        let seed = osrng.next_u64();
-        // uncomment this line to test a specific seed
-        // let seed: u64 = 1707185616306954430;
-        let mut rng = StdRng::seed_from_u64(seed);
-        println!("Initializing run with seed {}", seed);
+        let mut rng = crate::utils::get_test_rng();
         let mut quorum = Participant::new_quorum(3, &mut rng)?;
         let mut inboxes = HashMap::new();
         for participant in &quorum {

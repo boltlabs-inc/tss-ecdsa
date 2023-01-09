@@ -13,7 +13,7 @@ use crate::{
     protocol::{Identifier, ParticipantIdentifier},
 };
 use merlin::Transcript;
-use rand::RngCore;
+use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -40,12 +40,12 @@ pub(crate) struct AuxInfoDecommit {
 }
 
 impl AuxInfoDecommit {
-    pub(crate) fn new(
+    pub(crate) fn new<R: RngCore + CryptoRng>(
+        rng: &mut R,
         sid: &Identifier,
         sender: &ParticipantIdentifier,
         pk: &AuxInfoPublic,
     ) -> Self {
-        let mut rng = rand::rngs::OsRng;
         let mut rid = [0u8; 32];
         let mut u_i = [0u8; 32];
         rng.fill_bytes(rid.as_mut_slice());

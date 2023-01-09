@@ -157,7 +157,7 @@ impl AuxInfoParticipant {
             &serialize!(&auxinfo_witnesses)?,
         )?;
 
-        let decom = AuxInfoDecommit::new(&message.id(), &self.id, &auxinfo_public);
+        let decom = AuxInfoDecommit::new(rng, &message.id(), &self.id, &auxinfo_public);
         let com = decom.commit()?;
         let com_bytes = &serialize!(&com)?;
 
@@ -525,10 +525,7 @@ fn new_auxinfo<R: RngCore + CryptoRng>(
 mod tests {
     use super::*;
     use crate::Identifier;
-    use rand::{
-        rngs::{OsRng, StdRng},
-        CryptoRng, Rng, RngCore, SeedableRng,
-    };
+    use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
 
     impl AuxInfoParticipant {
@@ -649,12 +646,7 @@ mod tests {
     }
     #[test]
     fn test_run_auxinfo_protocol() -> Result<()> {
-        let mut osrng = OsRng;
-        let seed = osrng.next_u64();
-        // uncomment this line to test a specific seed
-        // let seed: u64 = 14167330344348201948;
-        let mut rng = StdRng::seed_from_u64(seed);
-        println!("Initializing run with seed {}", seed);
+        let mut rng = crate::utils::get_test_rng();
         let mut quorum = AuxInfoParticipant::new_quorum(3, &mut rng)?;
         let mut inboxes = HashMap::new();
         let mut main_storages: Vec<Storage> = vec![];

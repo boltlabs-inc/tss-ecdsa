@@ -154,27 +154,27 @@ mod tests {
     use crate::paillier::prime_gen;
 
     use super::*;
-    use rand::rngs::OsRng;
 
-    fn random_ring_pedersen_proof() -> Result<(PiPrmInput, PiPrmProof)> {
-        let mut rng = OsRng;
-        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+    fn random_ring_pedersen_proof<R: RngCore + CryptoRng>(
+        rng: &mut R,
+    ) -> Result<(PiPrmInput, PiPrmProof)> {
+        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(rng).unwrap();
         let N = &p * &q;
         let phi_n = (p - 1) * (q - 1);
-        let tau = BigNumber::from_rng(&N, &mut rng);
-        let lambda = BigNumber::from_rng(&phi_n, &mut rng);
+        let tau = BigNumber::from_rng(&N, rng);
+        let lambda = BigNumber::from_rng(&phi_n, rng);
         let t = modpow(&tau, &BigNumber::from(2), &N);
         let s = modpow(&t, &lambda, &N);
 
-        let mut rng = OsRng;
         let input = PiPrmInput::new(&N, &s, &t);
-        let proof = PiPrmProof::prove(&mut rng, &input, &PiPrmSecret::new(&lambda, &phi_n))?;
+        let proof = PiPrmProof::prove(rng, &input, &PiPrmSecret::new(&lambda, &phi_n))?;
         Ok((input, proof))
     }
 
     #[test]
     fn test_ring_pedersen_proof() -> Result<()> {
-        let (input, proof) = random_ring_pedersen_proof()?;
+        let mut rng = crate::utils::get_test_rng();
+        let (input, proof) = random_ring_pedersen_proof(&mut rng)?;
         proof.verify(&input)?;
 
         Ok(())
@@ -182,7 +182,8 @@ mod tests {
 
     #[test]
     fn test_ring_pedersen_proof_roundtrip() -> Result<()> {
-        let (_, proof) = random_ring_pedersen_proof()?;
+        let mut rng = crate::utils::get_test_rng();
+        let (_, proof) = random_ring_pedersen_proof(&mut rng)?;
         let buf = bincode::serialize(&proof).unwrap();
         let orig: PiPrmProof = bincode::deserialize(&buf).unwrap();
         assert_eq!(buf, bincode::serialize(&orig).unwrap());

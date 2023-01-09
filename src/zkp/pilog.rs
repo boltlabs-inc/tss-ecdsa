@@ -233,42 +233,39 @@ impl Proof for PiLogProof {
 mod tests {
     use super::*;
     use crate::{paillier::PaillierDecryptionKey, utils::random_bn_in_range_min};
-    use rand::rngs::OsRng;
 
-    fn random_paillier_log_proof(x: &BigNumber) -> Result<()> {
-        let mut rng = OsRng;
-
-        let (decryption_key, p0, q0) = PaillierDecryptionKey::new(&mut rng)?;
+    fn random_paillier_log_proof<R: RngCore + CryptoRng>(rng: &mut R, x: &BigNumber) -> Result<()> {
+        let (decryption_key, p0, q0) = PaillierDecryptionKey::new(rng)?;
         let pk = decryption_key.encryption_key();
         let N0 = &p0 * &q0;
 
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
 
         let X = CurvePoint(g.0 * utils::bn_to_scalar(x).unwrap());
-        let (C, rho) = pk.encrypt(x)?;
+        let (C, rho) = pk.encrypt(rng, x)?;
 
-        let setup_params = ZkSetupParameters::gen(&mut rng)?;
+        let setup_params = ZkSetupParameters::gen(rng)?;
 
         let input = PiLogInput::new(&setup_params, &crate::utils::k256_order(), &N0, &C, &X, &g);
 
-        let proof = PiLogProof::prove(&mut rng, &input, &PiLogSecret::new(x, &rho))?;
+        let proof = PiLogProof::prove(rng, &input, &PiLogSecret::new(x, &rho))?;
 
         proof.verify(&input)
     }
 
     #[test]
     fn test_paillier_log_proof() -> Result<()> {
-        let mut rng = OsRng;
+        let mut rng = crate::utils::get_test_rng();
 
         let x_small = random_bn_in_range(&mut rng, ELL);
         let x_large = random_bn_in_range_min(&mut rng, ELL + EPSILON + 1, ELL + EPSILON)?;
 
         // Sampling x in the range 2^ELL should always succeed
-        random_paillier_log_proof(&x_small)?;
+        random_paillier_log_proof(&mut rng, &x_small)?;
 
         // Sampling x in the range (2^{ELL + EPSILON}, 2^{ELL + EPSILON + 1}] should
         // fail
-        assert!(random_paillier_log_proof(&x_large).is_err());
+        assert!(random_paillier_log_proof(&mut rng, &x_large).is_err());
 
         Ok(())
     }

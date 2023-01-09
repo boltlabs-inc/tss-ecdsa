@@ -450,21 +450,10 @@ fn y_prime_combinations(
 mod tests {
     use super::*;
     use crate::paillier::prime_gen;
-    use rand::{
-        rngs::{OsRng, StdRng},
-        Rng, RngCore, SeedableRng,
-    };
-
-    fn rng() -> StdRng {
-        let mut seeder = OsRng;
-        let seed = seeder.gen();
-        eprintln!("seed: {:?}", seed);
-        StdRng::from_seed(seed)
-    }
 
     #[test]
     fn test_jacobi() {
-        let mut rng = OsRng;
+        let mut rng = crate::utils::get_test_rng();
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let N = &p * &q;
 
@@ -494,7 +483,7 @@ mod tests {
 
     #[test]
     fn test_square_roots_mod_prime() {
-        let mut rng = OsRng;
+        let mut rng = crate::utils::get_test_rng();
         let p = prime_gen::try_get_prime_from_pool_insecure(&mut rng).unwrap();
 
         for _ in 0..100 {
@@ -520,7 +509,7 @@ mod tests {
 
     #[test]
     fn test_square_roots_mod_composite() {
-        let mut rng = OsRng;
+        let mut rng = crate::utils::get_test_rng();
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let N = &p * &q;
 
@@ -551,7 +540,7 @@ mod tests {
 
     #[test]
     fn test_fourth_roots_mod_composite() {
-        let mut rng = OsRng;
+        let mut rng = crate::utils::get_test_rng();
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let N = &p * &q;
 
@@ -582,7 +571,7 @@ mod tests {
 
     #[test]
     fn chinese_remainder_theorem_works() {
-        let mut rng = rng();
+        let mut rng = crate::utils::get_test_rng();
         // This guarantees p and q are coprime and not equal.
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         assert!(p != q);
@@ -602,7 +591,7 @@ mod tests {
 
     #[test]
     fn chinese_remainder_theorem_integers_must_be_in_range() {
-        let mut rng = rng();
+        let mut rng = crate::utils::get_test_rng();
 
         // This guarantees p and q are coprime and not equal.
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
@@ -655,7 +644,7 @@ mod tests {
 
     #[test]
     fn chinese_remainder_theorem_moduli_must_be_coprime() {
-        let mut rng = rng();
+        let mut rng = crate::utils::get_test_rng();
 
         // This guarantees p and q are coprime and not equal.
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
@@ -690,21 +679,17 @@ mod tests {
         assert!(chinese_remainder_theorem(&a1, &a2, &p, &q).is_ok());
     }
 
-    fn random_big_number() -> BigNumber {
-        let mut rng = OsRng;
-
+    fn random_big_number<R: RngCore + CryptoRng>(rng: &mut R) -> BigNumber {
         let x_len = rng.next_u64() as u16;
         let mut buf_x = (0..x_len).map(|_| 0u8).collect::<Vec<u8>>();
         rng.fill_bytes(&mut buf_x);
         BigNumber::from_slice(buf_x.as_slice())
     }
 
-    fn random_pbmpe() -> PiModProofElements {
-        let mut rng = OsRng;
-
-        let x = random_big_number();
-        let y = random_big_number();
-        let z = random_big_number();
+    fn random_pbmpe<R: RngCore + CryptoRng>(rng: &mut R) -> PiModProofElements {
+        let x = random_big_number(rng);
+        let y = random_big_number(rng);
+        let z = random_big_number(rng);
 
         let a = rng.next_u64() as u16;
         let b = rng.next_u64() as u16;
@@ -720,7 +705,8 @@ mod tests {
 
     #[test]
     fn test_blum_modulus_proof_elements_roundtrip() {
-        let pbelement = random_pbmpe();
+        let mut rng = crate::utils::get_test_rng();
+        let pbelement = random_pbmpe(&mut rng);
         let buf = bincode::serialize(&pbelement).unwrap();
         let roundtrip_pbelement: PiModProofElements = bincode::deserialize(&buf).unwrap();
         assert_eq!(buf, bincode::serialize(&roundtrip_pbelement).unwrap());
@@ -728,11 +714,12 @@ mod tests {
 
     #[test]
     fn test_blum_modulus_roundtrip() {
-        let w = random_big_number();
-        let mut rng = OsRng;
+        let mut rng = crate::utils::get_test_rng();
+        let w = random_big_number(&mut rng);
+        let mut rng = crate::utils::get_test_rng();
         let num_elements = rng.next_u64() as u8;
         let elements = (0..num_elements)
-            .map(|_| random_pbmpe())
+            .map(|_| random_pbmpe(&mut rng))
             .collect::<Vec<PiModProofElements>>();
 
         let pbmp = PiModProof { w, elements };

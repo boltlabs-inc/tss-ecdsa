@@ -161,7 +161,8 @@ impl KeygenParticipant {
         // todo: maybe there should be a function for generating a PiSchInput
         let input = PiSchInput::new(&g, &q, &X);
         let sch_precom = PiSchProof::precommit(rng, &input)?;
-        let decom = KeygenDecommit::new(&message.id(), &self.id, &keyshare_public, &sch_precom);
+        let decom =
+            KeygenDecommit::new(rng, &message.id(), &self.id, &keyshare_public, &sch_precom);
         let com = decom.commit()?;
         let com_bytes = &serialize!(&com)?;
 
@@ -528,10 +529,7 @@ fn new_keyshare<R: RngCore + CryptoRng>(rng: &mut R) -> Result<(KeySharePrivate,
 mod tests {
     use super::*;
     use crate::Identifier;
-    use rand::{
-        rngs::{OsRng, StdRng},
-        CryptoRng, Rng, RngCore, SeedableRng,
-    };
+    use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
 
     impl KeygenParticipant {
@@ -647,12 +645,7 @@ mod tests {
     }
     #[test]
     fn test_run_keygen_protocol() -> Result<()> {
-        let mut osrng = OsRng;
-        let seed = osrng.next_u64();
-        // uncomment this line to test a specific seed
-        // let seed: u64 = 11129769151581080362;
-        let mut rng = StdRng::seed_from_u64(seed);
-        println!("Initializing run with seed {}", seed);
+        let mut rng = crate::utils::get_test_rng();
         let mut quorum = KeygenParticipant::new_quorum(3, &mut rng)?;
         let mut inboxes = HashMap::new();
         let mut main_storages: Vec<Storage> = vec![];

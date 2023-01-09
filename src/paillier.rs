@@ -46,9 +46,12 @@ impl PaillierEncryptionKey {
         self.0.n()
     }
 
-    pub(crate) fn encrypt(&self, x: &BigNumber) -> Result<(BigNumber, BigNumber)> {
-        let mut rng = rand::rngs::OsRng;
-        let nonce = random_bn_in_z_star(&mut rng, self.0.n())?;
+    pub(crate) fn encrypt<R: RngCore + CryptoRng>(
+        &self,
+        rng: &mut R,
+        x: &BigNumber,
+    ) -> Result<(BigNumber, BigNumber)> {
+        let nonce = random_bn_in_z_star(rng, self.0.n())?;
 
         let one = BigNumber::one();
         let base = one + self.n();
@@ -202,26 +205,15 @@ pub(crate) mod prime_gen {
 #[cfg(test)]
 mod test {
     use libpaillier::unknown_order::BigNumber;
-    use rand::{
-        rngs::{OsRng, StdRng},
-        Rng, SeedableRng,
-    };
 
     use crate::parameters::PRIME_BITS;
 
     use super::{prime_gen, PaillierDecryptionKey};
 
-    fn rng() -> StdRng {
-        let mut seeder = OsRng;
-        let seed = seeder.gen();
-        eprintln!("seed: {:?}", seed);
-        StdRng::from_seed(seed)
-    }
-
     #[test]
     #[ignore = "sometimes slow in debug mode"]
     fn get_random_safe_prime_512_produces_safe_primes() {
-        let mut rng = rng();
+        let mut rng = crate::utils::get_test_rng();
         let p = prime_gen::get_random_safe_prime(&mut rng);
         assert!(p.is_prime());
         let q: BigNumber = (p - 1) / 2;
@@ -230,7 +222,7 @@ mod test {
 
     #[test]
     fn paillier_keygen_produces_good_primes() {
-        let mut rng = rng();
+        let mut rng = crate::utils::get_test_rng();
 
         let (decryption_key, p, q) = PaillierDecryptionKey::new(&mut rng).unwrap();
 

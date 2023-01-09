@@ -338,45 +338,46 @@ impl Proof for PiAffgProof {
 mod tests {
     use super::*;
     use crate::{paillier::PaillierDecryptionKey, utils::random_bn_in_range_min};
-    use rand::rngs::OsRng;
 
-    fn random_paillier_affg_proof(x: &BigNumber, y: &BigNumber) -> Result<()> {
-        let mut rng = OsRng;
-
-        let (decryption_key_0, p0, q0) = PaillierDecryptionKey::new(&mut rng)?;
+    fn random_paillier_affg_proof<R: RngCore + CryptoRng>(
+        rng: &mut R,
+        x: &BigNumber,
+        y: &BigNumber,
+    ) -> Result<()> {
+        let (decryption_key_0, p0, q0) = PaillierDecryptionKey::new(rng)?;
         let N0 = &p0 * &q0;
         let pk0 = decryption_key_0.encryption_key();
 
-        let (decryption_key_1, p1, q1) = PaillierDecryptionKey::new(&mut rng)?;
+        let (decryption_key_1, p1, q1) = PaillierDecryptionKey::new(rng)?;
         let N1 = &p1 * &q1;
         let pk1 = decryption_key_1.encryption_key();
 
         let g = k256::ProjectivePoint::GENERATOR;
 
         let X = CurvePoint(g * utils::bn_to_scalar(x).unwrap());
-        let (Y, rho_y) = pk1.encrypt(y)?;
+        let (Y, rho_y) = pk1.encrypt(rng, y)?;
 
         let N0_squared = &N0 * &N0;
-        let C = crate::utils::random_positive_bn(&mut rng, &N0_squared);
+        let C = crate::utils::random_positive_bn(rng, &N0_squared);
 
         // Compute D = C^x * (1 + N0)^y rho^N0 (mod N0^2)
         let (D, rho) = {
-            let (D_intermediate, rho) = pk0.encrypt(y)?;
+            let (D_intermediate, rho) = pk0.encrypt(rng, y)?;
             let D = modpow(&C, x, &N0_squared).modmul(&D_intermediate, &N0_squared);
             (D, rho)
         };
 
-        let setup_params = ZkSetupParameters::gen(&mut rng)?;
+        let setup_params = ZkSetupParameters::gen(rng)?;
 
         let input = PiAffgInput::new(&setup_params, &CurvePoint(g), &N0, &N1, &C, &D, &Y, &X);
-        let proof = PiAffgProof::prove(&mut rng, &input, &PiAffgSecret::new(x, y, &rho, &rho_y))?;
+        let proof = PiAffgProof::prove(rng, &input, &PiAffgSecret::new(x, y, &rho, &rho_y))?;
 
         proof.verify(&input)
     }
 
     #[test]
     fn test_paillier_affg_proof() -> Result<()> {
-        let mut rng = OsRng;
+        let mut rng = crate::utils::get_test_rng();
 
         let x_small = random_bn_in_range(&mut rng, ELL);
         let y_small = random_bn_in_range(&mut rng, ELL_PRIME);
@@ -385,12 +386,12 @@ mod tests {
             random_bn_in_range_min(&mut rng, ELL_PRIME + EPSILON + 1, ELL_PRIME + EPSILON)?;
 
         // Sampling x in 2^ELL and y in 2^{ELL_PRIME} should always succeed
-        random_paillier_affg_proof(&x_small, &y_small)?;
+        random_paillier_affg_proof(&mut rng, &x_small, &y_small)?;
 
         // All other combinations should fail
-        assert!(random_paillier_affg_proof(&x_small, &y_large).is_err());
-        assert!(random_paillier_affg_proof(&x_large, &y_small).is_err());
-        assert!(random_paillier_affg_proof(&x_large, &y_large).is_err());
+        assert!(random_paillier_affg_proof(&mut rng, &x_small, &y_large).is_err());
+        assert!(random_paillier_affg_proof(&mut rng, &x_large, &y_small).is_err());
+        assert!(random_paillier_affg_proof(&mut rng, &x_large, &y_large).is_err());
 
         Ok(())
     }

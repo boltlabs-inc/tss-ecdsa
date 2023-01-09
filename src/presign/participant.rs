@@ -930,7 +930,7 @@ impl PresignKeyShareAndInfo {
 
         // Sample rho <- Z_N^* and set K = enc(k; rho)
         let (K, rho) = loop {
-            let (K, rho) = self.aux_info_public.pk.encrypt(&k)?;
+            let (K, rho) = self.aux_info_public.pk.encrypt(rng, &k)?;
             if !BigNumber::is_zero(&rho) {
                 break (K, rho);
             }
@@ -938,7 +938,7 @@ impl PresignKeyShareAndInfo {
 
         // Sample nu <- Z_N^* and set G = enc(gamma; nu)
         let (G, nu) = loop {
-            let (G, nu) = self.aux_info_public.pk.encrypt(&gamma)?;
+            let (G, nu) = self.aux_info_public.pk.encrypt(rng, &gamma)?;
 
             if !BigNumber::is_zero(&nu) {
                 break (G, nu);
@@ -997,8 +997,8 @@ impl PresignKeyShareAndInfo {
         let beta = random_bn_in_range(rng, ELL);
         let beta_hat = random_bn_in_range(rng, ELL);
 
-        let (beta_ciphertext, s) = receiver_aux_info.pk.encrypt(&beta)?;
-        let (beta_hat_ciphertext, s_hat) = receiver_aux_info.pk.encrypt(&beta_hat)?;
+        let (beta_ciphertext, s) = receiver_aux_info.pk.encrypt(rng, &beta)?;
+        let (beta_hat_ciphertext, s_hat) = receiver_aux_info.pk.encrypt(rng, &beta_hat)?;
 
         let D = receiver_aux_info
             .pk
@@ -1026,8 +1026,8 @@ impl PresignKeyShareAndInfo {
             )
             .ok_or(PaillierError::InvalidOperation)?;
 
-        let (F, r) = self.aux_info_public.pk.encrypt(&beta)?;
-        let (F_hat, r_hat) = self.aux_info_public.pk.encrypt(&beta_hat)?;
+        let (F, r) = self.aux_info_public.pk.encrypt(rng, &beta)?;
+        let (F_hat, r_hat) = self.aux_info_public.pk.encrypt(rng, &beta_hat)?;
 
         let g = CurvePoint::GENERATOR;
         let Gamma = CurvePoint(g.0 * bn_to_scalar(&sender_r1_priv.gamma)?);

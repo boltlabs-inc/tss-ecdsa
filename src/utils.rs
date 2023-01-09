@@ -200,7 +200,6 @@ pub(crate) fn k256_order() -> BigNumber {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::rngs::OsRng;
 
     #[test]
     fn test_random_bn_in_range() {
@@ -209,7 +208,7 @@ mod tests {
         let mut max_len = 0;
         let num_bytes = 100;
 
-        let mut rng = OsRng;
+        let mut rng = get_test_rng();
         for _ in 0..1000 {
             let bn = random_bn_in_range(&mut rng, num_bytes * 8);
             let len = bn.to_bytes().len();
@@ -309,4 +308,23 @@ pub(crate) fn process_ready_message(
     let is_ready = storage.contains_batch(&fetch).is_ok();
 
     Ok((messages, is_ready))
+}
+
+////////////////////////////
+// Test Utility Functions //
+////////////////////////////
+#[cfg(test)]
+use rand::{
+    rngs::{OsRng, StdRng},
+    SeedableRng,
+};
+/// Returns an rng to be used for testing. This will print the rng seed
+/// to stderr so that if a test fails, the failing seed can be recovered
+/// and used for debugging.
+#[cfg(test)]
+pub(crate) fn get_test_rng() -> StdRng {
+    let mut seeder = OsRng;
+    let seed = seeder.gen();
+    eprintln!("seed: {:?}", seed);
+    StdRng::from_seed(seed)
 }
