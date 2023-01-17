@@ -38,6 +38,13 @@ impl From<PaillierError> for InternalError {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PaillierCiphertext(pub(crate) BigNumber);
 
+impl PaillierCiphertext {
+    /// Converts a [PaillierCiphertext] into its big-endian byte representation.
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_bytes()
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PaillierEncryptionKey(pub(crate) libpaillier::EncryptionKey);
 

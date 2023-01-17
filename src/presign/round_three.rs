@@ -54,7 +54,7 @@ impl Public {
             &receiver_keygen_public.params,
             &k256_order(),
             sender_keygen_public.pk.n(),
-            &sender_r1_public_broadcast.K.0,
+            &sender_r1_public_broadcast.K,
             &self.Delta,
             &self.Gamma,
         );

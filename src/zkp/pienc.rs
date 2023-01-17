@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 pub(crate) struct PiEncProof {
     alpha: BigNumber,
     S: BigNumber,
-    A: BigNumber,
+    A: PaillierCiphertext,
     C: BigNumber,
     e: BigNumber,
     z1: BigNumber,
@@ -105,7 +105,7 @@ impl Proof for PiEncProof {
         let A = {
             let a = modpow(&(&BigNumber::one() + &input.N0), &alpha, &N0_squared);
             let b = modpow(&r, &input.N0, &N0_squared);
-            a.modmul(&b, &N0_squared)
+            PaillierCiphertext(a.modmul(&b, &N0_squared))
         };
         let C = {
             let a = modpow(&input.setup_params.s, &alpha, &input.setup_params.N);
@@ -176,6 +176,7 @@ impl Proof for PiEncProof {
             let lhs = a.modmul(&b, &N0_squared);
             let rhs = self
                 .A
+                .0
                 .modmul(&modpow(&input.K.0, &e, &N0_squared), &N0_squared);
             lhs == rhs
         };

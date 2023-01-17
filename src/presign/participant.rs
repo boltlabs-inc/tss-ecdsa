@@ -1011,6 +1011,7 @@ impl PresignKeyShareAndInfo {
                     .ok_or(PaillierError::InvalidOperation)?,
                 &beta_ciphertext.0,
             )
+            .map(|D| PaillierCiphertext(D))
             .ok_or(PaillierError::InvalidOperation)?;
 
         let D_hat = receiver_aux_info
@@ -1024,6 +1025,7 @@ impl PresignKeyShareAndInfo {
                     .ok_or(PaillierError::InvalidOperation)?,
                 &beta_hat_ciphertext.0,
             )
+            .map(|D_hat| PaillierCiphertext(D_hat))
             .ok_or(PaillierError::InvalidOperation)?;
 
         let (F, r) = self.aux_info_public.pk.encrypt(rng, &beta)?;
@@ -1041,9 +1043,9 @@ impl PresignKeyShareAndInfo {
                 &g,
                 receiver_aux_info.pk.n(),
                 self.aux_info_public.pk.n(),
-                &receiver_r1_pub_broadcast.K.0,
+                &receiver_r1_pub_broadcast.K,
                 &D,
-                &F.0,
+                &F,
                 &Gamma,
             ),
             &PiAffgSecret::new(&sender_r1_priv.gamma, &beta, &s, &r),
@@ -1056,9 +1058,9 @@ impl PresignKeyShareAndInfo {
                 &g,
                 receiver_aux_info.pk.n(),
                 self.aux_info_public.pk.n(),
-                &receiver_r1_pub_broadcast.K.0,
+                &receiver_r1_pub_broadcast.K,
                 &D_hat,
-                &F_hat.0,
+                &F_hat,
                 &self.keyshare_public.X,
             ),
             &PiAffgSecret::new(&self.keyshare_private.x, &beta_hat, &s_hat, &r_hat),
@@ -1070,7 +1072,7 @@ impl PresignKeyShareAndInfo {
                 &receiver_aux_info.params,
                 &k256_order(),
                 self.aux_info_public.pk.n(),
-                &sender_r1_priv.G.0,
+                &sender_r1_priv.G,
                 &Gamma,
                 &g,
             ),
@@ -1080,8 +1082,8 @@ impl PresignKeyShareAndInfo {
         Ok((
             RoundTwoPrivate { beta, beta_hat },
             RoundTwoPublic {
-                D: PaillierCiphertext(D),
-                D_hat: PaillierCiphertext(D_hat),
+                D,
+                D_hat,
                 F,
                 F_hat,
                 Gamma,
@@ -1141,7 +1143,7 @@ impl PresignKeyShareAndInfo {
                     &round_three_input.auxinfo_public.params,
                     &order,
                     self.aux_info_public.pk.n(),
-                    &sender_r1_priv.K.0,
+                    &sender_r1_priv.K,
                     &Delta,
                     &Gamma,
                 ),

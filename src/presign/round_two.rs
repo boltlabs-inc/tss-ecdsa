@@ -59,9 +59,9 @@ impl Public {
             &g,
             receiver_auxinfo_public.pk.n(),
             sender_auxinfo_public.pk.n(),
-            &receiver_r1_private.K.0,
-            &self.D.0,
-            &self.F.0,
+            &receiver_r1_private.K,
+            &self.D,
+            &self.F,
             &self.Gamma,
         );
         self.psi.verify(&psi_input)?;
@@ -72,9 +72,9 @@ impl Public {
             &g,
             receiver_auxinfo_public.pk.n(),
             sender_auxinfo_public.pk.n(),
-            &receiver_r1_private.K.0,
-            &self.D_hat.0,
-            &self.F_hat.0,
+            &receiver_r1_private.K,
+            &self.D_hat,
+            &self.F_hat,
             &sender_keyshare_public.X,
         );
         self.psi_hat.verify(&psi_hat_input)?;
@@ -84,7 +84,7 @@ impl Public {
             &receiver_auxinfo_public.params,
             &k256_order(),
             sender_auxinfo_public.pk.n(),
-            &sender_r1_public_broadcast.G.0,
+            &sender_r1_public_broadcast.G,
             &self.Gamma,
             &g,
         );

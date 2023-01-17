@@ -11,6 +11,7 @@
 use super::Proof;
 use crate::{
     errors::*,
+    paillier::PaillierCiphertext,
     parameters::{ELL, EPSILON},
     utils::{
         self, modpow, plusminus_bn_random_from_transcript, random_bn_in_range, random_bn_in_z_star,
@@ -28,7 +29,7 @@ use utils::CurvePoint;
 pub(crate) struct PiLogProof {
     alpha: BigNumber,
     S: BigNumber,
-    A: BigNumber,
+    A: PaillierCiphertext,
     Y: CurvePoint,
     D: BigNumber,
     e: BigNumber,
@@ -42,7 +43,7 @@ pub(crate) struct PiLogInput {
     setup_params: ZkSetupParameters,
     q: BigNumber,
     N0: BigNumber,
-    C: BigNumber,
+    C: PaillierCiphertext,
     X: CurvePoint,
     g: CurvePoint,
 }
@@ -52,7 +53,7 @@ impl PiLogInput {
         setup_params: &ZkSetupParameters,
         q: &BigNumber,
         N0: &BigNumber,
-        C: &BigNumber,
+        C: &PaillierCiphertext,
         X: &CurvePoint,
         g: &CurvePoint,
     ) -> Self {
@@ -117,7 +118,7 @@ impl Proof for PiLogProof {
         let A = {
             let a = modpow(&(BigNumber::one() + &input.N0), &alpha, &N0_squared);
             let b = modpow(&r, &input.N0, &N0_squared);
-            a.modmul(&b, &N0_squared)
+            PaillierCiphertext(a.modmul(&b, &N0_squared))
         };
         let Y = CurvePoint(input.g.0 * utils::bn_to_scalar(&alpha)?);
         let D = {
@@ -188,7 +189,8 @@ impl Proof for PiLogProof {
             let lhs = a.modmul(&b, &N0_squared);
             let rhs = self
                 .A
-                .modmul(&modpow(&input.C, &self.e, &N0_squared), &N0_squared);
+                .0
+                .modmul(&modpow(&input.C.0, &self.e, &N0_squared), &N0_squared);
             lhs == rhs
         };
         if !eq_check_1 {
@@ -246,14 +248,7 @@ mod tests {
 
         let setup_params = ZkSetupParameters::gen(rng)?;
 
-        let input = PiLogInput::new(
-            &setup_params,
-            &crate::utils::k256_order(),
-            &N0,
-            &C.0,
-            &X,
-            &g,
-        );
+        let input = PiLogInput::new(&setup_params, &crate::utils::k256_order(), &N0, &C, &X, &g);
 
         let proof = PiLogProof::prove(rng, &input, &PiLogSecret::new(x, &rho))?;
 

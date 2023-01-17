@@ -14,6 +14,7 @@
 use super::Proof;
 use crate::{
     errors::*,
+    paillier::PaillierCiphertext,
     parameters::{ELL, ELL_PRIME, EPSILON},
     utils::{
         self, k256_order, modpow, plusminus_bn_random_from_transcript, random_bn_in_range,
@@ -53,9 +54,9 @@ pub(crate) struct PiAffgInput {
     g: CurvePoint,
     N0: BigNumber,
     N1: BigNumber,
-    C: BigNumber,
-    D: BigNumber,
-    Y: BigNumber,
+    C: PaillierCiphertext,
+    D: PaillierCiphertext,
+    Y: PaillierCiphertext,
     X: CurvePoint,
 }
 
@@ -66,9 +67,9 @@ impl PiAffgInput {
         g: &CurvePoint,
         N0: &BigNumber,
         N1: &BigNumber,
-        C: &BigNumber,
-        D: &BigNumber,
-        Y: &BigNumber,
+        C: &PaillierCiphertext,
+        D: &PaillierCiphertext,
+        Y: &PaillierCiphertext,
         X: &CurvePoint,
     ) -> Self {
         Self {
@@ -140,7 +141,7 @@ impl Proof for PiAffgProof {
         let N1_squared = &input.N1 * &input.N1;
 
         let A = {
-            let a = modpow(&input.C, &alpha, &N0_squared);
+            let a = modpow(&input.C.0, &alpha, &N0_squared);
             let b = {
                 let c = modpow(&(BigNumber::one() + &input.N0), &beta, &N0_squared);
                 let d = modpow(&r, &input.N0, &N0_squared);
@@ -256,13 +257,13 @@ impl Proof for PiAffgProof {
         // Do equality checks
 
         let eq_check_1 = {
-            let a = modpow(&input.C, &self.z1, &N0_squared);
+            let a = modpow(&input.C.0, &self.z1, &N0_squared);
             let b = modpow(&(BigNumber::one() + &input.N0), &self.z2, &N0_squared);
             let c = modpow(&self.w, &input.N0, &N0_squared);
             let lhs = a.modmul(&b, &N0_squared).modmul(&c, &N0_squared);
             let rhs = self
                 .A
-                .modmul(&modpow(&input.D, &self.e, &N0_squared), &N0_squared);
+                .modmul(&modpow(&input.D.0, &self.e, &N0_squared), &N0_squared);
             lhs == rhs
         };
         if !eq_check_1 {
@@ -284,7 +285,7 @@ impl Proof for PiAffgProof {
             let lhs = a.modmul(&b, &N1_squared);
             let rhs = self
                 .B_y
-                .modmul(&modpow(&input.Y, &self.e, &N1_squared), &N1_squared);
+                .modmul(&modpow(&input.Y.0, &self.e, &N1_squared), &N1_squared);
             lhs == rhs
         };
         if !eq_check_3 {
@@ -358,18 +359,18 @@ mod tests {
         let (Y, rho_y) = pk1.encrypt(rng, y)?;
 
         let N0_squared = &N0 * &N0;
-        let C = crate::utils::random_positive_bn(rng, &N0_squared);
+        let C = PaillierCiphertext(crate::utils::random_positive_bn(rng, &N0_squared));
 
         // Compute D = C^x * (1 + N0)^y rho^N0 (mod N0^2)
         let (D, rho) = {
             let (D_intermediate, rho) = pk0.encrypt(rng, y)?;
-            let D = modpow(&C, x, &N0_squared).modmul(&D_intermediate.0, &N0_squared);
-            (D, rho)
+            let D = modpow(&C.0, x, &N0_squared).modmul(&D_intermediate.0, &N0_squared);
+            (PaillierCiphertext(D), rho)
         };
 
         let setup_params = ZkSetupParameters::gen(rng)?;
 
-        let input = PiAffgInput::new(&setup_params, &CurvePoint(g), &N0, &N1, &C, &D, &Y.0, &X);
+        let input = PiAffgInput::new(&setup_params, &CurvePoint(g), &N0, &N1, &C, &D, &Y, &X);
         let proof = PiAffgProof::prove(rng, &input, &PiAffgSecret::new(x, y, &rho, &rho_y))?;
 
         proof.verify(&input)
