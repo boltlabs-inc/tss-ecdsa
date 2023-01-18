@@ -1011,7 +1011,7 @@ impl PresignKeyShareAndInfo {
                     .ok_or(PaillierError::InvalidOperation)?,
                 &beta_ciphertext.0,
             )
-            .map(|D| PaillierCiphertext(D))
+            .map(PaillierCiphertext)
             .ok_or(PaillierError::InvalidOperation)?;
 
         let D_hat = receiver_aux_info
@@ -1025,7 +1025,7 @@ impl PresignKeyShareAndInfo {
                     .ok_or(PaillierError::InvalidOperation)?,
                 &beta_hat_ciphertext.0,
             )
-            .map(|D_hat| PaillierCiphertext(D_hat))
+            .map(PaillierCiphertext)
             .ok_or(PaillierError::InvalidOperation)?;
 
         let (F, r) = self.aux_info_public.pk.encrypt(rng, &beta)?;
