@@ -929,21 +929,9 @@ impl PresignKeyShareAndInfo {
         let gamma = random_positive_bn(rng, &order);
 
         // Sample rho <- Z_N^* and set K = enc(k; rho)
-        let (K, rho) = loop {
-            let (K, rho) = self.aux_info_public.pk.encrypt(rng, &k)?;
-            if !BigNumber::is_zero(&rho) {
-                break (K, rho);
-            }
-        };
-
+        let (K, rho) = self.aux_info_public.pk.encrypt(rng, &k)?;
         // Sample nu <- Z_N^* and set G = enc(gamma; nu)
-        let (G, nu) = loop {
-            let (G, nu) = self.aux_info_public.pk.encrypt(rng, &gamma)?;
-
-            if !BigNumber::is_zero(&nu) {
-                break (G, nu);
-            }
-        };
+        let (G, nu) = self.aux_info_public.pk.encrypt(rng, &gamma)?;
 
         let mut r1_publics = HashMap::new();
         for (id, aux_info_public) in public_keys {

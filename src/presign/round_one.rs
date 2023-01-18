@@ -10,7 +10,7 @@ use crate::{
     auxinfo::info::AuxInfoPublic,
     errors::Result,
     messages::{Message, MessageType, PresignMessageType},
-    paillier::PaillierCiphertext,
+    paillier::{PaillierCiphertext, PaillierNonce},
     zkp::{pienc::PiEncProof, setup::ZkSetupParameters, Proof},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -19,9 +19,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct Private {
     pub k: BigNumber,
-    pub rho: BigNumber,
+    pub rho: PaillierNonce,
     pub gamma: BigNumber,
-    pub nu: BigNumber,
+    pub nu: PaillierNonce,
     pub G: PaillierCiphertext, // Technically can be public but is only one per party
     pub K: PaillierCiphertext, // Technically can be public but is only one per party
 }

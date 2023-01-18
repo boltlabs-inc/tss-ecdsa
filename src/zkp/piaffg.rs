@@ -15,6 +15,7 @@ use super::Proof;
 use crate::{
     errors::*,
     paillier::PaillierCiphertext,
+    paillier::PaillierNonce,
     parameters::{ELL, ELL_PRIME, EPSILON},
     utils::{
         self, k256_order, modpow, plusminus_bn_random_from_transcript, random_bn_in_range,
@@ -88,12 +89,17 @@ impl PiAffgInput {
 pub(crate) struct PiAffgSecret {
     x: BigNumber,
     y: BigNumber,
-    rho: BigNumber,
-    rho_y: BigNumber,
+    rho: PaillierNonce,
+    rho_y: PaillierNonce,
 }
 
 impl PiAffgSecret {
-    pub(crate) fn new(x: &BigNumber, y: &BigNumber, rho: &BigNumber, rho_y: &BigNumber) -> Self {
+    pub(crate) fn new(
+        x: &BigNumber,
+        y: &BigNumber,
+        rho: &PaillierNonce,
+        rho_y: &PaillierNonce,
+    ) -> Self {
         Self {
             x: x.clone(),
             y: y.clone(),
@@ -199,8 +205,8 @@ impl Proof for PiAffgProof {
         let z2 = &beta + &e * &secret.y;
         let z3 = gamma + &e * m;
         let z4 = delta + &e * mu;
-        let w = r.modmul(&modpow(&secret.rho, &e, &input.N0), &input.N0);
-        let w_y = r_y.modmul(&modpow(&secret.rho_y, &e, &input.N1), &input.N1);
+        let w = r.modmul(&modpow(&secret.rho.0, &e, &input.N0), &input.N0);
+        let w_y = r_y.modmul(&modpow(&secret.rho_y.0, &e, &input.N1), &input.N1);
 
         let proof = Self {
             alpha,

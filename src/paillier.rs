@@ -35,6 +35,10 @@ impl From<PaillierError> for InternalError {
     }
 }
 
+/// A nonce generated as part of [PaillierEncryptionKey::encrypt].
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct PaillierNonce(pub(crate) BigNumber);
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PaillierCiphertext(pub(crate) BigNumber);
 
@@ -57,7 +61,7 @@ impl PaillierEncryptionKey {
         &self,
         rng: &mut R,
         x: &BigNumber,
-    ) -> Result<(PaillierCiphertext, BigNumber)> {
+    ) -> Result<(PaillierCiphertext, PaillierNonce)> {
         let nonce = random_bn_in_z_star(rng, self.0.n())?;
 
         let one = BigNumber::one();
@@ -65,7 +69,7 @@ impl PaillierEncryptionKey {
         let a = base.modpow(x, self.0.nn());
         let b = nonce.modpow(self.n(), self.0.nn());
         let c = a.modmul(&b, self.0.nn());
-        Ok((PaillierCiphertext(c), nonce))
+        Ok((PaillierCiphertext(c), PaillierNonce(nonce)))
     }
 }
 

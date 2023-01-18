@@ -14,7 +14,7 @@
 use super::Proof;
 use crate::{
     errors::*,
-    paillier::PaillierCiphertext,
+    paillier::{PaillierCiphertext, PaillierNonce},
     parameters::{ELL, EPSILON},
     utils::{
         k256_order, modpow, plusminus_bn_random_from_transcript, random_bn_in_range,
@@ -62,11 +62,11 @@ impl PiEncInput {
 
 pub(crate) struct PiEncSecret {
     k: BigNumber,
-    rho: BigNumber,
+    rho: PaillierNonce,
 }
 
 impl PiEncSecret {
-    pub(crate) fn new(k: &BigNumber, rho: &BigNumber) -> Self {
+    pub(crate) fn new(k: &BigNumber, rho: &PaillierNonce) -> Self {
         Self {
             k: k.clone(),
             rho: rho.clone(),
@@ -129,7 +129,7 @@ impl Proof for PiEncProof {
         );
 
         let z1 = &alpha + &e * &secret.k;
-        let z2 = r.modmul(&modpow(&secret.rho, &e, &input.N0), &input.N0);
+        let z2 = r.modmul(&modpow(&secret.rho.0, &e, &input.N0), &input.N0);
         let z3 = gamma + &e * mu;
 
         let proof = Self {

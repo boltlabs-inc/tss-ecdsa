@@ -12,6 +12,7 @@ use super::Proof;
 use crate::{
     errors::*,
     paillier::PaillierCiphertext,
+    paillier::PaillierNonce,
     parameters::{ELL, EPSILON},
     utils::{
         self, modpow, plusminus_bn_random_from_transcript, random_bn_in_range, random_bn_in_z_star,
@@ -70,11 +71,11 @@ impl PiLogInput {
 
 pub(crate) struct PiLogSecret {
     x: BigNumber,
-    rho: BigNumber,
+    rho: PaillierNonce,
 }
 
 impl PiLogSecret {
-    pub(crate) fn new(x: &BigNumber, rho: &BigNumber) -> Self {
+    pub(crate) fn new(x: &BigNumber, rho: &PaillierNonce) -> Self {
         Self {
             x: x.clone(),
             rho: rho.clone(),
@@ -138,7 +139,7 @@ impl Proof for PiLogProof {
         let e = plusminus_bn_random_from_transcript(&mut transcript, &input.q);
 
         let z1 = &alpha + &e * &secret.x;
-        let z2 = r.modmul(&modpow(&secret.rho, &e, &input.N0), &input.N0);
+        let z2 = r.modmul(&modpow(&secret.rho.0, &e, &input.N0), &input.N0);
         let z3 = gamma + &e * mu;
 
         let proof = Self {
