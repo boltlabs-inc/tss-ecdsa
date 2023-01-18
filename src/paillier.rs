@@ -96,13 +96,22 @@ impl PaillierEncryptionKey {
             })?
         }
         let nonce = random_bn_in_z_star(rng, self.n())?;
+        let c = self.encrypt_with_nonce(x, &nonce)?;
+        Ok((c, PaillierNonce(nonce)))
+    }
 
+    /// Encrypt plaintext `x` using the provided `nonce`, producing the resulting Paillier ciphertext.
+    pub(crate) fn encrypt_with_nonce(
+        &self,
+        x: &BigNumber,
+        nonce: &BigNumber,
+    ) -> Result<PaillierCiphertext> {
         let one = BigNumber::one();
         let base = one + self.n();
         let a = base.modpow(x, self.0.nn());
         let b = nonce.modpow(self.n(), self.0.nn());
         let c = a.modmul(&b, self.0.nn());
-        Ok((PaillierCiphertext(c), PaillierNonce(nonce)))
+        Ok(PaillierCiphertext(c))
     }
 
     /// Masks a [`PaillierNonce`] `nonce` with another [`PaillierNonce`] `mask` and exponent `e`
