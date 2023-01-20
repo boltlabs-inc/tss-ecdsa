@@ -205,8 +205,8 @@ impl Proof for PiAffgProof {
         let z2 = &beta + &e * &secret.y;
         let z3 = gamma + &e * m;
         let z4 = delta + &e * mu;
-        let w = r.modmul(&modpow(&secret.rho.0, &e, &input.N0), &input.N0);
-        let w_y = r_y.modmul(&modpow(&secret.rho_y.0, &e, &input.N1), &input.N1);
+        let w = r.modmul(&modpow(secret.rho.inner(), &e, &input.N0), &input.N0);
+        let w_y = r_y.modmul(&modpow(secret.rho_y.inner(), &e, &input.N1), &input.N1);
 
         let proof = Self {
             alpha,

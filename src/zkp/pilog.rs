@@ -139,7 +139,7 @@ impl Proof for PiLogProof {
         let e = plusminus_bn_random_from_transcript(&mut transcript, &input.q);
 
         let z1 = &alpha + &e * &secret.x;
-        let z2 = r.modmul(&modpow(&secret.rho.0, &e, &input.N0), &input.N0);
+        let z2 = r.modmul(&modpow(secret.rho.inner(), &e, &input.N0), &input.N0);
         let z3 = gamma + &e * mu;
 
         let proof = Self {
