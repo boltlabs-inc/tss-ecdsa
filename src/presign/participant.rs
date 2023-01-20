@@ -1029,8 +1029,8 @@ impl PresignKeyShareAndInfo {
             &PiAffgInput::new(
                 &receiver_aux_info.params,
                 &g,
-                receiver_aux_info.pk.n(),
-                self.aux_info_public.pk.n(),
+                &receiver_aux_info.pk,
+                &self.aux_info_public.pk,
                 &receiver_r1_pub_broadcast.K,
                 &D,
                 &F,
@@ -1044,8 +1044,8 @@ impl PresignKeyShareAndInfo {
             &PiAffgInput::new(
                 &receiver_aux_info.params,
                 &g,
-                receiver_aux_info.pk.n(),
-                self.aux_info_public.pk.n(),
+                &receiver_aux_info.pk,
+                &self.aux_info_public.pk,
                 &receiver_r1_pub_broadcast.K,
                 &D_hat,
                 &F_hat,
