@@ -14,7 +14,7 @@
 use super::Proof;
 use crate::{
     errors::*,
-    paillier::PaillierNonce,
+    paillier::{MaskedNonce, PaillierNonce},
     paillier::{PaillierCiphertext, PaillierEncryptionKey},
     parameters::{ELL, ELL_PRIME, EPSILON},
     utils::{
@@ -45,8 +45,8 @@ pub(crate) struct PiAffgProof {
     z2: BigNumber,
     z3: BigNumber,
     z4: BigNumber,
-    w: BigNumber,
-    w_y: BigNumber,
+    w: MaskedNonce,
+    w_y: MaskedNonce,
 }
 
 #[derive(Serialize)]
@@ -193,14 +193,8 @@ impl Proof for PiAffgProof {
         let z2 = &beta + &e * &secret.y;
         let z3 = gamma + &e * m;
         let z4 = delta + &e * mu;
-        let w = r.inner().modmul(
-            &modpow(secret.rho.inner(), &e, input.pk0.n()),
-            input.pk0.n(),
-        );
-        let w_y = r_y.inner().modmul(
-            &modpow(secret.rho_y.inner(), &e, input.pk1.n()),
-            input.pk1.n(),
-        );
+        let w = input.pk0.mask(&r, &secret.rho, &e);
+        let w_y = input.pk1.mask(&r_y, &secret.rho_y, &e);
 
         let proof = Self {
             alpha,
@@ -259,7 +253,7 @@ impl Proof for PiAffgProof {
         let eq_check_1 = {
             let a = modpow(&input.C.0, &self.z1, &N0_squared);
             let b = modpow(&(BigNumber::one() + input.pk0.n()), &self.z2, &N0_squared);
-            let c = modpow(&self.w, input.pk0.n(), &N0_squared);
+            let c = modpow(&self.w.0, input.pk0.n(), &N0_squared);
             let lhs = a.modmul(&b, &N0_squared).modmul(&c, &N0_squared);
             let rhs = self
                 .A
@@ -281,7 +275,7 @@ impl Proof for PiAffgProof {
 
         let eq_check_3 = {
             let a = modpow(&(BigNumber::one() + input.pk1.n()), &self.z2, &N1_squared);
-            let b = modpow(&self.w_y, input.pk1.n(), &N1_squared);
+            let b = modpow(&self.w_y.0, input.pk1.n(), &N1_squared);
             let lhs = a.modmul(&b, &N1_squared);
             let rhs = self
                 .B_y

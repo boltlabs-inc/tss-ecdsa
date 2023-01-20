@@ -5,9 +5,12 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::errors::{InternalError, Result};
 use crate::parameters::PRIME_BITS;
 use crate::utils::{random_bn_in_z_star, CRYPTOGRAPHIC_RETRY_MAX};
+use crate::{
+    errors::{InternalError, Result},
+    utils::modpow,
+};
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -41,12 +44,9 @@ impl From<PaillierError> for InternalError {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PaillierNonce(BigNumber);
 
-impl PaillierNonce {
-    /// Extracts the nonce as a [`BigNumber`].
-    pub(crate) fn inner(&self) -> &BigNumber {
-        &self.0
-    }
-}
+/// A masked version of [`PaillierNonce`] produced by [`PaillierEncryptionKey::mask()`].
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct MaskedNonce(pub(crate) BigNumber);
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PaillierCiphertext(pub(crate) BigNumber);
@@ -79,6 +79,18 @@ impl PaillierEncryptionKey {
         let b = nonce.modpow(self.n(), self.0.nn());
         let c = a.modmul(&b, self.0.nn());
         Ok((PaillierCiphertext(c), PaillierNonce(nonce)))
+    }
+
+    /// Combines two [`PaillierNonce`]s into a [`MaskedNonce`] by computing
+    /// $`\text{nonce}_0 * \text{nonce}_1^{e} \text{mod} N`$, where $`N`$ is
+    /// the modulus of [`PaillierEncryptionKey`].
+    pub(crate) fn mask(
+        &self,
+        nonce0: &PaillierNonce,
+        nonce1: &PaillierNonce,
+        e: &BigNumber,
+    ) -> MaskedNonce {
+        MaskedNonce(nonce0.0.modmul(&modpow(&nonce1.0, e, self.n()), self.n()))
     }
 }
 
