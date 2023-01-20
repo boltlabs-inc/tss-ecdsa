@@ -35,7 +35,7 @@ impl From<PaillierError> for InternalError {
     }
 }
 
-/// A nonce generated as part of [PaillierEncryptionKey::encrypt].
+/// A nonce generated as part of [`PaillierEncryptionKey::encrypt()`].
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PaillierNonce(pub(crate) BigNumber);
 
