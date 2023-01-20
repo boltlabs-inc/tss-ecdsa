@@ -53,7 +53,9 @@ pub(crate) struct PiAffgProof {
 pub(crate) struct PiAffgInput {
     setup_params: ZkSetupParameters,
     g: CurvePoint,
+    // This corresponds to `N_0` in the paper.
     pk0: PaillierEncryptionKey,
+    // This corresponds to `N_1` in the paper.
     pk1: PaillierEncryptionKey,
     C: PaillierCiphertext,
     D: PaillierCiphertext,

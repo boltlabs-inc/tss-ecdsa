@@ -39,6 +39,7 @@ pub(crate) struct PiEncProof {
 #[derive(Serialize)]
 pub(crate) struct PiEncInput {
     setup_params: ZkSetupParameters,
+    // This corresponds to `N_0` in the paper.
     pk: PaillierEncryptionKey,
     K: PaillierCiphertext,
 }

@@ -42,6 +42,7 @@ pub(crate) struct PiLogProof {
 pub(crate) struct PiLogInput {
     setup_params: ZkSetupParameters,
     q: BigNumber,
+    // This corresponds to `N_0` in the paper.
     pk: PaillierEncryptionKey,
     C: PaillierCiphertext,
     X: CurvePoint,
