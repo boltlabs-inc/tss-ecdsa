@@ -83,7 +83,7 @@ impl Public {
         let psi_prime_input = PiLogInput::new(
             &receiver_auxinfo_public.params,
             &k256_order(),
-            sender_auxinfo_public.pk.n(),
+            &sender_auxinfo_public.pk,
             &sender_r1_public_broadcast.G,
             &self.Gamma,
             &g,

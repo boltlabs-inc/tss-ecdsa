@@ -10,7 +10,7 @@ use crate::{
     auxinfo::info::AuxInfoPublic,
     errors::Result,
     messages::{Message, MessageType, PresignMessageType},
-    paillier::{PaillierCiphertext, PaillierNonce},
+    paillier::{PaillierCiphertext, PaillierEncryptionKey, PaillierNonce},
     zkp::{pienc::PiEncProof, setup::ZkSetupParameters, Proof},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -43,12 +43,12 @@ impl Public {
     fn verify(
         &self,
         receiver_setup_params: &ZkSetupParameters,
-        sender_modulus: &BigNumber,
+        sender_pk: &PaillierEncryptionKey,
         broadcasted_params: &PublicBroadcast,
     ) -> Result<()> {
         let input = crate::zkp::pienc::PiEncInput::new(
             receiver_setup_params,
-            sender_modulus,
+            sender_pk,
             &broadcasted_params.K,
         );
 
@@ -68,7 +68,7 @@ impl Public {
 
         match round_one_public.verify(
             &receiver_keygen_public.params,
-            sender_keygen_public.pk.n(),
+            &sender_keygen_public.pk,
             broadcasted_params,
         ) {
             Ok(()) => Ok(round_one_public),

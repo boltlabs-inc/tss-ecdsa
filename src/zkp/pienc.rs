@@ -14,12 +14,9 @@
 use super::Proof;
 use crate::{
     errors::*,
-    paillier::{PaillierCiphertext, PaillierNonce},
+    paillier::{PaillierCiphertext, PaillierEncryptionKey, PaillierNonce},
     parameters::{ELL, EPSILON},
-    utils::{
-        k256_order, modpow, plusminus_bn_random_from_transcript, random_bn_in_range,
-        random_bn_in_z_star,
-    },
+    utils::{k256_order, modpow, plusminus_bn_random_from_transcript, random_bn_in_range},
     zkp::setup::ZkSetupParameters,
 };
 use libpaillier::unknown_order::BigNumber;
@@ -42,19 +39,19 @@ pub(crate) struct PiEncProof {
 #[derive(Serialize)]
 pub(crate) struct PiEncInput {
     setup_params: ZkSetupParameters,
-    N0: BigNumber,
+    pk: PaillierEncryptionKey,
     K: PaillierCiphertext,
 }
 
 impl PiEncInput {
     pub(crate) fn new(
         setup_params: &ZkSetupParameters,
-        N0: &BigNumber,
+        pk: &PaillierEncryptionKey,
         K: &PaillierCiphertext,
     ) -> Self {
         Self {
             setup_params: setup_params.clone(),
-            N0: N0.clone(),
+            pk: pk.clone(),
             K: K.clone(),
         }
     }
@@ -92,21 +89,16 @@ impl Proof for PiEncProof {
         let alpha = random_bn_in_range(rng, ELL + EPSILON);
 
         let mu = random_bn_in_range(rng, ELL) * &input.setup_params.N;
-        let r = random_bn_in_z_star(rng, &input.N0)?;
         let gamma = random_bn_in_range(rng, ELL + EPSILON) * &input.setup_params.N;
 
-        let N0_squared = &input.N0 * &input.N0;
+        let N0 = input.pk.n();
 
         let S = {
             let a = modpow(&input.setup_params.s, &secret.k, &input.setup_params.N);
             let b = modpow(&input.setup_params.t, &mu, &input.setup_params.N);
             a.modmul(&b, &input.setup_params.N)
         };
-        let A = {
-            let a = modpow(&(&BigNumber::one() + &input.N0), &alpha, &N0_squared);
-            let b = modpow(&r, &input.N0, &N0_squared);
-            PaillierCiphertext(a.modmul(&b, &N0_squared))
-        };
+        let (A, r) = input.pk.encrypt(rng, &alpha)?;
         let C = {
             let a = modpow(&input.setup_params.s, &alpha, &input.setup_params.N);
             let b = modpow(&input.setup_params.t, &gamma, &input.setup_params.N);
@@ -129,7 +121,7 @@ impl Proof for PiEncProof {
         );
 
         let z1 = &alpha + &e * &secret.k;
-        let z2 = r.modmul(&modpow(secret.rho.inner(), &e, &input.N0), &input.N0);
+        let z2 = r.inner().modmul(&modpow(secret.rho.inner(), &e, N0), N0);
         let z3 = gamma + &e * mu;
 
         let proof = Self {
@@ -166,13 +158,14 @@ impl Proof for PiEncProof {
             return verify_err!("Fiat-Shamir didn't verify");
         }
 
-        let N0_squared = &input.N0 * &input.N0;
+        let N0 = input.pk.n();
+        let N0_squared = input.pk.n() * input.pk.n();
 
         // Do equality checks
 
         let eq_check_1 = {
-            let a = modpow(&(&BigNumber::one() + &input.N0), &self.z1, &N0_squared);
-            let b = modpow(&self.z2, &input.N0, &N0_squared);
+            let a = modpow(&(&BigNumber::one() + N0), &self.z1, &N0_squared);
+            let b = modpow(&self.z2, N0, &N0_squared);
             let lhs = a.modmul(&b, &N0_squared);
             let rhs = self
                 .A
@@ -217,16 +210,15 @@ mod tests {
         rng: &mut R,
         k: &BigNumber,
     ) -> Result<()> {
-        let (decryption_key, p, q) = PaillierDecryptionKey::new(rng)?;
+        let (decryption_key, _, _) = PaillierDecryptionKey::new(rng)?;
         let pk = decryption_key.encryption_key();
-        let N = &p * &q;
 
         let (K, rho) = pk.encrypt(rng, k)?;
         let setup_params = ZkSetupParameters::gen(rng)?;
 
         let input = PiEncInput {
             setup_params,
-            N0: N,
+            pk,
             K,
         };
 
