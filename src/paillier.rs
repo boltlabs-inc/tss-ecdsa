@@ -36,6 +36,8 @@ impl From<PaillierError> for InternalError {
 }
 
 /// A nonce generated as part of [`PaillierEncryptionKey::encrypt()`].
+/// A nonce is drawn from the multiplicative group of integers modulo `n`, where `n`
+/// is the modulus from the associated [`PaillierEncryptionKey`].
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PaillierNonce(BigNumber);
 
