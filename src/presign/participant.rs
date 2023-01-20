@@ -8,14 +8,12 @@
 
 use crate::broadcast::participant::BroadcastTag;
 use crate::errors::InternalError::InternalInvariantFailed;
-use crate::paillier::PaillierError;
 use crate::{
     auxinfo::info::{AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant},
     errors::Result,
     keygen::keyshare::{KeySharePrivate, KeySharePublic},
     messages::{Message, MessageType, PresignMessageType},
-    paillier::PaillierCiphertext,
     parameters::ELL,
     participant::{Broadcast, ProtocolParticipant},
     presign::{
@@ -988,34 +986,16 @@ impl PresignKeyShareAndInfo {
         let (beta_ciphertext, s) = receiver_aux_info.pk.encrypt(rng, &beta)?;
         let (beta_hat_ciphertext, s_hat) = receiver_aux_info.pk.encrypt(rng, &beta_hat)?;
 
-        let D = receiver_aux_info
-            .pk
-            .0
-            .add(
-                &receiver_aux_info
-                    .pk
-                    .0
-                    .mul(&receiver_r1_pub_broadcast.K.0, &sender_r1_priv.gamma)
-                    .ok_or(PaillierError::InvalidOperation)?,
-                &beta_ciphertext.0,
-            )
-            .map(PaillierCiphertext)
-            .ok_or(PaillierError::InvalidOperation)?;
-
-        let D_hat = receiver_aux_info
-            .pk
-            .0
-            .add(
-                &receiver_aux_info
-                    .pk
-                    .0
-                    .mul(&receiver_r1_pub_broadcast.K.0, &self.keyshare_private.x)
-                    .ok_or(PaillierError::InvalidOperation)?,
-                &beta_hat_ciphertext.0,
-            )
-            .map(PaillierCiphertext)
-            .ok_or(PaillierError::InvalidOperation)?;
-
+        let D = receiver_aux_info.pk.multiply_and_add(
+            &sender_r1_priv.gamma,
+            &receiver_r1_pub_broadcast.K,
+            &beta_ciphertext,
+        );
+        let D_hat = receiver_aux_info.pk.multiply_and_add(
+            &self.keyshare_private.x,
+            &receiver_r1_pub_broadcast.K,
+            &beta_hat_ciphertext,
+        );
         let (F, r) = self.aux_info_public.pk.encrypt(rng, &beta)?;
         let (F_hat, r_hat) = self.aux_info_public.pk.encrypt(rng, &beta_hat)?;
 

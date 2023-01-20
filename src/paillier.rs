@@ -119,6 +119,16 @@ impl PaillierEncryptionKey {
     ) -> MaskedNonce {
         MaskedNonce(mask.0.modmul(&modpow(&nonce.0, e, self.n()), self.n()))
     }
+
+    /// Computes $`a \cdot C_1 + C_2`$, returning the resulting ciphertext.
+    pub(crate) fn multiply_and_add(
+        &self,
+        a: &BigNumber,
+        c1: &PaillierCiphertext,
+        c2: &PaillierCiphertext,
+    ) -> PaillierCiphertext {
+        PaillierCiphertext(a * &c1.0 + &c2.0)
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
