@@ -63,7 +63,7 @@ impl PaillierCiphertext {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub(crate) struct PaillierEncryptionKey(pub(crate) libpaillier::EncryptionKey);
+pub(crate) struct PaillierEncryptionKey(libpaillier::EncryptionKey);
 
 impl PaillierEncryptionKey {
     pub(crate) fn n(&self) -> &BigNumber {
