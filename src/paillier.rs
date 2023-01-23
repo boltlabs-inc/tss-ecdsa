@@ -126,8 +126,18 @@ impl PaillierEncryptionKey {
         a: &BigNumber,
         c1: &PaillierCiphertext,
         c2: &PaillierCiphertext,
-    ) -> PaillierCiphertext {
-        PaillierCiphertext(a * &c1.0 + &c2.0)
+    ) -> Result<PaillierCiphertext> {
+        Ok(PaillierCiphertext(
+            self.0
+                .add(
+                    &self
+                        .0
+                        .mul(&c1.0, a)
+                        .ok_or(PaillierError::InvalidOperation)?,
+                    &c2.0,
+                )
+                .ok_or(PaillierError::InvalidOperation)?,
+        ))
     }
 }
 

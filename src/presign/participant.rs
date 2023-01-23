@@ -990,12 +990,12 @@ impl PresignKeyShareAndInfo {
             &sender_r1_priv.gamma,
             &receiver_r1_pub_broadcast.K,
             &beta_ciphertext,
-        );
+        )?;
         let D_hat = receiver_aux_info.pk.multiply_and_add(
             &self.keyshare_private.x,
             &receiver_r1_pub_broadcast.K,
             &beta_hat_ciphertext,
-        );
+        )?;
         let (F, r) = self.aux_info_public.pk.encrypt(rng, &beta)?;
         let (F_hat, r_hat) = self.aux_info_public.pk.encrypt(rng, &beta_hat)?;
 
