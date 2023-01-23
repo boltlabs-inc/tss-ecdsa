@@ -35,7 +35,7 @@ pub(crate) struct PiAffgProof {
     beta: BigNumber,
     S: BigNumber,
     T: BigNumber,
-    A: BigNumber,
+    A: PaillierCiphertext,
     B_x: CurvePoint,
     B_y: PaillierCiphertext,
     E: BigNumber,
@@ -142,11 +142,8 @@ impl Proof for PiAffgProof {
         let m = random_plusminus(rng, &range_ell);
         let mu = random_plusminus(rng, &range_ell);
 
-        let N0_squared = input.pk0.n() * input.pk0.n();
-
-        let a = modpow(&input.C.0, &alpha, &N0_squared);
         let (b, r) = input.pk0.encrypt(rng, &beta)?;
-        let A = a.modmul(&b.0, &N0_squared);
+        let A = input.pk0.multiply_and_add(&alpha, &input.C, &b)?;
         let B_x = CurvePoint(input.g.0 * utils::bn_to_scalar(&alpha)?);
         let (B_y, r_y) = input.pk1.encrypt(rng, &beta)?;
         let E = {
@@ -254,10 +251,8 @@ impl Proof for PiAffgProof {
             let a = modpow(&input.C.0, &self.z1, &N0_squared);
             let b = modpow(&(BigNumber::one() + input.pk0.n()), &self.z2, &N0_squared);
             let c = modpow(&self.w.0, input.pk0.n(), &N0_squared);
-            let lhs = a.modmul(&b, &N0_squared).modmul(&c, &N0_squared);
-            let rhs = self
-                .A
-                .modmul(&modpow(&input.D.0, &self.e, &N0_squared), &N0_squared);
+            let lhs = PaillierCiphertext(a.modmul(&b, &N0_squared).modmul(&c, &N0_squared));
+            let rhs = input.pk0.multiply_and_add(&self.e, &input.D, &self.A)?;
             lhs == rhs
         };
         if !eq_check_1 {
@@ -276,11 +271,8 @@ impl Proof for PiAffgProof {
         let eq_check_3 = {
             let a = modpow(&(BigNumber::one() + input.pk1.n()), &self.z2, &N1_squared);
             let b = modpow(&self.w_y.0, input.pk1.n(), &N1_squared);
-            let lhs = a.modmul(&b, &N1_squared);
-            let rhs = self
-                .B_y
-                .0
-                .modmul(&modpow(&input.Y.0, &self.e, &N1_squared), &N1_squared);
+            let lhs = PaillierCiphertext(a.modmul(&b, &N1_squared));
+            let rhs = input.pk1.multiply_and_add(&self.e, &input.Y, &self.B_y)?;
             lhs == rhs
         };
         if !eq_check_3 {
@@ -358,8 +350,8 @@ mod tests {
         // Compute D = C^x * (1 + N0)^y rho^N0 (mod N0^2)
         let (D, rho) = {
             let (D_intermediate, rho) = pk0.encrypt(rng, y)?;
-            let D = modpow(&C.0, x, &N0_squared).modmul(&D_intermediate.0, &N0_squared);
-            (PaillierCiphertext(D), rho)
+            let D = pk0.multiply_and_add(x, &C, &D_intermediate)?;
+            (D, rho)
         };
 
         let setup_params = ZkSetupParameters::gen(rng)?;

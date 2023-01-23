@@ -179,11 +179,8 @@ impl Proof for PiLogProof {
         let eq_check_1 = {
             let a = modpow(&(BigNumber::one() + N0), &self.z1, &N0_squared);
             let b = modpow(&self.z2.0, N0, &N0_squared);
-            let lhs = a.modmul(&b, &N0_squared);
-            let rhs = self
-                .A
-                .0
-                .modmul(&modpow(&input.C.0, &self.e, &N0_squared), &N0_squared);
+            let lhs = PaillierCiphertext(a.modmul(&b, &N0_squared));
+            let rhs = input.pk.multiply_and_add(&self.e, &input.C, &self.A)?;
             lhs == rhs
         };
         if !eq_check_1 {

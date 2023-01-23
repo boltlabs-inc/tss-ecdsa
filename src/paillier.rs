@@ -52,7 +52,7 @@ pub(crate) struct PaillierNonce(BigNumber);
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct MaskedNonce(pub(crate) BigNumber);
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub(crate) struct PaillierCiphertext(pub(crate) BigNumber);
 
 impl PaillierCiphertext {
@@ -127,16 +127,15 @@ impl PaillierEncryptionKey {
         c1: &PaillierCiphertext,
         c2: &PaillierCiphertext,
     ) -> Result<PaillierCiphertext> {
+        // Ciphertext addition is modular multiplication, and ciphertext multiplication
+        // is modular exponentiation.
+        //
+        // Note: We do not use `libpaillier::EncryptionKey::mul`
+        // because it does a check that `0 < a < N`. However, the `a` passed in is usually
+        // in the range `-N/2 < a < N/2` so could fail that check. Instead, we just do the
+        // operations directly.
         Ok(PaillierCiphertext(
-            self.0
-                .add(
-                    &self
-                        .0
-                        .mul(&c1.0, a)
-                        .ok_or(PaillierError::InvalidOperation)?,
-                    &c2.0,
-                )
-                .ok_or(PaillierError::InvalidOperation)?,
+            modpow(&c1.0, a, self.0.nn()).modmul(&c2.0, self.0.nn()),
         ))
     }
 }
