@@ -60,6 +60,7 @@ mod parameters;
 mod participant;
 mod presign;
 mod protocol;
+mod ring_pedersen;
 mod storage;
 mod utils;
 mod zkp;

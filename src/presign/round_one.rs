@@ -11,7 +11,8 @@ use crate::{
     errors::Result,
     messages::{Message, MessageType, PresignMessageType},
     paillier::{Ciphertext, EncryptionKey, Nonce},
-    zkp::{pienc::PiEncProof, setup::ZkSetupParameters, Proof},
+    ring_pedersen::VerifiedRingPedersen,
+    zkp::{pienc::PiEncProof, Proof},
 };
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
@@ -42,7 +43,7 @@ impl Public {
     /// the modulus N should be the sending party's modulus N
     fn verify(
         &self,
-        receiver_setup_params: &ZkSetupParameters,
+        receiver_setup_params: &VerifiedRingPedersen,
         sender_pk: EncryptionKey,
         K: Ciphertext,
     ) -> Result<()> {

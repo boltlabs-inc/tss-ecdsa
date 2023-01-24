@@ -12,8 +12,8 @@ use super::Proof;
 use crate::{
     errors::*,
     parameters::{ELL, EPSILON},
-    utils::{k256_order, modpow, plusminus_bn_random_from_transcript, random_plusminus_scaled},
-    zkp::setup::ZkSetupParameters,
+    ring_pedersen::{Commitment, CommitmentRandomness, MaskedRandomness, VerifiedRingPedersen},
+    utils::{k256_order, plusminus_bn_random_from_transcript, random_plusminus_scaled},
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -23,27 +23,27 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct PiFacProof {
-    P: BigNumber,
-    Q: BigNumber,
-    A: BigNumber,
-    B: BigNumber,
-    T: BigNumber,
-    sigma: BigNumber,
+    P: Commitment,
+    Q: Commitment,
+    A: Commitment,
+    B: Commitment,
+    T: Commitment,
+    sigma: CommitmentRandomness,
     z1: BigNumber,
     z2: BigNumber,
-    w1: BigNumber,
-    w2: BigNumber,
-    v: BigNumber,
+    w1: MaskedRandomness,
+    w2: MaskedRandomness,
+    v: MaskedRandomness,
 }
 
 #[derive(Serialize)]
 pub(crate) struct PiFacInput {
-    setup_params: ZkSetupParameters,
+    setup_params: VerifiedRingPedersen,
     N0: BigNumber,
 }
 
 impl PiFacInput {
-    pub(crate) fn new(setup_params: &ZkSetupParameters, N0: &BigNumber) -> Self {
+    pub(crate) fn new(setup_params: &VerifiedRingPedersen, N0: &BigNumber) -> Self {
         Self {
             setup_params: setup_params.clone(),
             N0: N0.clone(),
@@ -77,46 +77,32 @@ impl Proof for PiFacProof {
     ) -> Result<Self> {
         // Small names for scaling factors in our ranges
         let sqrt_N0 = &sqrt(&input.N0);
-        let n_hat = &input.setup_params.N;
 
         let alpha = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
         let beta = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
 
-        let mu = random_plusminus_scaled(rng, ELL, n_hat);
-        let nu = random_plusminus_scaled(rng, ELL, n_hat);
+        let sigma = input
+            .setup_params
+            .scheme()
+            .commitment_randomness(ELL, &input.N0, rng);
 
-        let modulus_product = &input.N0 * n_hat;
-        let sigma = random_plusminus_scaled(rng, ELL, &modulus_product);
-        let r = random_plusminus_scaled(rng, ELL + EPSILON, &modulus_product);
-
-        let x = random_plusminus_scaled(rng, ELL + EPSILON, n_hat);
-        let y = random_plusminus_scaled(rng, ELL + EPSILON, n_hat);
-
-        let P = {
-            let a = modpow(&input.setup_params.s, &secret.p, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &mu, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
-        let Q = {
-            let a = modpow(&input.setup_params.s, &secret.q, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &nu, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
-        let A = {
-            let a = modpow(&input.setup_params.s, &alpha, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &x, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
-        let B = {
-            let a = modpow(&input.setup_params.s, &beta, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &y, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
-        let T = {
-            let a = modpow(&Q, &alpha, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &r, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
+        let (P, mu) = input.setup_params.scheme().commit(&secret.p, ELL, rng);
+        let (Q, nu) = input.setup_params.scheme().commit(&secret.q, ELL, rng);
+        let (A, x) = input
+            .setup_params
+            .scheme()
+            .commit(&alpha, ELL + EPSILON, rng);
+        let (B, y) = input
+            .setup_params
+            .scheme()
+            .commit(&beta, ELL + EPSILON, rng);
+        let (T, r) = input.setup_params.scheme().commit_with_commitment(
+            &Q,
+            &alpha,
+            ELL + EPSILON,
+            &input.N0,
+            rng,
+        );
 
         let mut transcript = Transcript::new(b"PiFacProof");
         transcript.append_message(b"CommonInput", &serialize!(&input)?);
@@ -136,12 +122,12 @@ impl Proof for PiFacProof {
         // Verifier samples e in +- q (where q is the group order)
         let e = plusminus_bn_random_from_transcript(&mut transcript, &k256_order());
 
-        let sigma_hat = &sigma - &nu * &secret.p;
+        let sigma_hat = nu.mask_neg(&sigma, &secret.p);
         let z1 = &alpha + &e * &secret.p;
         let z2 = &beta + &e * &secret.q;
-        let w1 = &x + &e * &mu;
-        let w2 = &y + &e * &nu;
-        let v = &r + &e * &sigma_hat;
+        let w1 = mu.mask(&x, &e);
+        let w2 = nu.mask(&y, &e);
+        let v = sigma_hat.remask(&r, &e);
 
         let proof = Self {
             P,
@@ -178,11 +164,8 @@ impl Proof for PiFacProof {
         let e = plusminus_bn_random_from_transcript(&mut transcript, &k256_order());
 
         let eq_check_1 = {
-            let a1 = modpow(&input.setup_params.s, &self.z1, &input.setup_params.N);
-            let b1 = modpow(&input.setup_params.t, &self.w1, &input.setup_params.N);
-            let lhs = a1.modmul(&b1, &input.setup_params.N);
-            let b2 = modpow(&self.P, &e, &input.setup_params.N);
-            let rhs = self.A.modmul(&b2, &input.setup_params.N);
+            let lhs = input.setup_params.scheme().reconstruct(&self.z1, &self.w1);
+            let rhs = input.setup_params.scheme().combine(&self.A, &self.P, &e);
             lhs == rhs
         };
         if !eq_check_1 {
@@ -190,11 +173,8 @@ impl Proof for PiFacProof {
         }
 
         let eq_check_2 = {
-            let a1 = modpow(&input.setup_params.s, &self.z2, &input.setup_params.N);
-            let b1 = modpow(&input.setup_params.t, &self.w2, &input.setup_params.N);
-            let lhs = a1.modmul(&b1, &input.setup_params.N);
-            let b2 = modpow(&self.Q, &e, &input.setup_params.N);
-            let rhs = self.B.modmul(&b2, &input.setup_params.N);
+            let lhs = input.setup_params.scheme().reconstruct(&self.z2, &self.w2);
+            let rhs = input.setup_params.scheme().combine(&self.B, &self.Q, &e);
             lhs == rhs
         };
         if !eq_check_2 {
@@ -202,14 +182,15 @@ impl Proof for PiFacProof {
         }
 
         let eq_check_3 = {
-            let a0 = modpow(&input.setup_params.s, &input.N0, &input.setup_params.N);
-            let b0 = modpow(&input.setup_params.t, &self.sigma, &input.setup_params.N);
-            let R = a0.modmul(&b0, &input.setup_params.N);
-            let a1 = modpow(&self.Q, &self.z1, &input.setup_params.N);
-            let b1 = modpow(&input.setup_params.t, &self.v, &input.setup_params.N);
-            let lhs = a1.modmul(&b1, &input.setup_params.N);
-            let b2 = modpow(&R, &e, &input.setup_params.N);
-            let rhs = self.T.modmul(&b2, &input.setup_params.N);
+            let R = input
+                .setup_params
+                .scheme()
+                .reconstruct(&input.N0, self.sigma.as_masked());
+            let lhs = input
+                .setup_params
+                .scheme()
+                .reconstruct_with_commitment(&self.Q, &self.z1, &self.v);
+            let rhs = input.setup_params.scheme().combine(&self.T, &R, &e);
             lhs == rhs
         };
         if !eq_check_3 {
@@ -249,46 +230,32 @@ impl PiFacProof {
     ) -> Result<Self> {
         // Small names for scaling factors in our ranges
         let sqrt_N0 = &sqrt(&input.N0);
-        let n_hat = &input.setup_params.N;
 
         let alpha = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
         let beta = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
 
-        let mu = random_plusminus_scaled(rng, ELL, n_hat);
-        let nu = random_plusminus_scaled(rng, ELL, n_hat);
+        let sigma = input
+            .setup_params
+            .scheme()
+            .commitment_randomness(ELL, &input.N0, rng);
 
-        let modulus_product = &input.N0 * n_hat;
-        let sigma = random_plusminus_scaled(rng, ELL, &modulus_product);
-        let r = random_plusminus_scaled(rng, ELL + EPSILON, &modulus_product);
-
-        let x = random_plusminus_scaled(rng, ELL + EPSILON, n_hat);
-        let y = random_plusminus_scaled(rng, ELL + EPSILON, n_hat);
-
-        let P = {
-            let a = modpow(&input.setup_params.s, &secret.p, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &mu, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
-        let Q = {
-            let a = modpow(&input.setup_params.s, &secret.q, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &nu, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
-        let A = {
-            let a = modpow(&input.setup_params.s, &alpha, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &x, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
-        let B = {
-            let a = modpow(&input.setup_params.s, &beta, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &y, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
-        let T = {
-            let a = modpow(&Q, &alpha, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &r, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
+        let (P, mu) = input.setup_params.scheme().commit(&secret.p, ELL, rng);
+        let (Q, nu) = input.setup_params.scheme().commit(&secret.q, ELL, rng);
+        let (A, x) = input
+            .setup_params
+            .scheme()
+            .commit(&alpha, ELL + EPSILON, rng);
+        let (B, y) = input
+            .setup_params
+            .scheme()
+            .commit(&beta, ELL + EPSILON, rng);
+        let (T, r) = input.setup_params.scheme().commit_with_commitment(
+            &Q,
+            &alpha,
+            ELL + EPSILON,
+            &input.N0,
+            rng,
+        );
 
         transcript.append_message(b"CommonInput", &serialize!(&input)?);
         transcript.append_message(
@@ -307,12 +274,12 @@ impl PiFacProof {
         // Verifier samples e in +- q (where q is the group order)
         let e = plusminus_bn_random_from_transcript(transcript, &k256_order());
 
-        let sigma_hat = &sigma - &nu * &secret.p;
+        let sigma_hat = nu.mask_neg(&sigma, &secret.p);
         let z1 = &alpha + &e * &secret.p;
         let z2 = &beta + &e * &secret.q;
-        let w1 = &x + &e * &mu;
-        let w2 = &y + &e * &nu;
-        let v = &r + &e * &sigma_hat;
+        let w1 = mu.mask(&x, &e);
+        let w2 = nu.mask(&y, &e);
+        let v = sigma_hat.remask(&r, &e);
 
         let proof = Self {
             P,
@@ -352,11 +319,8 @@ impl PiFacProof {
         let e = plusminus_bn_random_from_transcript(transcript, &k256_order());
 
         let eq_check_1 = {
-            let a1 = modpow(&input.setup_params.s, &self.z1, &input.setup_params.N);
-            let b1 = modpow(&input.setup_params.t, &self.w1, &input.setup_params.N);
-            let lhs = a1.modmul(&b1, &input.setup_params.N);
-            let b2 = modpow(&self.P, &e, &input.setup_params.N);
-            let rhs = self.A.modmul(&b2, &input.setup_params.N);
+            let lhs = input.setup_params.scheme().reconstruct(&self.z1, &self.w1);
+            let rhs = input.setup_params.scheme().combine(&self.A, &self.P, &e);
             lhs == rhs
         };
         if !eq_check_1 {
@@ -364,11 +328,8 @@ impl PiFacProof {
         }
 
         let eq_check_2 = {
-            let a1 = modpow(&input.setup_params.s, &self.z2, &input.setup_params.N);
-            let b1 = modpow(&input.setup_params.t, &self.w2, &input.setup_params.N);
-            let lhs = a1.modmul(&b1, &input.setup_params.N);
-            let b2 = modpow(&self.Q, &e, &input.setup_params.N);
-            let rhs = self.B.modmul(&b2, &input.setup_params.N);
+            let lhs = input.setup_params.scheme().reconstruct(&self.z2, &self.w2);
+            let rhs = input.setup_params.scheme().combine(&self.B, &self.Q, &e);
             lhs == rhs
         };
         if !eq_check_2 {
@@ -376,14 +337,15 @@ impl PiFacProof {
         }
 
         let eq_check_3 = {
-            let a0 = modpow(&input.setup_params.s, &input.N0, &input.setup_params.N);
-            let b0 = modpow(&input.setup_params.t, &self.sigma, &input.setup_params.N);
-            let R = a0.modmul(&b0, &input.setup_params.N);
-            let a1 = modpow(&self.Q, &self.z1, &input.setup_params.N);
-            let b1 = modpow(&input.setup_params.t, &self.v, &input.setup_params.N);
-            let lhs = a1.modmul(&b1, &input.setup_params.N);
-            let b2 = modpow(&R, &e, &input.setup_params.N);
-            let rhs = self.T.modmul(&b2, &input.setup_params.N);
+            let R = input
+                .setup_params
+                .scheme()
+                .reconstruct(&input.N0, self.sigma.as_masked());
+            let lhs = input
+                .setup_params
+                .scheme()
+                .reconstruct_with_commitment(&self.Q, &self.z1, &self.v);
+            let rhs = input.setup_params.scheme().combine(&self.T, &R, &e);
             lhs == rhs
         };
         if !eq_check_3 {
@@ -417,7 +379,7 @@ mod tests {
     ) -> Result<(PiFacInput, PiFacProof)> {
         let (p0, q0) = prime_gen::get_prime_pair_from_pool_insecure(rng).unwrap();
         let N0 = &p0 * &q0;
-        let setup_params = ZkSetupParameters::gen(rng)?;
+        let setup_params = VerifiedRingPedersen::gen(rng)?;
 
         let input = PiFacInput::new(&setup_params, &N0);
         let proof = PiFacProof::prove(rng, &input, &PiFacSecret::new(&p0, &q0))?;
@@ -445,7 +407,7 @@ mod tests {
         assert!(proof.verify(&incorrect_N).is_err());
 
         let incorrect_startup_params =
-            PiFacInput::new(&ZkSetupParameters::gen(&mut rng)?, &input.N0);
+            PiFacInput::new(&VerifiedRingPedersen::gen(&mut rng)?, &input.N0);
         assert!(proof.verify(&incorrect_startup_params).is_err());
 
         let (not_p0, not_q0) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
@@ -455,7 +417,7 @@ mod tests {
 
         let small_p = BigNumber::from(7u64);
         let small_q = BigNumber::from(11u64);
-        let setup_params = ZkSetupParameters::gen(&mut rng)?;
+        let setup_params = VerifiedRingPedersen::gen(&mut rng)?;
         let small_input = PiFacInput::new(&setup_params, &(&small_p * &small_q));
         let small_proof =
             PiFacProof::prove(&mut rng, &input, &PiFacSecret::new(&small_p, &small_q))?;

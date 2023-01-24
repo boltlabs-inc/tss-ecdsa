@@ -17,11 +17,8 @@ use crate::{
     paillier::{Ciphertext, EncryptionKey},
     paillier::{MaskedNonce, Nonce},
     parameters::{ELL, ELL_PRIME, EPSILON},
-    utils::{
-        self, k256_order, modpow, plusminus_bn_random_from_transcript, random_plusminus,
-        random_plusminus_by_size,
-    },
-    zkp::setup::ZkSetupParameters,
+    ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
+    utils::{self, k256_order, plusminus_bn_random_from_transcript, random_plusminus_by_size},
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -33,25 +30,25 @@ use utils::CurvePoint;
 pub(crate) struct PiAffgProof {
     alpha: BigNumber,
     beta: BigNumber,
-    S: BigNumber,
-    T: BigNumber,
+    S: Commitment,
+    T: Commitment,
     A: Ciphertext,
     B_x: CurvePoint,
     B_y: Ciphertext,
-    E: BigNumber,
-    F: BigNumber,
+    E: Commitment,
+    F: Commitment,
     e: BigNumber,
     z1: BigNumber,
     z2: BigNumber,
-    z3: BigNumber,
-    z4: BigNumber,
+    z3: MaskedRandomness,
+    z4: MaskedRandomness,
     w: MaskedNonce,
     w_y: MaskedNonce,
 }
 
 #[derive(Serialize)]
 pub(crate) struct PiAffgInput {
-    setup_params: ZkSetupParameters,
+    setup_params: VerifiedRingPedersen,
     g: CurvePoint,
     /// This corresponds to `N_0` in the paper.
     pk0: EncryptionKey,
@@ -66,7 +63,7 @@ pub(crate) struct PiAffgInput {
 impl PiAffgInput {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        setup_params: &ZkSetupParameters,
+        setup_params: &VerifiedRingPedersen,
         g: &CurvePoint,
         pk0: &EncryptionKey,
         pk1: &EncryptionKey,
@@ -127,40 +124,20 @@ impl Proof for PiAffgProof {
         // Sample beta from 2^{ELL_PRIME + EPSILON}.
         let beta = random_plusminus_by_size(rng, ELL_PRIME + EPSILON);
 
-        // range_ell_eps = 2^{ELL + EPSILON} * N_hat
-        let range_ell_eps = (BigNumber::one() << (ELL + EPSILON)) * &input.setup_params.N;
-        let gamma = random_plusminus(rng, &range_ell_eps);
-        let delta = random_plusminus(rng, &range_ell_eps);
-
-        // range_ell = 2^ELL * N_hat
-        let range_ell = (BigNumber::one() << ELL) * &input.setup_params.N;
-        let m = random_plusminus(rng, &range_ell);
-        let mu = random_plusminus(rng, &range_ell);
-
         let (b, r) = input.pk0.encrypt(rng, &beta)?;
         let A = input.pk0.multiply_and_add(&alpha, &input.C, &b)?;
         let B_x = CurvePoint(input.g.0 * utils::bn_to_scalar(&alpha)?);
         let (B_y, r_y) = input.pk1.encrypt(rng, &beta)?;
-        let E = {
-            let a = modpow(&input.setup_params.s, &alpha, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &gamma, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
-        let S = {
-            let a = modpow(&input.setup_params.s, &secret.x, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &m, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
-        let F = {
-            let a = modpow(&input.setup_params.s, &beta, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &delta, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
-        let T = {
-            let a = modpow(&input.setup_params.s, &secret.y, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &mu, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
+        let (E, gamma) = input
+            .setup_params
+            .scheme()
+            .commit(&alpha, ELL + EPSILON, rng);
+        let (S, m) = input.setup_params.scheme().commit(&secret.x, ELL, rng);
+        let (F, delta) = input
+            .setup_params
+            .scheme()
+            .commit(&beta, ELL + EPSILON, rng);
+        let (T, mu) = input.setup_params.scheme().commit(&secret.y, ELL, rng);
 
         let mut transcript = Transcript::new(b"PiAffgProof");
         transcript.append_message(b"CommonInput", &serialize!(&input)?);
@@ -183,8 +160,8 @@ impl Proof for PiAffgProof {
 
         let z1 = &alpha + &e * &secret.x;
         let z2 = &beta + &e * &secret.y;
-        let z3 = gamma + &e * m;
-        let z4 = delta + &e * mu;
+        let z3 = m.mask(&gamma, &e);
+        let z4 = mu.mask(&delta, &e);
         let w = input.pk0.mask(&secret.rho, &r, &e);
         let w_y = input.pk1.mask(&secret.rho_y, &r_y, &e);
 
@@ -269,13 +246,11 @@ impl Proof for PiAffgProof {
         }
 
         let eq_check_4 = {
-            let a = modpow(&input.setup_params.s, &self.z1, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &self.z3, &input.setup_params.N);
-            let lhs = a.modmul(&b, &input.setup_params.N);
-            let rhs = self.E.modmul(
-                &modpow(&self.S, &self.e, &input.setup_params.N),
-                &input.setup_params.N,
-            );
+            let lhs = input.setup_params.scheme().reconstruct(&self.z1, &self.z3);
+            let rhs = input
+                .setup_params
+                .scheme()
+                .combine(&self.E, &self.S, &self.e);
             lhs == rhs
         };
         if !eq_check_4 {
@@ -283,13 +258,11 @@ impl Proof for PiAffgProof {
         }
 
         let eq_check_5 = {
-            let a = modpow(&input.setup_params.s, &self.z2, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &self.z4, &input.setup_params.N);
-            let lhs = a.modmul(&b, &input.setup_params.N);
-            let rhs = self.F.modmul(
-                &modpow(&self.T, &self.e, &input.setup_params.N),
-                &input.setup_params.N,
-            );
+            let lhs = input.setup_params.scheme().reconstruct(&self.z2, &self.z4);
+            let rhs = input
+                .setup_params
+                .scheme()
+                .combine(&self.F, &self.T, &self.e);
             lhs == rhs
         };
         if !eq_check_5 {
@@ -341,7 +314,7 @@ mod tests {
             (D, rho)
         };
 
-        let setup_params = ZkSetupParameters::gen(rng)?;
+        let setup_params = VerifiedRingPedersen::gen(rng)?;
 
         let input = PiAffgInput::new(&setup_params, &CurvePoint(g), &pk0, &pk1, &C, &D, &Y, &X);
         let proof = PiAffgProof::prove(rng, &input, &PiAffgSecret::new(x, y, &rho, &rho_y))?;

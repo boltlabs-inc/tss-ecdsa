@@ -8,7 +8,7 @@
 
 //! Implements the ZKP from Figure 17 of <https://eprint.iacr.org/2021/060.pdf>
 
-use crate::{errors::*, utils::*};
+use crate::{errors::*, ring_pedersen::RingPedersen, utils::*};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
@@ -30,19 +30,11 @@ pub(crate) struct PiPrmProof {
 }
 
 #[derive(Serialize)]
-pub(crate) struct PiPrmInput {
-    N: BigNumber,
-    s: BigNumber,
-    t: BigNumber,
-}
+pub(crate) struct PiPrmInput(RingPedersen);
 
 impl PiPrmInput {
-    pub(crate) fn new(N: &BigNumber, s: &BigNumber, t: &BigNumber) -> Self {
-        Self {
-            N: N.clone(),
-            s: s.clone(),
-            t: t.clone(),
-        }
+    pub(crate) fn new(ring_pedersen: RingPedersen) -> Self {
+        Self(ring_pedersen)
     }
 }
 
@@ -78,7 +70,7 @@ impl Proof for PiPrmProof {
 
         let public_a_values = secret_a_values
             .iter()
-            .map(|a| modpow(&input.t, a, &input.N))
+            .map(|a| modpow(input.0.t(), a, input.0.modulus()))
             .collect::<Vec<_>>();
 
         let mut transcript = Transcript::new(b"RingPedersenProof");
@@ -137,11 +129,11 @@ impl Proof for PiPrmProof {
             .zip(&self.a_values)
             .map(|((e, z), a)| {
                 // Verify that t^z = A * s^e (mod N)
-                let lhs = modpow(&input.t, z, &input.N);
+                let lhs = modpow(input.0.t(), z, input.0.modulus());
                 let rhs = if e % 2 == 1 {
-                    a.modmul(&input.s, &input.N)
+                    a.modmul(input.0.s(), input.0.modulus())
                 } else {
-                    a.nmod(&input.N)
+                    a.nmod(input.0.modulus())
                 };
                 lhs == rhs
             })
@@ -172,7 +164,8 @@ mod tests {
         let t = modpow(&tau, &BigNumber::from(2), &N);
         let s = modpow(&t, &lambda, &N);
 
-        let input = PiPrmInput::new(&N, &s, &t);
+        let ring_pedersen = RingPedersen::from_parts(s, t, N);
+        let input = PiPrmInput::new(ring_pedersen);
         let proof = PiPrmProof::prove(rng, &input, &PiPrmSecret::new(&lambda, &phi_n))?;
         Ok((input, proof))
     }

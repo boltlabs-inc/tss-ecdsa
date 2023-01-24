@@ -9,7 +9,7 @@
 use crate::{
     errors::Result,
     paillier::{DecryptionKey, EncryptionKey},
-    zkp::setup::ZkSetupParameters,
+    ring_pedersen::VerifiedRingPedersen,
 };
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
@@ -24,15 +24,15 @@ pub(crate) struct AuxInfoPrivate {
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct AuxInfoPublic {
     pub(crate) pk: EncryptionKey,
-    pub(crate) params: ZkSetupParameters,
+    pub(crate) params: VerifiedRingPedersen,
 }
 
 impl AuxInfoPublic {
     /// Verifies that the public key's modulus matches the ZKSetupParameters
     /// modulus N, and that the parameters have appropriate s and t values.
     pub(crate) fn verify(&self) -> Result<()> {
-        if self.pk.n() != &self.params.N {
-            return verify_err!("Mismatch with pk.n() and params.N");
+        if self.pk.modulus() != self.params.scheme().modulus() {
+            return verify_err!("Mismatch between public key modulus and setup parameters modulus");
         }
         self.params.verify()
     }

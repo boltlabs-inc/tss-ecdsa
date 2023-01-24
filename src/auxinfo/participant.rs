@@ -18,10 +18,10 @@ use crate::{
     paillier::DecryptionKey,
     participant::{Broadcast, ProtocolParticipant},
     protocol::ParticipantIdentifier,
+    ring_pedersen::VerifiedRingPedersen,
     run_only_once,
     storage::{StorableType, Storage},
     utils::process_ready_message,
-    zkp::setup::ZkSetupParameters,
 };
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -448,7 +448,7 @@ impl AuxInfoParticipant {
             message.id(),
             global_rid,
             &auxinfo_pub.params,
-            auxinfo_pub.pk.n(),
+            auxinfo_pub.pk.modulus(),
         )?;
 
         self.storage.store(
@@ -508,8 +508,8 @@ fn new_auxinfo<R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> Result<(AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses)> {
     let (decryption_key, p, q) = DecryptionKey::new(rng)?;
+    let params = VerifiedRingPedersen::extract(&decryption_key, rng)?;
     let encryption_key = decryption_key.encryption_key();
-    let params = ZkSetupParameters::gen_from_primes(rng, &(&p * &q), &p, &q)?;
 
     Ok((
         AuxInfoPrivate { sk: decryption_key },

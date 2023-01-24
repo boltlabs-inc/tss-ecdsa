@@ -30,11 +30,8 @@ use crate::{
     errors::*,
     paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce},
     parameters::{ELL, EPSILON},
-    utils::{
-        k256_order, modpow, plusminus_bn_random_from_transcript, random_plusminus_by_size,
-        random_plusminus_scaled,
-    },
-    zkp::setup::ZkSetupParameters,
+    ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
+    utils::{k256_order, plusminus_bn_random_from_transcript, random_plusminus_by_size},
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -48,12 +45,12 @@ pub(crate) struct PiEncProof {
     /// Mask for the plaintext value of the ciphertext (`alpha` in the paper).
     plaintext_mask: BigNumber,
     /// Commitment to the plaintext value of the ciphertext (`S` in the paper).
-    plaintext_commit: BigNumber,
+    plaintext_commit: Commitment,
     /// Masking ciphertext (`A` in the paper).
     /// This is the encryption of `plaintext_mask`.
     ciphertext_mask: Ciphertext,
     /// Commitment to the plaintext mask (`C` in the paper).
-    plaintext_mask_commit: BigNumber,
+    plaintext_mask_commit: Commitment,
     /// Fiat-Shamir challenge (`e` in the paper).
     challenge: BigNumber,
     /// Response binding the plaintext value of the ciphertext and its mask (`z1` in the paper).
@@ -61,14 +58,14 @@ pub(crate) struct PiEncProof {
     /// Response binding the nonce from the original ciphertext and its mask (`z2` in the paper).
     nonce_response: MaskedNonce,
     /// Response binding the commitment randomness used in the two commitments (`z3` in the paper).
-    randomness_response: BigNumber,
+    randomness_response: MaskedRandomness,
 }
 
 /// Common input and setup parameters known to both the prover and verifier.
 #[derive(Serialize)]
 pub(crate) struct PiEncInput {
     /// The verifier's commitment parameters (`(N^hat, s, t)` in the paper).
-    setup_params: ZkSetupParameters,
+    setup_params: VerifiedRingPedersen,
     /// The prover's encryption key (`N_0` in the paper).
     encryption_key: EncryptionKey,
     /// Ciphertext about which we are proving properties (`K` in the paper).
@@ -78,7 +75,7 @@ pub(crate) struct PiEncInput {
 impl PiEncInput {
     /// Generate public input for proving or verifying a [`PiEncProof`] about `ciphertext`.
     pub(crate) fn new(
-        verifer_setup_params: ZkSetupParameters,
+        verifer_setup_params: VerifiedRingPedersen,
         prover_encryption_key: EncryptionKey,
         ciphertext: Ciphertext,
     ) -> Self {
@@ -116,35 +113,23 @@ impl Proof for PiEncProof {
         input: &Self::CommonInput,
         secret: &Self::ProverSecret,
     ) -> Result<Self> {
-        let PiEncInput {
-            setup_params,
-            encryption_key,
-            ..
-        } = input;
-
         // Sample a mask for the plaintext (aka `alpha`)
         let plaintext_mask = random_plusminus_by_size(rng, ELL + EPSILON);
 
-        // Sample commitment randomness for plaintext and ciphertext mask, respectively
-        let mu = random_plusminus_scaled(rng, ELL, &setup_params.N);
-        let gamma = random_plusminus_scaled(rng, ELL + EPSILON, &setup_params.N);
-
-        // Commit to the plaintext! (aka `S`)
-        let plaintext_commit = {
-            let a = modpow(&setup_params.s, &secret.plaintext, &setup_params.N);
-            let b = modpow(&setup_params.t, &mu, &setup_params.N);
-            a.modmul(&b, &setup_params.N)
-        };
-
+        // Commit to the plaintext (aka `S`)
+        let (plaintext_commit, mu) =
+            input
+                .setup_params
+                .scheme()
+                .commit(&secret.plaintext, ELL, rng);
         // Encrypt the mask for the plaintext (aka `A, r`)
-        let (ciphertext_mask, nonce_mask) = encryption_key.encrypt(rng, &plaintext_mask)?;
-
+        let (ciphertext_mask, nonce_mask) = input.encryption_key.encrypt(rng, &plaintext_mask)?;
         // Commit to the mask for the plaintext (aka `C`)
-        let plaintext_mask_commit = {
-            let a = modpow(&setup_params.s, &plaintext_mask, &setup_params.N);
-            let b = modpow(&setup_params.t, &gamma, &setup_params.N);
-            a.modmul(&b, &setup_params.N)
-        };
+        let (plaintext_mask_commit, gamma) =
+            input
+                .setup_params
+                .scheme()
+                .commit(&plaintext_mask, ELL + EPSILON, rng);
 
         // Fill out the transcript with our fresh commitments...
         let mut transcript = Transcript::new(b"PiEncProof");
@@ -163,8 +148,10 @@ impl Proof for PiEncProof {
         // Form proof responses. Each combines one secret value with its mask and the challenge
         // (aka `z1`, `z2`, `z3` respectively)
         let plaintext_response = &plaintext_mask + &challenge * &secret.plaintext;
-        let nonce_response = encryption_key.mask(&secret.nonce, &nonce_mask, &challenge);
-        let randomness_response = gamma + &challenge * mu;
+        let nonce_response = input
+            .encryption_key
+            .mask(&secret.nonce, &nonce_mask, &challenge);
+        let randomness_response = mu.mask(&gamma, &challenge);
 
         let proof = Self {
             plaintext_mask,
@@ -219,20 +206,14 @@ impl Proof for PiEncProof {
         // Check that the plaintext and commitment randomness responses are well formed (e.g. that
         // the prover did not try to falsify its commitments to the plaintext or plaintext mask)
         let responses_match_commitments = {
-            let a = modpow(
-                &input.setup_params.s,
-                &self.plaintext_response,
-                &input.setup_params.N,
-            );
-            let b = modpow(
-                &input.setup_params.t,
-                &self.randomness_response,
-                &input.setup_params.N,
-            );
-            let lhs = a.modmul(&b, &input.setup_params.N);
-            let rhs = self.plaintext_mask_commit.modmul(
-                &modpow(&self.plaintext_commit, &e, &input.setup_params.N),
-                &input.setup_params.N,
+            let lhs = input
+                .setup_params
+                .scheme()
+                .reconstruct(&self.plaintext_response, &self.randomness_response);
+            let rhs = input.setup_params.scheme().combine(
+                &self.plaintext_mask_commit,
+                &self.plaintext_commit,
+                &e,
             );
             lhs == rhs
         };
@@ -256,9 +237,9 @@ impl PiEncProof {
         transcript: &mut Transcript,
         input: &PiEncInput,
         plaintext_mask: &BigNumber,
-        plaintext_commit: &BigNumber,
+        plaintext_commit: &Commitment,
         ciphertext_mask: &Ciphertext,
-        plaintext_mask_commit: &BigNumber,
+        plaintext_mask_commit: &Commitment,
     ) -> Result<()> {
         transcript.append_message(b"PiEnc CommonInput", &serialize!(&input)?);
         transcript.append_message(b"alpha", &plaintext_mask.to_bytes());
@@ -288,7 +269,7 @@ mod tests {
         let encryption_key = decryption_key.encryption_key();
 
         let (ciphertext, nonce) = encryption_key.encrypt(rng, &plaintext)?;
-        let setup_params = ZkSetupParameters::gen(rng)?;
+        let setup_params = VerifiedRingPedersen::gen(rng)?;
 
         let input = PiEncInput {
             setup_params,

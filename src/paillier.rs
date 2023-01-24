@@ -66,7 +66,8 @@ impl Ciphertext {
 pub(crate) struct EncryptionKey(libpaillier::EncryptionKey);
 
 impl EncryptionKey {
-    pub(crate) fn n(&self) -> &BigNumber {
+    /// Return this [`EncryptionKey`]s modulus.
+    pub(crate) fn modulus(&self) -> &BigNumber {
         self.0.n()
     }
 
@@ -91,7 +92,7 @@ impl EncryptionKey {
         x: &BigNumber,
     ) -> Result<(Ciphertext, Nonce)> {
         // Note: the check that `x` is in the proper range happens in `encrypt_with_nonce`.
-        let nonce = random_bn_in_z_star(rng, self.n())?;
+        let nonce = random_bn_in_z_star(rng, self.modulus())?;
         let c = self.encrypt_with_nonce(x, &MaskedNonce(nonce.clone()))?;
         Ok((c, Nonce(nonce)))
     }
@@ -109,7 +110,7 @@ impl EncryptionKey {
         if &self.half_n() < x || x < &-self.half_n() {
             Err(Error::EncryptionFailed {
                 x: x.clone(),
-                n: self.n().clone(),
+                n: self.modulus().clone(),
             })?
         }
 
@@ -118,9 +119,9 @@ impl EncryptionKey {
         // of in our range around 0. It seemed less confusing to implement encryption directly than
         // to try to move the plaintext to the canonical range.
         let one = BigNumber::one();
-        let base = one + self.n();
+        let base = one + self.modulus();
         let a = base.modpow(x, self.0.nn());
-        let b = nonce.0.modpow(self.n(), self.0.nn());
+        let b = nonce.0.modpow(self.modulus(), self.0.nn());
         let c = a.modmul(&b, self.0.nn());
         Ok(Ciphertext(c))
     }
@@ -140,7 +141,10 @@ impl EncryptionKey {
     /// The resulting [`MaskedNonce`] is computed as `mask * nonce^e mod N`, where `N`
     /// is the modulus of [`EncryptionKey`].
     pub(crate) fn mask(&self, nonce: &Nonce, mask: &Nonce, e: &BigNumber) -> MaskedNonce {
-        MaskedNonce(mask.0.modmul(&modpow(&nonce.0, e, self.n()), self.n()))
+        MaskedNonce(
+            mask.0
+                .modmul(&modpow(&nonce.0, e, self.modulus()), self.modulus()),
+        )
     }
 
     /// Computes `a ⊙ c1 ⊕ c2` homomorphically over [`Ciphertext`]s `c1` and `c2`.
@@ -251,8 +255,18 @@ impl DecryptionKey {
 
     /// Retrieve the public [`EncryptionKey`] corresponding to this secret
     /// [`DecryptionKey`].
-    pub fn encryption_key(&self) -> EncryptionKey {
+    pub(crate) fn encryption_key(&self) -> EncryptionKey {
         EncryptionKey(libpaillier::EncryptionKey::from(&self.0))
+    }
+
+    /// Return this [`DecryptionKey`]s modulus.
+    pub(crate) fn modulus(&self) -> &BigNumber {
+        self.0.n()
+    }
+
+    /// Return the [totient](https://en.wikipedia.org/wiki/Euler%27s_totient_function) of the modulus.
+    pub(crate) fn totient(&self) -> &BigNumber {
+        self.0.totient()
     }
 }
 
@@ -441,12 +455,12 @@ mod test {
         assert!(encryption_key.encrypt(&mut rng, &BigNumber::zero()).is_ok());
 
         // Test a number in between N/2 and N (both + and -)
-        let too_big = (encryption_key.n() / 3) * 2;
+        let too_big = (encryption_key.modulus() / 3) * 2;
         assert!(encryption_key.encrypt(&mut rng, &too_big).is_err());
         assert!(encryption_key.encrypt(&mut rng, &-too_big).is_err());
 
         // Test a number bigger than N (both + and -)
-        let way_too_big = encryption_key.n() + 1;
+        let way_too_big = encryption_key.modulus() + 1;
         assert!(encryption_key.encrypt(&mut rng, &way_too_big).is_err());
         assert!(encryption_key.encrypt(&mut rng, &-way_too_big).is_err());
 

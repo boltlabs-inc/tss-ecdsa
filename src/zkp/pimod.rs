@@ -765,7 +765,7 @@ mod tests {
         let (decryption_key, p, q) = DecryptionKey::new(rng).unwrap();
 
         let input = PiModInput {
-            N: decryption_key.encryption_key().n().to_owned(),
+            N: decryption_key.encryption_key().modulus().to_owned(),
         };
         let secret = PiModSecret { p, q };
 
@@ -781,7 +781,7 @@ mod tests {
         let (decryption_key, p, q) = DecryptionKey::new(rng).unwrap();
 
         let input = PiModInput {
-            N: decryption_key.encryption_key().n().to_owned(),
+            N: decryption_key.encryption_key().modulus().to_owned(),
         };
         let secret = PiModSecret { p, q };
 

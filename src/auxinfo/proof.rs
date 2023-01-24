@@ -9,10 +9,10 @@
 use crate::{
     errors::Result,
     messages::{AuxinfoMessageType, MessageType},
+    ring_pedersen::VerifiedRingPedersen,
     zkp::{
         pifac::{PiFacInput, PiFacProof, PiFacSecret},
         pimod::{PiModInput, PiModProof, PiModSecret},
-        setup::ZkSetupParameters,
     },
     Identifier, Message,
 };
@@ -42,7 +42,7 @@ impl AuxInfoProof {
         rng: &mut R,
         sid: Identifier,
         rho: [u8; 32],
-        setup_params: &ZkSetupParameters,
+        setup_params: &VerifiedRingPedersen,
         N: &BigNumber,
         p: &BigNumber,
         q: &BigNumber,
@@ -74,7 +74,7 @@ impl AuxInfoProof {
         &self,
         sid: Identifier,
         rho: [u8; 32],
-        params: &ZkSetupParameters,
+        params: &VerifiedRingPedersen,
         N: &BigNumber,
     ) -> Result<()> {
         let mut pimod_transcript = Transcript::new(b"PaillierBlumModulusProof");

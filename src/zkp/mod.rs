@@ -12,7 +12,6 @@ pub(crate) mod pilog;
 pub(crate) mod pimod;
 pub(crate) mod piprm;
 pub(crate) mod pisch;
-pub(crate) mod setup;
 
 use crate::errors::Result;
 use rand::{CryptoRng, RngCore};

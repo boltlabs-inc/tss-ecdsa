@@ -14,11 +14,8 @@ use crate::{
     paillier::{Ciphertext, EncryptionKey},
     paillier::{MaskedNonce, Nonce},
     parameters::{ELL, EPSILON},
-    utils::{
-        self, modpow, plusminus_bn_random_from_transcript, random_plusminus_by_size,
-        random_plusminus_scaled,
-    },
-    zkp::setup::ZkSetupParameters,
+    ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
+    utils::{self, plusminus_bn_random_from_transcript, random_plusminus_by_size},
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -29,19 +26,19 @@ use utils::CurvePoint;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PiLogProof {
     alpha: BigNumber,
-    S: BigNumber,
+    S: Commitment,
     A: Ciphertext,
     Y: CurvePoint,
-    D: BigNumber,
+    D: Commitment,
     e: BigNumber,
     z1: BigNumber,
     z2: MaskedNonce,
-    z3: BigNumber,
+    z3: MaskedRandomness,
 }
 
 #[derive(Serialize)]
 pub(crate) struct PiLogInput {
-    setup_params: ZkSetupParameters,
+    setup_params: VerifiedRingPedersen,
     q: BigNumber,
     /// This corresponds to `N_0` in the paper.
     pk: EncryptionKey,
@@ -52,7 +49,7 @@ pub(crate) struct PiLogInput {
 
 impl PiLogInput {
     pub(crate) fn new(
-        setup_params: &ZkSetupParameters,
+        setup_params: &VerifiedRingPedersen,
         q: &BigNumber,
         pk: &EncryptionKey,
         C: &Ciphertext,
@@ -100,24 +97,13 @@ impl Proof for PiLogProof {
         // Sample alpha from plus/minus 2^{ELL + EPSILON}
         let alpha = random_plusminus_by_size(rng, ELL + EPSILON);
 
-        // range = 2^{ELL} * N_hat
-        let mu = random_plusminus_scaled(rng, ELL, &input.setup_params.N);
-
-        // range = 2^{ELL+EPSILON} * N_hat
-        let gamma = random_plusminus_scaled(rng, ELL + EPSILON, &input.setup_params.N);
-
-        let S = {
-            let a = modpow(&input.setup_params.s, &secret.x, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &mu, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
+        let (S, mu) = input.setup_params.scheme().commit(&secret.x, ELL, rng);
         let (A, r) = input.pk.encrypt(rng, &alpha)?;
         let Y = CurvePoint(input.g.0 * utils::bn_to_scalar(&alpha)?);
-        let D = {
-            let a = modpow(&input.setup_params.s, &alpha, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &gamma, &input.setup_params.N);
-            a.modmul(&b, &input.setup_params.N)
-        };
+        let (D, gamma) = input
+            .setup_params
+            .scheme()
+            .commit(&alpha, ELL + EPSILON, rng);
 
         let mut transcript = Transcript::new(b"PiLogProof");
         transcript.append_message(b"CommonInput", &serialize!(&input)?);
@@ -131,7 +117,7 @@ impl Proof for PiLogProof {
 
         let z1 = &alpha + &e * &secret.x;
         let z2 = input.pk.mask(&secret.rho, &r, &e);
-        let z3 = gamma + &e * mu;
+        let z3 = mu.mask(&gamma, &e);
 
         let proof = Self {
             alpha,
@@ -191,13 +177,11 @@ impl Proof for PiLogProof {
         }
 
         let eq_check_3 = {
-            let a = modpow(&input.setup_params.s, &self.z1, &input.setup_params.N);
-            let b = modpow(&input.setup_params.t, &self.z3, &input.setup_params.N);
-            let lhs = a.modmul(&b, &input.setup_params.N);
-            let rhs = self.D.modmul(
-                &modpow(&self.S, &self.e, &input.setup_params.N),
-                &input.setup_params.N,
-            );
+            let lhs = input.setup_params.scheme().reconstruct(&self.z1, &self.z3);
+            let rhs = input
+                .setup_params
+                .scheme()
+                .combine(&self.D, &self.S, &self.e);
             lhs == rhs
         };
         if !eq_check_3 {
@@ -229,7 +213,7 @@ mod tests {
         let X = CurvePoint(g.0 * utils::bn_to_scalar(x).unwrap());
         let (C, rho) = pk.encrypt(rng, x)?;
 
-        let setup_params = ZkSetupParameters::gen(rng)?;
+        let setup_params = VerifiedRingPedersen::gen(rng)?;
 
         let input = PiLogInput::new(&setup_params, &crate::utils::k256_order(), &pk, &C, &X, &g);
 
