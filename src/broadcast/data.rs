@@ -27,7 +27,7 @@ impl BroadcastData {
         if message.message_type() != MessageType::Broadcast(BroadcastMessageType::Disperse)
             && message.message_type() != MessageType::Broadcast(BroadcastMessageType::Redisperse)
         {
-            return bail!("Wrong message type, expected MessageType::Broadcast(BroadcastMessageType::Disperse) or ...Redisperse");
+            return Err(crate::errors::InternalError::MisroutedMessage);
         }
         let broadcast_data: BroadcastData = deserialize!(&message.unverified_bytes)?;
         Ok(broadcast_data)

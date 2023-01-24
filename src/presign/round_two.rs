@@ -102,7 +102,7 @@ impl Public {
         sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<Self> {
         if message.message_type() != MessageType::Presign(PresignMessageType::RoundTwo) {
-            return bail!("Wrong message type, expected MessageType::RoundTwo");
+            return Err(crate::errors::InternalError::MisroutedMessage);
         }
         let round_two_public: Self = deserialize!(&message.unverified_bytes)?;
 
@@ -114,7 +114,7 @@ impl Public {
             sender_r1_public_broadcast,
         ) {
             Ok(()) => Ok(round_two_public),
-            Err(e) => bail!("Failed to verify round two public: {}", e),
+            Err(e) => Err(e),
         }
     }
 }

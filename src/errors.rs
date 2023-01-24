@@ -48,7 +48,7 @@ pub enum InternalError {
     #[error("Represents some code assumption that was checked at runtime but failed to be true")]
     InternalInvariantFailed,
     #[error("Paillier error: `{0}`")]
-    PaillierError(paillier::Error),
+    PaillierError(#[from] PaillierError),
     #[error("Failed to convert BigNumber to k256::Scalar, as BigNumber was not in [0,p)")]
     CouldNotConvertToScalar,
     #[error("Could not invert a Scalar")]
@@ -57,6 +57,24 @@ pub enum InternalError {
     RetryFailed,
     #[error("This Participant was given a message intended for somebody else")]
     WrongMessageRecipient,
+    #[error("Encountered a MessageType which was not expected in this context")]
+    MisroutedMessage,
+    #[error("Could not construct signature from provided scalars")]
+    SignatureInstantiationError,
+    #[error("Tried to produce a signature without including shares")]
+    NoChainedShares,
+    #[error("Storage does not contain entry: `{0}`")]
+    StorageItemNotFound(String),
+    #[error("Function call contained invalid arguments: `{0}`")]
+    InvalidArgument(String),
+    #[error("The provided Broadcast Tag was not the expected tag for this context")]
+    IncorrectBroadcastMessageTag,
+    #[error("Encountered a Message sent directly, when it should have been broadcasted")]
+    MessageMustBeBroadcasted,
+    #[error("Broadcast has irrecoverably failed: `{0}`")]
+    BroadcastFailure(String),
+    #[error("Tried to start a new protocol instance with an Identifier used in an existing instance")]
+    IdentifierInUse,
 }
 
 macro_rules! serialize {
@@ -79,6 +97,15 @@ macro_rules! verify_err {
     }};
 }
 
+macro_rules! arg_err {
+    ($x:expr) => {{
+        Err(crate::errors::InternalError::InvalidArgument(String::from(
+            $x,
+        )))
+    }};
+}
+
+#[allow(unused)]
 macro_rules! bail {
     ($msg:literal $(,)?) => {
         Err(bail_context!($msg))
@@ -88,6 +115,7 @@ macro_rules! bail {
     };
 }
 
+#[allow(unused)]
 macro_rules! bail_context {
     ($msg:literal $(,)?) => {
         crate::errors::InternalError::BailError(String::from($msg))

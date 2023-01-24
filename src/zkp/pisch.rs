@@ -181,9 +181,7 @@ impl PiSchProof {
     }
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         if message.message_type() != MessageType::Keygen(KeygenMessageType::R3Proof) {
-            return bail!(
-                "Wrong message type, expected MessageType::Keygen(KeygenMessageType::R3Proof)"
-            );
+            return Err(InternalError::MisroutedMessage);
         }
         let keygen_decommit: PiSchProof = deserialize!(&message.unverified_bytes)?;
         Ok(keygen_decommit)

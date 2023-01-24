@@ -102,10 +102,8 @@ impl AuxInfoParticipant {
                 let messages = self.handle_round_three_msg(rng, message, main_storage)?;
                 Ok(messages)
             }
-            MessageType::Auxinfo(_) => bail!("This message must be broadcasted!"),
-            _ => {
-                bail!("Attempting to process a non-auxinfo message with a auxinfo participant")
-            }
+            MessageType::Auxinfo(_) => Err(crate::errors::InternalError::MessageMustBeBroadcasted),
+            _ => Err(crate::errors::InternalError::MisroutedMessage),
         }
     }
 
@@ -192,7 +190,7 @@ impl AuxInfoParticipant {
         main_storage: &mut Storage,
     ) -> Result<Vec<Message>> {
         if broadcast_message.tag != BroadcastTag::AuxinfoR1CommitHash {
-            return bail!("Incorrect tag for Auxinfo R1!");
+            return Err(crate::errors::InternalError::IncorrectBroadcastMessageTag);
         }
         let message = &broadcast_message.msg;
         let message_bytes = serialize!(&AuxInfoCommit::from_message(message)?)?;
@@ -298,9 +296,7 @@ impl AuxInfoParticipant {
             self.storage
                 .retrieve(StorableType::AuxInfoCommit, message.id(), message.from())?;
         let com: AuxInfoCommit = deserialize!(&com_bytes)?;
-        if !decom.verify(&message.id(), &message.from(), &com)? {
-            return bail!("Decommitment Check Failed!");
-        }
+        decom.verify(&message.id(), &message.from(), &com)?;
         self.storage.store(
             StorableType::AuxInfoDecommit,
             message.id(),
@@ -595,9 +591,7 @@ mod tests {
         auxinfo_identifier: Identifier,
     ) -> Result<()> {
         for participant in quorum {
-            if participant.is_auxinfo_done(auxinfo_identifier).is_err() {
-                return bail!("Auxinfo not done");
-            }
+            participant.is_auxinfo_done(auxinfo_identifier)?;
         }
         Ok(())
     }

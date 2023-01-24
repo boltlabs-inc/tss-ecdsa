@@ -91,9 +91,7 @@ impl BroadcastParticipant {
                 let (output_option, messages) = self.handle_round_two_msg(rng, message)?;
                 Ok((output_option, messages))
             }
-            _ => {
-                bail!("Attempting to process a non-broadcast message with a broadcast participant")
-            }
+            _ => Err(crate::errors::InternalError::MisroutedMessage),
         }
     }
 
@@ -210,7 +208,9 @@ impl BroadcastParticipant {
                 return Ok(Some(out));
             }
         }
-        bail!("error: no message received enough votes")
+        Err(crate::errors::InternalError::BroadcastFailure(
+            "No message got enough votes".to_string(),
+        ))
     }
 
     fn gen_round_two_msgs<R: RngCore + CryptoRng>(

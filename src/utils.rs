@@ -255,12 +255,12 @@ pub(crate) fn has_collected_all_of_others(
     storage: &Storage,
     storable_type: StorableType,
     identifier: Identifier,
-) -> Result<bool> {
+) -> Result<()> {
     let indices: Vec<(StorableType, Identifier, ParticipantIdentifier)> = other_ids
         .iter()
         .map(|participant_id| (storable_type, identifier, *participant_id))
         .collect();
-    Ok(storage.contains_batch(&indices).is_ok())
+    storage.contains_batch(&indices)
 }
 
 /// Aggregate the other participants' public keyshares from storage. But don't
@@ -273,9 +273,7 @@ pub(crate) fn get_other_participants_public_auxinfo(
     storage: &Storage,
     identifier: Identifier,
 ) -> Result<HashMap<ParticipantIdentifier, AuxInfoPublic>> {
-    if !has_collected_all_of_others(other_ids, storage, StorableType::AuxInfoPublic, identifier)? {
-        return bail!("Not ready to get other participants public auxinfo just yet!");
-    }
+    has_collected_all_of_others(other_ids, storage, StorableType::AuxInfoPublic, identifier)?;
 
     let mut hm = HashMap::new();
     for &other_participant_id in other_ids {

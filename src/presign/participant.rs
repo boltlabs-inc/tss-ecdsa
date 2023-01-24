@@ -125,7 +125,7 @@ impl PresignParticipant {
             MessageType::Presign(PresignMessageType::RoundThree) => {
                 Ok(self.handle_round_three_msg(rng, message, main_storage)?)
             }
-            _ => bail!("Attempting to process a non-presign message with a presign participant"),
+            _ => Err(crate::errors::InternalError::MisroutedMessage),
         }
     }
 
@@ -160,7 +160,7 @@ impl PresignParticipant {
         identifier: Identifier,
     ) -> Result<Message> {
         if self.presign_map.contains_key(&identifier) {
-            return bail!("This identifier is already being used for a Presign instance");
+            return Err(crate::errors::InternalError::IdentifierInUse)
         }
         // Set the presign map internally
         let _ = self
@@ -274,7 +274,7 @@ impl PresignParticipant {
         main_storage: &Storage,
     ) -> Result<(Option<PresignRecord>, Vec<Message>)> {
         if broadcast_message.tag != BroadcastTag::PresignR1Ciphertexts {
-            return bail!("Incorrect tag for Presign R1 Broadcast!");
+            return Err(crate::errors::InternalError::IncorrectBroadcastMessageTag);
         }
         let message = &broadcast_message.msg;
         self.storage.store(
@@ -365,7 +365,7 @@ impl PresignParticipant {
 
         // Find the keyshare corresponding to the "from" participant
         let keyshare_from = other_public_keyshares.get(&message.from()).ok_or_else(|| {
-            bail_context!("Could not find corresponding public keyshare for participant in round 2")
+            InternalInvariantFailed
         })?;
 
         // Get this participant's round 1 private value
@@ -466,14 +466,12 @@ impl PresignParticipant {
         // Since we are in round 2, it should certainly be the case that all
         // public auxinfo for other participants have been stored, since
         // this was a requirement to proceed for round 1.
-        if !has_collected_all_of_others(
+        has_collected_all_of_others(
             &self.other_participant_ids,
             main_storage,
             StorableType::AuxInfoPublic,
             auxinfo_identifier,
-        )? {
-            return Err(InternalInvariantFailed);
-        }
+        )?;
 
         // Check if storage has all of the other participants' round 2 values (both
         // private and public), and start generating the messages for round 3 if so
@@ -482,13 +480,15 @@ impl PresignParticipant {
             &self.storage,
             StorableType::PresignRoundTwoPrivate,
             message.id(),
-        )?;
+        )
+        .is_ok();
         let all_publics_received = has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundTwoPublic,
             message.id(),
-        )?;
+        )
+        .is_ok();
         if all_privates_received && all_publics_received {
             Ok(self.gen_round_three_msgs(rng, message, main_storage)?)
         } else {
@@ -619,7 +619,9 @@ impl PresignParticipant {
             &self.storage,
             StorableType::PresignRoundThreePublic,
             message.id(),
-        )? {
+        )
+        .is_ok()
+        {
             presign_record_option = Some(self.do_presign_finish(message)?);
         }
 
@@ -645,7 +647,7 @@ impl PresignParticipant {
         // Check consistency across all Gamma values
         for r3_pub in r3_pubs.iter() {
             if r3_pub.Gamma != r3_private.Gamma {
-                return bail!("Inconsistency in presign finish -- Gamma mismatch");
+                return Err(InternalInvariantFailed)
             }
         }
 
@@ -663,7 +665,7 @@ impl PresignParticipant {
         presign_identifier: &Identifier,
     ) -> Result<(Identifier, Identifier)> {
         let (id1, id2) = self.presign_map.get(presign_identifier).ok_or_else(
-            || bail_context!("Could not find associated auxinfo and keyshare identifiers for this presign identifier")
+            || InternalInvariantFailed
         )?;
 
         Ok((*id1, *id2))
@@ -776,24 +778,25 @@ impl PresignParticipant {
         auxinfo_identifier: Identifier,
         main_storage: &Storage,
     ) -> Result<HashMap<ParticipantIdentifier, RoundThreeInput>> {
-        if !has_collected_all_of_others(
+        // begin by checking Storage contents to ensure we're ready for round three
+        has_collected_all_of_others(
             &self.other_participant_ids,
             main_storage,
             StorableType::AuxInfoPublic,
             auxinfo_identifier,
-        )? || !has_collected_all_of_others(
+        )?;
+        has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundTwoPrivate,
             identifier,
-        )? || !has_collected_all_of_others(
+        )?;
+        has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundTwoPublic,
             identifier,
-        )? {
-            return bail!("Not ready to get other participants round three values just yet!");
-        }
+        )?;
 
         let mut hm = HashMap::new();
         for other_participant_id in self.other_participant_ids.clone() {
@@ -832,15 +835,6 @@ impl PresignParticipant {
         &self,
         identifier: Identifier,
     ) -> Result<Vec<crate::round_three::Public>> {
-        if !has_collected_all_of_others(
-            &self.other_participant_ids,
-            &self.storage,
-            StorableType::PresignRoundThreePublic,
-            identifier,
-        )? {
-            return bail!("Not ready to get other participants round three publics just yet!");
-        }
-
         let mut ret_vec = vec![];
         for other_participant_id in self.other_participant_ids.clone() {
             let val = self.storage.retrieve(

@@ -107,8 +107,8 @@ impl KeygenParticipant {
                 let messages = self.handle_round_three_msg(rng, message, main_storage)?;
                 Ok(messages)
             }
-            MessageType::Keygen(_) => bail!("This message must be broadcasted!"),
-            _ => bail!("Attempting to process a non-keygen message with a keygen participant"),
+            MessageType::Keygen(_) => Err(crate::errors::InternalError::MessageMustBeBroadcasted),
+            _ => Err(crate::errors::InternalError::MisroutedMessage),
         }
     }
 
@@ -199,7 +199,7 @@ impl KeygenParticipant {
         main_storage: &mut Storage,
     ) -> Result<Vec<Message>> {
         if broadcast_message.tag != BroadcastTag::KeyGenR1CommitHash {
-            return bail!("Incorrect tag for Keygen R1!");
+            return Err(crate::errors::InternalError::IncorrectBroadcastMessageTag);
         }
         let message = &broadcast_message.msg;
         let message_bytes = serialize!(&KeygenCommit::from_message(message)?)?;
@@ -303,9 +303,7 @@ impl KeygenParticipant {
             self.storage
                 .retrieve(StorableType::KeygenCommit, message.id(), message.from())?;
         let com: KeygenCommit = deserialize!(&com_bytes)?;
-        if !decom.verify(&message.id(), &message.from(), &com)? {
-            return bail!("Decommitment Check Failed!");
-        }
+        decom.verify(&message.id(), &message.from(), &com)?;
         self.storage.store(
             StorableType::KeygenDecommit,
             message.id(),
@@ -594,9 +592,7 @@ mod tests {
 
     fn is_keygen_done(quorum: &[KeygenParticipant], keygen_identifier: Identifier) -> Result<()> {
         for participant in quorum {
-            if participant.is_keygen_done(keygen_identifier).is_err() {
-                return bail!("Keygen not done");
-            }
+            participant.is_keygen_done(keygen_identifier)?;
         }
         Ok(())
     }

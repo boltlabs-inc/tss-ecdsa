@@ -129,7 +129,7 @@ impl Participant {
 
                 Ok(messages)
             }
-            _ => bail!("Invalid message type!"),
+            _ => Err(InternalError::MisroutedMessage),
         }
     }
 
@@ -268,10 +268,10 @@ impl SignatureShare {
     /// Can be used to combine [SignatureShare]s
     pub fn chain(&self, share: Self) -> Result<Self> {
         let r = match (self.r, share.r) {
-            (_, None) => bail!("Invalid format for share, r scalar = 0"),
+            (_, None) => arg_err!("Input share was not initialized"),
             (Some(prev_r), Some(new_r)) => {
                 if prev_r != new_r {
-                    return bail!("Cannot chain as r values don't match");
+                    return arg_err!("share.r does not match self.r");
                 }
                 Ok(prev_r)
             }
@@ -292,13 +292,11 @@ impl SignatureShare {
             s = s.negate();
         }
 
-        let sig = match self.r {
-            Some(r) => Ok(k256::ecdsa::Signature::from_scalars(r, s)
-                .map_err(|_| bail_context!("Could not construct signature from scalars"))?),
-            None => bail!("Cannot produce a signature without including shares"),
-        }?;
-
-        Ok(sig)
+        match self.r {
+            Some(r) => k256::ecdsa::Signature::from_scalars(r, s)
+                .map_err(|_| InternalError::SignatureInstantiationError),
+            None => Err(InternalError::NoChainedShares),
+        }
     }
 }
 
@@ -378,27 +376,21 @@ mod tests {
 
     fn is_presigning_done(quorum: &[Participant], presign_identifier: Identifier) -> Result<()> {
         for participant in quorum {
-            if participant.is_presigning_done(presign_identifier).is_err() {
-                return bail!("Presign not done");
-            }
+            participant.is_presigning_done(presign_identifier)?;
         }
         Ok(())
     }
 
     fn is_auxinfo_done(quorum: &[Participant], auxinfo_identifier: Identifier) -> Result<()> {
         for participant in quorum {
-            if participant.is_auxinfo_done(auxinfo_identifier).is_err() {
-                return bail!("Auxinfo not done");
-            }
+            participant.is_auxinfo_done(auxinfo_identifier)?;
         }
         Ok(())
     }
 
     fn is_keygen_done(quorum: &[Participant], keygen_identifier: Identifier) -> Result<()> {
         for participant in quorum {
-            if participant.is_keygen_done(keygen_identifier).is_err() {
-                return bail!("Keygen not done");
-            }
+            participant.is_keygen_done(keygen_identifier)?;
         }
         Ok(())
     }
@@ -495,8 +487,7 @@ mod tests {
             vk_point = CurvePoint(vk_point.0 + X.0);
         }
         let verification_key =
-            k256::ecdsa::VerifyingKey::from_encoded_point(&vk_point.0.to_affine().into())
-                .map_err(|_| bail_context!("Could not construct verification key"))?;
+            k256::ecdsa::VerifyingKey::from_encoded_point(&vk_point.0.to_affine().into()).unwrap();
 
         // Moment of truth, does the signature verify?
         assert!(verification_key.verify_digest(hasher, &signature).is_ok());
