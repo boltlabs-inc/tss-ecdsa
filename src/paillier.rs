@@ -132,11 +132,15 @@ impl PaillierEncryptionKey {
         //
         // Note: We do not use `libpaillier::EncryptionKey::mul`
         // because it does a check that `0 < a < N`. However, the `a` passed in is usually
-        // in the range `-N/2 < a < N/2` so could fail that check. Instead, we just do the
-        // operations directly.
-        Ok(PaillierCiphertext(
-            modpow(&c1.0, a, self.0.nn()).modmul(&c2.0, self.0.nn()),
-        ))
+        // in the range `-N/2 <= a <= N/2` so could fail that check. Instead, we do the
+        // operations directly and manually do the range check.
+        if &self.half_n() < a || a < &-self.half_n() {
+            Err(PaillierError::InvalidOperation)?
+        } else {
+            Ok(PaillierCiphertext(
+                modpow(&c1.0, a, self.0.nn()).modmul(&c2.0, self.0.nn()),
+            ))
+        }
     }
 }
 
