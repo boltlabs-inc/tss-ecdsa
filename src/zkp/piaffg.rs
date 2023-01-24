@@ -193,8 +193,8 @@ impl Proof for PiAffgProof {
         let z2 = &beta + &e * &secret.y;
         let z3 = gamma + &e * m;
         let z4 = delta + &e * mu;
-        let w = input.pk0.mask(&r, &secret.rho, &e);
-        let w_y = input.pk1.mask(&r_y, &secret.rho_y, &e);
+        let w = input.pk0.mask(&secret.rho, &r, &e);
+        let w_y = input.pk1.mask(&secret.rho_y, &r_y, &e);
 
         let proof = Self {
             alpha,

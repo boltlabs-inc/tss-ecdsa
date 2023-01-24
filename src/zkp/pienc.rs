@@ -120,7 +120,7 @@ impl Proof for PiEncProof {
         );
 
         let z1 = &alpha + &e * &secret.k;
-        let z2 = input.pk.mask(&r, &secret.rho, &e);
+        let z2 = input.pk.mask(&secret.rho, &r, &e);
         let z3 = gamma + &e * mu;
 
         let proof = Self {
