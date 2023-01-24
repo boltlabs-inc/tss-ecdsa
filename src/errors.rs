@@ -73,7 +73,9 @@ pub enum InternalError {
     MessageMustBeBroadcasted,
     #[error("Broadcast has irrecoverably failed: `{0}`")]
     BroadcastFailure(String),
-    #[error("Tried to start a new protocol instance with an Identifier used in an existing instance")]
+    #[error(
+        "Tried to start a new protocol instance with an Identifier used in an existing instance"
+    )]
     IdentifierInUse,
 }
 

@@ -160,7 +160,7 @@ impl PresignParticipant {
         identifier: Identifier,
     ) -> Result<Message> {
         if self.presign_map.contains_key(&identifier) {
-            return Err(crate::errors::InternalError::IdentifierInUse)
+            return Err(crate::errors::InternalError::IdentifierInUse);
         }
         // Set the presign map internally
         let _ = self
@@ -364,9 +364,9 @@ impl PresignParticipant {
         )?;
 
         // Find the keyshare corresponding to the "from" participant
-        let keyshare_from = other_public_keyshares.get(&message.from()).ok_or_else(|| {
-            InternalInvariantFailed
-        })?;
+        let keyshare_from = other_public_keyshares
+            .get(&message.from())
+            .ok_or(InternalInvariantFailed)?;
 
         // Get this participant's round 1 private value
         let r1_priv: RoundOnePrivate = deserialize!(&self.storage.retrieve(
@@ -647,7 +647,7 @@ impl PresignParticipant {
         // Check consistency across all Gamma values
         for r3_pub in r3_pubs.iter() {
             if r3_pub.Gamma != r3_private.Gamma {
-                return Err(InternalInvariantFailed)
+                return Err(InternalInvariantFailed);
             }
         }
 
@@ -664,9 +664,10 @@ impl PresignParticipant {
         &self,
         presign_identifier: &Identifier,
     ) -> Result<(Identifier, Identifier)> {
-        let (id1, id2) = self.presign_map.get(presign_identifier).ok_or_else(
-            || InternalInvariantFailed
-        )?;
+        let (id1, id2) = self
+            .presign_map
+            .get(presign_identifier)
+            .ok_or(InternalInvariantFailed)?;
 
         Ok((*id1, *id2))
     }
