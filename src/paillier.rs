@@ -50,10 +50,10 @@ pub(crate) struct PaillierNonce(BigNumber);
 
 /// A masked version of [`PaillierNonce`] produced by [`PaillierEncryptionKey::mask()`].
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub(crate) struct MaskedNonce(pub(crate) BigNumber);
+pub(crate) struct MaskedNonce(BigNumber);
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub(crate) struct PaillierCiphertext(pub(crate) BigNumber);
+pub(crate) struct PaillierCiphertext(BigNumber);
 
 impl PaillierCiphertext {
     /// Converts a [`PaillierCiphertext`] into its big-endian byte representation.
@@ -96,7 +96,7 @@ impl PaillierEncryptionKey {
             })?
         }
         let nonce = random_bn_in_z_star(rng, self.n())?;
-        let c = self.encrypt_with_nonce(x, &nonce)?;
+        let c = self.encrypt_with_nonce(x, &MaskedNonce(nonce.clone()))?;
         Ok((c, PaillierNonce(nonce)))
     }
 
@@ -104,14 +104,25 @@ impl PaillierEncryptionKey {
     pub(crate) fn encrypt_with_nonce(
         &self,
         x: &BigNumber,
-        nonce: &BigNumber,
+        nonce: &MaskedNonce,
     ) -> Result<PaillierCiphertext> {
         let one = BigNumber::one();
         let base = one + self.n();
         let a = base.modpow(x, self.0.nn());
-        let b = nonce.modpow(self.n(), self.0.nn());
+        let b = nonce.0.modpow(self.n(), self.0.nn());
         let c = a.modmul(&b, self.0.nn());
         Ok(PaillierCiphertext(c))
+    }
+
+    #[cfg(test)]
+    /// Generate a random ciphertext for testing purposes.
+    pub(crate) fn random_ciphertext(
+        &self,
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> PaillierCiphertext {
+        use crate::utils::random_positive_bn;
+
+        PaillierCiphertext(random_positive_bn(rng, self.0.nn()))
     }
 
     /// Masks a [`PaillierNonce`] `nonce` with another [`PaillierNonce`] `mask` and exponent `e`

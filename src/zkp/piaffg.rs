@@ -242,16 +242,11 @@ impl Proof for PiAffgProof {
             return verify_err!("Fiat-Shamir consistency check failed");
         }
 
-        let N0_squared = input.pk0.n() * input.pk0.n();
-        let N1_squared = input.pk1.n() * input.pk1.n();
-
         // Do equality checks
 
         let eq_check_1 = {
-            let a = modpow(&input.C.0, &self.z1, &N0_squared);
-            let b = modpow(&(BigNumber::one() + input.pk0.n()), &self.z2, &N0_squared);
-            let c = modpow(&self.w.0, input.pk0.n(), &N0_squared);
-            let lhs = PaillierCiphertext(a.modmul(&b, &N0_squared).modmul(&c, &N0_squared));
+            let a = input.pk0.encrypt_with_nonce(&self.z2, &self.w)?;
+            let lhs = input.pk0.multiply_and_add(&self.z1, &input.C, &a)?;
             let rhs = input.pk0.multiply_and_add(&self.e, &input.D, &self.A)?;
             lhs == rhs
         };
@@ -269,9 +264,7 @@ impl Proof for PiAffgProof {
         }
 
         let eq_check_3 = {
-            let a = modpow(&(BigNumber::one() + input.pk1.n()), &self.z2, &N1_squared);
-            let b = modpow(&self.w_y.0, input.pk1.n(), &N1_squared);
-            let lhs = PaillierCiphertext(a.modmul(&b, &N1_squared));
+            let lhs = input.pk1.encrypt_with_nonce(&self.z2, &self.w_y)?;
             let rhs = input.pk1.multiply_and_add(&self.e, &input.Y, &self.B_y)?;
             lhs == rhs
         };
@@ -332,8 +325,7 @@ mod tests {
         x: &BigNumber,
         y: &BigNumber,
     ) -> Result<()> {
-        let (decryption_key_0, p0, q0) = PaillierDecryptionKey::new(rng)?;
-        let N0 = &p0 * &q0;
+        let (decryption_key_0, _, _) = PaillierDecryptionKey::new(rng)?;
         let pk0 = decryption_key_0.encryption_key();
 
         let (decryption_key_1, _, _) = PaillierDecryptionKey::new(rng)?;
@@ -344,8 +336,7 @@ mod tests {
         let X = CurvePoint(g * utils::bn_to_scalar(x).unwrap());
         let (Y, rho_y) = pk1.encrypt(rng, y)?;
 
-        let N0_squared = &N0 * &N0;
-        let C = PaillierCiphertext(crate::utils::random_positive_bn(rng, &N0_squared));
+        let C = pk0.random_ciphertext(rng);
 
         // Compute D = C^x * (1 + N0)^y rho^N0 (mod N0^2)
         let (D, rho) = {

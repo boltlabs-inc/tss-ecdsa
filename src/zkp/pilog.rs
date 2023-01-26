@@ -171,15 +171,10 @@ impl Proof for PiLogProof {
             return verify_err!("Fiat-Shamir consistency check failed");
         }
 
-        let N0 = input.pk.n();
-        let N0_squared = input.pk.n() * input.pk.n();
-
         // Do equality checks
 
         let eq_check_1 = {
-            let a = modpow(&(BigNumber::one() + N0), &self.z1, &N0_squared);
-            let b = modpow(&self.z2.0, N0, &N0_squared);
-            let lhs = PaillierCiphertext(a.modmul(&b, &N0_squared));
+            let lhs = input.pk.encrypt_with_nonce(&self.z1, &self.z2)?;
             let rhs = input.pk.multiply_and_add(&self.e, &input.C, &self.A)?;
             lhs == rhs
         };
