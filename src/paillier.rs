@@ -79,33 +79,39 @@ impl PaillierEncryptionKey {
         (self.0.n() - 1) / 2
     }
 
-    /// Encrypt a value `x` under the encryption key.
+    /// Encrypt plaintext `x` under the encryption key, returning the resulting [`PaillierCiphertext`]
+    /// and [`PaillierNonce`].
     ///
-    /// The input must be an element of the integers mod `N`, where `N` is the modulus defined by
-    /// the `PaillierEncryptionKey`. The expected format for these is the range
+    /// The plaintext must be an element of the integers mod `N`, where `N` is the modulus defined by
+    /// the [`PaillierEncryptionKey`]. The expected format for these is the range
     /// `[-N/2, N/2]`. Encryption will fail if `x` is outside this range.
     pub(crate) fn encrypt<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
         x: &BigNumber,
     ) -> Result<(PaillierCiphertext, PaillierNonce)> {
+        // Note: the check that `x` is in the proper range happens in `encrypt_with_nonce`.
+        let nonce = random_bn_in_z_star(rng, self.n())?;
+        let c = self.encrypt_with_nonce(x, &MaskedNonce(nonce.clone()))?;
+        Ok((c, PaillierNonce(nonce)))
+    }
+
+    /// Encrypt plaintext `x` using the provided [`MaskedNonce`], producing a [`PaillierCiphertext`].
+    ///
+    /// The plaintext must be an element of the integers mod `N`, where `N` is the modulus defined by
+    /// the [`PaillierEncryptionKey`]. The expected format for these is the range
+    /// `[-N/2, N/2]`. Encryption will fail if `x` is outside this range.
+    pub(crate) fn encrypt_with_nonce(
+        &self,
+        x: &BigNumber,
+        nonce: &MaskedNonce,
+    ) -> Result<PaillierCiphertext> {
         if &self.half_n() < x || x < &-self.half_n() {
             Err(PaillierError::EncryptionFailed {
                 x: x.clone(),
                 n: self.n().clone(),
             })?
         }
-        let nonce = random_bn_in_z_star(rng, self.n())?;
-        let c = self.encrypt_with_nonce(x, &MaskedNonce(nonce.clone()))?;
-        Ok((c, PaillierNonce(nonce)))
-    }
-
-    /// Encrypt plaintext `x` using the provided `nonce`, producing the resulting Paillier ciphertext.
-    pub(crate) fn encrypt_with_nonce(
-        &self,
-        x: &BigNumber,
-        nonce: &MaskedNonce,
-    ) -> Result<PaillierCiphertext> {
         let one = BigNumber::one();
         let base = one + self.n();
         let a = base.modpow(x, self.0.nn());
