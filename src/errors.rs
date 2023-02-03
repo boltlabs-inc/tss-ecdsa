@@ -57,8 +57,6 @@ pub enum InternalError {
     RetryFailed,
     #[error("This Participant was given a message intended for somebody else")]
     WrongMessageRecipient,
-    #[error("Integer outside of expected range")]
-    IntegerOutOfRange,
 }
 
 macro_rules! serialize {

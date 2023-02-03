@@ -195,9 +195,9 @@ impl RingPedersen {
 
     /// Produces a commitment to `value`.
     ///
-    /// The committed to `value` must be drawn from `[-N/2, N/2]`, where `N` is the [modulus](RingPedersen::modulus) of the commitment scheme.
     /// The commitment is computed as [`s`](RingPedersen::s)`^value` [`t`](RingPedersen::t)`^randomness mod N`,
-    /// where `randomness` is sampled from `± 2^range * N`.
+    /// where `randomness` is sampled from `± 2^range * N` and
+    /// `N` is the [modulus](RingPedersen::modulus) of the commitment scheme.
     pub(crate) fn commit(
         &self,
         value: &BigNumber,
