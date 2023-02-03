@@ -5,8 +5,10 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Implements a (verified) ring-Pedersen commitment scheme, as specified in Definition 1.3 of
-//! <https://eprint.iacr.org/2021/060.pdf>. The verified variant includes a zero-knowledge proof
+//! A (verifiable) ring-Pedersen commitment scheme.
+//!
+//! This implements the ring-Pedersen commitment scheme as specified in Definition 1.3 of
+//! <https://eprint.iacr.org/2021/060.pdf>. The verifiable variant includes a zero-knowledge proof
 //! that the commitment scheme parameters were constructed correctly.
 
 use crate::paillier::DecryptionKey;
@@ -29,9 +31,9 @@ use serde::{Deserialize, Serialize};
 pub(crate) struct RingPedersen {
     /// The RSA modulus, corresponding to `N` in the paper.
     modulus: BigNumber,
-    /// Ring-Petersen parameter `s`.
+    /// Ring-Pedersen parameter `s`.
     s: BigNumber,
-    /// Ring-Petersen parameter `t`.
+    /// Ring-Pedersen parameter `t`.
     t: BigNumber,
 }
 
@@ -66,6 +68,7 @@ impl CommitmentRandomness {
     }
 
     /// Masks randomness with `mask` and `challenge`.
+    ///
     /// The output [`MaskedRandomness`] value is computed as `mask - challenge * value`.
     pub(crate) fn mask_neg(
         &self,
@@ -76,6 +79,7 @@ impl CommitmentRandomness {
     }
 
     /// Masks randomness with `mask` and `challenge`.
+    ///
     /// The output [`MaskedRandomness`] value is computed as `mask + challenge * value`.
     pub(crate) fn mask(
         &self,
@@ -113,8 +117,10 @@ impl MaskedRandomness {
 }
 
 impl VerifiedRingPedersen {
-    /// Extracts a [`RingPedersen`] commitment scheme from a [`DecryptionKey`] `sk`,
-    /// alongside a zero knowledge proof [`PiPrmProof`]
+    /// Extracts a [`VerifiedRingPedersen`] object from a [`DecryptionKey`].
+    ///
+    /// In more detail, `sk` is used to derive a
+    /// [`RingPedersen`] commitment scheme, alongside a zero knowledge proof [`PiPrmProof`]
     /// that the produced commitment scheme is validly constructed.
     pub(crate) fn extract(
         sk: &DecryptionKey,
@@ -181,7 +187,9 @@ impl RingPedersen {
         Self { modulus, s, t }
     }
 
-    /// Produces commitment randomness sampled from `± 2^range * modulus * N`,
+    /// Produces commitment randomness.
+    ///
+    /// The commitment randomness is sampled from `± 2^range * modulus * N`,
     /// where `N` is the [modulus](RingPedersen::modulus) of the commitment scheme.
     pub(crate) fn commitment_randomness(
         &self,
