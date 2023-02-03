@@ -18,6 +18,8 @@ use crate::{
         Proof,
     },
 };
+use bytemuck::TransparentWrapper;
+use bytemuck_derive::TransparentWrapper;
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -54,7 +56,7 @@ impl Commitment {
 }
 
 /// The randomness generated as part of [`RingPedersen::commit`].
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TransparentWrapper)]
 #[repr(transparent)]
 pub(crate) struct CommitmentRandomness(BigNumber);
 
@@ -85,15 +87,13 @@ impl CommitmentRandomness {
 
     /// Returns the randomness as a [`MaskedRandomness`].
     pub(crate) fn as_masked(&self) -> &MaskedRandomness {
-        // Safety: This is safe because both CommitmentRandomness and MaskedRandomness
-        // are `repr(transparent)` and contain the same underlying data type.
-        unsafe { std::mem::transmute(self) }
+        MaskedRandomness::wrap_ref(&self.0)
     }
 }
 
 /// The randomness generated as part of [`RingPedersen::commit`] and masked
 /// by [`CommitmentRandomness::mask`] or [`CommitmentRandomness::mask_neg`].
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TransparentWrapper)]
 #[repr(transparent)]
 pub(crate) struct MaskedRandomness(BigNumber);
 
@@ -107,9 +107,7 @@ impl MaskedRandomness {
         mask: &CommitmentRandomness,
         challenge: &BigNumber,
     ) -> MaskedRandomness {
-        // Safety: This is safe because both CommitmentRandomness and MaskedRandomness
-        // are `repr(transparent)` and contain the same underlying data type.
-        let randomness: &CommitmentRandomness = unsafe { std::mem::transmute(self) };
+        let randomness = CommitmentRandomness::wrap_ref(&self.0);
         randomness.mask(mask, challenge)
     }
 }
