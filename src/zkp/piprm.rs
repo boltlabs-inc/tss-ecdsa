@@ -6,141 +6,148 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Implements the ZKP from Figure 17 of <https://eprint.iacr.org/2021/060.pdf>
+//! Implements a zero-knowledge proof that [`RingPedersen`] parameters were correctly
+//! constructed.
+//!
+//! In more detail, a valid [`RingPedersen`] object is compromised of a tuple `(N, s, t)`
+//! such that `s = t^λ mod N` for some secret `λ`. This module implements a zero-knowledge
+//! proof of this fact. The proof is defined in Figure 17 of CGGMP[^cite].
+//!
+//! This proof utilizes the soundness parameter as specified [here](crate::parameters::SOUNDNESS_PARAMETER).
+//! In addition, it uses a standard Fiat-Shamir transformation to make the proof non-interactive.
+//!
+//! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos Makriyannis, and Udi Peled.
+//! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
+//! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 
+use super::Proof;
 use crate::{errors::*, ring_pedersen::RingPedersen, utils::*};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
-use super::Proof;
+// Soundness parameter.
+const SOUNDNESS: usize = crate::parameters::SOUNDNESS_PARAMETER;
 
-// Soundness parameter lambda.
-const LAMBDA: usize = crate::parameters::SOUNDNESS_PARAMETER;
-
-/// Proof of ...
-///
-/// Each set of values must have length `LAMBDA`.
+/// Proof that externally provided [`RingPedersen`] parameters are constructed correctly.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PiPrmProof {
-    a_values: Vec<BigNumber>,
-    e_values: Vec<u8>,
-    z_values: Vec<BigNumber>,
+    /// The public values computed by the prover (`A_i` in the paper).
+    public_values: Vec<BigNumber>,
+    /// The challenge bytes chosen by the verifier (`e_i` in the paper).
+    challenge_bytes: Vec<u8>,
+    /// The prover responses (`z_i` in the paper).
+    responses: Vec<BigNumber>,
 }
 
-#[derive(Serialize)]
-pub(crate) struct PiPrmInput(RingPedersen);
-
-impl PiPrmInput {
-    pub(crate) fn new(ring_pedersen: RingPedersen) -> Self {
-        Self(ring_pedersen)
-    }
-}
-
+/// The prover's secret knowledge.
+///
+/// This is comprised of two components:
+/// 1. The secret exponent used when generating the [`RingPedersen`] parameters.
+/// 2. Euler's totient of [`RingPedersen::modulus`].
 pub(crate) struct PiPrmSecret {
-    lambda: BigNumber,
-    phi_n: BigNumber,
+    /// The secret exponent that correlates [`RingPedersen`] parameters
+    /// [`s`](RingPedersen::s) and [`t`](RingPedersen::t).
+    exponent: BigNumber,
+    /// Euler's totient of [`RingPedersen::modulus`].
+    totient: BigNumber,
 }
 
 impl PiPrmSecret {
-    pub(crate) fn new(lambda: &BigNumber, phi_n: &BigNumber) -> Self {
-        Self {
-            lambda: lambda.clone(),
-            phi_n: phi_n.clone(),
-        }
+    /// Collect the secret knowledge for proving [`PiPrmProof`].
+    pub(crate) fn new(exponent: BigNumber, totient: BigNumber) -> Self {
+        Self { exponent, totient }
     }
 }
 
+/// Generates challenge bytes from the proof transcript using the Fiat-Shamir transform.
+/// Used by the prover and the verifier.
+fn generate_challenge_bytes(input: &RingPedersen, public_values: &[BigNumber]) -> Result<Vec<u8>> {
+    // Construct a transcript for the Fiat-Shamir transform.
+    let mut transcript = Transcript::new(b"PiPrmProof");
+    transcript.append_message(b"Common input", &serialize!(&input)?);
+    transcript.append_message(b"Public values", &serialize!(&public_values)?);
+    // Extract challenge bytes from the transcript.
+    let mut challenges = [0u8; SOUNDNESS];
+    transcript.challenge_bytes(b"Challenge bytes", challenges.as_mut_slice());
+    Ok(challenges.into())
+}
+
 impl Proof for PiPrmProof {
-    type CommonInput = PiPrmInput;
+    type CommonInput = RingPedersen;
     type ProverSecret = PiPrmSecret;
 
-    // Needs to be the case that s = t^lambda (mod N)
-    #[cfg_attr(feature = "flame_it", flame("RingPedersenProof"))]
+    #[cfg_attr(feature = "flame_it", flame("PiPrmProof"))]
     fn prove<R: RngCore + CryptoRng>(
         rng: &mut R,
         input: &Self::CommonInput,
         secret: &Self::ProverSecret,
     ) -> Result<Self> {
-        let secret_a_values: Vec<_> =
-            std::iter::repeat_with(|| random_positive_bn(rng, &secret.phi_n))
-                .take(LAMBDA)
+        // Sample secret exponents `a_i ← Z[ɸ(N)]`.
+        let secret_exponents: Vec<_> =
+            std::iter::repeat_with(|| random_positive_bn(rng, &secret.totient))
+                .take(SOUNDNESS)
                 .collect();
-
-        let public_a_values = secret_a_values
+        // Compute public values `A_i = t^{a_i} mod N`.
+        let public_values = secret_exponents
             .iter()
-            .map(|a| modpow(input.0.t(), a, input.0.modulus()))
+            .map(|a| modpow(input.t(), a, input.modulus()))
             .collect::<Vec<_>>();
-
-        let mut transcript = Transcript::new(b"RingPedersenProof");
-        transcript.append_message(b"CommonInput", &serialize!(&input)?);
-        transcript.append_message(b"A_i values", &serialize!(&public_a_values)?);
-
-        let mut e_values = [0u8; LAMBDA];
-        transcript.challenge_bytes(b"e_i values", e_values.as_mut_slice());
-
-        let z_values = e_values
+        let challenge_bytes = generate_challenge_bytes(input, &public_values)?;
+        // Compute challenge responses `z_i = a_i + e_i λ mod ɸ(N)`.
+        let responses = challenge_bytes
             .iter()
-            .zip(secret_a_values)
+            .zip(secret_exponents)
             .map(|(e, a)| {
                 if e % 2 == 1 {
-                    a.modadd(&secret.lambda, &secret.phi_n)
+                    a.modadd(&secret.exponent, &secret.totient)
                 } else {
                     a
                 }
             })
             .collect();
 
-        let proof = Self {
-            a_values: public_a_values,
-            e_values: e_values.into(),
-            z_values,
-        };
-
-        Ok(proof)
+        Ok(Self {
+            public_values,
+            challenge_bytes,
+            responses,
+        })
     }
 
-    #[cfg_attr(feature = "flame_it", flame("RingPedersenProof"))]
+    #[cfg_attr(feature = "flame_it", flame("PiPrmProof"))]
     fn verify(&self, input: &Self::CommonInput) -> Result<()> {
-        if self.a_values.len() != LAMBDA
-            || self.e_values.len() != LAMBDA
-            || self.z_values.len() != LAMBDA
+        // Check that all the lengths equal the soundness parameter.
+        if self.public_values.len() != SOUNDNESS
+            || self.challenge_bytes.len() != SOUNDNESS
+            || self.responses.len() != SOUNDNESS
         {
-            // Ensure that everything should be the same length LAMBDA
-            return verify_err!("Check that everything should be the same length LAMBDA failed");
+            return verify_err!("length of values provided does not match soundness parameter");
+        }
+        let challenges = generate_challenge_bytes(input, &self.public_values)?;
+        // Check Fiat-Shamir consistency.
+        if challenges != self.challenge_bytes.as_slice() {
+            return verify_err!("Fiat-Shamir does not verify");
         }
 
-        let mut transcript = Transcript::new(b"RingPedersenProof");
-        transcript.append_message(b"CommonInput", &serialize!(&input)?);
-        transcript.append_message(b"A_i values", &serialize!(&self.a_values)?);
-
-        let mut e_values = [0u8; LAMBDA];
-        transcript.challenge_bytes(b"e_i values", e_values.as_mut_slice());
-
-        // Check Fiat-Shamir consistency
-        if e_values != self.e_values.as_slice() {
-            return verify_err!("Fiat-Shamir consistency check failed");
-        }
-
-        let is_sound = e_values
-            .iter()
-            .zip(&self.z_values)
-            .zip(&self.a_values)
+        let is_sound = challenges
+            .into_iter()
+            .zip(&self.responses)
+            .zip(&self.public_values)
             .map(|((e, z), a)| {
-                // Verify that t^z = A * s^e (mod N)
-                let lhs = modpow(input.0.t(), z, input.0.modulus());
+                // Verify that `t^{z_i} = {A_i} * s^{e_i} mod N`.
+                let lhs = modpow(input.t(), z, input.modulus());
                 let rhs = if e % 2 == 1 {
-                    a.modmul(input.0.s(), input.0.modulus())
+                    a.modmul(input.s(), input.modulus())
                 } else {
-                    a.nmod(input.0.modulus())
+                    a.clone()
                 };
                 lhs == rhs
             })
             .all(|check| check);
 
         if !is_sound {
-            return verify_err!("Verify that t^z = A * s^e (mod N) check failed");
+            return verify_err!("response validation check failed");
         }
 
         Ok(())
@@ -155,7 +162,7 @@ mod tests {
 
     fn random_ring_pedersen_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
-    ) -> Result<(PiPrmInput, PiPrmProof)> {
+    ) -> Result<(RingPedersen, PiPrmProof)> {
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(rng).unwrap();
         let N = &p * &q;
         let phi_n = (p - 1) * (q - 1);
@@ -165,9 +172,8 @@ mod tests {
         let s = modpow(&t, &lambda, &N);
 
         let ring_pedersen = RingPedersen::from_parts(s, t, N);
-        let input = PiPrmInput::new(ring_pedersen);
-        let proof = PiPrmProof::prove(rng, &input, &PiPrmSecret::new(&lambda, &phi_n))?;
-        Ok((input, proof))
+        let proof = PiPrmProof::prove(rng, &ring_pedersen, &PiPrmSecret::new(lambda, phi_n))?;
+        Ok((ring_pedersen, proof))
     }
 
     #[test]

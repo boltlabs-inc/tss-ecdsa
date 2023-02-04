@@ -16,7 +16,7 @@ use crate::{
     errors::Result,
     utils::{modpow, random_plusminus_scaled, random_positive_bn},
     zkp::{
-        piprm::{PiPrmInput, PiPrmProof, PiPrmSecret},
+        piprm::{PiPrmProof, PiPrmSecret},
         Proof,
     },
 };
@@ -127,9 +127,9 @@ impl VerifiedRingPedersen {
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Self> {
         let modulus = sk.modulus();
-        let phi_n = sk.totient();
+        let totient = sk.totient();
         let tau = random_positive_bn(rng, modulus);
-        let lambda = random_positive_bn(rng, phi_n);
+        let lambda = random_positive_bn(rng, totient);
         let t = tau.modpow(&BigNumber::from(2), modulus);
         let s = t.modpow(&lambda, modulus);
         let scheme = RingPedersen {
@@ -137,18 +137,15 @@ impl VerifiedRingPedersen {
             s,
             t,
         };
-        let proof = PiPrmProof::prove(
-            rng,
-            &PiPrmInput::new(scheme.clone()),
-            &PiPrmSecret::new(&lambda, phi_n),
-        )?;
+        let secrets = PiPrmSecret::new(lambda, totient.clone());
+        let proof = PiPrmProof::prove(rng, &scheme, &secrets)?;
         Ok(Self { scheme, proof })
     }
 
     /// Verifies that the underlying [`RingPedersen`] commitment scheme was constructed correctly
     /// according to the associated [`PiPrmProof`].
     pub(crate) fn verify(&self) -> Result<()> {
-        self.proof.verify(&PiPrmInput::new(self.scheme.clone()))
+        self.proof.verify(self.scheme())
     }
 
     /// Returns the underlying [`RingPedersen`] commitment scheme associated
