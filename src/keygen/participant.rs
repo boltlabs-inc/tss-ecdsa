@@ -7,6 +7,7 @@
 // of this source tree.
 
 use crate::broadcast::participant::BroadcastTag;
+use crate::errors::InternalError;
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant},
     errors::Result,
@@ -107,8 +108,8 @@ impl KeygenParticipant {
                 let messages = self.handle_round_three_msg(rng, message, main_storage)?;
                 Ok(messages)
             }
-            MessageType::Keygen(_) => Err(crate::errors::InternalError::MessageMustBeBroadcasted),
-            _ => Err(crate::errors::InternalError::MisroutedMessage),
+            MessageType::Keygen(_) => Err(InternalError::MessageMustBeBroadcasted),
+            _ => Err(InternalError::MisroutedMessage),
         }
     }
 
@@ -199,7 +200,7 @@ impl KeygenParticipant {
         main_storage: &mut Storage,
     ) -> Result<Vec<Message>> {
         if broadcast_message.tag != BroadcastTag::KeyGenR1CommitHash {
-            return Err(crate::errors::InternalError::IncorrectBroadcastMessageTag);
+            return Err(InternalError::IncorrectBroadcastMessageTag);
         }
         let message = &broadcast_message.msg;
         let message_bytes = serialize!(&KeygenCommit::from_message(message)?)?;
@@ -563,7 +564,7 @@ mod tests {
                 &[],
             )
         }
-        pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> Result<()> {
+        pub fn check_keygen_done(&self, keygen_identifier: Identifier) -> Result<()> {
             let mut fetch = vec![];
             for participant in self.other_participant_ids.clone() {
                 fetch.push((StorableType::PublicKeyshare, keygen_identifier, participant));
@@ -590,9 +591,12 @@ mod tests {
         Ok(())
     }
 
-    fn is_keygen_done(quorum: &[KeygenParticipant], keygen_identifier: Identifier) -> Result<()> {
+    fn check_keygen_done(
+        quorum: &[KeygenParticipant],
+        keygen_identifier: Identifier,
+    ) -> Result<()> {
         for participant in quorum {
-            participant.is_keygen_done(keygen_identifier)?;
+            participant.check_keygen_done(keygen_identifier)?;
         }
         Ok(())
     }
@@ -656,7 +660,7 @@ mod tests {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(participant.initialize_keygen_message(keyshare_identifier));
         }
-        while is_keygen_done(&quorum, keyshare_identifier).is_err() {
+        while check_keygen_done(&quorum, keyshare_identifier).is_err() {
             process_messages(&mut quorum, &mut inboxes, &mut rng, &mut main_storages)?;
         }
 

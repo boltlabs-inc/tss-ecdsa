@@ -7,6 +7,7 @@
 // of this source tree.
 
 use crate::broadcast::participant::BroadcastTag;
+use crate::errors::InternalError;
 use crate::{
     auxinfo::{
         auxinfo_commit::{AuxInfoCommit, AuxInfoDecommit},
@@ -102,8 +103,8 @@ impl AuxInfoParticipant {
                 let messages = self.handle_round_three_msg(rng, message, main_storage)?;
                 Ok(messages)
             }
-            MessageType::Auxinfo(_) => Err(crate::errors::InternalError::MessageMustBeBroadcasted),
-            _ => Err(crate::errors::InternalError::MisroutedMessage),
+            MessageType::Auxinfo(_) => Err(InternalError::MessageMustBeBroadcasted),
+            _ => Err(InternalError::MisroutedMessage),
         }
     }
 
@@ -190,7 +191,7 @@ impl AuxInfoParticipant {
         main_storage: &mut Storage,
     ) -> Result<Vec<Message>> {
         if broadcast_message.tag != BroadcastTag::AuxinfoR1CommitHash {
-            return Err(crate::errors::InternalError::IncorrectBroadcastMessageTag);
+            return Err(InternalError::IncorrectBroadcastMessageTag);
         }
         let message = &broadcast_message.msg;
         let message_bytes = serialize!(&AuxInfoCommit::from_message(message)?)?;
@@ -559,7 +560,7 @@ mod tests {
             )
         }
 
-        pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<()> {
+        pub fn check_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<()> {
             let mut fetch = vec![];
             for participant in self.other_participant_ids.clone() {
                 fetch.push((StorableType::AuxInfoPublic, auxinfo_identifier, participant));
@@ -586,12 +587,12 @@ mod tests {
         Ok(())
     }
 
-    fn is_auxinfo_done(
+    fn check_auxinfo_done(
         quorum: &[AuxInfoParticipant],
         auxinfo_identifier: Identifier,
     ) -> Result<()> {
         for participant in quorum {
-            participant.is_auxinfo_done(auxinfo_identifier)?;
+            participant.check_auxinfo_done(auxinfo_identifier)?;
         }
         Ok(())
     }
@@ -655,7 +656,7 @@ mod tests {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(participant.initialize_auxinfo_message(keyshare_identifier));
         }
-        while is_auxinfo_done(&quorum, keyshare_identifier).is_err() {
+        while check_auxinfo_done(&quorum, keyshare_identifier).is_err() {
             process_messages(&mut quorum, &mut inboxes, &mut rng, &mut main_storages)?;
         }
 

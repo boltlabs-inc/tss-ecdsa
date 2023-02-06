@@ -248,9 +248,8 @@ mod tests {
 // Protocol Utility Functions //
 ////////////////////////////////
 
-/// Returns true if in storage, there is one storable_type for each other
-/// participant in the quorum.
-pub(crate) fn has_collected_all_of_others(
+/// Errors unless there is one storable_type for each other participant in the quorum.
+pub(crate) fn check_collected_all_of_others(
     other_ids: &[ParticipantIdentifier],
     storage: &Storage,
     storable_type: StorableType,
@@ -273,7 +272,7 @@ pub(crate) fn get_other_participants_public_auxinfo(
     storage: &Storage,
     identifier: Identifier,
 ) -> Result<HashMap<ParticipantIdentifier, AuxInfoPublic>> {
-    has_collected_all_of_others(other_ids, storage, StorableType::AuxInfoPublic, identifier)?;
+    check_collected_all_of_others(other_ids, storage, StorableType::AuxInfoPublic, identifier)?;
 
     let mut hm = HashMap::new();
     for &other_participant_id in other_ids {

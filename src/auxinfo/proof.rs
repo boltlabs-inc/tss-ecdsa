@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    errors::Result,
+    errors::{InternalError, Result},
     messages::{AuxinfoMessageType, MessageType},
     ring_pedersen::VerifiedRingPedersen,
     zkp::{
@@ -30,7 +30,7 @@ pub(crate) struct AuxInfoProof {
 impl AuxInfoProof {
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         if message.message_type() != MessageType::Auxinfo(AuxinfoMessageType::R3Proof) {
-            return Err(crate::errors::InternalError::IncorrectBroadcastMessageTag);
+            return Err(InternalError::IncorrectBroadcastMessageTag);
         }
         let auxinfo_proof: AuxInfoProof = deserialize!(&message.unverified_bytes)?;
         Ok(auxinfo_proof)

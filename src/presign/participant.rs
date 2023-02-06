@@ -9,7 +9,10 @@
 use crate::{
     auxinfo::info::{AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    errors::{InternalError::InternalInvariantFailed, Result},
+    errors::{
+        InternalError::{self, InternalInvariantFailed},
+        Result,
+    },
     keygen::keyshare::{KeySharePrivate, KeySharePublic},
     messages::{Message, MessageType, PresignMessageType},
     parameters::ELL_PRIME,
@@ -26,7 +29,7 @@ use crate::{
     protocol::ParticipantIdentifier,
     storage::{StorableType, Storage},
     utils::{
-        bn_to_scalar, get_other_participants_public_auxinfo, has_collected_all_of_others,
+        bn_to_scalar, check_collected_all_of_others, get_other_participants_public_auxinfo,
         k256_order, process_ready_message, random_plusminus_by_size, random_positive_bn,
     },
     zkp::{
@@ -125,7 +128,7 @@ impl PresignParticipant {
             MessageType::Presign(PresignMessageType::RoundThree) => {
                 Ok(self.handle_round_three_msg(rng, message, main_storage)?)
             }
-            _ => Err(crate::errors::InternalError::MisroutedMessage),
+            _ => Err(InternalError::MisroutedMessage),
         }
     }
 
@@ -160,7 +163,7 @@ impl PresignParticipant {
         identifier: Identifier,
     ) -> Result<Message> {
         if self.presign_map.contains_key(&identifier) {
-            return Err(crate::errors::InternalError::IdentifierInUse);
+            return Err(InternalError::IdentifierInUse);
         }
         // Set the presign map internally
         let _ = self
@@ -274,7 +277,7 @@ impl PresignParticipant {
         main_storage: &Storage,
     ) -> Result<(Option<PresignRecord>, Vec<Message>)> {
         if broadcast_message.tag != BroadcastTag::PresignR1Ciphertexts {
-            return Err(crate::errors::InternalError::IncorrectBroadcastMessageTag);
+            return Err(InternalError::IncorrectBroadcastMessageTag);
         }
         let message = &broadcast_message.msg;
         self.storage.store(
@@ -466,7 +469,7 @@ impl PresignParticipant {
         // Since we are in round 2, it should certainly be the case that all
         // public auxinfo for other participants have been stored, since
         // this was a requirement to proceed for round 1.
-        has_collected_all_of_others(
+        check_collected_all_of_others(
             &self.other_participant_ids,
             main_storage,
             StorableType::AuxInfoPublic,
@@ -475,14 +478,14 @@ impl PresignParticipant {
 
         // Check if storage has all of the other participants' round 2 values (both
         // private and public), and start generating the messages for round 3 if so
-        let all_privates_received = has_collected_all_of_others(
+        let all_privates_received = check_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundTwoPrivate,
             message.id(),
         )
         .is_ok();
-        let all_publics_received = has_collected_all_of_others(
+        let all_publics_received = check_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundTwoPublic,
@@ -614,7 +617,7 @@ impl PresignParticipant {
         self.validate_and_store_round_three_public(main_storage, message, auxinfo_identifier)?;
 
         let mut presign_record_option = None;
-        if has_collected_all_of_others(
+        if check_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundThreePublic,
@@ -780,19 +783,19 @@ impl PresignParticipant {
         main_storage: &Storage,
     ) -> Result<HashMap<ParticipantIdentifier, RoundThreeInput>> {
         // begin by checking Storage contents to ensure we're ready for round three
-        has_collected_all_of_others(
+        check_collected_all_of_others(
             &self.other_participant_ids,
             main_storage,
             StorableType::AuxInfoPublic,
             auxinfo_identifier,
         )?;
-        has_collected_all_of_others(
+        check_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundTwoPrivate,
             identifier,
         )?;
-        has_collected_all_of_others(
+        check_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundTwoPublic,

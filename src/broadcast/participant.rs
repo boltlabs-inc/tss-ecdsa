@@ -8,7 +8,7 @@
 
 use crate::{
     broadcast::data::BroadcastData,
-    errors::Result,
+    errors::{InternalError, Result},
     messages::{BroadcastMessageType, Message, MessageType},
     participant::ProtocolParticipant,
     protocol::ParticipantIdentifier,
@@ -91,7 +91,7 @@ impl BroadcastParticipant {
                 let (output_option, messages) = self.handle_round_two_msg(rng, message)?;
                 Ok((output_option, messages))
             }
-            _ => Err(crate::errors::InternalError::MisroutedMessage),
+            _ => Err(InternalError::MisroutedMessage),
         }
     }
 
@@ -208,7 +208,7 @@ impl BroadcastParticipant {
                 return Ok(Some(out));
             }
         }
-        Err(crate::errors::InternalError::BroadcastFailure(
+        Err(InternalError::BroadcastFailure(
             "No message got enough votes".to_string(),
         ))
     }

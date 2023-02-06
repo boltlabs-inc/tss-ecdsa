@@ -173,9 +173,8 @@ impl Participant {
         )
     }
 
-    /// Returns whether or not auxinfo generation has completed for this
-    /// identifier
-    pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<()> {
+    /// Errors if auxinfo generation has not completed for this identifier
+    pub fn check_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<()> {
         let mut fetch = vec![];
         for participant in self.other_participant_ids.clone() {
             fetch.push((StorableType::AuxInfoPublic, auxinfo_identifier, participant));
@@ -186,9 +185,8 @@ impl Participant {
         self.main_storage.contains_batch(&fetch)
     }
 
-    /// Returns whether or not keyshare generation has completed for this
-    /// identifier
-    pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> Result<()> {
+    /// Errors if keyshare generation has completed for this identifier
+    pub fn check_keygen_done(&self, keygen_identifier: Identifier) -> Result<()> {
         let mut fetch = vec![];
         for participant in self.other_participant_ids.clone() {
             fetch.push((StorableType::PublicKeyshare, keygen_identifier, participant));
@@ -199,9 +197,8 @@ impl Participant {
         self.main_storage.contains_batch(&fetch)
     }
 
-    /// Returns whether or not presignature generation has completed for this
-    /// identifier
-    pub fn is_presigning_done(&self, presign_identifier: Identifier) -> Result<()> {
+    /// Errors if presignature generation has completed for this identifier
+    pub fn check_presigning_done(&self, presign_identifier: Identifier) -> Result<()> {
         self.main_storage.contains_batch(&[(
             StorableType::PresignRecord,
             presign_identifier,
@@ -291,12 +288,10 @@ impl SignatureShare {
         if bool::from(s.is_high()) {
             s = s.negate();
         }
+        let r = self.r.ok_or(InternalError::NoChainedShares)?;
 
-        match self.r {
-            Some(r) => k256::ecdsa::Signature::from_scalars(r, s)
-                .map_err(|_| InternalError::SignatureInstantiationError),
-            None => Err(InternalError::NoChainedShares),
-        }
+        k256::ecdsa::Signature::from_scalars(r, s)
+            .map_err(|_| InternalError::SignatureInstantiationError)
     }
 }
 
@@ -374,23 +369,23 @@ mod tests {
         Ok(())
     }
 
-    fn is_presigning_done(quorum: &[Participant], presign_identifier: Identifier) -> Result<()> {
+    fn check_presigning_done(quorum: &[Participant], presign_identifier: Identifier) -> Result<()> {
         for participant in quorum {
-            participant.is_presigning_done(presign_identifier)?;
+            participant.check_presigning_done(presign_identifier)?;
         }
         Ok(())
     }
 
-    fn is_auxinfo_done(quorum: &[Participant], auxinfo_identifier: Identifier) -> Result<()> {
+    fn check_auxinfo_done(quorum: &[Participant], auxinfo_identifier: Identifier) -> Result<()> {
         for participant in quorum {
-            participant.is_auxinfo_done(auxinfo_identifier)?;
+            participant.check_auxinfo_done(auxinfo_identifier)?;
         }
         Ok(())
     }
 
-    fn is_keygen_done(quorum: &[Participant], keygen_identifier: Identifier) -> Result<()> {
+    fn check_keygen_done(quorum: &[Participant], keygen_identifier: Identifier) -> Result<()> {
         for participant in quorum {
-            participant.is_keygen_done(keygen_identifier)?;
+            participant.check_keygen_done(keygen_identifier)?;
         }
         Ok(())
     }
@@ -443,7 +438,7 @@ mod tests {
             inbox.push(participant.initialize_auxinfo_message(auxinfo_identifier));
         }
 
-        while is_auxinfo_done(&quorum, auxinfo_identifier).is_err() {
+        while check_auxinfo_done(&quorum, auxinfo_identifier).is_err() {
             process_messages(&mut quorum, &mut inboxes, &mut rng)?;
         }
 
@@ -451,7 +446,7 @@ mod tests {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(participant.initialize_keygen_message(keyshare_identifier));
         }
-        while is_keygen_done(&quorum, keyshare_identifier).is_err() {
+        while check_keygen_done(&quorum, keyshare_identifier).is_err() {
             process_messages(&mut quorum, &mut inboxes, &mut rng)?;
         }
 
@@ -464,7 +459,7 @@ mod tests {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(message);
         }
-        while is_presigning_done(&quorum, presign_identifier).is_err() {
+        while check_presigning_done(&quorum, presign_identifier).is_err() {
             process_messages(&mut quorum, &mut inboxes, &mut rng)?;
         }
 

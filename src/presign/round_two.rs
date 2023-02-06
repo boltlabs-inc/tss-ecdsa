@@ -8,7 +8,7 @@
 
 use crate::{
     auxinfo::info::AuxInfoPublic,
-    errors::Result,
+    errors::{InternalError, Result},
     keygen::keyshare::KeySharePublic,
     messages::{Message, MessageType, PresignMessageType},
     paillier::Ciphertext,
@@ -102,19 +102,17 @@ impl Public {
         sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<Self> {
         if message.message_type() != MessageType::Presign(PresignMessageType::RoundTwo) {
-            return Err(crate::errors::InternalError::MisroutedMessage);
+            return Err(InternalError::MisroutedMessage);
         }
         let round_two_public: Self = deserialize!(&message.unverified_bytes)?;
 
-        match round_two_public.verify(
+        round_two_public.verify(
             receiver_auxinfo_public,
             sender_auxinfo_public,
             sender_keyshare_public,
             receiver_r1_private,
             sender_r1_public_broadcast,
-        ) {
-            Ok(()) => Ok(round_two_public),
-            Err(e) => Err(e),
-        }
+        )?;
+        Ok(round_two_public)
     }
 }

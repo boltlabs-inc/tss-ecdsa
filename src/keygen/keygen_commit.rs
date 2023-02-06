@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    errors::Result,
+    errors::{InternalError, Result},
     keygen::keyshare::KeySharePublic,
     messages::{KeygenMessageType, Message, MessageType},
     protocol::{Identifier, ParticipantIdentifier},
@@ -25,7 +25,7 @@ pub(crate) struct KeygenCommit {
 impl KeygenCommit {
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         if message.message_type() != MessageType::Keygen(KeygenMessageType::R1CommitHash) {
-            return Err(crate::errors::InternalError::MisroutedMessage);
+            return Err(InternalError::MisroutedMessage);
         }
         let keygen_commit: KeygenCommit = deserialize!(&message.unverified_bytes)?;
         Ok(keygen_commit)
@@ -66,7 +66,7 @@ impl KeygenDecommit {
 
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         if message.message_type() != MessageType::Keygen(KeygenMessageType::R2Decommit) {
-            return Err(crate::errors::InternalError::MisroutedMessage);
+            return Err(InternalError::MisroutedMessage);
         }
         let keygen_decommit: KeygenDecommit = deserialize!(&message.unverified_bytes)?;
         Ok(keygen_decommit)
@@ -98,9 +98,11 @@ impl KeygenDecommit {
         let mut hash = [0u8; 32];
         transcript.challenge_bytes(b"hashing r1", &mut hash);
         let rebuilt_com = KeygenCommit { hash };
-        match rebuilt_com == *com {
-            true => Ok(()),
-            false => verify_err!("decommitment does not match original commitment"),
+
+        if rebuilt_com == *com {
+            Ok(())
+        } else {
+            verify_err!("decommitment does not match original commitment")
         }
     }
 }
