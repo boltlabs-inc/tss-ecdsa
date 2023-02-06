@@ -22,7 +22,7 @@ fn deliver_all(
 
 fn is_keygen_done(quorum: &[Participant], keygen_identifier: Identifier) -> bool {
     for participant in quorum {
-        if participant.is_keygen_done(keygen_identifier).is_err() {
+        if participant.check_keygen_done(keygen_identifier).is_err() {
             return false;
         }
     }
@@ -31,7 +31,7 @@ fn is_keygen_done(quorum: &[Participant], keygen_identifier: Identifier) -> bool
 
 fn is_auxinfo_done(quorum: &[Participant], auxinfo_identifier: Identifier) -> bool {
     for participant in quorum {
-        if participant.is_auxinfo_done(auxinfo_identifier).is_err() {
+        if participant.check_auxinfo_done(auxinfo_identifier).is_err() {
             return false;
         }
     }
@@ -40,7 +40,10 @@ fn is_auxinfo_done(quorum: &[Participant], auxinfo_identifier: Identifier) -> bo
 
 fn is_presigning_done(quorum: &[Participant], presign_identifier: Identifier) -> bool {
     for participant in quorum {
-        if participant.is_presigning_done(presign_identifier).is_err() {
+        if participant
+            .check_presigning_done(presign_identifier)
+            .is_err()
+        {
             return false;
         }
     }
