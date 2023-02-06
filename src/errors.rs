@@ -43,8 +43,6 @@ pub enum InternalError {
     NonUniqueFourthRootsCombination,
     #[error("Could not invert a BigNumber")]
     CouldNotInvertBigNumber,
-    #[error("`{0}`")]
-    BailError(String),
     #[error("Represents some code assumption that was checked at runtime but failed to be true")]
     InternalInvariantFailed,
     #[error("Paillier error: `{0}`")]
@@ -105,24 +103,4 @@ macro_rules! arg_err {
             $x,
         )))
     }};
-}
-
-#[allow(unused)]
-macro_rules! bail {
-    ($msg:literal $(,)?) => {
-        Err(bail_context!($msg))
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        Err(bail_context!($fmt, $($arg)*))
-    };
-}
-
-#[allow(unused)]
-macro_rules! bail_context {
-    ($msg:literal $(,)?) => {
-        crate::errors::InternalError::BailError(String::from($msg))
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        crate::errors::InternalError::BailError(format!($fmt, $($arg)*))
-    };
 }

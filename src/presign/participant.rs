@@ -839,15 +839,24 @@ impl PresignParticipant {
         &self,
         identifier: Identifier,
     ) -> Result<Vec<crate::round_three::Public>> {
-        let mut ret_vec = vec![];
-        for other_participant_id in self.other_participant_ids.clone() {
-            let val = self.storage.retrieve(
-                StorableType::PresignRoundThreePublic,
-                identifier,
-                other_participant_id,
-            )?;
-            ret_vec.push(deserialize!(&val)?);
-        }
+        check_collected_all_of_others(
+            &self.other_participant_ids,
+            &self.storage,
+            StorableType::PresignRoundThreePublic,
+            identifier,
+        )?;
+        let ret_vec = self
+            .other_participant_ids
+            .iter()
+            .map(|other_participant_id| {
+                let r3pub = deserialize!(&self.storage.retrieve(
+                    StorableType::PresignRoundThreePublic,
+                    identifier,
+                    *other_participant_id,
+                )?)?;
+                Ok(r3pub)
+            })
+            .collect::<Result<Vec<crate::round_three::Public>>>()?;
         Ok(ret_vec)
     }
 }

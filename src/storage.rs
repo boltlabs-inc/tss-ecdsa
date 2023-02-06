@@ -133,10 +133,10 @@ impl Storage {
         sid: Identifier,
         participants: &[ParticipantIdentifier],
     ) -> Result<()> {
-        let mut fetch = vec![];
-        for participant in participants {
-            fetch.push((s_type, sid, *participant));
-        }
+        let fetch: Vec<(StorableType, Identifier, ParticipantIdentifier)> = participants
+            .iter()
+            .map(|participant| (s_type, sid, *participant))
+            .collect();
         self.contains_batch(&fetch)
     }
 
