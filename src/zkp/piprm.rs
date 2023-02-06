@@ -193,8 +193,8 @@ mod tests {
         let (input, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
         {
             let mut bad_proof = proof.clone();
-            bad_proof.public_values = bad_proof
-                .public_values
+            bad_proof.commitments = bad_proof
+                .commitments
                 .into_iter()
                 .take(SOUNDNESS - 1)
                 .collect();
@@ -210,7 +210,7 @@ mod tests {
             assert!(bad_proof.verify(&input).is_err());
         }
         {
-            let mut bad_proof = proof.clone();
+            let mut bad_proof = proof;
             bad_proof.responses = bad_proof
                 .responses
                 .into_iter()
@@ -239,7 +239,7 @@ mod tests {
         let mut rng = crate::utils::get_test_rng();
         let (input, _, lambda, _) = random_ring_pedersen_proof(&mut rng)?;
         {
-            let bad_totient = random_positive_bn(&mut rng, &input.modulus());
+            let bad_totient = random_positive_bn(&mut rng, input.modulus());
             let secrets = PiPrmSecret::new(lambda, bad_totient);
             let proof = PiPrmProof::prove(&mut rng, &input, &secrets)?;
             assert!(proof.verify(&input).is_err());
@@ -262,7 +262,7 @@ mod tests {
         let (input, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
         for i in 0..SOUNDNESS {
             let mut bad_proof = proof.clone();
-            bad_proof.public_values[i] = random_positive_bn(&mut rng, &input.modulus());
+            bad_proof.commitments[i] = random_positive_bn(&mut rng, input.modulus());
             assert!(bad_proof.verify(&input).is_err());
         }
         for i in 0..SOUNDNESS {
@@ -275,7 +275,7 @@ mod tests {
         }
         for i in 0..SOUNDNESS {
             let mut bad_proof = proof.clone();
-            bad_proof.responses[i] = random_positive_bn(&mut rng, &input.modulus());
+            bad_proof.responses[i] = random_positive_bn(&mut rng, input.modulus());
             assert!(bad_proof.verify(&input).is_err());
         }
 
