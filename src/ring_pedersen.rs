@@ -126,18 +126,8 @@ impl VerifiedRingPedersen {
         sk: &DecryptionKey,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Self> {
-        let modulus = sk.modulus();
-        let totient = sk.totient();
-        let tau = random_positive_bn(rng, modulus);
-        let lambda = random_positive_bn(rng, totient);
-        let t = tau.modpow(&BigNumber::from(2), modulus);
-        let s = t.modpow(&lambda, modulus);
-        let scheme = RingPedersen {
-            modulus: modulus.clone(),
-            s,
-            t,
-        };
-        let secrets = PiPrmSecret::new(lambda, totient.clone());
+        let (scheme, lambda, totient) = RingPedersen::extract(sk, rng)?;
+        let secrets = PiPrmSecret::new(lambda, totient);
         let proof = PiPrmProof::prove(rng, &scheme, &secrets)?;
         Ok(Self { scheme, proof })
     }
@@ -163,6 +153,30 @@ impl VerifiedRingPedersen {
 }
 
 impl RingPedersen {
+    /// Extracts a [`RingPedersen`] object and its secret parameters from a [`DecryptionKey`].
+    ///
+    /// In more detail, `sk` is used to derive a [`RingPedersen`] commitment scheme,
+    /// alongside two secret parameters used in its derivation:
+    /// 1. The value `λ` such that [`s`](RingPedersen::s)` = `[`t`](RingPedersen::t)`^λ mod N`.
+    /// 2. The Euler's totient of [`N`](RingPedersen::modulus).
+    pub(crate) fn extract(
+        sk: &DecryptionKey,
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> Result<(Self, BigNumber, BigNumber)> {
+        let modulus = sk.modulus();
+        let totient = sk.totient();
+        let tau = random_positive_bn(rng, modulus);
+        let lambda = random_positive_bn(rng, totient);
+        let t = tau.modpow(&BigNumber::from(2), modulus);
+        let s = t.modpow(&lambda, modulus);
+        let scheme = RingPedersen {
+            modulus: modulus.clone(),
+            s,
+            t,
+        };
+        Ok((scheme, lambda, totient.clone()))
+    }
+
     /// Returns the underlying modulus.
     pub(crate) fn modulus(&self) -> &BigNumber {
         &self.modulus
@@ -176,12 +190,6 @@ impl RingPedersen {
     /// Returns the underlying `t` parameter.
     pub(crate) fn t(&self) -> &BigNumber {
         &self.t
-    }
-
-    /// Constructs a [`RingPedersen`] object from its constituent parts for testing purposes.
-    #[cfg(test)]
-    pub(crate) fn from_parts(s: BigNumber, t: BigNumber, modulus: BigNumber) -> Self {
-        Self { modulus, s, t }
     }
 
     /// Produces commitment randomness.

@@ -156,42 +156,129 @@ impl Proof for PiPrmProof {
 
 #[cfg(test)]
 mod tests {
-    use crate::paillier::prime_gen;
-
     use super::*;
+    use crate::paillier::DecryptionKey;
+    use rand::Rng;
 
     fn random_ring_pedersen_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
-    ) -> Result<(RingPedersen, PiPrmProof)> {
-        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(rng).unwrap();
-        let N = &p * &q;
-        let phi_n = (p - 1) * (q - 1);
-        let tau = BigNumber::from_rng(&N, rng);
-        let lambda = BigNumber::from_rng(&phi_n, rng);
-        let t = modpow(&tau, &BigNumber::from(2), &N);
-        let s = modpow(&t, &lambda, &N);
-
-        let ring_pedersen = RingPedersen::from_parts(s, t, N);
-        let proof = PiPrmProof::prove(rng, &ring_pedersen, &PiPrmSecret::new(lambda, phi_n))?;
-        Ok((ring_pedersen, proof))
+    ) -> Result<(RingPedersen, PiPrmProof, BigNumber, BigNumber)> {
+        let (sk, _, _) = DecryptionKey::new(rng)?;
+        let (scheme, lambda, totient) = RingPedersen::extract(&sk, rng)?;
+        let secrets = PiPrmSecret::new(lambda.clone(), totient.clone());
+        let proof = PiPrmProof::prove(rng, &scheme, &secrets)?;
+        Ok((scheme, proof, lambda, totient))
     }
 
     #[test]
-    fn test_ring_pedersen_proof() -> Result<()> {
+    fn piprm_proof_verifies() -> Result<()> {
         let mut rng = crate::utils::get_test_rng();
-        let (input, proof) = random_ring_pedersen_proof(&mut rng)?;
-        proof.verify(&input)?;
+        let (input, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
+        proof.verify(&input)
+    }
 
+    #[test]
+    fn piprm_proof_serializes() -> Result<()> {
+        let mut rng = crate::utils::get_test_rng();
+        let (input, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
+        let serialized = bincode::serialize(&proof).unwrap();
+        let deserialized: PiPrmProof = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(serialized, bincode::serialize(&deserialized).unwrap());
+        deserialized.verify(&input)
+    }
+
+    #[test]
+    fn incorrect_lengths_fails() -> Result<()> {
+        let mut rng = crate::utils::get_test_rng();
+        let (input, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
+        {
+            let mut bad_proof = proof.clone();
+            bad_proof.public_values = bad_proof
+                .public_values
+                .into_iter()
+                .take(SOUNDNESS - 1)
+                .collect();
+            assert!(bad_proof.verify(&input).is_err());
+        }
+        {
+            let mut bad_proof = proof.clone();
+            bad_proof.challenge_bytes = bad_proof
+                .challenge_bytes
+                .into_iter()
+                .take(SOUNDNESS - 1)
+                .collect();
+            assert!(bad_proof.verify(&input).is_err());
+        }
+        {
+            let mut bad_proof = proof.clone();
+            bad_proof.responses = bad_proof
+                .responses
+                .into_iter()
+                .take(SOUNDNESS - 1)
+                .collect();
+            assert!(bad_proof.verify(&input).is_err());
+        }
         Ok(())
     }
 
     #[test]
-    fn test_ring_pedersen_proof_roundtrip() -> Result<()> {
+    fn bad_secret_exponent_fails() -> Result<()> {
         let mut rng = crate::utils::get_test_rng();
-        let (_, proof) = random_ring_pedersen_proof(&mut rng)?;
-        let buf = bincode::serialize(&proof).unwrap();
-        let orig: PiPrmProof = bincode::deserialize(&buf).unwrap();
-        assert_eq!(buf, bincode::serialize(&orig).unwrap());
+        let (input, _, _, totient) = random_ring_pedersen_proof(&mut rng)?;
+        {
+            let bad_lambda = random_positive_bn(&mut rng, &totient);
+            let secrets = PiPrmSecret::new(bad_lambda, totient);
+            let proof = PiPrmProof::prove(&mut rng, &input, &secrets)?;
+            assert!(proof.verify(&input).is_err());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn bad_secret_totient_fails() -> Result<()> {
+        let mut rng = crate::utils::get_test_rng();
+        let (input, _, lambda, _) = random_ring_pedersen_proof(&mut rng)?;
+        {
+            let bad_totient = random_positive_bn(&mut rng, &input.modulus());
+            let secrets = PiPrmSecret::new(lambda, bad_totient);
+            let proof = PiPrmProof::prove(&mut rng, &input, &secrets)?;
+            assert!(proof.verify(&input).is_err());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn incorrect_ring_pedersen_fails() -> Result<()> {
+        let mut rng = crate::utils::get_test_rng();
+        let (_, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
+        let (bad_input, _, _, _) = random_ring_pedersen_proof(&mut rng)?;
+        assert!(proof.verify(&bad_input).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_values_fails() -> Result<()> {
+        let mut rng = crate::utils::get_test_rng();
+        let (input, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
+        for i in 0..SOUNDNESS {
+            let mut bad_proof = proof.clone();
+            bad_proof.public_values[i] = random_positive_bn(&mut rng, &input.modulus());
+            assert!(bad_proof.verify(&input).is_err());
+        }
+        for i in 0..SOUNDNESS {
+            let mut bad_proof = proof.clone();
+            let valid = bad_proof.challenge_bytes[i];
+            while bad_proof.challenge_bytes[i] == valid {
+                bad_proof.challenge_bytes[i] = rng.gen::<u8>();
+            }
+            assert!(bad_proof.verify(&input).is_err());
+        }
+        for i in 0..SOUNDNESS {
+            let mut bad_proof = proof.clone();
+            bad_proof.responses[i] = random_positive_bn(&mut rng, &input.modulus());
+            assert!(bad_proof.verify(&input).is_err());
+        }
+
         Ok(())
     }
 }
