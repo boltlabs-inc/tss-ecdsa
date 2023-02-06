@@ -33,8 +33,8 @@ const SOUNDNESS: usize = crate::parameters::SOUNDNESS_PARAMETER;
 /// Proof that externally provided [`RingPedersen`] parameters are constructed correctly.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PiPrmProof {
-    /// The public values computed by the prover (`A_i` in the paper).
-    public_values: Vec<BigNumber>,
+    /// The commitments computed by the prover (`A_i` in the paper).
+    commitments: Vec<BigNumber>,
     /// The challenge bytes chosen by the verifier (`e_i` in the paper).
     challenge_bytes: Vec<u8>,
     /// The prover responses (`z_i` in the paper).
@@ -63,14 +63,14 @@ impl PiPrmSecret {
 
 /// Generates challenge bytes from the proof transcript using the Fiat-Shamir transform.
 /// Used by the prover and the verifier.
-fn generate_challenge_bytes(input: &RingPedersen, public_values: &[BigNumber]) -> Result<Vec<u8>> {
+fn generate_challenge_bytes(input: &RingPedersen, commitments: &[BigNumber]) -> Result<Vec<u8>> {
     // Construct a transcript for the Fiat-Shamir transform.
     let mut transcript = Transcript::new(b"PiPrmProof");
     transcript.append_message(b"Common input", &serialize!(&input)?);
-    transcript.append_message(b"Public values", &serialize!(&public_values)?);
+    transcript.append_message(b"Commitments", &serialize!(&commitments)?);
     // Extract challenge bytes from the transcript.
     let mut challenges = [0u8; SOUNDNESS];
-    transcript.challenge_bytes(b"Challenge bytes", challenges.as_mut_slice());
+    transcript.challenge_bytes(b"Challenges", challenges.as_mut_slice());
     Ok(challenges.into())
 }
 
@@ -89,12 +89,12 @@ impl Proof for PiPrmProof {
             std::iter::repeat_with(|| random_positive_bn(rng, &secret.totient))
                 .take(SOUNDNESS)
                 .collect();
-        // Compute public values `A_i = t^{a_i} mod N`.
-        let public_values = secret_exponents
+        // Compute commitments values `A_i = t^{a_i} mod N`.
+        let commitments = secret_exponents
             .iter()
             .map(|a| modpow(input.t(), a, input.modulus()))
             .collect::<Vec<_>>();
-        let challenge_bytes = generate_challenge_bytes(input, &public_values)?;
+        let challenge_bytes = generate_challenge_bytes(input, &commitments)?;
         // Compute challenge responses `z_i = a_i + e_i λ mod ɸ(N)`.
         let responses = challenge_bytes
             .iter()
@@ -109,7 +109,7 @@ impl Proof for PiPrmProof {
             .collect();
 
         Ok(Self {
-            public_values,
+            commitments,
             challenge_bytes,
             responses,
         })
@@ -118,13 +118,13 @@ impl Proof for PiPrmProof {
     #[cfg_attr(feature = "flame_it", flame("PiPrmProof"))]
     fn verify(&self, input: &Self::CommonInput) -> Result<()> {
         // Check that all the lengths equal the soundness parameter.
-        if self.public_values.len() != SOUNDNESS
+        if self.commitments.len() != SOUNDNESS
             || self.challenge_bytes.len() != SOUNDNESS
             || self.responses.len() != SOUNDNESS
         {
             return verify_err!("length of values provided does not match soundness parameter");
         }
-        let challenges = generate_challenge_bytes(input, &self.public_values)?;
+        let challenges = generate_challenge_bytes(input, &self.commitments)?;
         // Check Fiat-Shamir consistency.
         if challenges != self.challenge_bytes.as_slice() {
             return verify_err!("Fiat-Shamir does not verify");
@@ -133,7 +133,7 @@ impl Proof for PiPrmProof {
         let is_sound = challenges
             .into_iter()
             .zip(&self.responses)
-            .zip(&self.public_values)
+            .zip(&self.commitments)
             .map(|((e, z), a)| {
                 // Verify that `t^{z_i} = {A_i} * s^{e_i} mod N`.
                 let lhs = modpow(input.t(), z, input.modulus());
