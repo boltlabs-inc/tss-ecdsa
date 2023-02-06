@@ -153,7 +153,7 @@ impl Storage {
         let ret = self
             .0
             .get(&key)
-            .ok_or_else(|| InternalError::StorageItemNotFound(format!("{:?}", storable_index)))?
+            .ok_or_else(|| InternalError::StorageItemNotFound(format!("{storable_index:?}")))?
             .clone();
 
         Ok(ret)
@@ -163,7 +163,7 @@ impl Storage {
         let key = serialize!(&storable_index)?;
         self.0
             .remove(&key)
-            .ok_or_else(|| InternalError::StorageItemNotFound(format!("{:?}", storable_index)))
+            .ok_or_else(|| InternalError::StorageItemNotFound(format!("{storable_index:?}")))
     }
 
     fn contains_index_batch<I: Storable>(&self, storable_indices: &[I]) -> Result<()> {
@@ -172,8 +172,7 @@ impl Storage {
             let ret = self.0.contains_key(&key);
             if !ret {
                 return Err(InternalError::StorageItemNotFound(format!(
-                    "{:?}",
-                    storable_index
+                    "{storable_index:?}"
                 )));
             }
         }

@@ -48,7 +48,7 @@ pub enum InternalError {
     #[error("Represents some code assumption that was checked at runtime but failed to be true")]
     InternalInvariantFailed,
     #[error("Paillier error: `{0}`")]
-    PaillierError(#[from] PaillierError),
+    PaillierError(#[from] paillier::Error),
     #[error("Failed to convert BigNumber to k256::Scalar, as BigNumber was not in [0,p)")]
     CouldNotConvertToScalar,
     #[error("Could not invert a Scalar")]
