@@ -2,11 +2,16 @@
 command = "cargo"
 args = ["check", "--tests", "--benches", "--all-targets"]
 
+[tasks.install-nightly]
+command = "rustup"
+args = ["toolchain", "install", "nightly"]
+
 # -- CI Tasks --
 [tasks.ci]
 dependencies = ["ci-format", "ci-clippy", "ci-build", "ci-docs", "ci-doc-test", "ci-test"]
 
 [tasks.ci-format]
+dependencies = ["install-nightly"]
 command = "cargo"
 toolchain = "nightly"
 args = [ "fmt", "--all", "--check"]
