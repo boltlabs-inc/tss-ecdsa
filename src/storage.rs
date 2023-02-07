@@ -113,7 +113,7 @@ impl Storage {
     pub(crate) fn contains_batch(
         &self,
         type_and_id: &[(StorableType, Identifier, ParticipantIdentifier)],
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let storable_indices: Vec<StorableIndex> = type_and_id
             .iter()
             .map(|(t, identifier, participant)| StorableIndex {
@@ -132,7 +132,7 @@ impl Storage {
         s_type: StorableType,
         sid: Identifier,
         participants: &[ParticipantIdentifier],
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let fetch: Vec<(StorableType, Identifier, ParticipantIdentifier)> = participants
             .iter()
             .map(|participant| (s_type, sid, *participant))
@@ -153,7 +153,7 @@ impl Storage {
         let ret = self
             .0
             .get(&key)
-            .ok_or_else(|| InternalError::StorageItemNotFound(format!("{storable_index:?}")))?
+            .ok_or_else(|| InternalError::StorageItemNotFound)?
             .clone();
 
         Ok(ret)
@@ -163,19 +163,17 @@ impl Storage {
         let key = serialize!(&storable_index)?;
         self.0
             .remove(&key)
-            .ok_or_else(|| InternalError::StorageItemNotFound(format!("{storable_index:?}")))
+            .ok_or_else(|| InternalError::StorageItemNotFound)
     }
 
-    fn contains_index_batch<I: Storable>(&self, storable_indices: &[I]) -> Result<()> {
+    fn contains_index_batch<I: Storable>(&self, storable_indices: &[I]) -> Result<bool> {
         for storable_index in storable_indices {
             let key = serialize!(&storable_index)?;
             let ret = self.0.contains_key(&key);
             if !ret {
-                return Err(InternalError::StorageItemNotFound(format!(
-                    "{storable_index:?}"
-                )));
+                return Ok(false);
             }
         }
-        Ok(())
+        Ok(true)
     }
 }

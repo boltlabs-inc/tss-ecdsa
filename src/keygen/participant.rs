@@ -212,14 +212,11 @@ impl KeygenParticipant {
         )?;
 
         // check if we've received all the commits.
-        let r1_done = self
-            .storage
-            .contains_for_all_ids(
-                StorableType::KeygenCommit,
-                message.id(),
-                &self.other_participant_ids.clone(),
-            )
-            .is_ok();
+        let r1_done = self.storage.contains_for_all_ids(
+            StorableType::KeygenCommit,
+            message.id(),
+            &self.other_participant_ids.clone(),
+        )?;
         let mut messages = vec![];
 
         if r1_done {
@@ -248,7 +245,7 @@ impl KeygenParticipant {
     ) -> Result<Vec<Message>> {
         // check that we've generated our keyshare before trying to retrieve it
         let fetch = vec![(StorableType::PublicKeyshare, message.id(), self.id)];
-        let public_keyshare_generated = self.storage.contains_batch(&fetch).is_ok();
+        let public_keyshare_generated = self.storage.contains_batch(&fetch)?;
         let mut messages = vec![];
         if !public_keyshare_generated {
             let more_messages =
@@ -286,14 +283,11 @@ impl KeygenParticipant {
     ) -> Result<Vec<Message>> {
         // We must receive all commitments in round 1 before we start processing
         // decommits in round 2.
-        let r1_done = self
-            .storage
-            .contains_for_all_ids(
-                StorableType::KeygenCommit,
-                message.id(),
-                &[self.other_participant_ids.clone(), vec![self.id]].concat(),
-            )
-            .is_ok();
+        let r1_done = self.storage.contains_for_all_ids(
+            StorableType::KeygenCommit,
+            message.id(),
+            &[self.other_participant_ids.clone(), vec![self.id]].concat(),
+        )?;
         if !r1_done {
             // store any early round2 messages
             self.stash_message(message)?;
@@ -313,14 +307,11 @@ impl KeygenParticipant {
         )?;
 
         // check if we've received all the decommits
-        let r2_done = self
-            .storage
-            .contains_for_all_ids(
-                StorableType::KeygenDecommit,
-                message.id(),
-                &self.other_participant_ids.clone(),
-            )
-            .is_ok();
+        let r2_done = self.storage.contains_for_all_ids(
+            StorableType::KeygenDecommit,
+            message.id(),
+            &self.other_participant_ids.clone(),
+        )?;
         let mut messages = vec![];
 
         if r2_done {
@@ -470,14 +461,11 @@ impl KeygenParticipant {
         )?;
 
         //check if we've stored all the public keyshares
-        let keyshare_done = self
-            .storage
-            .contains_for_all_ids(
-                StorableType::PublicKeyshare,
-                message.id(),
-                &[self.other_participant_ids.clone(), vec![self.id]].concat(),
-            )
-            .is_ok();
+        let keyshare_done = self.storage.contains_for_all_ids(
+            StorableType::PublicKeyshare,
+            message.id(),
+            &[self.other_participant_ids.clone(), vec![self.id]].concat(),
+        )?;
 
         if keyshare_done {
             for oid in self.other_participant_ids.iter() {
@@ -564,7 +552,7 @@ mod tests {
                 &[],
             )
         }
-        pub fn check_keygen_done(&self, keygen_identifier: Identifier) -> Result<()> {
+        pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> Result<bool> {
             let mut fetch = vec![];
             for participant in self.other_participant_ids.clone() {
                 fetch.push((StorableType::PublicKeyshare, keygen_identifier, participant));
@@ -591,14 +579,13 @@ mod tests {
         Ok(())
     }
 
-    fn check_keygen_done(
-        quorum: &[KeygenParticipant],
-        keygen_identifier: Identifier,
-    ) -> Result<()> {
+    fn is_keygen_done(quorum: &[KeygenParticipant], keygen_identifier: Identifier) -> Result<bool> {
         for participant in quorum {
-            participant.check_keygen_done(keygen_identifier)?;
+            if !participant.is_keygen_done(keygen_identifier)? {
+                return Ok(false);
+            }
         }
-        Ok(())
+        Ok(true)
     }
 
     fn process_messages<R: RngCore + CryptoRng>(
@@ -660,7 +647,7 @@ mod tests {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(participant.initialize_keygen_message(keyshare_identifier));
         }
-        while check_keygen_done(&quorum, keyshare_identifier).is_err() {
+        while !is_keygen_done(&quorum, keyshare_identifier)? {
             process_messages(&mut quorum, &mut inboxes, &mut rng, &mut main_storages)?;
         }
 

@@ -61,8 +61,8 @@ pub enum InternalError {
     SignatureInstantiationError,
     #[error("Tried to produce a signature without including shares")]
     NoChainedShares,
-    #[error("Storage does not contain entry: `{0}`")]
-    StorageItemNotFound(String),
+    #[error("Storage does not contain the requested item")]
+    StorageItemNotFound,
     #[error("Function call contained invalid arguments: `{0}`")]
     InvalidArgument(String),
     #[error("The provided Broadcast Tag was not the expected tag for this context")]

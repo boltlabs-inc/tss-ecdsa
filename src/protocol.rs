@@ -173,8 +173,8 @@ impl Participant {
         )
     }
 
-    /// Errors if auxinfo generation has not completed for this identifier
-    pub fn check_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<()> {
+    /// Returns true if auxinfo generation has completed for this identifier
+    pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<bool> {
         let mut fetch = vec![];
         for participant in self.other_participant_ids.clone() {
             fetch.push((StorableType::AuxInfoPublic, auxinfo_identifier, participant));
@@ -185,8 +185,8 @@ impl Participant {
         self.main_storage.contains_batch(&fetch)
     }
 
-    /// Errors if keyshare generation has completed for this identifier
-    pub fn check_keygen_done(&self, keygen_identifier: Identifier) -> Result<()> {
+    /// Returns true if keyshare generation has completed for this identifier
+    pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> Result<bool> {
         let mut fetch = vec![];
         for participant in self.other_participant_ids.clone() {
             fetch.push((StorableType::PublicKeyshare, keygen_identifier, participant));
@@ -197,8 +197,8 @@ impl Participant {
         self.main_storage.contains_batch(&fetch)
     }
 
-    /// Errors if presignature generation has completed for this identifier
-    pub fn check_presigning_done(&self, presign_identifier: Identifier) -> Result<()> {
+    /// Returns true if presignature generation has completed for this identifier
+    pub fn is_presigning_done(&self, presign_identifier: Identifier) -> Result<bool> {
         self.main_storage.contains_batch(&[(
             StorableType::PresignRecord,
             presign_identifier,
@@ -369,25 +369,31 @@ mod tests {
         Ok(())
     }
 
-    fn check_presigning_done(quorum: &[Participant], presign_identifier: Identifier) -> Result<()> {
+    fn is_presigning_done(quorum: &[Participant], presign_identifier: Identifier) -> Result<bool> {
         for participant in quorum {
-            participant.check_presigning_done(presign_identifier)?;
+            if !participant.is_presigning_done(presign_identifier)? {
+                return Ok(false);
+            }
         }
-        Ok(())
+        Ok(true)
     }
 
-    fn check_auxinfo_done(quorum: &[Participant], auxinfo_identifier: Identifier) -> Result<()> {
+    fn is_auxinfo_done(quorum: &[Participant], auxinfo_identifier: Identifier) -> Result<bool> {
         for participant in quorum {
-            participant.check_auxinfo_done(auxinfo_identifier)?;
+            if !participant.is_auxinfo_done(auxinfo_identifier)? {
+                return Ok(false);
+            }
         }
-        Ok(())
+        Ok(true)
     }
 
-    fn check_keygen_done(quorum: &[Participant], keygen_identifier: Identifier) -> Result<()> {
+    fn is_keygen_done(quorum: &[Participant], keygen_identifier: Identifier) -> Result<bool> {
         for participant in quorum {
-            participant.check_keygen_done(keygen_identifier)?;
+            if !participant.is_keygen_done(keygen_identifier)? {
+                return Ok(false);
+            }
         }
-        Ok(())
+        Ok(true)
     }
 
     fn process_messages<R: RngCore + CryptoRng>(
@@ -438,7 +444,7 @@ mod tests {
             inbox.push(participant.initialize_auxinfo_message(auxinfo_identifier));
         }
 
-        while check_auxinfo_done(&quorum, auxinfo_identifier).is_err() {
+        while !is_auxinfo_done(&quorum, auxinfo_identifier)? {
             process_messages(&mut quorum, &mut inboxes, &mut rng)?;
         }
 
@@ -446,7 +452,7 @@ mod tests {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(participant.initialize_keygen_message(keyshare_identifier));
         }
-        while check_keygen_done(&quorum, keyshare_identifier).is_err() {
+        while !is_keygen_done(&quorum, keyshare_identifier)? {
             process_messages(&mut quorum, &mut inboxes, &mut rng)?;
         }
 
@@ -459,7 +465,7 @@ mod tests {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(message);
         }
-        while check_presigning_done(&quorum, presign_identifier).is_err() {
+        while !is_presigning_done(&quorum, presign_identifier)? {
             process_messages(&mut quorum, &mut inboxes, &mut rng)?;
         }
 

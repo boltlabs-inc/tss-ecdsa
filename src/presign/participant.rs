@@ -29,7 +29,7 @@ use crate::{
     protocol::ParticipantIdentifier,
     storage::{StorableType, Storage},
     utils::{
-        bn_to_scalar, check_collected_all_of_others, get_other_participants_public_auxinfo,
+        bn_to_scalar, get_other_participants_public_auxinfo, has_collected_all_of_others,
         k256_order, process_ready_message, random_plusminus_by_size, random_positive_bn,
     },
     zkp::{
@@ -324,7 +324,7 @@ impl PresignParticipant {
                 message.to(),
             ),
         ];
-        if self.storage.contains_batch(&search_keys).is_err() {
+        if !self.storage.contains_batch(&search_keys)? {
             self.stash_message(message)?;
             return Ok((None, vec![]));
         }
@@ -450,7 +450,7 @@ impl PresignParticipant {
             message.id(),
             message.from(),
         )];
-        if self.storage.contains_batch(&search_key).is_err() {
+        if !self.storage.contains_batch(&search_key)? {
             self.stash_message(message)?;
             return Ok((None, vec![]));
         }
@@ -469,29 +469,29 @@ impl PresignParticipant {
         // Since we are in round 2, it should certainly be the case that all
         // public auxinfo for other participants have been stored, since
         // this was a requirement to proceed for round 1.
-        check_collected_all_of_others(
+        if !has_collected_all_of_others(
             &self.other_participant_ids,
             main_storage,
             StorableType::AuxInfoPublic,
             auxinfo_identifier,
-        )?;
+        )? {
+            return Err(InternalError::StorageItemNotFound);
+        }
 
         // Check if storage has all of the other participants' round 2 values (both
         // private and public), and start generating the messages for round 3 if so
-        let all_privates_received = check_collected_all_of_others(
+        let all_privates_received = has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundTwoPrivate,
             message.id(),
-        )
-        .is_ok();
-        let all_publics_received = check_collected_all_of_others(
+        )?;
+        let all_publics_received = has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundTwoPublic,
             message.id(),
-        )
-        .is_ok();
+        )?;
         if all_privates_received && all_publics_received {
             Ok(self.gen_round_three_msgs(rng, message, main_storage)?)
         } else {
@@ -617,14 +617,12 @@ impl PresignParticipant {
         self.validate_and_store_round_three_public(main_storage, message, auxinfo_identifier)?;
 
         let mut presign_record_option = None;
-        if check_collected_all_of_others(
+        if has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundThreePublic,
             message.id(),
-        )
-        .is_ok()
-        {
+        )? {
             presign_record_option = Some(self.do_presign_finish(message)?);
         }
 
@@ -783,24 +781,24 @@ impl PresignParticipant {
         main_storage: &Storage,
     ) -> Result<HashMap<ParticipantIdentifier, RoundThreeInput>> {
         // begin by checking Storage contents to ensure we're ready for round three
-        check_collected_all_of_others(
+        if !has_collected_all_of_others(
             &self.other_participant_ids,
             main_storage,
             StorableType::AuxInfoPublic,
             auxinfo_identifier,
-        )?;
-        check_collected_all_of_others(
+        )? || !has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundTwoPrivate,
             identifier,
-        )?;
-        check_collected_all_of_others(
+        )? || !has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundTwoPublic,
             identifier,
-        )?;
+        )? {
+            return Err(InternalError::StorageItemNotFound);
+        }
 
         let mut hm = HashMap::new();
         for other_participant_id in self.other_participant_ids.clone() {
@@ -839,12 +837,14 @@ impl PresignParticipant {
         &self,
         identifier: Identifier,
     ) -> Result<Vec<crate::round_three::Public>> {
-        check_collected_all_of_others(
+        if !has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
             StorableType::PresignRoundThreePublic,
             identifier,
-        )?;
+        )? {
+            return Err(InternalError::StorageItemNotFound);
+        }
         let ret_vec = self
             .other_participant_ids
             .iter()

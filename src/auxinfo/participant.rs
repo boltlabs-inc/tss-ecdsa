@@ -203,14 +203,11 @@ impl AuxInfoParticipant {
         )?;
 
         // check if we've received all the commits.
-        let r1_done = self
-            .storage
-            .contains_for_all_ids(
-                StorableType::AuxInfoCommit,
-                message.id(),
-                &self.other_participant_ids.clone(),
-            )
-            .is_ok();
+        let r1_done = self.storage.contains_for_all_ids(
+            StorableType::AuxInfoCommit,
+            message.id(),
+            &self.other_participant_ids.clone(),
+        )?;
         let mut messages = vec![];
 
         if r1_done {
@@ -239,7 +236,7 @@ impl AuxInfoParticipant {
     ) -> Result<Vec<Message>> {
         // check that we've generated our public info before trying to retrieve it
         let fetch = vec![(StorableType::AuxInfoPublic, message.id(), self.id)];
-        let public_keyshare_generated = self.storage.contains_batch(&fetch).is_ok();
+        let public_keyshare_generated = self.storage.contains_batch(&fetch)?;
         let mut messages = vec![];
         if !public_keyshare_generated {
             let more_messages =
@@ -277,14 +274,11 @@ impl AuxInfoParticipant {
     ) -> Result<Vec<Message>> {
         // We must receive all commitments in round 1 before we start processing
         // decommits in round 2.
-        let r1_done = self
-            .storage
-            .contains_for_all_ids(
-                StorableType::AuxInfoCommit,
-                message.id(),
-                &[self.other_participant_ids.clone(), vec![self.id]].concat(),
-            )
-            .is_ok();
+        let r1_done = self.storage.contains_for_all_ids(
+            StorableType::AuxInfoCommit,
+            message.id(),
+            &[self.other_participant_ids.clone(), vec![self.id]].concat(),
+        )?;
         if !r1_done {
             // store any early round2 messages
             self.stash_message(message)?;
@@ -306,14 +300,11 @@ impl AuxInfoParticipant {
         )?;
 
         // check if we've received all the decommits
-        let r2_done = self
-            .storage
-            .contains_for_all_ids(
-                StorableType::AuxInfoDecommit,
-                message.id(),
-                &self.other_participant_ids.clone(),
-            )
-            .is_ok();
+        let r2_done = self.storage.contains_for_all_ids(
+            StorableType::AuxInfoDecommit,
+            message.id(),
+            &self.other_participant_ids.clone(),
+        )?;
         let mut messages = vec![];
 
         if r2_done {
@@ -456,14 +447,11 @@ impl AuxInfoParticipant {
         )?;
 
         //check if we've stored all the public auxinfo_pubs
-        let keyshare_done = self
-            .storage
-            .contains_for_all_ids(
-                StorableType::AuxInfoPublic,
-                message.id(),
-                &[self.other_participant_ids.clone(), vec![self.id]].concat(),
-            )
-            .is_ok();
+        let keyshare_done = self.storage.contains_for_all_ids(
+            StorableType::AuxInfoPublic,
+            message.id(),
+            &[self.other_participant_ids.clone(), vec![self.id]].concat(),
+        )?;
 
         if keyshare_done {
             for oid in self.other_participant_ids.iter() {
@@ -560,7 +548,7 @@ mod tests {
             )
         }
 
-        pub fn check_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<()> {
+        pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<bool> {
             let mut fetch = vec![];
             for participant in self.other_participant_ids.clone() {
                 fetch.push((StorableType::AuxInfoPublic, auxinfo_identifier, participant));
@@ -587,14 +575,16 @@ mod tests {
         Ok(())
     }
 
-    fn check_auxinfo_done(
+    fn is_auxinfo_done(
         quorum: &[AuxInfoParticipant],
         auxinfo_identifier: Identifier,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         for participant in quorum {
-            participant.check_auxinfo_done(auxinfo_identifier)?;
+            if !participant.is_auxinfo_done(auxinfo_identifier)? {
+                return Ok(false);
+            }
         }
-        Ok(())
+        Ok(true)
     }
 
     fn process_messages<R: RngCore + CryptoRng>(
@@ -656,7 +646,7 @@ mod tests {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(participant.initialize_auxinfo_message(keyshare_identifier));
         }
-        while check_auxinfo_done(&quorum, keyshare_identifier).is_err() {
+        while !is_auxinfo_done(&quorum, keyshare_identifier)? {
             process_messages(&mut quorum, &mut inboxes, &mut rng, &mut main_storages)?;
         }
 

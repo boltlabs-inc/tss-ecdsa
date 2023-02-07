@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use crate::{
     auxinfo::info::AuxInfoPublic,
     errors::{
-        InternalError::{CouldNotConvertToScalar, RetryFailed},
+        InternalError::{self, CouldNotConvertToScalar, RetryFailed},
         Result,
     },
     storage::{StorableType, Storage},
@@ -249,12 +249,12 @@ mod tests {
 ////////////////////////////////
 
 /// Errors unless there is one storable_type for each other participant in the quorum.
-pub(crate) fn check_collected_all_of_others(
+pub(crate) fn has_collected_all_of_others(
     other_ids: &[ParticipantIdentifier],
     storage: &Storage,
     storable_type: StorableType,
     identifier: Identifier,
-) -> Result<()> {
+) -> Result<bool> {
     let indices: Vec<(StorableType, Identifier, ParticipantIdentifier)> = other_ids
         .iter()
         .map(|participant_id| (storable_type, identifier, *participant_id))
@@ -272,7 +272,9 @@ pub(crate) fn get_other_participants_public_auxinfo(
     storage: &Storage,
     identifier: Identifier,
 ) -> Result<HashMap<ParticipantIdentifier, AuxInfoPublic>> {
-    check_collected_all_of_others(other_ids, storage, StorableType::AuxInfoPublic, identifier)?;
+    if !has_collected_all_of_others(other_ids, storage, StorableType::AuxInfoPublic, identifier)? {
+        return Err(InternalError::StorageItemNotFound);
+    }
 
     let mut hm = HashMap::new();
     for &other_participant_id in other_ids {
@@ -317,7 +319,7 @@ pub(crate) fn process_ready_message(
         fetch.push((storable_type, message.id(), participant));
     }
     fetch.push((storable_type, message.id(), self_id));
-    let is_ready = storage.contains_batch(&fetch).is_ok();
+    let is_ready = storage.contains_batch(&fetch)?;
 
     Ok((messages, is_ready))
 }
