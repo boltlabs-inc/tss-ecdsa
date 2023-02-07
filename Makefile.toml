@@ -6,12 +6,17 @@ args = ["check", "--tests", "--benches", "--all-targets"]
 command = "rustup"
 args = ["toolchain", "install", "nightly"]
 
+[tasks.install-nightly-rustfmt]
+dependencies = ["install-nightly"]
+command = "rustup"
+args = ["component", "add", "rustfmt", "--toolchain", "nightly"]
+
 # -- CI Tasks --
 [tasks.ci]
 dependencies = ["ci-format", "ci-clippy", "ci-build", "ci-docs", "ci-doc-test", "ci-test"]
 
 [tasks.ci-format]
-dependencies = ["install-nightly"]
+dependencies = ["install-nightly-rustfmt"]
 command = "cargo"
 toolchain = "nightly"
 args = [ "fmt", "--all", "--check"]
