@@ -13,10 +13,9 @@ use crate::{
     messages::{Message, MessageType, PresignMessageType},
     paillier::Ciphertext,
     presign::round_one::{Private as RoundOnePrivate, PublicBroadcast as RoundOnePublicBroadcast},
-    utils::k256_order,
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof},
-        pilog::{PiLogInput, PiLogProof},
+        pilog::{CommonInput, PiLogProof},
         Proof,
     },
     CurvePoint,
@@ -83,13 +82,12 @@ impl Public {
         self.psi_hat.verify(&psi_hat_input, &mut transcript)?;
 
         // Verify the psi_prime proof
-        let psi_prime_input = PiLogInput::new(
-            &receiver_auxinfo_public.params,
-            &k256_order(),
-            &sender_auxinfo_public.pk,
-            &sender_r1_public_broadcast.G,
-            &self.Gamma,
-            &g,
+        let psi_prime_input = CommonInput::new(
+            sender_r1_public_broadcast.G.clone(),
+            self.Gamma,
+            receiver_auxinfo_public.params.scheme().clone(),
+            sender_auxinfo_public.pk.clone(),
+            g,
         );
         let mut transcript = Transcript::new(b"PiLogProof");
         self.psi_prime.verify(&psi_prime_input, &mut transcript)?;

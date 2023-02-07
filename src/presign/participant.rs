@@ -35,7 +35,7 @@ use crate::{
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof, PiAffgSecret},
         pienc::PiEncProof,
-        pilog::{PiLogInput, PiLogProof, PiLogSecret},
+        pilog::{CommonInput, PiLogProof, ProverSecret},
         Proof,
     },
     CurvePoint, Identifier,
@@ -1052,15 +1052,14 @@ impl PresignKeyShareAndInfo {
         )?;
         let mut transcript = Transcript::new(b"PiLogProof");
         let psi_prime = PiLogProof::prove(
-            &PiLogInput::new(
-                &receiver_aux_info.params,
-                &k256_order(),
-                &self.aux_info_public.pk,
-                &sender_r1_priv.G,
-                &Gamma,
-                &g,
+            &CommonInput::new(
+                sender_r1_priv.G.clone(),
+                Gamma,
+                receiver_aux_info.params.scheme().clone(),
+                self.aux_info_public.pk.clone(),
+                g,
             ),
-            &PiLogSecret::new(&sender_r1_priv.gamma, &sender_r1_priv.nu),
+            &ProverSecret::new(sender_r1_priv.gamma.clone(), sender_r1_priv.nu.clone()),
             &mut transcript,
             rng,
         )?;
@@ -1123,15 +1122,14 @@ impl PresignKeyShareAndInfo {
         for (other_id, round_three_input) in other_participant_inputs {
             let mut transcript = Transcript::new(b"PiLogProof");
             let psi_double_prime = PiLogProof::prove(
-                &PiLogInput::new(
-                    &round_three_input.auxinfo_public.params,
-                    &order,
-                    &self.aux_info_public.pk,
-                    &sender_r1_priv.K,
-                    &Delta,
-                    &Gamma,
+                &CommonInput::new(
+                    sender_r1_priv.K.clone(),
+                    Delta,
+                    round_three_input.auxinfo_public.params.scheme().clone(),
+                    self.aux_info_public.pk.clone(),
+                    Gamma,
                 ),
-                &PiLogSecret::new(&sender_r1_priv.k, &sender_r1_priv.rho),
+                &ProverSecret::new(sender_r1_priv.k.clone(), sender_r1_priv.rho.clone()),
                 &mut transcript,
                 rng,
             )?;

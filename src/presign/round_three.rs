@@ -14,9 +14,8 @@ use crate::{
         round_one::PublicBroadcast as RoundOnePublicBroadcast,
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
     },
-    utils::k256_order,
     zkp::{
-        pilog::{PiLogInput, PiLogProof},
+        pilog::{CommonInput, PiLogProof},
         Proof,
     },
     CurvePoint,
@@ -52,13 +51,12 @@ impl Public {
         sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
         let mut transcript = Transcript::new(b"PiLogProof");
-        let psi_double_prime_input = PiLogInput::new(
-            &receiver_keygen_public.params,
-            &k256_order(),
-            &sender_keygen_public.pk,
-            &sender_r1_public_broadcast.K,
-            &self.Delta,
-            &self.Gamma,
+        let psi_double_prime_input = CommonInput::new(
+            sender_r1_public_broadcast.K.clone(),
+            self.Delta,
+            receiver_keygen_public.params.scheme().clone(),
+            sender_keygen_public.pk.clone(),
+            self.Gamma,
         );
         self.psi_double_prime
             .verify(&psi_double_prime_input, &mut transcript)?;

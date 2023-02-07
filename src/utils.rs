@@ -39,6 +39,19 @@ impl CurvePoint {
     /// The identity point, used to initialize the aggregation of a verification
     /// key
     pub const IDENTITY: Self = CurvePoint(k256::ProjectivePoint::IDENTITY);
+
+    /// Multiply `self` by a scalar `point`.
+    pub(crate) fn multiply_by_scalar(&self, point: &BigNumber) -> Result<Self> {
+        Ok(Self(self.0 * crate::utils::bn_to_scalar(point)?))
+    }
+}
+
+impl std::ops::Add for CurvePoint {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
 }
 
 impl From<k256::ProjectivePoint> for CurvePoint {
@@ -65,6 +78,12 @@ impl<'de> Deserialize<'de> for CurvePoint {
         let p = AffinePoint::<Secp256k1>::deserialize(deserializer)?;
         Ok(Self(p.into()))
     }
+}
+
+/// Returns `true` if `value ∊ [-2^n, 2^n]`.
+pub(crate) fn within_bound_by_size(value: &BigNumber, n: usize) -> bool {
+    let bound = BigNumber::one() << n;
+    value <= &bound && value >= &-bound
 }
 
 /// Compute a^e (mod n).
