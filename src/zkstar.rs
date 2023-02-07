@@ -1,5 +1,4 @@
-use crate::errors::InternalError;
-use crate::utils;
+use crate::{errors::InternalError, utils};
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -19,10 +18,11 @@ impl ZStarNBuilder {
     pub fn new(n: BigNumber) -> Self {
         ZStarNBuilder { modulus: n }
     }
-    /// Construct an element of [`ZStarN`] by validating that an unverified instance of [`ZStarNUnverified`]
-    /// is properly constructed with respect to the current [`ZStarNBuilder`].
-    /// This is one of two ways of constructing elements of [`ZStarN`].
-    /// The other way is by randomly sampling the element in the multiplicative group modulo n.
+    /// Construct an element of [`ZStarN`] by validating that an unverified
+    /// instance of [`ZStarNUnverified`] is properly constructed with
+    /// respect to the current [`ZStarNBuilder`]. This is one of two ways of
+    /// constructing elements of [`ZStarN`]. The other way is by randomly
+    /// sampling the element in the multiplicative group modulo n.
     pub fn validate(&self, unverified: ZStarNUnverified) -> Result<ZStarN, InternalError> {
         if unverified.value().is_zero() {
             return Err(InternalError::IsZero);
@@ -46,9 +46,11 @@ impl ZStarNBuilder {
     }
 }
 
-/// A elements in the multiplicative group modulo `N` as defined by [`ZStarNBuilder`].
+/// A elements in the multiplicative group modulo `N` as defined by
+/// [`ZStarNBuilder`].
 ///
-/// Elements of this group are in the interval (0, N) and validated to be as such.
+/// Elements of this group are in the interval (0, N) and validated to be as
+/// such.
 #[derive(Serialize)]
 struct ZStarN<'a> {
     value: BigNumber,
@@ -63,7 +65,8 @@ impl<'a> ZStarN<'a> {
     fn serialize(&self) -> Result<Vec<u8>, InternalError> {
         serialize!(self.as_bignumber())
     }
-    /// Randomly samples an element of the multiplicative group modulo N (as defined by the builder).
+    /// Randomly samples an element of the multiplicative group modulo N (as
+    /// defined by the builder).
     ///
     /// This is one of two ways of constructing an element [`ZStarN`].
     /// The other way is by validating an instance of [`ZStarNUnverified`].
@@ -95,8 +98,7 @@ impl ZStarNUnverified {
 
 #[cfg(test)]
 mod test {
-    use crate::paillier::DecryptionKey;
-    use crate::zkstar::*;
+    use crate::{paillier::DecryptionKey, zkstar::*};
 
     #[test]
     fn zkstar_verification_works() {

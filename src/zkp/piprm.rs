@@ -6,15 +6,17 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Implements a zero-knowledge proof that [`RingPedersen`] parameters were correctly
-//! constructed.
+//! Implements a zero-knowledge proof that [`RingPedersen`] parameters were
+//! correctly constructed.
 //!
-//! In more detail, a valid [`RingPedersen`] object is compromised of a tuple `(N, s, t)`
-//! such that `s = t^λ mod N` for some secret `λ`. This module implements a zero-knowledge
-//! proof of this fact. The proof is defined in Figure 17 of CGGMP[^cite].
+//! In more detail, a valid [`RingPedersen`] object is compromised of a tuple
+//! `(N, s, t)` such that `s = t^λ mod N` for some secret `λ`. This module
+//! implements a zero-knowledge proof of this fact. The proof is defined in
+//! Figure 17 of CGGMP[^cite].
 //!
-//! This proof utilizes the soundness parameter as specified [here](crate::parameters::SOUNDNESS_PARAMETER).
-//! In addition, it uses a standard Fiat-Shamir transformation to make the proof non-interactive.
+//! This proof utilizes the soundness parameter as specified
+//! [here](crate::parameters::SOUNDNESS_PARAMETER). In addition, it uses a
+//! standard Fiat-Shamir transformation to make the proof non-interactive.
 //!
 //! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos Makriyannis, and Udi Peled.
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
@@ -30,7 +32,8 @@ use serde::{Deserialize, Serialize};
 // Soundness parameter.
 const SOUNDNESS: usize = crate::parameters::SOUNDNESS_PARAMETER;
 
-/// Proof that externally provided [`RingPedersen`] parameters are constructed correctly.
+/// Proof that externally provided [`RingPedersen`] parameters are constructed
+/// correctly.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PiPrmProof {
     /// The commitments computed by the prover (`A_i` in the paper).
@@ -61,8 +64,8 @@ impl PiPrmSecret {
     }
 }
 
-/// Generates challenge bytes from the proof transcript using the Fiat-Shamir transform.
-/// Used by the prover and the verifier.
+/// Generates challenge bytes from the proof transcript using the Fiat-Shamir
+/// transform. Used by the prover and the verifier.
 fn generate_challenge_bytes(input: &RingPedersen, commitments: &[BigNumber]) -> Result<Vec<u8>> {
     // Construct a transcript for the Fiat-Shamir transform.
     let mut transcript = Transcript::new(b"PiPrmProof");

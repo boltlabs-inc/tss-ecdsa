@@ -6,11 +6,9 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::broadcast::participant::BroadcastTag;
-use crate::errors::InternalError;
 use crate::{
-    broadcast::participant::{BroadcastOutput, BroadcastParticipant},
-    errors::Result,
+    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
+    errors::{InternalError, Result},
     keygen::{
         keygen_commit::{KeygenCommit, KeygenDecommit},
         keyshare::{KeySharePrivate, KeySharePublic},

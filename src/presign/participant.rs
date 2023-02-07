@@ -983,16 +983,18 @@ impl PresignKeyShareAndInfo {
         let beta = random_plusminus_by_size(rng, ELL_PRIME);
         let beta_hat = random_plusminus_by_size(rng, ELL_PRIME);
 
-        // Note: The implementation specifies that we should encrypt the negative betas here
-        // (see Figure 7, Round 2, #2, first two bullets) and add them when we decrypt (see
-        // Figure 7, Round 3, #2, first bullet -- computation of delta and chi)
-        // However, it doesn't explain how this squares with the `PiAffgProof`, which requires
-        // the plaintext of `beta_ciphertext` (used to compute `D`) to match the plaintext of `F`
-        // (below). If we make this negative, PiAffg fails to verify because the signs don't match.
+        // Note: The implementation specifies that we should encrypt the negative betas
+        // here (see Figure 7, Round 2, #2, first two bullets) and add them when
+        // we decrypt (see Figure 7, Round 3, #2, first bullet -- computation of
+        // delta and chi) However, it doesn't explain how this squares with the
+        // `PiAffgProof`, which requires the plaintext of `beta_ciphertext`
+        // (used to compute `D`) to match the plaintext of `F` (below). If we
+        // make this negative, PiAffg fails to verify because the signs don't match.
         //
-        // A quick look at the proof suggests that the important thing is that the values are equal.
-        // The betas are components of additive shares of secret values, so it shouldn't matter
-        // where the negation happens (Round 2 vs Round 3).
+        // A quick look at the proof suggests that the important thing is that the
+        // values are equal. The betas are components of additive shares of
+        // secret values, so it shouldn't matter where the negation happens
+        // (Round 2 vs Round 3).
         let (beta_ciphertext, s) = receiver_aux_info.pk.encrypt(rng, &beta)?;
         let (beta_hat_ciphertext, s_hat) = receiver_aux_info.pk.encrypt(rng, &beta_hat)?;
 

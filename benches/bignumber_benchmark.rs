@@ -31,26 +31,28 @@ fn ossl_prime_gen() {
         .unwrap();
 }
 
-/// The Rust num_bigint crate doesn't have safe-prime generation methods directly. Instead,
-/// use the glass pumpkin crate to create a `BigUint`.
+/// The Rust num_bigint crate doesn't have safe-prime generation methods
+/// directly. Instead, use the glass pumpkin crate to create a `BigUint`.
 fn bigint_prime_gen() {
     let mut rng = rand::thread_rng();
     safe_prime::from_rng(PRIME_SIZE, &mut rng).unwrap();
 }
 
-/// The GNU prime generation method is hard to use, so assume that the BigNumber crate is configured
-/// to use gnu.
+/// The GNU prime generation method is hard to use, so assume that the BigNumber
+/// crate is configured to use gnu.
 fn gnu_prime_gen() {
     BigNumber::safe_prime(PRIME_SIZE);
 }
 
-/// Modular exponentiation is a common operation in the protocol. A typical usage is in Paillier
-/// encryption. With our parameter settings, this would be a `b^a mod M`, where:
+/// Modular exponentiation is a common operation in the protocol. A typical
+/// usage is in Paillier encryption. With our parameter settings, this would be
+/// a `b^a mod M`, where:
 /// - b: the base is either from Z*_N or is 1+N, where N is a 2048-bit modulus.
 /// - a: the exponent is either a message in Z_N or N itself (so, 2048 bits).
 /// - M: the modulus is the square of the 2048-bit modulus N
 ///
-/// Setup allows us to not count the time to initiate variables in the benchmarking.
+/// Setup allows us to not count the time to initiate variables in the
+/// benchmarking.
 fn compare_modpow(c: &mut Criterion) {
     let mut base_rng = rand::thread_rng();
     let mut exp_rng = rand::thread_rng();

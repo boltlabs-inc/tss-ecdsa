@@ -8,7 +8,8 @@ dependencies = ["ci-format", "ci-clippy", "ci-build", "ci-docs", "ci-doc-test", 
 
 [tasks.ci-format]
 command = "cargo"
-args = ["fmt", "--all", "--check"]
+toolchain = "nightly"
+args = [ "fmt", "--all", "--check"]
 
 [tasks.ci-clippy]
 command = "cargo"

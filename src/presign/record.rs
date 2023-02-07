@@ -6,11 +6,14 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::errors::{
-    InternalError::{CouldNotConvertToScalar, CouldNotInvertScalar},
-    Result,
+use crate::{
+    errors::{
+        InternalError::{CouldNotConvertToScalar, CouldNotInvertScalar},
+        Result,
+    },
+    utils::bn_to_scalar,
+    CurvePoint,
 };
-use crate::{utils::bn_to_scalar, CurvePoint};
 use k256::Scalar;
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};

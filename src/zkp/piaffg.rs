@@ -14,8 +14,7 @@
 use super::Proof;
 use crate::{
     errors::*,
-    paillier::{Ciphertext, EncryptionKey},
-    paillier::{MaskedNonce, Nonce},
+    paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce},
     parameters::{ELL, ELL_PRIME, EPSILON},
     ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
     utils::{self, k256_order, plusminus_bn_random_from_transcript, random_plusminus_by_size},

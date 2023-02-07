@@ -6,9 +6,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::broadcast::participant::BroadcastTag;
 use crate::{
-    broadcast::participant::{BroadcastOutput, BroadcastParticipant},
+    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::Result,
     message_queue::MessageQueue,
     messages::{Message, MessageType},

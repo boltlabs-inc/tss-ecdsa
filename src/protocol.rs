@@ -197,7 +197,8 @@ impl Participant {
         self.main_storage.contains_batch(&fetch)
     }
 
-    /// Returns true if presignature generation has completed for this identifier
+    /// Returns true if presignature generation has completed for this
+    /// identifier
     pub fn is_presigning_done(&self, presign_identifier: Identifier) -> Result<bool> {
         self.main_storage.contains_batch(&[(
             StorableType::PresignRecord,

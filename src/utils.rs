@@ -73,15 +73,17 @@ pub(crate) fn modpow(a: &BigNumber, e: &BigNumber, n: &BigNumber) -> BigNumber {
     a.modpow(e, n)
 }
 
-/// Sample a number uniformly at random from the range [0, n). This can be used for sampling from
-/// a prime field `F_p` or the integers modulo `n` (for any `n`).
+/// Sample a number uniformly at random from the range [0, n). This can be used
+/// for sampling from a prime field `F_p` or the integers modulo `n` (for any
+/// `n`).
 pub(crate) fn random_positive_bn<R: RngCore + CryptoRng>(rng: &mut R, n: &BigNumber) -> BigNumber {
     BigNumber::from_rng(n, rng)
 }
 
 /// Sample a number uniformly at random from the range [-n, n].
 pub(crate) fn random_plusminus<R: RngCore + CryptoRng>(rng: &mut R, n: &BigNumber) -> BigNumber {
-    // `from_rng()` samples the _open_ interval, so add 1 to get the closed interval for `n`
+    // `from_rng()` samples the _open_ interval, so add 1 to get the closed interval
+    // for `n`
     let open_interval_max: BigNumber = n + 1;
     let val = BigNumber::from_rng(&open_interval_max, rng);
     let is_positive: bool = rng.gen();
@@ -97,7 +99,8 @@ pub(crate) fn random_plusminus_by_size<R: RngCore + CryptoRng>(rng: &mut R, n: u
     random_plusminus(rng, &range)
 }
 
-/// Sample a number uniformly at random from the range `[-scale * 2^n, scale * 2^n]`.
+/// Sample a number uniformly at random from the range `[-scale * 2^n, scale *
+/// 2^n]`.
 pub(crate) fn random_plusminus_scaled<R: RngCore + CryptoRng>(
     rng: &mut R,
     n: usize,
@@ -107,7 +110,8 @@ pub(crate) fn random_plusminus_scaled<R: RngCore + CryptoRng>(
     random_plusminus(rng, &range)
 }
 
-/// Sample a number uniformly at random from the range `[-2^max, -2^min] U [2^min, 2^max]`.
+/// Sample a number uniformly at random from the range `[-2^max, -2^min] U
+/// [2^min, 2^max]`.
 #[cfg(test)]
 pub(crate) fn random_plusminus_by_size_with_minimum<R: RngCore + CryptoRng>(
     rng: &mut R,
@@ -128,7 +132,8 @@ pub(crate) fn random_plusminus_by_size_with_minimum<R: RngCore + CryptoRng>(
     })
 }
 
-/// Derive a deterministic pseudorandom value in `[-n, n]` from the [`Transcript`].
+/// Derive a deterministic pseudorandom value in `[-n, n]` from the
+/// [`Transcript`].
 pub(crate) fn plusminus_bn_random_from_transcript(
     transcript: &mut Transcript,
     n: &BigNumber,
@@ -137,8 +142,8 @@ pub(crate) fn plusminus_bn_random_from_transcript(
     transcript.challenge_bytes(b"sampling negation bit", is_neg_byte.as_mut_slice());
     let is_neg: bool = is_neg_byte[0] & 1 == 1;
 
-    // The sampling method samples from the open interval, so add 1 to sample from the _closed_
-    // interval we want here.
+    // The sampling method samples from the open interval, so add 1 to sample from
+    // the _closed_ interval we want here.
     let open_interval_max = n + 1;
     let b = positive_bn_random_from_transcript(transcript, &open_interval_max);
     match is_neg {
@@ -147,15 +152,17 @@ pub(crate) fn plusminus_bn_random_from_transcript(
     }
 }
 
-/// Derive a deterministic pseduorandom value in `[0, n)` from the [`Transcript`].
+/// Derive a deterministic pseduorandom value in `[0, n)` from the
+/// [`Transcript`].
 pub(crate) fn positive_bn_random_from_transcript(
     transcript: &mut Transcript,
     n: &BigNumber,
 ) -> BigNumber {
     let len = n.to_bytes().len();
     let mut t = vec![0u8; len];
-    // To avoid sample bias, we can't take `t mod n`, because that would bias smaller numbers.
-    // Instead, we re-sample a new value (different because there's a new label in the transcript).
+    // To avoid sample bias, we can't take `t mod n`, because that would bias
+    // smaller numbers. Instead, we re-sample a new value (different because
+    // there's a new label in the transcript).
     loop {
         transcript.challenge_bytes(b"sampling randomness", t.as_mut_slice());
         let b = BigNumber::from_slice(t.as_slice());
@@ -165,19 +172,20 @@ pub(crate) fn positive_bn_random_from_transcript(
     }
 }
 
-/// Generate a random `BigNumber` that is in the multiplicative group of integers modulo `n`.
+/// Generate a random `BigNumber` that is in the multiplicative group of
+/// integers modulo `n`.
 ///
-/// Note: In this application, `n` is typically the product of two primes. If the drawn element
-/// is not coprime with `n` and is not `0 mod n`, then the caller has accidentally stumbled upon
-/// the factorization of `n`!
-/// This is a security issue when `n` is someone else's Paillier modulus, but the chance of this
-/// happening is basically 0 and we drop the element anyway.
+/// Note: In this application, `n` is typically the product of two primes. If
+/// the drawn element is not coprime with `n` and is not `0 mod n`, then the
+/// caller has accidentally stumbled upon the factorization of `n`!
+/// This is a security issue when `n` is someone else's Paillier modulus, but
+/// the chance of this happening is basically 0 and we drop the element anyway.
 pub(crate) fn random_bn_in_z_star<R: RngCore + CryptoRng>(
     rng: &mut R,
     n: &BigNumber,
 ) -> Result<BigNumber> {
-    // Try up to `CRYPTOGRAPHIC_RETRY_MAX` times to draw a non-zero element. This should virtually
-    // never error, though.
+    // Try up to `CRYPTOGRAPHIC_RETRY_MAX` times to draw a non-zero element. This
+    // should virtually never error, though.
     std::iter::repeat_with(|| BigNumber::from_rng(n, rng))
         .take(CRYPTOGRAPHIC_RETRY_MAX)
         .find(|result| result != &BigNumber::zero() && result.gcd(n) == BigNumber::one())
@@ -248,7 +256,8 @@ mod tests {
 // Protocol Utility Functions //
 ////////////////////////////////
 
-/// Errors unless there is one storable_type for each other participant in the quorum.
+/// Errors unless there is one storable_type for each other participant in the
+/// quorum.
 pub(crate) fn has_collected_all_of_others(
     other_ids: &[ParticipantIdentifier],
     storage: &Storage,

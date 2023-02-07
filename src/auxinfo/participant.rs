@@ -6,15 +6,13 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::broadcast::participant::BroadcastTag;
-use crate::errors::InternalError;
 use crate::{
     auxinfo::{
         auxinfo_commit::{AuxInfoCommit, AuxInfoDecommit},
         proof::AuxInfoProof,
     },
-    broadcast::participant::{BroadcastOutput, BroadcastParticipant},
-    errors::Result,
+    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
+    errors::{InternalError, Result},
     messages::{AuxinfoMessageType, Message, MessageType},
     paillier::DecryptionKey,
     participant::{Broadcast, ProtocolParticipant},

@@ -7,13 +7,13 @@
 
 //! A (verifiable) ring-Pedersen commitment scheme.
 //!
-//! This implements the ring-Pedersen commitment scheme as specified in Definition 1.3 of
-//! <https://eprint.iacr.org/2021/060.pdf>. The verifiable variant includes a zero-knowledge proof
+//! This implements the ring-Pedersen commitment scheme as specified in
+//! Definition 1.3 of <https://eprint.iacr.org/2021/060.pdf>. The verifiable variant includes a zero-knowledge proof
 //! that the commitment scheme parameters were constructed correctly.
 
-use crate::paillier::DecryptionKey;
 use crate::{
     errors::Result,
+    paillier::DecryptionKey,
     utils::{modpow, random_plusminus_scaled, random_positive_bn},
     zkp::{
         piprm::{PiPrmProof, PiPrmSecret},
@@ -26,7 +26,8 @@ use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
-/// A commitment scheme based on a ring-variant of the Pedersen commitment scheme.
+/// A commitment scheme based on a ring-variant of the Pedersen commitment
+/// scheme.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct RingPedersen {
     /// The RSA modulus, corresponding to `N` in the paper.
@@ -43,7 +44,8 @@ pub(crate) struct RingPedersen {
 pub(crate) struct VerifiedRingPedersen {
     /// The underlying commitment scheme.
     scheme: RingPedersen,
-    /// The zero knowledge proof that validates the correctness of [`VerifiedRingPedersen::scheme`].
+    /// The zero knowledge proof that validates the correctness of
+    /// [`VerifiedRingPedersen::scheme`].
     proof: PiPrmProof,
 }
 
@@ -69,7 +71,8 @@ impl CommitmentRandomness {
 
     /// Masks randomness with `mask` and `challenge`.
     ///
-    /// The output [`MaskedRandomness`] value is computed as `mask - challenge * value`.
+    /// The output [`MaskedRandomness`] value is computed as `mask - challenge *
+    /// value`.
     pub(crate) fn mask_neg(
         &self,
         mask: &CommitmentRandomness,
@@ -80,7 +83,8 @@ impl CommitmentRandomness {
 
     /// Masks randomness with `mask` and `challenge`.
     ///
-    /// The output [`MaskedRandomness`] value is computed as `mask + challenge * value`.
+    /// The output [`MaskedRandomness`] value is computed as `mask + challenge *
+    /// value`.
     pub(crate) fn mask(
         &self,
         mask: &CommitmentRandomness,
@@ -120,8 +124,9 @@ impl VerifiedRingPedersen {
     /// Extracts a [`VerifiedRingPedersen`] object from a [`DecryptionKey`].
     ///
     /// In more detail, `sk` is used to derive a
-    /// [`RingPedersen`] commitment scheme, alongside a zero knowledge proof [`PiPrmProof`]
-    /// that the produced commitment scheme is validly constructed.
+    /// [`RingPedersen`] commitment scheme, alongside a zero knowledge proof
+    /// [`PiPrmProof`] that the produced commitment scheme is validly
+    /// constructed.
     pub(crate) fn extract(
         sk: &DecryptionKey,
         rng: &mut (impl RngCore + CryptoRng),
@@ -132,8 +137,8 @@ impl VerifiedRingPedersen {
         Ok(Self { scheme, proof })
     }
 
-    /// Verifies that the underlying [`RingPedersen`] commitment scheme was constructed correctly
-    /// according to the associated [`PiPrmProof`].
+    /// Verifies that the underlying [`RingPedersen`] commitment scheme was
+    /// constructed correctly according to the associated [`PiPrmProof`].
     pub(crate) fn verify(&self) -> Result<()> {
         self.proof.verify(self.scheme())
     }
@@ -144,7 +149,8 @@ impl VerifiedRingPedersen {
         &self.scheme
     }
 
-    /// Generates a [`VerifiedRingPedersen`] object from a random number generator for testing purposes.
+    /// Generates a [`VerifiedRingPedersen`] object from a random number
+    /// generator for testing purposes.
     #[cfg(test)]
     pub(crate) fn gen(rng: &mut (impl RngCore + CryptoRng)) -> Result<Self> {
         let (sk, _, _) = DecryptionKey::new(rng)?;
@@ -153,12 +159,14 @@ impl VerifiedRingPedersen {
 }
 
 impl RingPedersen {
-    /// Extracts a [`RingPedersen`] object and its secret parameters from a [`DecryptionKey`].
+    /// Extracts a [`RingPedersen`] object and its secret parameters from a
+    /// [`DecryptionKey`].
     ///
-    /// In more detail, `sk` is used to derive a [`RingPedersen`] commitment scheme,
-    /// alongside two secret parameters used in its derivation:
-    /// 1. The value `λ` such that [`s`](RingPedersen::s)` = `[`t`](RingPedersen::t)`^λ mod N`.
-    /// 2. The Euler's totient of [`N`](RingPedersen::modulus).
+    /// In more detail, `sk` is used to derive a [`RingPedersen`] commitment
+    /// scheme, alongside two secret parameters used in its derivation:
+    /// 1. The value `λ` such that [`s`](RingPedersen::s)` =
+    /// `[`t`](RingPedersen::t)`^λ mod N`. 2. The Euler's totient of
+    /// [`N`](RingPedersen::modulus).
     pub(crate) fn extract(
         sk: &DecryptionKey,
         rng: &mut (impl RngCore + CryptoRng),
@@ -195,7 +203,8 @@ impl RingPedersen {
     /// Produces commitment randomness.
     ///
     /// The commitment randomness is sampled from `± 2^range * modulus * N`,
-    /// where `N` is the [modulus](RingPedersen::modulus) of the commitment scheme.
+    /// where `N` is the [modulus](RingPedersen::modulus) of the commitment
+    /// scheme.
     pub(crate) fn commitment_randomness(
         &self,
         range: usize,
@@ -208,9 +217,10 @@ impl RingPedersen {
 
     /// Produces a commitment to `value`.
     ///
-    /// The commitment is computed as [`s`](RingPedersen::s)`^value` [`t`](RingPedersen::t)`^randomness mod N`,
-    /// where `randomness` is sampled from `± 2^range * N` and
-    /// `N` is the [modulus](RingPedersen::modulus) of the commitment scheme.
+    /// The commitment is computed as [`s`](RingPedersen::s)`^value`
+    /// [`t`](RingPedersen::t)`^randomness mod N`, where `randomness` is
+    /// sampled from `± 2^range * N` and `N` is the
+    /// [modulus](RingPedersen::modulus) of the commitment scheme.
     pub(crate) fn commit(
         &self,
         value: &BigNumber,
@@ -222,10 +232,12 @@ impl RingPedersen {
         (com, randomness)
     }
 
-    /// Reconstructs a commitment to `value` using [`MaskedRandomness`] `randomness`.
+    /// Reconstructs a commitment to `value` using [`MaskedRandomness`]
+    /// `randomness`.
     ///
-    /// The commitment is computed as in [`RingPedersen::commit`], except `randomness` is passed in
-    /// instead of it being generated by the commitment process.
+    /// The commitment is computed as in [`RingPedersen::commit`], except
+    /// `randomness` is passed in instead of it being generated by the
+    /// commitment process.
     pub(crate) fn reconstruct(
         &self,
         value: &BigNumber,
@@ -239,7 +251,8 @@ impl RingPedersen {
     /// Combines two commitments with exponent `e`.
     ///
     /// The resulting commitment is computed by `com0 * com1^e mod N`,
-    /// where `N` is the [modulus](RingPedersen::modulus) of the commitment scheme.
+    /// where `N` is the [modulus](RingPedersen::modulus) of the commitment
+    /// scheme.
     pub(crate) fn combine(
         &self,
         com0: &Commitment,
@@ -254,9 +267,9 @@ impl RingPedersen {
 
     /// Produces a commitment to `value` using [`Commitment`] `com`.
     ///
-    /// In more detail, the following is computed: `com^value t^r mod N` where `r` falls
-    /// in the range `± 2^range * modulus * N` and `N` is the [modulus](RingPedersen::modulus) of the
-    /// commitment scheme.
+    /// In more detail, the following is computed: `com^value t^r mod N` where
+    /// `r` falls in the range `± 2^range * modulus * N` and `N` is the
+    /// [modulus](RingPedersen::modulus) of the commitment scheme.
     pub(crate) fn commit_with_commitment(
         &self,
         com: &Commitment,
@@ -270,8 +283,8 @@ impl RingPedersen {
         (com, randomness)
     }
 
-    /// Reconstructs a commitment to `value` using [`Commitment`] `com` and [`MaskedRandomness`]
-    /// `randomness`.
+    /// Reconstructs a commitment to `value` using [`Commitment`] `com` and
+    /// [`MaskedRandomness`] `randomness`.
     pub(crate) fn reconstruct_with_commitment(
         &self,
         com: &Commitment,

@@ -19,8 +19,9 @@ const PRIME_BITS: usize = 1024;
 /// Used to pre-generate `PRIME_SIZE`-bit safe primes, so that they can
 /// be stored in a text file to make testing this library faster.
 ///
-/// This produces a raw list of quoted primes. To actually use them, you'll have to manually edit
-/// the file to make it a module and make the list a proper type.
+/// This produces a raw list of quoted primes. To actually use them, you'll have
+/// to manually edit the file to make it a module and make the list a proper
+/// type.
 fn main() {
     let mut file = OpenOptions::new()
         .append(true)
@@ -84,8 +85,8 @@ fn main() {
     println!("Failures: {failures} / {iterations}");
 }
 
-/// Use the default BigNumber crate to generate a safe prime and encode as a hex string.
-/// At time of writing, this was Rust's `BigInt` library.
+/// Use the default BigNumber crate to generate a safe prime and encode as a hex
+/// string. At time of writing, this was Rust's `BigInt` library.
 #[allow(unused)]
 fn bignumber_safe_prime() -> String {
     let prime = BigNumber::safe_prime(PRIME_BITS);

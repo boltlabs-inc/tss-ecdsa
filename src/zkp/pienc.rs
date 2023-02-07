@@ -6,20 +6,21 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Implements a zero-knowledge proof of knowledge that the plaintext of a Pailler ciphertext is
-//! in a given range.
+//! Implements a zero-knowledge proof of knowledge that the plaintext of a
+//! Pailler ciphertext is in a given range.
 //!
-//! More precisely, this module includes methods to create and verify a non-interactive
-//! zero-knowledge proof of knowledge of the plaintext value of a Paillier ciphertext and that
-//! the value is in a desired range.
+//! More precisely, this module includes methods to create and verify a
+//! non-interactive zero-knowledge proof of knowledge of the plaintext value of
+//! a Paillier ciphertext and that the value is in a desired range.
 //! The proof is defined in Figure 14 of CGGMP[^cite].
 //!
-//! In this application, the acceptable range for the plaintext is fixed according to our
-//! [parameters](crate::parameters). The plaintext value must be in the range `[-2^ℓ, 2^ℓ]`,
-//! where `ℓ` is [`parameters::ELL`](crate::parameters::ELL).
+//! In this application, the acceptable range for the plaintext is fixed
+//! according to our [parameters](crate::parameters). The plaintext value must
+//! be in the range `[-2^ℓ, 2^ℓ]`, where `ℓ` is
+//! [`parameters::ELL`](crate::parameters::ELL).
 //!
-//! This implementation uses a standard Fiat-Shamir transformation to make the proof
-//! non-interactive.
+//! This implementation uses a standard Fiat-Shamir transformation to make the
+//! proof non-interactive.
 //!
 //! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos Makriyannis, and Udi Peled.
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
@@ -38,8 +39,8 @@ use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
-/// Proof of knowledge of the plaintext value of a ciphertext, where the value is within a desired
-/// range.
+/// Proof of knowledge of the plaintext value of a ciphertext, where the value
+/// is within a desired range.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PiEncProof {
     /// Commitment to the plaintext value of the ciphertext (`S` in the paper).
@@ -51,11 +52,14 @@ pub(crate) struct PiEncProof {
     plaintext_mask_commit: Commitment,
     /// Fiat-Shamir challenge (`e` in the paper).
     challenge: BigNumber,
-    /// Response binding the plaintext value of the ciphertext and its mask (`z1` in the paper).
+    /// Response binding the plaintext value of the ciphertext and its mask
+    /// (`z1` in the paper).
     plaintext_response: BigNumber,
-    /// Response binding the nonce from the original ciphertext and its mask (`z2` in the paper).
+    /// Response binding the nonce from the original ciphertext and its mask
+    /// (`z2` in the paper).
     nonce_response: MaskedNonce,
-    /// Response binding the commitment randomness used in the two commitments (`z3` in the paper).
+    /// Response binding the commitment randomness used in the two commitments
+    /// (`z3` in the paper).
     randomness_response: MaskedRandomness,
 }
 
@@ -71,7 +75,8 @@ pub(crate) struct PiEncInput {
 }
 
 impl PiEncInput {
-    /// Generate public input for proving or verifying a [`PiEncProof`] about `ciphertext`.
+    /// Generate public input for proving or verifying a [`PiEncProof`] about
+    /// `ciphertext`.
     pub(crate) fn new(
         verifer_setup_params: VerifiedRingPedersen,
         prover_encryption_key: EncryptionKey,
@@ -85,8 +90,8 @@ impl PiEncInput {
     }
 }
 
-/// The prover's secret knowledge: the in-range plaintext value of the ciphertext and its
-/// corresponding nonce.
+/// The prover's secret knowledge: the in-range plaintext value of the
+/// ciphertext and its corresponding nonce.
 pub(crate) struct PiEncSecret {
     plaintext: BigNumber,
     nonce: Nonce,
@@ -95,7 +100,8 @@ pub(crate) struct PiEncSecret {
 impl PiEncSecret {
     /// Collect secret knowledge for proving a `PiEncProof`.
     ///
-    /// The `(plaintext, nonce)` tuple here corresponds to the values `(k, rho)` in the paper.
+    /// The `(plaintext, nonce)` tuple here corresponds to the values `(k, rho)`
+    /// in the paper.
     pub(crate) fn new(plaintext: BigNumber, nonce: Nonce) -> Self {
         Self { plaintext, nonce }
     }
@@ -142,8 +148,8 @@ impl Proof for PiEncProof {
         // ...and generate a challenge from it (aka `e`)
         let challenge = plusminus_bn_random_from_transcript(&mut transcript, &k256_order());
 
-        // Form proof responses. Each combines one secret value with its mask and the challenge
-        // (aka `z1`, `z2`, `z3` respectively)
+        // Form proof responses. Each combines one secret value with its mask and the
+        // challenge (aka `z1`, `z2`, `z3` respectively)
         let plaintext_response = &plaintext_mask + &challenge * &secret.plaintext;
         let nonce_response = input
             .encryption_key
@@ -165,7 +171,8 @@ impl Proof for PiEncProof {
 
     #[cfg_attr(feature = "flame_it", flame("PiEncProof"))]
     fn verify(&self, input: &Self::CommonInput) -> Result<()> {
-        // Check Fiat-Shamir challenge consistency: update the transcript with commitments...
+        // Check Fiat-Shamir challenge consistency: update the transcript with
+        // commitments...
         let mut transcript = Transcript::new(b"PiEncProof");
         Self::fill_out_transcript(
             &mut transcript,
@@ -181,8 +188,8 @@ impl Proof for PiEncProof {
             return verify_err!("Fiat-Shamir didn't verify");
         }
 
-        // Check that the plaintext and nonce responses are well-formed (e.g. that the prover did
-        // not try to falsify the ciphertext mask)
+        // Check that the plaintext and nonce responses are well-formed (e.g. that the
+        // prover did not try to falsify the ciphertext mask)
         let ciphertext_mask_is_well_formed = {
             let lhs = input
                 .encryption_key
@@ -198,8 +205,9 @@ impl Proof for PiEncProof {
             return verify_err!("ciphertext mask check (first equality check) failed");
         }
 
-        // Check that the plaintext and commitment randomness responses are well formed (e.g. that
-        // the prover did not try to falsify its commitments to the plaintext or plaintext mask)
+        // Check that the plaintext and commitment randomness responses are well formed
+        // (e.g. that the prover did not try to falsify its commitments to the
+        // plaintext or plaintext mask)
         let responses_match_commitments = {
             let lhs = input
                 .setup_params
@@ -227,7 +235,8 @@ impl Proof for PiEncProof {
 }
 
 impl PiEncProof {
-    /// Update the [`Transcript`] with all the commitment values used in the proof.
+    /// Update the [`Transcript`] with all the commitment values used in the
+    /// proof.
     fn fill_out_transcript(
         transcript: &mut Transcript,
         input: &PiEncInput,
@@ -305,7 +314,8 @@ mod tests {
         let (proof, input) = build_random_proof(&mut rng, in_range)?;
         assert!(proof.verify(&input).is_ok());
 
-        // A plaintext in range for encryption but larger (absolute value) than 2^ELL should fail
+        // A plaintext in range for encryption but larger (absolute value) than 2^ELL
+        // should fail
         let too_large =
             random_plusminus_by_size_with_minimum(&mut rng, ELL + EPSILON + 1, ELL + EPSILON)?;
         let (proof, input) = build_random_proof(&mut rng, too_large.clone())?;
@@ -316,9 +326,10 @@ mod tests {
         let (proof, input) = build_random_proof(&mut rng, too_small)?;
         assert!(proof.verify(&input).is_err());
 
-        // PiEnc expects an input in the range ±2^ELL. The proof can guarantee this range up to
-        // the slackness parameter -- that is, that the input is in the range ±2^(ELL + EPSILON)
-        // Values in between are only caught sometimes, so they're hard to test.
+        // PiEnc expects an input in the range ±2^ELL. The proof can guarantee this
+        // range up to the slackness parameter -- that is, that the input is in
+        // the range ±2^(ELL + EPSILON) Values in between are only caught
+        // sometimes, so they're hard to test.
 
         // The lower edge case works (2^ELL))
         let lower_bound = BigNumber::one() << ELL;
@@ -367,7 +378,8 @@ mod tests {
             assert!(bad_proof.verify(&input).is_err());
         }
 
-        // Bad plaintext mask commitment (commitment to wrong value with wrong randomness) fails
+        // Bad plaintext mask commitment (commitment to wrong value with wrong
+        // randomness) fails
         {
             let mut bad_proof = proof.clone();
             bad_proof.plaintext_mask_commit = bad_plaintext_mask;
@@ -383,8 +395,8 @@ mod tests {
             assert!(bad_proof.verify(&input).is_err());
         }
 
-        // Bad plaintext response fails (this can be an arbitrary integer, using commitment
-        // modulus for convenience of generating it)
+        // Bad plaintext response fails (this can be an arbitrary integer, using
+        // commitment modulus for convenience of generating it)
         {
             let mut bad_proof = proof.clone();
             bad_proof.plaintext_response = random_positive_bn(rng, scheme.modulus());
