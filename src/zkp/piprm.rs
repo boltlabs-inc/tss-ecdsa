@@ -191,6 +191,7 @@ mod tests {
     fn incorrect_lengths_fails() -> Result<()> {
         let mut rng = crate::utils::get_test_rng();
         let (input, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
+        // Test that too short vectors fail.
         {
             let mut bad_proof = proof.clone();
             bad_proof.commitments = bad_proof
@@ -210,12 +211,32 @@ mod tests {
             assert!(bad_proof.verify(&input).is_err());
         }
         {
-            let mut bad_proof = proof;
+            let mut bad_proof = proof.clone();
             bad_proof.responses = bad_proof
                 .responses
                 .into_iter()
                 .take(SOUNDNESS - 1)
                 .collect();
+            assert!(bad_proof.verify(&input).is_err());
+        }
+        // Test that too long vectors fail.
+        {
+            let mut bad_proof = proof.clone();
+            bad_proof
+                .commitments
+                .push(random_positive_bn(&mut rng, input.modulus()));
+            assert!(bad_proof.verify(&input).is_err());
+        }
+        {
+            let mut bad_proof = proof.clone();
+            bad_proof.challenge_bytes.push(rng.gen::<u8>());
+            assert!(bad_proof.verify(&input).is_err());
+        }
+        {
+            let mut bad_proof = proof;
+            bad_proof
+                .responses
+                .push(random_positive_bn(&mut rng, input.modulus()));
             assert!(bad_proof.verify(&input).is_err());
         }
         Ok(())
@@ -225,12 +246,10 @@ mod tests {
     fn bad_secret_exponent_fails() -> Result<()> {
         let mut rng = crate::utils::get_test_rng();
         let (input, _, _, totient) = random_ring_pedersen_proof(&mut rng)?;
-        {
-            let bad_lambda = random_positive_bn(&mut rng, &totient);
-            let secrets = PiPrmSecret::new(bad_lambda, totient);
-            let proof = PiPrmProof::prove(&mut rng, &input, &secrets)?;
-            assert!(proof.verify(&input).is_err());
-        }
+        let bad_lambda = random_positive_bn(&mut rng, &totient);
+        let secrets = PiPrmSecret::new(bad_lambda, totient);
+        let proof = PiPrmProof::prove(&mut rng, &input, &secrets)?;
+        assert!(proof.verify(&input).is_err());
         Ok(())
     }
 
@@ -238,12 +257,10 @@ mod tests {
     fn bad_secret_totient_fails() -> Result<()> {
         let mut rng = crate::utils::get_test_rng();
         let (input, _, lambda, _) = random_ring_pedersen_proof(&mut rng)?;
-        {
-            let bad_totient = random_positive_bn(&mut rng, input.modulus());
-            let secrets = PiPrmSecret::new(lambda, bad_totient);
-            let proof = PiPrmProof::prove(&mut rng, &input, &secrets)?;
-            assert!(proof.verify(&input).is_err());
-        }
+        let bad_totient = random_positive_bn(&mut rng, input.modulus());
+        let secrets = PiPrmSecret::new(lambda, bad_totient);
+        let proof = PiPrmProof::prove(&mut rng, &input, &secrets)?;
+        assert!(proof.verify(&input).is_err());
         Ok(())
     }
 
