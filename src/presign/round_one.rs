@@ -15,6 +15,7 @@ use crate::{
     zkp::{pienc::PiEncProof, Proof},
 };
 use libpaillier::unknown_order::BigNumber;
+use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -47,9 +48,9 @@ impl Public {
         sender_pk: EncryptionKey,
         K: Ciphertext,
     ) -> Result<()> {
+        let mut transcript = Transcript::new(b"PiEncProof");
         let input = crate::zkp::pienc::PiEncInput::new(receiver_setup_params.clone(), sender_pk, K);
-
-        self.proof.verify(&input)
+        self.proof.verify(&input, &mut transcript)
     }
 
     pub(crate) fn from_message(

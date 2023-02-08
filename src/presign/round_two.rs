@@ -22,6 +22,7 @@ use crate::{
     CurvePoint,
 };
 use libpaillier::unknown_order::BigNumber;
+use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -64,7 +65,8 @@ impl Public {
             &self.F,
             &self.Gamma,
         );
-        self.psi.verify(&psi_input)?;
+        let mut transcript = Transcript::new(b"PiAffgProof");
+        self.psi.verify(&psi_input, &mut transcript)?;
 
         // Verify the psi_hat proof
         let psi_hat_input = PiAffgInput::new(
@@ -77,7 +79,8 @@ impl Public {
             &self.F_hat,
             &sender_keyshare_public.X,
         );
-        self.psi_hat.verify(&psi_hat_input)?;
+        let mut transcript = Transcript::new(b"PiAffgProof");
+        self.psi_hat.verify(&psi_hat_input, &mut transcript)?;
 
         // Verify the psi_prime proof
         let psi_prime_input = PiLogInput::new(
@@ -88,7 +91,8 @@ impl Public {
             &self.Gamma,
             &g,
         );
-        self.psi_prime.verify(&psi_prime_input)?;
+        let mut transcript = Transcript::new(b"PiLogProof");
+        self.psi_prime.verify(&psi_prime_input, &mut transcript)?;
 
         Ok(())
     }

@@ -89,9 +89,10 @@ impl Proof for PiLogProof {
     // N0: modulus, K: Paillier ciphertext
     #[cfg_attr(feature = "flame_it", flame("PiLogProof"))]
     fn prove<R: RngCore + CryptoRng>(
-        rng: &mut R,
         input: &Self::CommonInput,
         secret: &Self::ProverSecret,
+        transcript: &mut Transcript,
+        rng: &mut R,
     ) -> Result<Self> {
         // Sample alpha from plus/minus 2^{ELL + EPSILON}
         let alpha = random_plusminus_by_size(rng, ELL + EPSILON);
@@ -104,7 +105,6 @@ impl Proof for PiLogProof {
             .scheme()
             .commit(&alpha, ELL + EPSILON, rng);
 
-        let mut transcript = Transcript::new(b"PiLogProof");
         transcript.append_message(b"CommonInput", &serialize!(&input)?);
         transcript.append_message(
             b"(S, A, Y, D)",
@@ -112,7 +112,7 @@ impl Proof for PiLogProof {
         );
 
         // Verifier samples from e in +- q (where q is the group order)
-        let e = plusminus_bn_random_from_transcript(&mut transcript, &input.q);
+        let e = plusminus_bn_random_from_transcript(transcript, &input.q);
 
         let z1 = &alpha + &e * &secret.x;
         let z2 = input.pk.mask(&secret.rho, &r, &e);
@@ -134,9 +134,8 @@ impl Proof for PiLogProof {
     }
 
     #[cfg_attr(feature = "flame_it", flame("PiLogProof"))]
-    fn verify(&self, input: &Self::CommonInput) -> Result<()> {
+    fn verify(&self, input: &Self::CommonInput, transcript: &mut Transcript) -> Result<()> {
         // First, do Fiat-Shamir consistency check
-        let mut transcript = Transcript::new(b"PiLogProof");
         transcript.append_message(b"CommonInput", &serialize!(&input)?);
         transcript.append_message(
             b"(S, A, Y, D)",
@@ -150,7 +149,7 @@ impl Proof for PiLogProof {
         );
 
         // Verifier samples from e in +- q (where q is the group order)
-        let e = plusminus_bn_random_from_transcript(&mut transcript, &input.q);
+        let e = plusminus_bn_random_from_transcript(transcript, &input.q);
 
         if e != self.e {
             return verify_err!("Fiat-Shamir consistency check failed");
@@ -215,10 +214,10 @@ mod tests {
         let setup_params = VerifiedRingPedersen::gen(rng)?;
 
         let input = PiLogInput::new(&setup_params, &crate::utils::k256_order(), &pk, &C, &X, &g);
-
-        let proof = PiLogProof::prove(rng, &input, &PiLogSecret::new(x, &rho))?;
-
-        proof.verify(&input)
+        let mut transcript = Transcript::new(b"PiLogProof Test");
+        let proof = PiLogProof::prove(&input, &PiLogSecret::new(x, &rho), &mut transcript, rng)?;
+        let mut transcript = Transcript::new(b"PiLogProof Test");
+        proof.verify(&input, &mut transcript)
     }
 
     #[test]

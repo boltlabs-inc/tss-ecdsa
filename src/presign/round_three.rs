@@ -23,6 +23,7 @@ use crate::{
 };
 use k256::Scalar;
 use libpaillier::unknown_order::BigNumber;
+use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -50,6 +51,7 @@ impl Public {
         sender_keygen_public: &AuxInfoPublic,
         sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
+        let mut transcript = Transcript::new(b"PiLogProof");
         let psi_double_prime_input = PiLogInput::new(
             &receiver_keygen_public.params,
             &k256_order(),
@@ -58,7 +60,8 @@ impl Public {
             &self.Delta,
             &self.Gamma,
         );
-        self.psi_double_prime.verify(&psi_double_prime_input)?;
+        self.psi_double_prime
+            .verify(&psi_double_prime_input, &mut transcript)?;
 
         Ok(())
     }

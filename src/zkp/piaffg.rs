@@ -114,9 +114,10 @@ impl Proof for PiAffgProof {
     #[cfg_attr(feature = "flame_it", flame("PiAffgProof"))]
     #[allow(clippy::many_single_char_names)]
     fn prove<R: RngCore + CryptoRng>(
-        rng: &mut R,
         input: &Self::CommonInput,
         secret: &Self::ProverSecret,
+        transcript: &mut Transcript,
+        rng: &mut R,
     ) -> Result<Self> {
         // Sample alpha from 2^{ELL + EPSILON}
         let alpha = random_plusminus_by_size(rng, ELL + EPSILON);
@@ -138,7 +139,6 @@ impl Proof for PiAffgProof {
             .commit(&beta, ELL + EPSILON, rng);
         let (T, mu) = input.setup_params.scheme().commit(&secret.y, ELL, rng);
 
-        let mut transcript = Transcript::new(b"PiAffgProof");
         transcript.append_message(b"CommonInput", &serialize!(&input)?);
         transcript.append_message(
             b"(S, T, A, B_x, B_y, E, F)",
@@ -155,7 +155,7 @@ impl Proof for PiAffgProof {
         );
 
         // Verifier samples e in +- q (where q is the group order)
-        let e = plusminus_bn_random_from_transcript(&mut transcript, &k256_order());
+        let e = plusminus_bn_random_from_transcript(transcript, &k256_order());
 
         let z1 = &alpha + &e * &secret.x;
         let z2 = &beta + &e * &secret.y;
@@ -187,10 +187,9 @@ impl Proof for PiAffgProof {
     }
 
     #[cfg_attr(feature = "flame_it", flame("PiAffgProof"))]
-    fn verify(&self, input: &Self::CommonInput) -> Result<()> {
+    fn verify(&self, input: &Self::CommonInput, transcript: &mut Transcript) -> Result<()> {
         // First, do Fiat-Shamir consistency check
 
-        let mut transcript = Transcript::new(b"PiAffgProof");
         transcript.append_message(b"CommonInput", &serialize!(&input)?);
         transcript.append_message(
             b"(S, T, A, B_x, B_y, E, F)",
@@ -207,7 +206,7 @@ impl Proof for PiAffgProof {
         );
 
         // Verifier samples e in +- q (where q is the group order)
-        let e = plusminus_bn_random_from_transcript(&mut transcript, &k256_order());
+        let e = plusminus_bn_random_from_transcript(transcript, &k256_order());
 
         if e != self.e {
             return verify_err!("Fiat-Shamir consistency check failed");
@@ -314,11 +313,16 @@ mod tests {
         };
 
         let setup_params = VerifiedRingPedersen::gen(rng)?;
-
+        let mut transcript = Transcript::new(b"random_paillier_affg_proof");
         let input = PiAffgInput::new(&setup_params, &CurvePoint(g), &pk0, &pk1, &C, &D, &Y, &X);
-        let proof = PiAffgProof::prove(rng, &input, &PiAffgSecret::new(x, y, &rho, &rho_y))?;
-
-        proof.verify(&input)
+        let proof = PiAffgProof::prove(
+            &input,
+            &PiAffgSecret::new(x, y, &rho, &rho_y),
+            &mut transcript,
+            rng,
+        )?;
+        let mut transcript = Transcript::new(b"random_paillier_affg_proof");
+        proof.verify(&input, &mut transcript)
     }
 
     #[test]

@@ -23,6 +23,7 @@ use crate::{
 use bytemuck::TransparentWrapper;
 use bytemuck_derive::TransparentWrapper;
 use libpaillier::unknown_order::BigNumber;
+use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
@@ -133,14 +134,16 @@ impl VerifiedRingPedersen {
     ) -> Result<Self> {
         let (scheme, lambda, totient) = RingPedersen::extract(sk, rng)?;
         let secrets = PiPrmSecret::new(lambda, totient);
-        let proof = PiPrmProof::prove(rng, &scheme, &secrets)?;
+        let mut transcript = Transcript::new(b"PiPrmProof");
+        let proof = PiPrmProof::prove(&scheme, &secrets, &mut transcript, rng)?;
         Ok(Self { scheme, proof })
     }
 
     /// Verifies that the underlying [`RingPedersen`] commitment scheme was
     /// constructed correctly according to the associated [`PiPrmProof`].
     pub(crate) fn verify(&self) -> Result<()> {
-        self.proof.verify(self.scheme())
+        let mut transcript = Transcript::new(b"PiPrmProof");
+        self.proof.verify(self.scheme(), &mut transcript)
     }
 
     /// Returns the underlying [`RingPedersen`] commitment scheme associated

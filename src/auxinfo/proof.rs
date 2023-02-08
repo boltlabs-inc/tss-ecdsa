@@ -13,6 +13,7 @@ use crate::{
     zkp::{
         pifac::{PiFacInput, PiFacProof, PiFacSecret},
         pimod::{PiModInput, PiModProof, PiModSecret},
+        Proof,
     },
     Identifier, Message,
 };
@@ -48,21 +49,21 @@ impl AuxInfoProof {
         let mut pimod_transcript = Transcript::new(b"PaillierBlumModulusProof");
         pimod_transcript.append_message(b"Session Id", &serialize!(&sid)?);
         pimod_transcript.append_message(b"rho", &rho);
-        let pimod = PiModProof::prove_with_transcript(
-            rng,
+        let pimod = PiModProof::prove(
             &PiModInput::new(N),
             &PiModSecret::new(p, q),
             &mut pimod_transcript,
+            rng,
         )?;
 
         let mut pifac_transcript = Transcript::new(b"PiFacProof");
         pifac_transcript.append_message(b"Session Id", &serialize!(&sid)?);
         pifac_transcript.append_message(b"rho", &rho);
-        let pifac = PiFacProof::prove_with_transcript(
-            rng,
+        let pifac = PiFacProof::prove(
             &PiFacInput::new(setup_params, N),
             &PiFacSecret::new(p, q),
             &mut pifac_transcript,
+            rng,
         )?;
 
         Ok(Self { pimod, pifac })
@@ -79,13 +80,13 @@ impl AuxInfoProof {
         pimod_transcript.append_message(b"Session Id", &serialize!(&sid)?);
         pimod_transcript.append_message(b"rho", &rho);
         self.pimod
-            .verify_with_transcript(&PiModInput::new(N), &mut pimod_transcript)?;
+            .verify(&PiModInput::new(N), &mut pimod_transcript)?;
 
         let mut pifac_transcript = Transcript::new(b"PiFacProof");
         pifac_transcript.append_message(b"Session Id", &serialize!(&sid)?);
         pifac_transcript.append_message(b"rho", &rho);
         self.pifac
-            .verify_with_transcript(&PiFacInput::new(params, N), &mut pifac_transcript)?;
+            .verify(&PiFacInput::new(params, N), &mut pifac_transcript)?;
         Ok(())
     }
 }

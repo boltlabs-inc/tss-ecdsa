@@ -70,116 +70,10 @@ impl Proof for PiModProof {
     #[allow(clippy::many_single_char_names)]
     #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
     fn prove<R: RngCore + CryptoRng>(
-        rng: &mut R,
         input: &Self::CommonInput,
         secret: &Self::ProverSecret,
-    ) -> Result<Self> {
-        // Step 1: Pick a random w in [1, N) that has a Jacobi symbol of -1
-        let mut w = random_positive_bn(rng, &input.N);
-        while jacobi(&w, &input.N) != -1 {
-            w = random_positive_bn(rng, &input.N);
-        }
-
-        let mut transcript = Transcript::new(b"PaillierBlumModulusProof");
-
-        transcript.append_message(b"CommonInput", &serialize!(&input)?);
-        transcript.append_message(b"w", &w.to_bytes());
-
-        let mut elements = vec![];
-        for _ in 0..LAMBDA {
-            let y = positive_bn_random_from_transcript(&mut transcript, &input.N);
-
-            let (a, b, x) = y_prime_combinations(&w, &y, &secret.p, &secret.q)?;
-
-            // Compute phi(N) = (p-1) * (q-1)
-            let phi_n = (&secret.p - 1) * (&secret.q - 1);
-            let exp = &input
-                .N
-                .invert(&phi_n)
-                .ok_or(InternalError::CouldNotInvertBigNumber)?;
-            let z = modpow(&y, exp, &input.N);
-
-            elements.push(PiModProofElements {
-                x: x[0].clone(),
-                a,
-                b,
-                z,
-                y,
-            });
-        }
-
-        let proof = Self { w, elements };
-
-        Ok(proof)
-    }
-
-    #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
-    fn verify(&self, input: &Self::CommonInput) -> Result<()> {
-        // Verify that proof is sound -- it must have exactly LAMBDA elements
-        match self.elements.len().cmp(&LAMBDA) {
-            Ordering::Less => verify_err!(format!(
-                "PiMod proof is not sound: has {} elements, expected {}",
-                self.elements.len(),
-                LAMBDA,
-            ))?,
-            Ordering::Greater => verify_err!(format!(
-                "PiMod proof has too many elements: has {}, expected {}",
-                self.elements.len(),
-                LAMBDA
-            ))?,
-            Ordering::Equal => {}
-        }
-
-        // Verify that N is an odd composite number
-        if &input.N % BigNumber::from(2u64) == BigNumber::zero() {
-            return verify_err!("N is even");
-        }
-
-        if input.N.is_prime() {
-            return verify_err!("N is not composite");
-        }
-
-        let mut transcript = Transcript::new(b"PaillierBlumModulusProof");
-        transcript.append_message(b"CommonInput", &serialize!(&input)?);
-        transcript.append_message(b"w", &self.w.to_bytes());
-
-        for elements in &self.elements {
-            // First, check that y came from Fiat-Shamir transcript
-            let y = positive_bn_random_from_transcript(&mut transcript, &input.N);
-            if y != elements.y {
-                return verify_err!("y does not match Fiat-Shamir challenge");
-            }
-
-            let y_candidate = modpow(&elements.z, &input.N, &input.N);
-            if elements.y != y_candidate {
-                return verify_err!("z^N != y (mod N)");
-            }
-
-            if elements.a != 0 && elements.a != 1 {
-                return verify_err!("a not in {0,1}");
-            }
-
-            if elements.b != 0 && elements.b != 1 {
-                return verify_err!("b not in {0,1}");
-            }
-
-            let y_prime = y_prime_from_y(&elements.y, &self.w, elements.a, elements.b, &input.N);
-            if modpow(&elements.x, &BigNumber::from(4u64), &input.N) != y_prime {
-                return verify_err!("x^4 != y' (mod N)");
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl PiModProof {
-    #[allow(clippy::many_single_char_names)]
-    pub fn prove_with_transcript<R: RngCore + CryptoRng>(
-        rng: &mut R,
-        input: &PiModInput,
-        secret: &PiModSecret,
         transcript: &mut Transcript,
+        rng: &mut R,
     ) -> Result<Self> {
         // Step 1: Pick a random w in [1, N) that has a Jacobi symbol of -1
         let mut w = random_positive_bn(rng, &input.N);
@@ -218,11 +112,8 @@ impl PiModProof {
         Ok(proof)
     }
 
-    pub fn verify_with_transcript(
-        &self,
-        input: &PiModInput,
-        transcript: &mut Transcript,
-    ) -> Result<()> {
+    #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
+    fn verify(&self, input: &Self::CommonInput, transcript: &mut Transcript) -> Result<()> {
         // Verify that proof is sound -- it must have exactly LAMBDA elements
         match self.elements.len().cmp(&LAMBDA) {
             Ordering::Less => verify_err!(format!(
@@ -768,25 +659,8 @@ mod tests {
             N: decryption_key.encryption_key().modulus().to_owned(),
         };
         let secret = PiModSecret { p, q };
-
-        let proof_result = PiModProof::prove(rng, &input, &secret);
-        assert!(proof_result.is_ok());
-        (proof_result.unwrap(), input)
-    }
-
-    fn random_pimod_proof_with_transcript<R: CryptoRng + RngCore>(
-        rng: &mut R,
-        transcript: &Transcript,
-    ) -> (PiModProof, PiModInput) {
-        let (decryption_key, p, q) = DecryptionKey::new(rng).unwrap();
-
-        let input = PiModInput {
-            N: decryption_key.encryption_key().modulus().to_owned(),
-        };
-        let secret = PiModSecret { p, q };
-
-        let proof_result =
-            PiModProof::prove_with_transcript(rng, &input, &secret, &mut transcript.clone());
+        let mut transcript = Transcript::new(b"PiMod Test");
+        let proof_result = PiModProof::prove(&input, &secret, &mut transcript, rng);
         assert!(proof_result.is_ok());
         (proof_result.unwrap(), input)
     }
@@ -795,13 +669,8 @@ mod tests {
     fn pimod_proof_verifies() {
         let mut rng = get_test_rng();
         let (proof, input) = random_pimod_proof(&mut rng);
-        assert!(proof.verify(&input).is_ok());
-
-        let mut transcript = Transcript::new(b"PiMod Test Proof");
-        let (proof, input) = random_pimod_proof_with_transcript(&mut rng, &transcript);
-        assert!(proof
-            .verify_with_transcript(&input, &mut transcript)
-            .is_ok());
+        let mut transcript = Transcript::new(b"PiMod Test");
+        assert!(proof.verify(&input, &mut transcript).is_ok());
     }
 
     #[test]
@@ -834,22 +703,11 @@ mod tests {
         // Make un-sound a proof generated with the standard API
         let (proof, input) = random_pimod_proof(&mut rng);
         let (short_proof, long_proof) = transform(&proof);
-        assert!(short_proof.verify(&input).is_err());
-        assert!(long_proof.verify(&input).is_err());
-        assert!(proof.verify(&input).is_ok());
-
-        // Make un-sound a proof generated with the transcript-included API
-        let mut transcript = Transcript::new(b"PiMod Soundness Proof");
-        let (proof, input) = random_pimod_proof_with_transcript(&mut rng, &transcript);
-        let (short_proof, long_proof) = transform(&proof);
-        assert!(short_proof
-            .verify_with_transcript(&input, &mut transcript.clone())
-            .is_err());
-        assert!(long_proof
-            .verify_with_transcript(&input, &mut transcript.clone())
-            .is_err());
-        assert!(proof
-            .verify_with_transcript(&input, &mut transcript)
-            .is_ok());
+        let mut transcript = Transcript::new(b"PiMod Test");
+        assert!(short_proof.verify(&input, &mut transcript).is_err());
+        let mut transcript = Transcript::new(b"PiMod Test");
+        assert!(long_proof.verify(&input, &mut transcript).is_err());
+        let mut transcript = Transcript::new(b"PiMod Test");
+        assert!(proof.verify(&input, &mut transcript).is_ok());
     }
 }

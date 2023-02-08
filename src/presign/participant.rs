@@ -41,6 +41,7 @@ use crate::{
     CurvePoint, Identifier,
 };
 use libpaillier::unknown_order::BigNumber;
+use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -939,14 +940,16 @@ impl PresignKeyShareAndInfo {
         let mut r1_publics = HashMap::new();
         for (id, aux_info_public) in public_keys {
             // Compute psi_{j,i} for every participant j != i
+            let mut transcript = Transcript::new(b"PiEncProof");
             let proof = PiEncProof::prove(
-                rng,
                 &crate::zkp::pienc::PiEncInput::new(
                     aux_info_public.params.clone(),
                     self.aux_info_public.pk.clone(),
                     K.clone(),
                 ),
                 &crate::zkp::pienc::PiEncSecret::new(k.clone(), rho.clone()),
+                &mut transcript,
+                rng,
             )?;
             let r1_public = RoundOnePublic { proof };
             let _ = r1_publics.insert(*id, r1_public);
@@ -1015,9 +1018,8 @@ impl PresignKeyShareAndInfo {
         let Gamma = CurvePoint(g.0 * bn_to_scalar(&sender_r1_priv.gamma)?);
 
         // Generate three proofs
-
+        let mut transcript = Transcript::new(b"PiAffgProof");
         let psi = PiAffgProof::prove(
-            rng,
             &PiAffgInput::new(
                 &receiver_aux_info.params,
                 &g,
@@ -1029,10 +1031,11 @@ impl PresignKeyShareAndInfo {
                 &Gamma,
             ),
             &PiAffgSecret::new(&sender_r1_priv.gamma, &beta, &s, &r),
-        )?;
-
-        let psi_hat = PiAffgProof::prove(
+            &mut transcript,
             rng,
+        )?;
+        let mut transcript = Transcript::new(b"PiAffgProof");
+        let psi_hat = PiAffgProof::prove(
             &PiAffgInput::new(
                 &receiver_aux_info.params,
                 &g,
@@ -1044,10 +1047,11 @@ impl PresignKeyShareAndInfo {
                 &self.keyshare_public.X,
             ),
             &PiAffgSecret::new(&self.keyshare_private.x, &beta_hat, &s_hat, &r_hat),
-        )?;
-
-        let psi_prime = PiLogProof::prove(
+            &mut transcript,
             rng,
+        )?;
+        let mut transcript = Transcript::new(b"PiLogProof");
+        let psi_prime = PiLogProof::prove(
             &PiLogInput::new(
                 &receiver_aux_info.params,
                 &k256_order(),
@@ -1057,6 +1061,8 @@ impl PresignKeyShareAndInfo {
                 &g,
             ),
             &PiLogSecret::new(&sender_r1_priv.gamma, &sender_r1_priv.nu),
+            &mut transcript,
+            rng,
         )?;
 
         Ok((
@@ -1115,8 +1121,8 @@ impl PresignKeyShareAndInfo {
 
         let mut ret_publics = HashMap::new();
         for (other_id, round_three_input) in other_participant_inputs {
+            let mut transcript = Transcript::new(b"PiLogProof");
             let psi_double_prime = PiLogProof::prove(
-                rng,
                 &PiLogInput::new(
                     &round_three_input.auxinfo_public.params,
                     &order,
@@ -1126,6 +1132,8 @@ impl PresignKeyShareAndInfo {
                     &Gamma,
                 ),
                 &PiLogSecret::new(&sender_r1_priv.k, &sender_r1_priv.rho),
+                &mut transcript,
+                rng,
             )?;
             let val = RoundThreePublic {
                 delta: delta_scalar,
