@@ -35,7 +35,7 @@ const SOUNDNESS: usize = crate::parameters::SOUNDNESS_PARAMETER;
 pub(crate) struct PiPrmProof {
     /// The commitments computed by the prover (`A_i` in the paper).
     commitments: Vec<BigNumber>,
-    /// The challenge bytes chosen by the verifier (`e_i` in the paper).
+    /// The randomized challenge bytes (`e_i` in the paper).
     challenge_bytes: Vec<u8>,
     /// The prover responses (`z_i` in the paper).
     responses: Vec<BigNumber>,
