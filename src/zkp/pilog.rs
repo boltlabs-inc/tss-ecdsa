@@ -42,22 +42,22 @@ pub(crate) struct PiLogProof {
     /// Commitment to the (secret) [plaintext](ProverSecret::plaintext) (`S` in
     /// the paper).
     plaintext_commit: Commitment,
-    /// Paillier encryption of [`PiLogProof::random`] (`A` in the paper).
+    /// Paillier encryption of mask value (`A` in the paper).
     mask_ciphertext: Ciphertext,
-    /// Discrete log commitment of [`PiLogProof::random`] (`Y` in the paper).
+    /// Discrete log commitment of mask value (`Y` in the paper).
     mask_dlog_commit: CurvePoint,
-    /// Ring-Pedersen commitment of [`PiLogProof::random`] (`D` in the paper).
+    /// Ring-Pedersen commitment of mask value (`D` in the paper).
     mask_commit: Commitment,
     /// Fiat-Shamir challenge (`e` in the paper).
     challenge: BigNumber,
-    /// Response binding the (secret) plaintext with [`PiLogProof::random`]
+    /// Response binding the (secret) plaintext with the mask value
     /// (`z1` in the paper).
     plaintext_response: BigNumber,
     /// Response binding the (secret) nonce with the nonce corresponding to
-    /// [`PiLogProof::random_ciphertext`] (`z2` in the paper).
+    /// [`PiLogProof::mask_ciphertext`] (`z2` in the paper).
     nonce_response: MaskedNonce,
     /// Response binding the (secret) plaintext's commitment with
-    /// [`PiLogProof::random_commit`] (`z3` in the paper).
+    /// [`PiLogProof::mask_commit`] (`z3` in the paper).
     plaintext_commit_response: MaskedRandomness,
 }
 
@@ -126,18 +126,18 @@ fn generate_challenge(
     transcript: &mut Transcript,
     common_input: &CommonInput,
     plaintext_commit: &Commitment,
-    random_encryption: &Ciphertext,
-    random_dlog_commit: &CurvePoint,
-    random_commit: &Commitment,
+    mask_encryption: &Ciphertext,
+    mask_dlog_commit: &CurvePoint,
+    mask_commit: &Commitment,
 ) -> Result<BigNumber> {
     transcript.append_message(b"Common input", &serialize!(&common_input)?);
     transcript.append_message(
-        b"(plaintext commit, random encryption, random dlog commit, random commit)",
+        b"(plaintext commit, mask encryption, mask dlog commit, mask commit)",
         &[
             plaintext_commit.to_bytes(),
-            random_encryption.to_bytes(),
-            serialize!(&random_dlog_commit)?,
-            random_commit.to_bytes(),
+            mask_encryption.to_bytes(),
+            serialize!(&mask_dlog_commit)?,
+            mask_commit.to_bytes(),
         ]
         .concat(),
     );
