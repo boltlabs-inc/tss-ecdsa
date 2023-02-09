@@ -26,6 +26,14 @@ jobs:
           override: true
           components: rustfmt, clippy
 
+      - name: Install nightly toolchain
+        id: install-rust-nightly
+        uses: action-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          components: rustfmt
+
       # Caching for Rust files. Must be called after installing Rust toolchain.
       # See https://github.com/Swatinem/rust-cache for more information.
       - name: Set Up Cache
