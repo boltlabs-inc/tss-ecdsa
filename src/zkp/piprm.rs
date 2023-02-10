@@ -64,8 +64,8 @@ impl PiPrmSecret {
     }
 }
 
-/// Generates challenge bytes from the proof transcript using the Fiat-Shamir transform.
-/// Used by the prover and the verifier.
+/// Generates challenge bytes from the proof transcript using the Fiat-Shamir
+/// transform. Used by the prover and the verifier.
 fn generate_challenge_bytes(
     input: &RingPedersen,
     commitments: &[BigNumber],

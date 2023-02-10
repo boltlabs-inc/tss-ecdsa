@@ -171,7 +171,8 @@ impl Proof for PiEncProof {
 
     #[cfg_attr(feature = "flame_it", flame("PiEncProof"))]
     fn verify(&self, input: &Self::CommonInput, transcript: &mut Transcript) -> Result<()> {
-        // Check Fiat-Shamir challenge consistency: update the transcript with commitments...
+        // Check Fiat-Shamir challenge consistency: update the transcript with
+        // commitments...
         Self::fill_out_transcript(
             transcript,
             input,
