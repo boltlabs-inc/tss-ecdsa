@@ -74,7 +74,7 @@ pub(crate) struct CommonInput {
     ring_pedersen: RingPedersen,
     /// Paillier public key (`N_0` in the paper).
     prover_encryption_key: EncryptionKey,
-    // Group generator for discrete log commitment (`g` in the paper).
+    // Group generator for discrete log commitments (`g` in the paper).
     generator: CurvePoint,
 }
 
@@ -142,7 +142,7 @@ fn generate_challenge(
         .concat(),
     );
 
-    // Verifier samples from `± q` (where `q` is the group order).
+    // The challenge is sampled from `± q` (where `q` is the group order).
     let challenge = plusminus_bn_random_from_transcript(transcript, &utils::k256_order());
     Ok(challenge)
 }
@@ -191,10 +191,11 @@ impl Proof for PiLogProof {
         // 3. We next check that the ring-Pedersen commitments are consistent by
         // checking that the ring-Pedersen commitment of `ɑ + ex` equals `D S^e`.
         // As in Step 1, we need to homomorphically maniuplate the commitment randomness
-        // to make sure they line up.
+        // to make sure they line up. This check is needed as detailed in the "Vanilla
+        // ZK Range-Proof" section of the paper (Page 13).
         //
-        // The last check is a range check on `ɑ + ex`. If this falls within `± 2^{ℓ +
-        // ε}` then this guarantees that `x` falls within this range too.
+        // 4. The last check is a range check on `ɑ + ex`. If this falls within `± 2^{ℓ
+        // + ε}` then this guarantees that `x` falls within this range too.
 
         // Sample a random plaintext mask from `± 2^{ELL + EPSILON}` (`ɑ` in the paper).
         let mask = random_plusminus_by_size(rng, ELL + EPSILON);
