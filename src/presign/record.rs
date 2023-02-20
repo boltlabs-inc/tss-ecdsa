@@ -8,7 +8,7 @@
 
 use crate::{
     errors::{
-        InternalError::{CouldNotConvertToScalar, CouldNotInvertScalar},
+        InternalError::{CouldNotConvertToScalar, CouldNotInvertScalar, InternalInvariantFailed},
         Result,
     },
     utils::bn_to_scalar,
@@ -47,8 +47,7 @@ impl TryFrom<RecordPair> for PresignRecord {
 
         let g = CurvePoint::GENERATOR;
         if CurvePoint(g.0 * delta) != Delta {
-            // Error, failed to validate
-            panic!("Error, failed to validate");
+            return Err(InternalInvariantFailed);
         }
 
         let delta_inv = Option::<Scalar>::from(delta.invert()).ok_or(CouldNotInvertScalar)?;

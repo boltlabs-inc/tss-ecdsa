@@ -25,24 +25,6 @@ pub enum InternalError {
     CouldNotGenerateProof,
     #[error("Failed to verify proof: `{0}`")]
     FailedToVerifyProof(String),
-    #[error("Could not find square roots modulo n")]
-    NoSquareRoots,
-    #[error("Elements are not coprime")]
-    NotCoprime,
-    #[error("Elements of the multiplicative group ZK*_N cannot be larger than the RSA modulus")]
-    LargerThanModulus,
-    #[error("Elements of the multiplicative group ZK*_N cannot be negative")]
-    NegativeElement,
-    #[error("Elements of the multiplicative group  ZK*_N cannot be zero")]
-    IsZero,
-    #[error("One or more of the integer inputs to the Chinese remainder theorem were outside the expected range")]
-    InvalidIntegers,
-    #[error(
-        "Could not find uniqueness for fourth roots combination in Paillier-Blum modulus proof"
-    )]
-    NonUniqueFourthRootsCombination,
-    #[error("Could not invert a BigNumber")]
-    CouldNotInvertBigNumber,
     #[error("Represents some code assumption that was checked at runtime but failed to be true")]
     InternalInvariantFailed,
     #[error("Paillier error: `{0}`")]
@@ -63,8 +45,6 @@ pub enum InternalError {
     NoChainedShares,
     #[error("Storage does not contain the requested item")]
     StorageItemNotFound,
-    #[error("Function call contained invalid arguments: `{0}`")]
-    InvalidArgument(String),
     #[error("The provided Broadcast Tag was not the expected tag for this context")]
     IncorrectBroadcastMessageTag,
     #[error("Encountered a Message sent directly, when it should have been broadcasted")]
@@ -94,13 +74,5 @@ macro_rules! verify_err {
         Err(crate::errors::InternalError::FailedToVerifyProof(
             String::from($x),
         ))
-    }};
-}
-
-macro_rules! arg_err {
-    ($x:expr) => {{
-        Err(crate::errors::InternalError::InvalidArgument(String::from(
-            $x,
-        )))
     }};
 }

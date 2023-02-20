@@ -138,7 +138,7 @@ pub(crate) fn random_plusminus_by_size_with_minimum<R: RngCore + CryptoRng>(
     min: usize,
 ) -> crate::errors::Result<BigNumber> {
     if min >= max {
-        return arg_err!("min needs to be less than max");
+        return Err(InternalError::InternalInvariantFailed);
     }
     // Sample from [0, 2^max - 2^min], then add 2^min to bump into correct range.
     let min_bound_bn = (BigNumber::one() << max) - (BigNumber::one() << min);

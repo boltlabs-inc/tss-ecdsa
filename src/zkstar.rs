@@ -25,15 +25,17 @@ impl ZStarNBuilder {
     /// sampling the element in the multiplicative group modulo n.
     pub fn validate(&self, unverified: ZStarNUnverified) -> Result<ZStarN, InternalError> {
         if unverified.value().is_zero() {
-            return Err(InternalError::IsZero);
+            return verify_err!("Elements of the multiplicative group  ZK*_N cannot be zero");
         } else if unverified.value() > self.modulus() {
-            return Err(InternalError::LargerThanModulus);
+            return verify_err!(
+                "Elements of the multiplicative group ZK*_N cannot be larger than the RSA modulus"
+            );
         } else if unverified.value() < &BigNumber::zero() {
-            return Err(InternalError::NegativeElement);
+            return verify_err!("Elements of the multiplicative group ZK*_N cannot be negative");
         }
         let result = unverified.value().gcd(self.modulus());
         if result != BigNumber::one() {
-            return Err(InternalError::NotCoprime);
+            return verify_err!("Elements are not coprime");
         }
         Ok(ZStarN {
             value: unverified.value().to_owned(),

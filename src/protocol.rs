@@ -290,10 +290,11 @@ impl SignatureShare {
     /// Can be used to combine [SignatureShare]s
     pub fn chain(&self, share: Self) -> Result<Self> {
         let r = match (self.r, share.r) {
-            (_, None) => arg_err!("Input share was not initialized"),
+            // Reason: Input share was not initialized
+            (_, None) => Err(InternalError::InternalInvariantFailed),
             (Some(prev_r), Some(new_r)) => {
                 if prev_r != new_r {
-                    return arg_err!("share.r does not match self.r");
+                    return Err(InternalError::SignatureInstantiationError);
                 }
                 Ok(prev_r)
             }
