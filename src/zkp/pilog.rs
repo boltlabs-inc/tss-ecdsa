@@ -31,6 +31,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 use utils::CurvePoint;
 
 /// Proof of knowledge that:
@@ -260,7 +261,8 @@ impl Proof for PiLogProof {
         )?;
         // ... and check that it's the correct challenge.
         if challenge != self.challenge {
-            return verify_err!("Fiat-Shamir consistency check failed");
+            warn!("Fiat-Shamir consistency check failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         // Check that the Paillier encryption of the secret plaintext is valid.
@@ -276,7 +278,8 @@ impl Proof for PiLogProof {
             lhs == rhs
         };
         if !paillier_encryption_is_valid {
-            return verify_err!("paillier encryption check (first equality check) failed");
+            warn!("paillier encryption check (first equality check) failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
         // Check that the group exponentiation of the secret plaintext is valid.
         let group_exponentiation_is_valid = {
@@ -288,7 +291,8 @@ impl Proof for PiLogProof {
             lhs == rhs
         };
         if !group_exponentiation_is_valid {
-            return verify_err!("group exponentiation check (second equality check) failed");
+            warn!("group exponentiation check (second equality check) failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         // Check that the ring-Pedersen commitment of the secret plaintext is valid.
@@ -304,13 +308,15 @@ impl Proof for PiLogProof {
             lhs == rhs
         };
         if !ring_pedersen_commitment_is_valid {
-            return verify_err!("ring Pedersen commitment check (third equality check) failed");
+            warn!("ring Pedersen commitment check (third equality check) failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         // Do a range check on the plaintext response, which validates that the
         // plaintext falls within the same range.
         if !within_bound_by_size(&self.plaintext_response, ELL + EPSILON) {
-            return verify_err!("plaintext range check failed");
+            warn!("plaintext range check failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         Ok(())

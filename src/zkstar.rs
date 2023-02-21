@@ -2,6 +2,7 @@ use crate::{errors::InternalError, utils};
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 /// Tool for verifying and operating on elements of the multiplicative
 /// group of integers mod `N`, for some modulus `N`.
@@ -25,17 +26,21 @@ impl ZStarNBuilder {
     /// sampling the element in the multiplicative group modulo n.
     pub fn validate(&self, unverified: ZStarNUnverified) -> Result<ZStarN, InternalError> {
         if unverified.value().is_zero() {
-            return verify_err!("Elements of the multiplicative group  ZK*_N cannot be zero");
+            warn!("Elements of the multiplicative group  ZK*_N cannot be zero");
+            return Err(InternalError::FailedToVerifyProof);
         } else if unverified.value() > self.modulus() {
-            return verify_err!(
+            warn!(
                 "Elements of the multiplicative group ZK*_N cannot be larger than the RSA modulus"
             );
+            return Err(InternalError::FailedToVerifyProof);
         } else if unverified.value() < &BigNumber::zero() {
-            return verify_err!("Elements of the multiplicative group ZK*_N cannot be negative");
+            warn!("Elements of the multiplicative group ZK*_N cannot be negative");
+            return Err(InternalError::FailedToVerifyProof);
         }
         let result = unverified.value().gcd(self.modulus());
         if result != BigNumber::one() {
-            return verify_err!("Elements are not coprime");
+            warn!("Elements are not coprime");
+            return Err(InternalError::FailedToVerifyProof);
         }
         Ok(ZStarN {
             value: unverified.value().to_owned(),

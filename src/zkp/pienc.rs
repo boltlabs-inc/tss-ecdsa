@@ -38,6 +38,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 /// Proof of knowledge of the plaintext value of a ciphertext, where the value
 /// is within a desired range.
@@ -184,7 +185,8 @@ impl Proof for PiEncProof {
         // ...generate a challenge, and make sure it matches the one the prover sent.
         let e = plusminus_bn_random_from_transcript(transcript, &k256_order());
         if e != self.challenge {
-            return verify_err!("Fiat-Shamir didn't verify");
+            warn!("Fiat-Shamir didn't verify");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         // Check that the plaintext and nonce responses are well-formed (e.g. that the
@@ -201,7 +203,8 @@ impl Proof for PiEncProof {
             lhs == rhs
         };
         if !ciphertext_mask_is_well_formed {
-            return verify_err!("ciphertext mask check (first equality check) failed");
+            warn!("ciphertext mask check (first equality check) failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         // Check that the plaintext and commitment randomness responses are well formed
@@ -220,13 +223,15 @@ impl Proof for PiEncProof {
             lhs == rhs
         };
         if !responses_match_commitments {
-            return verify_err!("response validation check (second equality check) failed");
+            warn!("response validation check (second equality check) failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         // Make sure the ciphertext response is in range
         let bound = BigNumber::one() << (ELL + EPSILON);
         if self.plaintext_response < -bound.clone() || self.plaintext_response > bound {
-            return verify_err!("bounds check on plaintext response failed");
+            warn!("bounds check on plaintext response failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         Ok(())

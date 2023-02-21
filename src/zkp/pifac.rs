@@ -20,6 +20,7 @@ use merlin::Transcript;
 use num_bigint::{BigInt, Sign};
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct PiFacProof {
@@ -168,7 +169,8 @@ impl Proof for PiFacProof {
             lhs == rhs
         };
         if !eq_check_1 {
-            return verify_err!("eq_check_1 failed");
+            warn!("eq_check_1 failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         let eq_check_2 = {
@@ -177,7 +179,8 @@ impl Proof for PiFacProof {
             lhs == rhs
         };
         if !eq_check_2 {
-            return verify_err!("eq_check_2 failed");
+            warn!("eq_check_2 failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         let eq_check_3 = {
@@ -193,7 +196,8 @@ impl Proof for PiFacProof {
             lhs == rhs
         };
         if !eq_check_3 {
-            return verify_err!("eq_check_3 failed");
+            warn!("eq_check_3 failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         let sqrt_N0 = sqrt(&input.N0);
@@ -202,10 +206,12 @@ impl Proof for PiFacProof {
         // 2^{ELL + EPSILON} * sqrt(N_0)
         let z_bound = &sqrt_N0 * &two_ell_eps;
         if self.z1 < -z_bound.clone() || self.z1 > z_bound {
-            return verify_err!("self.z1 > z_bound check failed");
+            warn!("self.z1 > z_bound check failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
         if self.z2 < -z_bound.clone() || self.z2 > z_bound {
-            return verify_err!("self.z2 > z_bound check failed");
+            warn!("self.z2 > z_bound check failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         Ok(())

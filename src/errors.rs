@@ -25,8 +25,8 @@ pub enum InternalError {
     ProtocolError,
     #[error("Could not successfully generate proof")]
     CouldNotGenerateProof,
-    #[error("Failed to verify proof: `{0}`")]
-    FailedToVerifyProof(String),
+    #[error("Failed to verify proof")]
+    FailedToVerifyProof,
     #[error("Represents some code assumption that was checked at runtime but failed to be true")]
     InternalInvariantFailed,
     #[error("Paillier error: `{0}`")]
@@ -68,13 +68,5 @@ macro_rules! serialize {
 macro_rules! deserialize {
     ($x:expr) => {{
         bincode::deserialize($x).or(Err(crate::errors::InternalError::Serialization))
-    }};
-}
-
-macro_rules! verify_err {
-    ($x:expr) => {{
-        Err(crate::errors::InternalError::FailedToVerifyProof(
-            String::from($x),
-        ))
     }};
 }

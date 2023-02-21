@@ -18,6 +18,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 use utils::CurvePoint;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -102,7 +103,8 @@ impl Proof for PiSchProof {
         // Verifier samples e in F_q
         let e = positive_bn_random_from_transcript(transcript, &input.q);
         if e != self.e {
-            return verify_err!("Fiat-Shamir consistency check failed");
+            warn!("Fiat-Shamir consistency check failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         // Do equality checks
@@ -113,7 +115,8 @@ impl Proof for PiSchProof {
             lhs == rhs
         };
         if !eq_check_1 {
-            return verify_err!("eq_check_1 failed");
+            warn!("eq_check_1 failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         Ok(())
@@ -162,7 +165,8 @@ impl PiSchProof {
         // Verifier samples e in F_q
         let e = positive_bn_random_from_transcript(&mut local_transcript, &input.q);
         if e != self.e {
-            return verify_err!("Fiat-Shamir consistency check failed");
+            warn!("Fiat-Shamir consistency check failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         // Do equality checks
@@ -173,7 +177,8 @@ impl PiSchProof {
             lhs == rhs
         };
         if !eq_check_1 {
-            return verify_err!("eq_check_1 failed");
+            warn!("eq_check_1 failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         Ok(())

@@ -28,6 +28,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 // Soundness parameter.
 const SOUNDNESS: usize = crate::parameters::SOUNDNESS_PARAMETER;
@@ -128,12 +129,14 @@ impl Proof for PiPrmProof {
             || self.challenge_bytes.len() != SOUNDNESS
             || self.responses.len() != SOUNDNESS
         {
-            return verify_err!("length of values provided does not match soundness parameter");
+            warn!("length of values provided does not match soundness parameter");
+            return Err(InternalError::FailedToVerifyProof);
         }
         let challenges = generate_challenge_bytes(input, &self.commitments, transcript)?;
         // Check Fiat-Shamir consistency.
         if challenges != self.challenge_bytes.as_slice() {
-            return verify_err!("Fiat-Shamir does not verify");
+            warn!("Fiat-Shamir does not verify");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         let is_sound = challenges
@@ -153,7 +156,8 @@ impl Proof for PiPrmProof {
             .all(|check| check);
 
         if !is_sound {
-            return verify_err!("response validation check failed");
+            warn!("response validation check failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         Ok(())

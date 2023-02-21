@@ -16,6 +16,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 // Soundness parameter lambda
 static LAMBDA: usize = crate::parameters::SOUNDNESS_PARAMETER;
@@ -117,26 +118,34 @@ impl Proof for PiModProof {
     fn verify(&self, input: &Self::CommonInput, transcript: &mut Transcript) -> Result<()> {
         // Verify that proof is sound -- it must have exactly LAMBDA elements
         match self.elements.len().cmp(&LAMBDA) {
-            Ordering::Less => verify_err!(format!(
-                "PiMod proof is not sound: has {} elements, expected {}",
-                self.elements.len(),
-                LAMBDA,
-            ))?,
-            Ordering::Greater => verify_err!(format!(
-                "PiMod proof has too many elements: has {}, expected {}",
-                self.elements.len(),
-                LAMBDA
-            ))?,
+            Ordering::Less => {
+                warn!(
+                    "PiMod proof is not sound: has {} elements, expected {}",
+                    self.elements.len(),
+                    LAMBDA,
+                );
+                return Err(InternalError::FailedToVerifyProof);
+            }
+            Ordering::Greater => {
+                warn!(
+                    "PiMod proof has too many elements: has {}, expected {}",
+                    self.elements.len(),
+                    LAMBDA
+                );
+                return Err(InternalError::FailedToVerifyProof);
+            }
             Ordering::Equal => {}
         }
 
         // Verify that N is an odd composite number
         if &input.N % BigNumber::from(2u64) == BigNumber::zero() {
-            return verify_err!("N is even");
+            warn!("N is even");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         if input.N.is_prime() {
-            return verify_err!("N is not composite");
+            warn!("N is not composite");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         transcript.append_message(b"CommonInput", &serialize!(&input)?);
@@ -146,25 +155,30 @@ impl Proof for PiModProof {
             // First, check that y came from Fiat-Shamir transcript
             let y = positive_bn_random_from_transcript(transcript, &input.N);
             if y != elements.y {
-                return verify_err!("y does not match Fiat-Shamir challenge");
+                warn!("y does not match Fiat-Shamir challenge");
+                return Err(InternalError::FailedToVerifyProof);
             }
 
             let y_candidate = modpow(&elements.z, &input.N, &input.N);
             if elements.y != y_candidate {
-                return verify_err!("z^N != y (mod N)");
+                warn!("z^N != y (mod N)");
+                return Err(InternalError::FailedToVerifyProof);
             }
 
             if elements.a != 0 && elements.a != 1 {
-                return verify_err!("a not in {0,1}");
+                warn!("a not in {{0,1}}");
+                return Err(InternalError::FailedToVerifyProof);
             }
 
             if elements.b != 0 && elements.b != 1 {
-                return verify_err!("b not in {0,1}");
+                warn!("b not in {{0,1}}");
+                return Err(InternalError::FailedToVerifyProof);
             }
 
             let y_prime = y_prime_from_y(&elements.y, &self.w, elements.a, elements.b, &input.N);
             if modpow(&elements.x, &BigNumber::from(4u64), &input.N) != y_prime {
-                return verify_err!("x^4 != y' (mod N)");
+                warn!("x^4 != y' (mod N)");
+                return Err(InternalError::FailedToVerifyProof);
             }
         }
 

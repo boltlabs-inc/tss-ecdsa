@@ -23,6 +23,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 use utils::CurvePoint;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -209,7 +210,8 @@ impl Proof for PiAffgProof {
         let e = plusminus_bn_random_from_transcript(transcript, &k256_order());
 
         if e != self.e {
-            return verify_err!("Fiat-Shamir consistency check failed");
+            warn!("Fiat-Shamir consistency check failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         // Do equality checks
@@ -221,7 +223,8 @@ impl Proof for PiAffgProof {
             lhs == rhs
         };
         if !eq_check_1 {
-            return verify_err!("eq_check_1 failed");
+            warn!("eq_check_1 failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         let eq_check_2 = {
@@ -230,7 +233,8 @@ impl Proof for PiAffgProof {
             lhs == rhs
         };
         if !eq_check_2 {
-            return verify_err!("eq_check_2 failed");
+            warn!("eq_check_2 failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         let eq_check_3 = {
@@ -240,7 +244,8 @@ impl Proof for PiAffgProof {
             lhs == rhs
         };
         if !eq_check_3 {
-            return verify_err!("eq_check_3 failed");
+            warn!("eq_check_3 failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         let eq_check_4 = {
@@ -252,7 +257,8 @@ impl Proof for PiAffgProof {
             lhs == rhs
         };
         if !eq_check_4 {
-            return verify_err!("eq_check_4 failed");
+            warn!("eq_check_4 failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         let eq_check_5 = {
@@ -264,7 +270,8 @@ impl Proof for PiAffgProof {
             lhs == rhs
         };
         if !eq_check_5 {
-            return verify_err!("eq_check_5 failed");
+            warn!("eq_check_5 failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         // Do range check
@@ -272,10 +279,12 @@ impl Proof for PiAffgProof {
         let ell_bound = BigNumber::one() << (ELL + EPSILON);
         let ell_prime_bound = BigNumber::one() << (ELL_PRIME + EPSILON);
         if self.z1 < -ell_bound.clone() || self.z1 > ell_bound {
-            return verify_err!("self.z1 > ell_bound check failed");
+            warn!("self.z1 > ell_bound check failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
         if self.z2 < -ell_prime_bound.clone() || self.z2 > ell_prime_bound {
-            return verify_err!("self.z2 > ell_prime_bound check failed");
+            warn!("self.z2 > ell_prime_bound check failed");
+            return Err(InternalError::FailedToVerifyProof);
         }
 
         Ok(())
