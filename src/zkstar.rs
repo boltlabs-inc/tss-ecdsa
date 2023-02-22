@@ -2,7 +2,7 @@ use crate::{errors::InternalError, utils};
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::{warn, instrument};
+use tracing::{instrument, warn};
 
 /// Tool for verifying and operating on elements of the multiplicative
 /// group of integers mod `N`, for some modulus `N`.
