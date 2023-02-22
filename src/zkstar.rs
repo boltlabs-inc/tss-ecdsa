@@ -2,7 +2,7 @@ use crate::{errors::InternalError, utils};
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{warn, instrument};
 
 /// Tool for verifying and operating on elements of the multiplicative
 /// group of integers mod `N`, for some modulus `N`.
@@ -24,6 +24,7 @@ impl ZStarNBuilder {
     /// respect to the current [`ZStarNBuilder`]. This is one of two ways of
     /// constructing elements of [`ZStarN`]. The other way is by randomly
     /// sampling the element in the multiplicative group modulo n.
+    #[instrument(skip_all, err(Debug))]
     pub fn validate(&self, unverified: ZStarNUnverified) -> Result<ZStarN, InternalError> {
         if unverified.value().is_zero() {
             warn!("Elements of the multiplicative group  ZK*_N cannot be zero");
@@ -106,6 +107,7 @@ impl ZStarNUnverified {
 #[cfg(test)]
 mod test {
     use crate::{paillier::DecryptionKey, zkstar::*};
+    use test_log::test;
 
     #[test]
     fn zkstar_verification_works() {
