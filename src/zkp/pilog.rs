@@ -327,10 +327,10 @@ impl Proof for PiLogProof {
 mod tests {
     use super::*;
     use crate::{
-        paillier::DecryptionKey, ring_pedersen::VerifiedRingPedersen,
-        utils::random_plusminus_by_size_with_minimum,
+        paillier::DecryptionKey,
+        ring_pedersen::VerifiedRingPedersen,
+        utils::{random_plusminus_by_size_with_minimum, testing::init_testing},
     };
-    use test_log::test;
 
     fn random_paillier_log_proof<R: RngCore + CryptoRng>(rng: &mut R, x: &BigNumber) -> Result<()> {
         let (decryption_key, _, _) = DecryptionKey::new(rng)?;
@@ -357,7 +357,7 @@ mod tests {
 
     #[test]
     fn test_paillier_log_proof() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
 
         let x_small = random_plusminus_by_size(&mut rng, ELL);
         let x_large =

@@ -195,7 +195,7 @@ impl PiSchProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_log::test;
+    use crate::utils::testing::init_testing;
 
     fn random_schnorr_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
@@ -219,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_schnorr_proof() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
 
         let (input, proof) = random_schnorr_proof(&mut rng, false)?;
         let mut transcript = Transcript::new(b"PiSchProof Test");
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn test_precommit_proof() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
 
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);

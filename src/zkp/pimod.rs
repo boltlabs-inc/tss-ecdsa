@@ -394,12 +394,12 @@ mod tests {
     use crate::{
         paillier::{prime_gen, DecryptionKey},
         parameters::SOUNDNESS_PARAMETER,
+        utils::testing::init_testing,
     };
-    use test_log::test;
 
     #[test]
     fn test_jacobi() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let N = &p * &q;
 
@@ -429,7 +429,7 @@ mod tests {
 
     #[test]
     fn test_square_roots_mod_prime() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let p = prime_gen::try_get_prime_from_pool_insecure(&mut rng).unwrap();
 
         for _ in 0..100 {
@@ -455,7 +455,7 @@ mod tests {
 
     #[test]
     fn test_square_roots_mod_composite() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let N = &p * &q;
 
@@ -486,7 +486,7 @@ mod tests {
 
     #[test]
     fn test_fourth_roots_mod_composite() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let N = &p * &q;
 
@@ -517,7 +517,7 @@ mod tests {
 
     #[test]
     fn chinese_remainder_theorem_works() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         // This guarantees p and q are coprime and not equal.
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         assert!(p != q);
@@ -537,7 +537,7 @@ mod tests {
 
     #[test]
     fn chinese_remainder_theorem_integers_must_be_in_range() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
 
         // This guarantees p and q are coprime and not equal.
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
@@ -590,7 +590,7 @@ mod tests {
 
     #[test]
     fn chinese_remainder_theorem_moduli_must_be_coprime() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
 
         // This guarantees p and q are coprime and not equal.
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
@@ -651,7 +651,7 @@ mod tests {
 
     #[test]
     fn test_blum_modulus_proof_elements_roundtrip() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let pbelement = random_pbmpe(&mut rng);
         let buf = bincode::serialize(&pbelement).unwrap();
         let roundtrip_pbelement: PiModProofElements = bincode::deserialize(&buf).unwrap();
@@ -660,9 +660,9 @@ mod tests {
 
     #[test]
     fn test_blum_modulus_roundtrip() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
+
         let w = random_big_number(&mut rng);
-        let mut rng = crate::utils::get_test_rng();
         let num_elements = rng.next_u64() as u8;
         let elements = (0..num_elements)
             .map(|_| random_pbmpe(&mut rng))
@@ -689,7 +689,7 @@ mod tests {
 
     #[test]
     fn pimod_proof_verifies() {
-        let mut rng = get_test_rng();
+        let mut rng = init_testing();
         let (proof, input) = random_pimod_proof(&mut rng);
         let mut transcript = Transcript::new(b"PiMod Test");
         assert!(proof.verify(&input, &mut transcript).is_ok());
@@ -697,7 +697,7 @@ mod tests {
 
     #[test]
     fn pimod_proof_requires_correct_number_of_elements_for_soundness() {
-        let mut rng = get_test_rng();
+        let mut rng = init_testing();
 
         let transform = |proof: &PiModProof| {
             // Remove iterations from the proof

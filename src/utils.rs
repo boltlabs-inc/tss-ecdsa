@@ -238,16 +238,15 @@ pub(crate) fn k256_order() -> BigNumber {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_log::test;
+    use crate::utils::testing::init_testing;
 
     #[test]
     fn test_random_bn_in_range() {
+        let mut rng = init_testing();
         // Statistical tests -- should generate random numbers that are long enough
-
         let mut max_len = 0;
         let num_bytes = 100;
 
-        let mut rng = get_test_rng();
         for _ in 0..1000 {
             let bn = random_plusminus_by_size(&mut rng, num_bytes * 8);
             let len = bn.to_bytes().len();
@@ -261,6 +260,7 @@ mod tests {
 
     #[test]
     fn test_bn_to_scalar_neg() {
+        let _rng = init_testing();
         let neg1 = BigNumber::zero() - BigNumber::one();
 
         let scalar = bn_to_scalar(&neg1).unwrap();
@@ -271,18 +271,50 @@ mod tests {
 ////////////////////////////
 // Test Utility Functions //
 ////////////////////////////
-#[cfg(test)]
-use rand::{
-    rngs::{OsRng, StdRng},
-    SeedableRng,
-};
+
 /// Returns an rng to be used for testing. This will print the rng seed
 /// to stderr so that if a test fails, the failing seed can be recovered
 /// and used for debugging.
 #[cfg(test)]
-pub(crate) fn get_test_rng() -> StdRng {
-    let mut seeder = OsRng;
-    let seed = seeder.gen();
-    eprintln!("seed: {seed:?}");
-    StdRng::from_seed(seed)
+pub(crate) mod testing {
+    use rand::{
+        rngs::{OsRng, StdRng},
+        Rng, SeedableRng,
+    };
+    use tracing_subscriber::{
+        filter::Targets, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
+    };
+
+    /// Returns an rng to be used for testing. This will print the rng seed
+    /// to stderr so that if a test fails, the failing seed can be recovered
+    /// and used for debugging.
+    fn init_rng() -> StdRng {
+        let mut seeder = OsRng;
+        let seed = seeder.gen();
+        eprintln!("seed: {seed:?}");
+        StdRng::from_seed(seed)
+    }
+
+    /// Initialize any test necessary for our tests. This should be called at
+    /// the top of all our tests. This function is idempotent.
+    pub(crate) fn init_testing() -> StdRng {
+        let logging_level = EnvFilter::from_default_env()
+            .max_level_hint()
+            .unwrap()
+            .into_level()
+            .unwrap();
+
+        // Only capture logging events from lock_keeper crates.
+        let targets = Targets::new().with_target("tss_ecdsa", logging_level);
+        let stdout_layer = tracing_subscriber::fmt::layer()
+            .pretty()
+            .with_filter(targets);
+
+        // It's okay if this fails. It just means logging has already been set up for
+        // this thread.
+        let _ = tracing_subscriber::registry().with(stdout_layer).try_init();
+
+        // Return RNG
+        init_rng()
+    }
 }

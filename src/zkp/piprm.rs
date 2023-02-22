@@ -167,9 +167,8 @@ impl Proof for PiPrmProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::paillier::DecryptionKey;
+    use crate::{paillier::DecryptionKey, utils::testing::init_testing};
     use rand::Rng;
-    use test_log::test;
 
     fn random_ring_pedersen_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
@@ -184,7 +183,7 @@ mod tests {
 
     #[test]
     fn piprm_proof_verifies() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (input, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
         let mut transcript = Transcript::new(b"PiPrmProof");
         proof.verify(&input, &mut transcript)
@@ -192,7 +191,7 @@ mod tests {
 
     #[test]
     fn piprm_proof_serializes() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (input, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
         let serialized = bincode::serialize(&proof).unwrap();
         let deserialized: PiPrmProof = bincode::deserialize(&serialized).unwrap();
@@ -203,7 +202,7 @@ mod tests {
 
     #[test]
     fn incorrect_lengths_fails() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (input, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
         // Validate that the proof is okay.
         let mut transcript = Transcript::new(b"PiPrmProof");
@@ -267,7 +266,7 @@ mod tests {
 
     #[test]
     fn bad_secret_exponent_fails() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (input, proof, _, totient) = random_ring_pedersen_proof(&mut rng)?;
         let bad_lambda = random_positive_bn(&mut rng, &totient);
         let secrets = PiPrmSecret::new(bad_lambda, totient);
@@ -284,7 +283,7 @@ mod tests {
 
     #[test]
     fn bad_secret_totient_fails() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (input, proof, lambda, _) = random_ring_pedersen_proof(&mut rng)?;
         let bad_totient = random_positive_bn(&mut rng, input.modulus());
         let secrets = PiPrmSecret::new(lambda, bad_totient);
@@ -300,7 +299,8 @@ mod tests {
 
     #[test]
     fn incorrect_ring_pedersen_fails() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
+
         let (input, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
         let (bad_input, _, _, _) = random_ring_pedersen_proof(&mut rng)?;
         let mut transcript = Transcript::new(b"PiPrmProof");
@@ -313,7 +313,8 @@ mod tests {
 
     #[test]
     fn invalid_values_fails() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
+
         let (input, proof, _, _) = random_ring_pedersen_proof(&mut rng)?;
         for i in 0..SOUNDNESS {
             let mut bad_proof = proof.clone();

@@ -46,9 +46,9 @@ openssl = "0.10"
 reqwest = { version = "0.11", features = ["json"] }
 rocket = { version = "0.5.0-rc", default-features = false, features = ["json"] }
 rug = { version = "1.16", default-features = false, features = ["integer", "rand"] }
-test-log = { version = "0.2.11", features = ["trace"]}
 tracing = {version = "0.1", default-features = false}
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+#tracing-subscriber = {version = "0.3", default-features = false, features = ["env-filter", "fmt"]}
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tokio = { version = "1", features = ["full"] }
 
 [[bench]]

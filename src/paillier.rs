@@ -369,12 +369,11 @@ pub(crate) mod prime_gen {
 mod test {
     use libpaillier::unknown_order::BigNumber;
     use rand::{CryptoRng, Rng, RngCore};
-    use test_log::test;
 
     use crate::{
         paillier::Ciphertext,
         parameters::PRIME_BITS,
-        utils::{get_test_rng, random_plusminus},
+        utils::{random_plusminus, testing::init_testing},
     };
 
     use super::{prime_gen, DecryptionKey, EncryptionKey};
@@ -382,7 +381,8 @@ mod test {
     #[test]
     #[ignore = "sometimes slow in debug mode"]
     fn get_random_safe_prime_512_produces_safe_primes() {
-        let mut rng = get_test_rng();
+        let mut rng = init_testing();
+
         let p = prime_gen::get_random_safe_prime(&mut rng);
         assert!(p.is_prime());
         let q: BigNumber = (p - 1) / 2;
@@ -391,8 +391,7 @@ mod test {
 
     #[test]
     fn paillier_keygen_produces_good_primes() {
-        let mut rng = get_test_rng();
-
+        let mut rng = init_testing();
         let (decryption_key, p, q) = DecryptionKey::new(&mut rng).unwrap();
 
         assert!(p.is_prime());
@@ -414,6 +413,7 @@ mod test {
     #[test]
     #[ignore = "slow"]
     fn paillier_keygen_always_produces_good_primes() {
+        let _rng = init_testing();
         for _ in 0..100 {
             paillier_keygen_produces_good_primes()
         }
@@ -429,7 +429,7 @@ mod test {
 
     #[test]
     fn paillier_encryption_works() {
-        let mut rng = get_test_rng();
+        let mut rng = init_testing();
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let encryption_key = decryption_key.encryption_key();
 
@@ -453,7 +453,7 @@ mod test {
 
     #[test]
     fn pailler_decryption_requires_correct_key() {
-        let mut rng = get_test_rng();
+        let mut rng = init_testing();
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let encryption_key = decryption_key.encryption_key();
 
@@ -469,9 +469,10 @@ mod test {
 
     #[test]
     fn pailler_encryption_requires_input_in_Zn() {
+        let mut rng = init_testing();
+
         // Specifically, the integers mod N must be in the interval around 0.
         // So, inputs in the range [-N/2, N/2] are acceptable, but not [0, N).
-        let mut rng = get_test_rng();
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let encryption_key = decryption_key.encryption_key();
 
@@ -500,7 +501,7 @@ mod test {
 
     #[test]
     fn paillier_encryption_generates_unique_nonces() {
-        let mut rng = get_test_rng();
+        let mut rng = init_testing();
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let encryption_key = decryption_key.encryption_key();
 
@@ -521,7 +522,7 @@ mod test {
 
     #[test]
     fn paillier_ciphertext_bits_matter() {
-        let mut rng = get_test_rng();
+        let mut rng = init_testing();
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let encryption_key = decryption_key.encryption_key();
 
@@ -559,7 +560,7 @@ mod test {
 
     #[test]
     fn half_ns_match() {
-        let mut rng = get_test_rng();
+        let mut rng = init_testing();
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let encryption_key = decryption_key.encryption_key();
 

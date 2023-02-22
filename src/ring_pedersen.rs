@@ -310,13 +310,13 @@ impl RingPedersen {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::{get_test_rng, random_plusminus_by_size};
+    use crate::utils::{random_plusminus_by_size, testing::init_testing};
 
     use super::*;
 
     #[test]
     fn verified_ring_pedersen_generation_works() -> Result<()> {
-        let mut rng = get_test_rng();
+        let mut rng = init_testing();
         let scheme = VerifiedRingPedersen::gen(&mut rng)?;
         assert!(scheme.verify().is_ok());
         Ok(())
@@ -324,7 +324,7 @@ mod tests {
 
     #[test]
     fn mixing_verified_ring_pedersen_scheme_and_proof_fails() -> Result<()> {
-        let mut rng = get_test_rng();
+        let mut rng = init_testing();
         // Mixing a proof from one scheme with another should fail.
         let scheme0 = VerifiedRingPedersen::gen(&mut rng)?;
         let scheme1 = VerifiedRingPedersen::gen(&mut rng)?;
@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn ring_pedersen_commitments_work() -> Result<()> {
-        let mut rng = get_test_rng();
+        let mut rng = init_testing();
         let scheme = VerifiedRingPedersen::gen(&mut rng)?;
         let value = random_plusminus_by_size(&mut rng, 256);
         let (c, r) = scheme.scheme().commit(&value, 256, &mut rng);
@@ -349,7 +349,7 @@ mod tests {
 
     #[test]
     fn mixing_ring_pedersen_commitments_fails() -> Result<()> {
-        let mut rng = get_test_rng();
+        let mut rng = init_testing();
         let scheme = VerifiedRingPedersen::gen(&mut rng)?;
         let value0 = random_plusminus_by_size(&mut rng, 256);
         let value1 = random_plusminus_by_size(&mut rng, 256);

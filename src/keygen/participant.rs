@@ -559,10 +559,9 @@ fn new_keyshare<R: RngCore + CryptoRng>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Identifier;
+    use crate::{utils::testing::init_testing, Identifier};
     use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
-    use test_log::test;
     use tracing::debug;
 
     impl KeygenParticipant {
@@ -675,6 +674,8 @@ mod tests {
     // This test is cheap. Try a bunch of message permutations to decrease error
     // likelihood
     fn keygen_always_produces_valid_outputs() -> Result<()> {
+        let _rng = init_testing();
+
         for _ in 0..20 {
             keygen_produces_valid_outputs()?;
         }
@@ -683,7 +684,7 @@ mod tests {
     #[test]
     fn keygen_produces_valid_outputs() -> Result<()> {
         let QUORUM_SIZE = 3;
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let mut quorum = KeygenParticipant::new_quorum(QUORUM_SIZE, &mut rng)?;
         let mut inboxes = HashMap::new();
         let mut main_storages: Vec<Storage> = vec![];

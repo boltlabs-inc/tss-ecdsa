@@ -294,8 +294,11 @@ impl Proof for PiAffgProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{paillier::DecryptionKey, utils::random_plusminus_by_size_with_minimum};
-    use test_log::test;
+    use crate::{
+        paillier::DecryptionKey,
+        utils::{random_plusminus_by_size_with_minimum, testing::init_testing},
+    };
+
     fn random_paillier_affg_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
         x: &BigNumber,
@@ -336,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_paillier_affg_proof() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
 
         let x_small = random_plusminus_by_size(&mut rng, ELL);
         let y_small = random_plusminus_by_size(&mut rng, ELL_PRIME);

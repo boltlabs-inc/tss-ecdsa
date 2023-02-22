@@ -228,7 +228,7 @@ fn sqrt(num: &BigNumber) -> BigNumber {
 
 #[cfg(test)]
 mod tests {
-    use crate::paillier::prime_gen;
+    use crate::{paillier::prime_gen, utils::testing::init_testing};
 
     use super::*;
 
@@ -248,7 +248,7 @@ mod tests {
 
     #[test]
     fn test_no_small_factors_proof() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (input, proof) = random_no_small_factors_proof(&mut rng)?;
         let mut transcript = Transcript::new(b"PiFac Test");
         proof.verify(&input, &mut transcript)?;
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_no_small_factors_proof_negative_cases() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (input, proof) = random_no_small_factors_proof(&mut rng)?;
 
         {
@@ -337,7 +337,7 @@ mod tests {
     // Make sure the bytes representations for BigNum and BigInt
     // didn't change in a way that would mess up the sqrt funtion
     fn test_bignum_bigint_byte_representation() -> Result<()> {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (p0, q0) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
 
         let num = &p0 * &q0;

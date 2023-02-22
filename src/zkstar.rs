@@ -106,12 +106,11 @@ impl ZStarNUnverified {
 
 #[cfg(test)]
 mod test {
-    use crate::{paillier::DecryptionKey, zkstar::*};
-    use test_log::test;
+    use crate::{paillier::DecryptionKey, utils::testing::init_testing, zkstar::*};
 
     #[test]
     fn zkstar_verification_works() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (_, p, q) = DecryptionKey::new(&mut rng).unwrap();
         let builder = ZStarNBuilder::new(&p * &q);
 
@@ -124,9 +123,10 @@ mod test {
         let zstar_verifies_one = builder.validate(value_verifies_one);
         assert!(zstar_verifies_one.is_ok());
     }
+
     #[test]
     fn zkstar_constructor_rejects_elements_outside_group() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (_, p, q) = DecryptionKey::new(&mut rng).unwrap();
         let builder = ZStarNBuilder::new(&p * &q);
 
@@ -153,7 +153,7 @@ mod test {
     }
     #[test]
     fn randomly_sample_element_in_zkstar_works() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (_, p, q) = DecryptionKey::new(&mut rng).unwrap();
         let builder = ZStarNBuilder::new(&p * &q);
         let zstar = ZStarN::random_element(&builder, &mut rng);
@@ -161,7 +161,7 @@ mod test {
     }
     #[test]
     fn zkstar_serialization_deserialization_works() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
         let (_, p, q) = DecryptionKey::new(&mut rng).unwrap();
         let builder = ZStarNBuilder::new(&p * &q);
 
@@ -177,7 +177,8 @@ mod test {
     }
     #[test]
     fn zkstar_rejects_deserialized_elements_outside_group() {
-        let mut rng = crate::utils::get_test_rng();
+        let mut rng = init_testing();
+
         let (_, p, q) = DecryptionKey::new(&mut rng).unwrap();
         let builder = ZStarNBuilder::new(&p * &q);
 
