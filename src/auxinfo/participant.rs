@@ -478,33 +478,24 @@ impl AuxInfoParticipant {
 
         if keyshare_done {
             for oid in self.other_participant_ids.iter() {
-                let keyshare_bytes =
-                    self.storage
-                        .retrieve(StorableType::AuxInfoPublic, message.id(), *oid)?;
-                main_storage.store(
+                self.storage.transfer(
+                    main_storage,
                     StorableType::AuxInfoPublic,
                     message.id(),
                     *oid,
-                    &keyshare_bytes,
                 )?;
             }
-            let my_pk_bytes =
-                self.storage
-                    .retrieve(StorableType::AuxInfoPublic, message.id(), self.id)?;
-            let my_sk_bytes =
-                self.storage
-                    .retrieve(StorableType::AuxInfoPrivate, message.id(), self.id)?;
-            main_storage.store(
+            self.storage.transfer(
+                main_storage,
                 StorableType::AuxInfoPublic,
                 message.id(),
                 self.id,
-                &my_pk_bytes,
             )?;
-            main_storage.store(
+            self.storage.transfer(
+                main_storage,
                 StorableType::AuxInfoPrivate,
                 message.id(),
                 self.id,
-                &my_sk_bytes,
             )?;
         }
         Ok(vec![])

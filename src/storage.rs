@@ -97,6 +97,19 @@ impl Storage {
         })
     }
 
+    /// Transfers an entry stored in `self` to [`Storage`] specified by `other`.
+    pub(crate) fn transfer(
+        &self,
+        other: &mut Self,
+        storable_type: StorableType,
+        identifier: Identifier,
+        participant: ParticipantIdentifier,
+    ) -> Result<()> {
+        let bytes = self.retrieve(storable_type, identifier, participant)?;
+        other.store(storable_type, identifier, participant, &bytes)?;
+        Ok(())
+    }
+
     pub(crate) fn delete(
         &mut self,
         storable_type: StorableType,
