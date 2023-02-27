@@ -419,7 +419,11 @@ impl AuxInfoParticipant {
         // We can't handle this message unless we already calculated the global_rid
         if self
             .storage
-            .retrieve::<[u8; 32]>(StorableType::AuxInfoGlobalRid, message.id(), self.id)
+            .retrieve::<StorableType, [u8; 32]>(
+                StorableType::AuxInfoGlobalRid,
+                message.id(),
+                self.id,
+            )
             .is_err()
         {
             self.stash_message(message)?;
@@ -459,20 +463,20 @@ impl AuxInfoParticipant {
 
         if keyshare_done {
             for oid in self.other_participant_ids.iter() {
-                self.storage.transfer::<AuxInfoPublic>(
+                self.storage.transfer::<StorableType, AuxInfoPublic>(
                     main_storage,
                     StorableType::AuxInfoPublic,
                     message.id(),
                     *oid,
                 )?;
             }
-            self.storage.transfer::<AuxInfoPublic>(
+            self.storage.transfer::<StorableType, AuxInfoPublic>(
                 main_storage,
                 StorableType::AuxInfoPublic,
                 message.id(),
                 self.id,
             )?;
-            self.storage.transfer::<AuxInfoPrivate>(
+            self.storage.transfer::<StorableType, AuxInfoPrivate>(
                 main_storage,
                 StorableType::AuxInfoPrivate,
                 message.id(),

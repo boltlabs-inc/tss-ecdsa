@@ -14,7 +14,7 @@ use crate::{
         InternalError::{self, CouldNotConvertToScalar, RetryFailed},
         Result,
     },
-    storage::{StorableType, Storage},
+    storage::{Storable, StorableType, Storage},
     Identifier, Message, ParticipantIdentifier,
 };
 use generic_array::GenericArray;
@@ -317,14 +317,14 @@ pub(crate) fn get_other_participants_public_auxinfo(
     Ok(hm)
 }
 
-pub(crate) fn process_ready_message(
+pub(crate) fn process_ready_message<T: Storable>(
     self_id: ParticipantIdentifier,
     other_ids: &[ParticipantIdentifier],
     storage: &mut Storage,
     message: &Message,
-    storable_type: StorableType,
+    storable_type: T,
 ) -> Result<(Vec<Message>, bool)> {
-    storage.store::<[u8; 0]>(storable_type, message.id(), message.from(), &[])?;
+    storage.store::<T, [u8; 0]>(storable_type, message.id(), message.from(), &[])?;
 
     let mut messages = vec![];
 

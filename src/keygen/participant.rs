@@ -435,7 +435,11 @@ impl KeygenParticipant {
         // We can't handle this message unless we already calculated the global_rid
         if self
             .storage
-            .retrieve::<[u8; 32]>(StorableType::KeygenGlobalRid, message.id(), self.id)
+            .retrieve::<StorableType, [u8; 32]>(
+                StorableType::KeygenGlobalRid,
+                message.id(),
+                self.id,
+            )
             .is_err()
         {
             self.stash_message(message)?;
@@ -474,20 +478,20 @@ impl KeygenParticipant {
 
         if keyshare_done {
             for oid in self.other_participant_ids.iter() {
-                self.storage.transfer::<KeySharePublic>(
+                self.storage.transfer::<StorableType, KeySharePublic>(
                     main_storage,
                     StorableType::PublicKeyshare,
                     message.id(),
                     *oid,
                 )?;
             }
-            self.storage.transfer::<KeySharePublic>(
+            self.storage.transfer::<StorableType, KeySharePublic>(
                 main_storage,
                 StorableType::PublicKeyshare,
                 message.id(),
                 self.id,
             )?;
-            self.storage.transfer::<KeySharePrivate>(
+            self.storage.transfer::<StorableType, KeySharePrivate>(
                 main_storage,
                 StorableType::PrivateKeyshare,
                 message.id(),

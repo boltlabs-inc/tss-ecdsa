@@ -635,7 +635,7 @@ impl PresignParticipant {
         // If we have not yet started round three, stash the message for later
         let r3_started = self
             .storage
-            .retrieve::<RoundThreePrivate>(
+            .retrieve::<StorableType, RoundThreePrivate>(
                 StorableType::PresignRoundThreePrivate,
                 message.id(),
                 self.id,

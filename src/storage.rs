@@ -47,19 +47,23 @@ pub(crate) enum StorableType {
     BroadcastSet,
 }
 
+impl Storable for StorableType {}
+
 /// A message that can be posted to (and read from) the broadcast channel
-#[derive(Debug, Serialize, Deserialize)]
-struct StorableIndex {
-    storable_type: StorableType,
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+struct StorableIndex<T: Storable> {
+    storable_type: T,
     /// The unique identifier associated with this stored value
     identifier: Identifier,
     // The participant identifier that this storable is associated with
     participant: ParticipantIdentifier,
 }
 
-impl Storable for StorableIndex {}
+impl<T: Storable> Storable for StorableIndex<T> {}
 
-pub(crate) trait Storable: Serialize + Debug {}
+/// If a type implements `Storable` then it can be stored as an index into
+/// [`Storage`].
+pub(crate) trait Storable: Serialize + Copy + Debug {}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct Storage(HashMap<Vec<u8>, Vec<u8>>);
@@ -71,9 +75,9 @@ impl Storage {
 
     /// Stores `val` in its serialied form, using `storable_type`, `identifier`,
     /// and `associated_partipant_id` as the key.
-    pub(crate) fn store<S: Serialize>(
+    pub(crate) fn store<T: Storable, S: Serialize>(
         &mut self,
-        storable_type: StorableType,
+        storable_type: T,
         identifier: Identifier,
         associated_participant_id: ParticipantIdentifier,
         val: &S,
@@ -88,9 +92,9 @@ impl Storage {
 
     /// Retrieves an item in its deserialized form, using `storable_type`,
     /// `identifier`, and `associated_partipant_id` as the key.
-    pub(crate) fn retrieve<D: DeserializeOwned>(
+    pub(crate) fn retrieve<T: Storable, D: DeserializeOwned>(
         &self,
-        storable_type: StorableType,
+        storable_type: T,
         identifier: Identifier,
         participant: ParticipantIdentifier,
     ) -> Result<D> {
@@ -102,21 +106,21 @@ impl Storage {
     }
 
     /// Transfers an entry stored in `self` to [`Storage`] specified by `other`.
-    pub(crate) fn transfer<T: Serialize + DeserializeOwned>(
+    pub(crate) fn transfer<T: Storable, D: Serialize + DeserializeOwned>(
         &self,
         other: &mut Self,
-        storable_type: StorableType,
+        storable_type: T,
         identifier: Identifier,
         participant: ParticipantIdentifier,
     ) -> Result<()> {
-        let data: T = self.retrieve(storable_type, identifier, participant)?;
+        let data: D = self.retrieve(storable_type, identifier, participant)?;
         other.store(storable_type, identifier, participant, &data)?;
         Ok(())
     }
 
-    pub(crate) fn delete(
+    pub(crate) fn delete<T: Storable>(
         &mut self,
-        storable_type: StorableType,
+        storable_type: T,
         identifier: Identifier,
         participant: ParticipantIdentifier,
     ) -> Result<Vec<u8>> {
@@ -127,11 +131,11 @@ impl Storage {
         })
     }
 
-    pub(crate) fn contains_batch(
+    pub(crate) fn contains_batch<T: Storable>(
         &self,
-        type_and_id: &[(StorableType, Identifier, ParticipantIdentifier)],
+        type_and_id: &[(T, Identifier, ParticipantIdentifier)],
     ) -> Result<bool> {
-        let storable_indices: Vec<StorableIndex> = type_and_id
+        let storable_indices: Vec<StorableIndex<T>> = type_and_id
             .iter()
             .map(|(t, identifier, participant)| StorableIndex {
                 storable_type: *t,
@@ -144,13 +148,13 @@ impl Storage {
 
     /// Check if storage contains entries for a given StorableType for each
     /// listed ParticipantIdentifier (in the same sid)
-    pub(crate) fn contains_for_all_ids(
+    pub(crate) fn contains_for_all_ids<T: Storable>(
         &self,
-        s_type: StorableType,
+        s_type: T,
         sid: Identifier,
         participants: &[ParticipantIdentifier],
     ) -> Result<bool> {
-        let fetch: Vec<(StorableType, Identifier, ParticipantIdentifier)> = participants
+        let fetch: Vec<(T, Identifier, ParticipantIdentifier)> = participants
             .iter()
             .map(|participant| (s_type, sid, *participant))
             .collect();
