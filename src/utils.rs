@@ -312,7 +312,7 @@ pub(crate) fn get_other_participants_public_auxinfo(
             identifier,
             other_participant_id,
         )?;
-        let _ = hm.insert(other_participant_id, deserialize!(&val)?);
+        let _ = hm.insert(other_participant_id, val);
     }
     Ok(hm)
 }
@@ -324,7 +324,7 @@ pub(crate) fn process_ready_message(
     message: &Message,
     storable_type: StorableType,
 ) -> Result<(Vec<Message>, bool)> {
-    storage.store(storable_type, message.id(), message.from(), &[])?;
+    storage.store(storable_type, message.id(), message.from(), b"")?;
 
     let mut messages = vec![];
 

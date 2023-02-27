@@ -10,7 +10,7 @@ use crate::{
     errors::{InternalError, Result},
     protocol::{Identifier, ParticipantIdentifier},
 };
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 /////////////////////////
@@ -69,44 +69,48 @@ impl Storage {
         Self(HashMap::new())
     }
 
-    pub(crate) fn store(
+    /// Stores `val` in its serialied form, using `storable_type`, `identifier`,
+    /// and `associated_partipant_id` as the key.
+    pub(crate) fn store<S: Serialize>(
         &mut self,
         storable_type: StorableType,
         identifier: Identifier,
         associated_participant_id: ParticipantIdentifier,
-        val: &[u8],
+        val: &S,
     ) -> Result<()> {
         let storable_index = StorableIndex {
             storable_type,
             identifier,
             participant: associated_participant_id,
         };
-        self.store_index(storable_index, val)
+        self.store_index(storable_index, &serialize!(&val)?)
     }
 
-    pub(crate) fn retrieve(
+    /// Retrieves an item in its deserialized form, using `storable_type`,
+    /// `identifier`, and `associated_partipant_id` as the key.
+    pub(crate) fn retrieve<D: DeserializeOwned>(
         &self,
         storable_type: StorableType,
         identifier: Identifier,
         participant: ParticipantIdentifier,
-    ) -> Result<Vec<u8>> {
-        self.retrieve_index(StorableIndex {
+    ) -> Result<D> {
+        deserialize!(&self.retrieve_index(StorableIndex {
             storable_type,
             identifier,
             participant,
-        })
+        })?)
     }
 
     /// Transfers an entry stored in `self` to [`Storage`] specified by `other`.
-    pub(crate) fn transfer(
+    pub(crate) fn transfer<T: Serialize + DeserializeOwned>(
         &self,
         other: &mut Self,
         storable_type: StorableType,
         identifier: Identifier,
         participant: ParticipantIdentifier,
     ) -> Result<()> {
-        let bytes = self.retrieve(storable_type, identifier, participant)?;
-        other.store(storable_type, identifier, participant, &bytes)?;
+        let data: T = self.retrieve(storable_type, identifier, participant)?;
+        other.store(storable_type, identifier, participant, &data)?;
         Ok(())
     }
 

@@ -47,6 +47,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{error, info, instrument};
 
+use super::round_two;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct PresignParticipant {
     /// A unique identifier for this participant
@@ -235,7 +237,7 @@ impl PresignParticipant {
             StorableType::PresignRoundOnePrivate,
             message.id(),
             self.id,
-            &serialize!(&private)?,
+            &private,
         )?;
 
         // Publish public round one value to all other participants on the channel
@@ -299,11 +301,12 @@ impl PresignParticipant {
             return Err(InternalError::IncorrectBroadcastMessageTag);
         }
         let message = &broadcast_message.msg;
+        let public_broadcast: RoundOnePublicBroadcast = deserialize!(&message.unverified_bytes)?;
         self.storage.store(
             StorableType::PresignRoundOnePublicBroadcast,
             message.id(),
             message.from(),
-            &message.unverified_bytes,
+            &public_broadcast,
         )?;
 
         // Check to see if we have already stored the other part of round one. If so,
@@ -397,18 +400,18 @@ impl PresignParticipant {
             .ok_or(InternalInvariantFailed)?;
 
         // Get this participant's round 1 private value
-        let r1_priv: RoundOnePrivate = deserialize!(&self.storage.retrieve(
+        let r1_priv: RoundOnePrivate = self.storage.retrieve(
             StorableType::PresignRoundOnePrivate,
             message.id(),
-            message.to()
-        )?)?;
+            message.to(),
+        )?;
 
         // Get the round one message broadcasted by this sender
-        let r1_public_broadcast: RoundOnePublicBroadcast = deserialize!(&self.storage.retrieve(
+        let r1_public_broadcast: RoundOnePublicBroadcast = self.storage.retrieve(
             StorableType::PresignRoundOnePublicBroadcast,
             message.id(),
-            message.from()
-        )?)?;
+            message.from(),
+        )?;
 
         let r1_public = crate::round_one::Public::from_message(
             message,
@@ -422,7 +425,7 @@ impl PresignParticipant {
             StorableType::PresignRoundOnePublic,
             message.id(),
             message.from(),
-            &serialize!(&r1_public)?,
+            &r1_public,
         )?;
 
         let (r2_priv_ij, r2_pub_ij) =
@@ -433,7 +436,7 @@ impl PresignParticipant {
             StorableType::PresignRoundTwoPrivate,
             message.id(),
             message.from(),
-            &serialize!(&r2_priv_ij)?,
+            &r2_priv_ij,
         )?;
 
         let out_message = Message::new(
@@ -569,11 +572,9 @@ impl PresignParticipant {
         )?;
 
         // Get this participant's round 1 private value
-        let r1_priv = deserialize!(&self.storage.retrieve(
-            StorableType::PresignRoundOnePrivate,
-            message.id(),
-            self.id
-        )?)?;
+        let r1_priv =
+            self.storage
+                .retrieve(StorableType::PresignRoundOnePrivate, message.id(), self.id)?;
 
         let (r3_private, r3_publics_map) =
             keyshare.round_three(rng, &r1_priv, &round_three_hashmap)?;
@@ -583,7 +584,7 @@ impl PresignParticipant {
             StorableType::PresignRoundThreePrivate,
             message.id(),
             self.id,
-            &serialize!(&r3_private)?,
+            &r3_private,
         )?;
 
         // Publish public r3 values to all other participants on the channel
@@ -634,7 +635,7 @@ impl PresignParticipant {
         // If we have not yet started round three, stash the message for later
         let r3_started = self
             .storage
-            .retrieve(
+            .retrieve::<RoundThreePrivate>(
                 StorableType::PresignRoundThreePrivate,
                 message.id(),
                 self.id,
@@ -675,11 +676,11 @@ impl PresignParticipant {
         let r3_pubs = self.get_other_participants_round_three_publics(message.id())?;
 
         // Get this participant's round 3 private value
-        let r3_private: RoundThreePrivate = deserialize!(&self.storage.retrieve(
+        let r3_private: RoundThreePrivate = self.storage.retrieve(
             StorableType::PresignRoundThreePrivate,
             message.id(),
-            self.id
-        )?)?;
+            self.id,
+        )?;
 
         // Check consistency across all Gamma values
         for r3_pub in r3_pubs.iter() {
@@ -717,46 +718,46 @@ impl PresignParticipant {
         auxinfo_identifier: Identifier,
         keyshare_identifier: Identifier,
     ) -> Result<()> {
-        let receiver_auxinfo_public = deserialize!(&main_storage.retrieve(
+        let receiver_auxinfo_public = main_storage.retrieve(
             StorableType::AuxInfoPublic,
             auxinfo_identifier,
-            message.to()
-        )?)?;
-        let sender_auxinfo_public = deserialize!(&main_storage.retrieve(
+            message.to(),
+        )?;
+        let sender_auxinfo_public = main_storage.retrieve(
             StorableType::AuxInfoPublic,
             auxinfo_identifier,
-            message.from()
-        )?)?;
-        let sender_keyshare_public = deserialize!(&main_storage.retrieve(
+            message.from(),
+        )?;
+        let sender_keyshare_public = main_storage.retrieve(
             StorableType::PublicKeyshare,
             keyshare_identifier,
-            message.from()
-        )?)?;
-        let receiver_r1_private = deserialize!(&self.storage.retrieve(
+            message.from(),
+        )?;
+        let receiver_r1_private = self.storage.retrieve(
             StorableType::PresignRoundOnePrivate,
             message.id(),
-            message.to()
-        )?)?;
-        let sender_r1_public_broadcast = deserialize!(&self.storage.retrieve(
+            message.to(),
+        )?;
+        let sender_r1_public_broadcast = self.storage.retrieve(
             StorableType::PresignRoundOnePublicBroadcast,
             message.id(),
             message.from(),
-        )?)?;
+        )?;
 
-        let message_bytes = serialize!(&crate::round_two::Public::from_message(
+        let round_two_public = crate::round_two::Public::from_message(
             message,
             &receiver_auxinfo_public,
             &sender_auxinfo_public,
             &sender_keyshare_public,
             &receiver_r1_private,
             &sender_r1_public_broadcast,
-        )?)?;
+        )?;
 
         self.storage.store(
             StorableType::PresignRoundTwoPublic,
             message.id(),
             message.from(),
-            &message_bytes,
+            &round_two_public,
         )?;
 
         Ok(())
@@ -769,34 +770,34 @@ impl PresignParticipant {
         message: &Message,
         auxinfo_identifier: Identifier,
     ) -> Result<()> {
-        let receiver_auxinfo_public = deserialize!(&main_storage.retrieve(
+        let receiver_auxinfo_public = main_storage.retrieve(
             StorableType::AuxInfoPublic,
             auxinfo_identifier,
-            message.to()
-        )?)?;
-        let sender_auxinfo_public = deserialize!(&main_storage.retrieve(
+            message.to(),
+        )?;
+        let sender_auxinfo_public = main_storage.retrieve(
             StorableType::AuxInfoPublic,
             auxinfo_identifier,
-            message.from()
-        )?)?;
-        let sender_r1_public_broadcast = deserialize!(&self.storage.retrieve(
+            message.from(),
+        )?;
+        let sender_r1_public_broadcast = self.storage.retrieve(
             StorableType::PresignRoundOnePublicBroadcast,
             message.id(),
-            message.from()
-        )?)?;
+            message.from(),
+        )?;
 
-        let message_bytes = serialize!(&crate::round_three::Public::from_message(
+        let public_message = crate::round_three::Public::from_message(
             message,
             &receiver_auxinfo_public,
             &sender_auxinfo_public,
             &sender_r1_public_broadcast,
-        )?)?;
+        )?;
 
         self.storage.store(
             StorableType::PresignRoundThreePublic,
             message.id(),
             message.from(),
-            &message_bytes,
+            &public_message,
         )?;
 
         Ok(())
@@ -838,17 +839,17 @@ impl PresignParticipant {
 
         let mut hm = HashMap::new();
         for other_participant_id in self.other_participant_ids.clone() {
-            let auxinfo_public = main_storage.retrieve(
+            let auxinfo_public: AuxInfoPublic = main_storage.retrieve(
                 StorableType::AuxInfoPublic,
                 auxinfo_identifier,
                 other_participant_id,
             )?;
-            let round_two_private = self.storage.retrieve(
+            let r2_private: round_two::Private = self.storage.retrieve(
                 StorableType::PresignRoundTwoPrivate,
                 identifier,
                 other_participant_id,
             )?;
-            let round_two_public = self.storage.retrieve(
+            let r2_public: round_two::Public = self.storage.retrieve(
                 StorableType::PresignRoundTwoPublic,
                 identifier,
                 other_participant_id,
@@ -856,9 +857,9 @@ impl PresignParticipant {
             let _ = hm.insert(
                 other_participant_id,
                 RoundThreeInput {
-                    auxinfo_public: deserialize!(&auxinfo_public)?,
-                    r2_private: deserialize!(&round_two_private)?,
-                    r2_public: deserialize!(&round_two_public)?,
+                    auxinfo_public,
+                    r2_private,
+                    r2_public,
                 },
             );
         }
@@ -885,11 +886,11 @@ impl PresignParticipant {
             .other_participant_ids
             .iter()
             .map(|other_participant_id| {
-                let r3pub = deserialize!(&self.storage.retrieve(
+                let r3pub = self.storage.retrieve(
                     StorableType::PresignRoundThreePublic,
                     identifier,
                     *other_participant_id,
-                )?)?;
+                )?;
                 Ok(r3pub)
             })
             .collect::<Result<Vec<crate::round_three::Public>>>()?;
@@ -905,26 +906,26 @@ pub(crate) fn get_keyshare(
 ) -> Result<PresignKeyShareAndInfo> {
     // Reconstruct keyshare from local storage
     let keyshare_and_info = PresignKeyShareAndInfo {
-        aux_info_private: deserialize!(&storage.retrieve(
+        aux_info_private: storage.retrieve(
             StorableType::AuxInfoPrivate,
             auxinfo_identifier,
-            self_id
-        )?)?,
-        aux_info_public: deserialize!(&storage.retrieve(
+            self_id,
+        )?,
+        aux_info_public: storage.retrieve(
             StorableType::AuxInfoPublic,
             auxinfo_identifier,
-            self_id
-        )?)?,
-        keyshare_private: deserialize!(&storage.retrieve(
+            self_id,
+        )?,
+        keyshare_private: storage.retrieve(
             StorableType::PrivateKeyshare,
             keyshare_identifier,
-            self_id
-        )?)?,
-        keyshare_public: deserialize!(&storage.retrieve(
+            self_id,
+        )?,
+        keyshare_public: storage.retrieve(
             StorableType::PublicKeyshare,
             keyshare_identifier,
-            self_id
-        )?)?,
+            self_id,
+        )?,
     };
     Ok(keyshare_and_info)
 }

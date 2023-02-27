@@ -168,14 +168,10 @@ impl BroadcastParticipant {
     ) -> Result<Option<BroadcastOutput>> {
         info!("Processing broadcast vote.");
 
-        let mut message_votes: HashMap<BroadcastIndex, Vec<u8>> =
-            match self
-                .storage
-                .retrieve(StorableType::BroadcastSet, sid, self.id())
-            {
-                Ok(a) => deserialize!(&a)?,
-                Err(_) => HashMap::new(),
-            };
+        let mut message_votes: HashMap<BroadcastIndex, Vec<u8>> = self
+            .storage
+            .retrieve(StorableType::BroadcastSet, sid, self.id())
+            .unwrap_or(HashMap::new());
         // if not already in database, store. else, ignore
         let idx = BroadcastIndex {
             tag: data.tag.clone(),
@@ -187,12 +183,8 @@ impl BroadcastParticipant {
         }
         let _ = message_votes.insert(idx, data.data.clone());
 
-        self.storage.store(
-            StorableType::BroadcastSet,
-            sid,
-            self.id(),
-            &serialize!(&message_votes)?,
-        )?;
+        self.storage
+            .store(StorableType::BroadcastSet, sid, self.id(), &message_votes)?;
 
         // check if we've received all the votes for this tag||leader yet
         let mut redispersed_messages: Vec<Vec<u8>> = vec![];

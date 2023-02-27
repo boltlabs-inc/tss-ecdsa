@@ -31,21 +31,17 @@ pub(crate) trait ProtocolParticipant {
     fn id(&self) -> ParticipantIdentifier;
 
     fn stash_message(&mut self, message: &Message) -> Result<()> {
-        let mut message_storage =
-            match self
-                .storage()
-                .retrieve(StorableType::MessageQueue, message.id(), self.id())
-            {
-                Err(_) => MessageQueue::new(),
-                Ok(message_storage_bytes) => deserialize!(&message_storage_bytes)?,
-            };
+        let mut message_storage: MessageQueue = self
+            .storage()
+            .retrieve(StorableType::MessageQueue, message.id(), self.id())
+            .unwrap_or(MessageQueue::new());
         message_storage.store(message.message_type(), message.id(), message.clone())?;
         let my_id = self.id();
         self.storage_mut().store(
             StorableType::MessageQueue,
             message.id(),
             my_id,
-            &serialize!(&message_storage)?,
+            &message_storage,
         )?;
         Ok(())
     }
@@ -74,57 +70,37 @@ pub(crate) trait ProtocolParticipant {
     }
 
     fn get_message_queue(&mut self, sid: Identifier) -> Result<MessageQueue> {
-        let message_storage =
-            match self
-                .storage()
-                .retrieve(StorableType::MessageQueue, sid, self.id())
-            {
-                Err(_) => MessageQueue::new(),
-                Ok(message_storage_bytes) => deserialize!(&message_storage_bytes)?,
-            };
+        let message_storage: MessageQueue = self
+            .storage()
+            .retrieve(StorableType::MessageQueue, sid, self.id())
+            .unwrap_or(MessageQueue::new());
         Ok(message_storage)
     }
 
     fn write_message_queue(&mut self, sid: Identifier, message_queue: MessageQueue) -> Result<()> {
         let my_id = self.id();
-        self.storage_mut().store(
-            StorableType::MessageQueue,
-            sid,
-            my_id,
-            &serialize!(&message_queue)?,
-        )
+        self.storage_mut()
+            .store(StorableType::MessageQueue, sid, my_id, &message_queue)
     }
 
     fn write_progress(&mut self, func_name: String, sid: Identifier) -> Result<()> {
-        let mut progress_storage =
-            match self
-                .storage()
-                .retrieve(StorableType::ProgressStore, sid, self.id())
-            {
-                Err(_) => HashMap::new(),
-                Ok(progress_storage_bytes) => deserialize!(&progress_storage_bytes)?,
-            };
+        let mut progress_storage: HashMap<Vec<u8>, bool> = self
+            .storage()
+            .retrieve(StorableType::ProgressStore, sid, self.id())
+            .unwrap_or(HashMap::new());
         let key = serialize!(&ProgressIndex { func_name, sid })?;
         let _ = progress_storage.insert(key, true);
         let my_id = self.id();
-        self.storage_mut().store(
-            StorableType::ProgressStore,
-            sid,
-            my_id,
-            &serialize!(&progress_storage)?,
-        )?;
+        self.storage_mut()
+            .store(StorableType::ProgressStore, sid, my_id, &progress_storage)?;
         Ok(())
     }
 
     fn read_progress(&self, func_name: String, sid: Identifier) -> Result<bool> {
-        let progress_storage =
-            match self
-                .storage()
-                .retrieve(StorableType::ProgressStore, sid, self.id())
-            {
-                Err(_) => HashMap::<Vec<u8>, bool>::new(),
-                Ok(progress_storage_bytes) => deserialize!(&progress_storage_bytes)?,
-            };
+        let progress_storage: HashMap<Vec<u8>, bool> = self
+            .storage()
+            .retrieve(StorableType::ProgressStore, sid, self.id())
+            .unwrap_or(HashMap::new());
         let key = serialize!(&ProgressIndex { func_name, sid })?;
         let result = match progress_storage.get(&key) {
             None => false,

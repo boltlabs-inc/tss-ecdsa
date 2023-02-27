@@ -133,7 +133,7 @@ impl Participant {
                         StorableType::PresignRecord,
                         message.id(),
                         self.id,
-                        &serialize!(&presign_record)?,
+                        &presign_record,
                     )?;
                 }
 
@@ -231,11 +231,9 @@ impl Participant {
     #[instrument(skip_all, err(Debug))]
     pub fn get_public_keyshare(&self, identifier: Identifier) -> Result<CurvePoint> {
         info!("Retrieving our associated public keyshare.");
-        let keyshare_public: KeySharePublic = deserialize!(&self.main_storage.retrieve(
-            StorableType::PublicKeyshare,
-            identifier,
-            self.id,
-        )?)?;
+        let keyshare_public: KeySharePublic =
+            self.main_storage
+                .retrieve(StorableType::PublicKeyshare, identifier, self.id)?;
         Ok(keyshare_public.X)
     }
 
@@ -249,10 +247,9 @@ impl Participant {
     ) -> Result<SignatureShare> {
         info!("Issuing signature with presign record.");
 
-        let pr_bytes =
+        let presign_record: PresignRecord =
             self.main_storage
                 .retrieve(StorableType::PresignRecord, presign_identifier, self.id)?;
-        let presign_record: PresignRecord = deserialize!(&pr_bytes)?;
         let (r, s) = presign_record.sign(digest)?;
         let ret = SignatureShare { r: Some(r), s };
 

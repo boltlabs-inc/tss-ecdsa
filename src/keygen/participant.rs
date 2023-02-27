@@ -154,13 +154,13 @@ impl KeygenParticipant {
             StorableType::PrivateKeyshare,
             message.id(),
             self.id,
-            &serialize!(&keyshare_private)?,
+            &keyshare_private,
         )?;
         self.storage.store(
             StorableType::PublicKeyshare,
             message.id(),
             self.id,
-            &serialize!(&keyshare_public)?,
+            &keyshare_public,
         )?;
 
         let q = crate::utils::k256_order();
@@ -176,18 +176,14 @@ impl KeygenParticipant {
         let com_bytes = &serialize!(&com)?;
 
         self.storage
-            .store(StorableType::KeygenCommit, message.id(), self.id, com_bytes)?;
-        self.storage.store(
-            StorableType::KeygenDecommit,
-            message.id(),
-            self.id,
-            &serialize!(&decom)?,
-        )?;
+            .store(StorableType::KeygenCommit, message.id(), self.id, &com)?;
+        self.storage
+            .store(StorableType::KeygenDecommit, message.id(), self.id, &decom)?;
         self.storage.store(
             StorableType::KeygenSchnorrPrecom,
             message.id(),
             self.id,
-            &serialize!(&sch_precom)?,
+            &sch_precom,
         )?;
 
         let messages = self.broadcast(
@@ -214,12 +210,11 @@ impl KeygenParticipant {
             return Err(InternalError::IncorrectBroadcastMessageTag);
         }
         let message = &broadcast_message.msg;
-        let message_bytes = serialize!(&KeygenCommit::from_message(message)?)?;
         self.storage.store(
             StorableType::KeygenCommit,
             message.id(),
             message.from(),
-            &message_bytes,
+            &KeygenCommit::from_message(message)?,
         )?;
 
         // check if we've received all the commits.
@@ -268,9 +263,10 @@ impl KeygenParticipant {
         }
 
         // retreive your decom from storage
-        let decom_bytes =
+        let decom: KeygenDecommit =
             self.storage
                 .retrieve(StorableType::KeygenDecommit, message.id(), self.id)?;
+        let decom_bytes = serialize!(&decom)?;
         let more_messages: Vec<Message> = self
             .other_participant_ids
             .iter()
@@ -310,16 +306,15 @@ impl KeygenParticipant {
             return Ok(vec![]);
         }
         let decom = KeygenDecommit::from_message(message)?;
-        let com_bytes =
+        let com: KeygenCommit =
             self.storage
                 .retrieve(StorableType::KeygenCommit, message.id(), message.from())?;
-        let com: KeygenCommit = deserialize!(&com_bytes)?;
         decom.verify(&message.id(), &message.from(), &com)?;
         self.storage.store(
             StorableType::KeygenDecommit,
             message.id(),
             message.from(),
-            &serialize!(&decom)?,
+            &decom,
         )?;
 
         // check if we've received all the decommits
@@ -360,19 +355,17 @@ impl KeygenParticipant {
             .other_participant_ids
             .iter()
             .map(|&other_participant_id| {
-                let decom: KeygenDecommit = deserialize!(&self.storage.retrieve(
+                let decom: KeygenDecommit = self.storage.retrieve(
                     StorableType::KeygenDecommit,
                     message.id(),
-                    other_participant_id
-                )?)?;
+                    other_participant_id,
+                )?;
                 Ok(decom.rid)
             })
             .collect::<Result<Vec<[u8; 32]>>>()?;
-        let my_decom: KeygenDecommit = deserialize!(&self.storage.retrieve(
-            StorableType::KeygenDecommit,
-            message.id(),
-            self.id
-        )?)?;
+        let my_decom: KeygenDecommit =
+            self.storage
+                .retrieve(StorableType::KeygenDecommit, message.id(), self.id)?;
         let mut global_rid = my_decom.rid;
         // xor all the rids together. In principle, many different options for combining
         // these should be okay
@@ -385,31 +378,25 @@ impl KeygenParticipant {
             StorableType::KeygenGlobalRid,
             message.id(),
             self.id,
-            &serialize!(&global_rid)?,
+            &global_rid,
         )?;
 
         let mut transcript = Transcript::new(b"keygen schnorr");
         transcript.append_message(b"rid", &serialize!(&global_rid)?);
-        let precom: PiSchPrecommit = deserialize!(&self.storage.retrieve(
-            StorableType::KeygenSchnorrPrecom,
-            message.id(),
-            self.id
-        )?)?;
+        let precom: PiSchPrecommit =
+            self.storage
+                .retrieve(StorableType::KeygenSchnorrPrecom, message.id(), self.id)?;
 
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
-        let my_pk: KeySharePublic = deserialize!(&self.storage.retrieve(
-            StorableType::PublicKeyshare,
-            message.id(),
-            self.id
-        )?)?;
+        let my_pk: KeySharePublic =
+            self.storage
+                .retrieve(StorableType::PublicKeyshare, message.id(), self.id)?;
         let input = PiSchInput::new(&g, &q, &my_pk.X);
 
-        let my_sk: KeySharePrivate = deserialize!(&self.storage.retrieve(
-            StorableType::PrivateKeyshare,
-            message.id(),
-            self.id
-        )?)?;
+        let my_sk: KeySharePrivate =
+            self.storage
+                .retrieve(StorableType::PrivateKeyshare, message.id(), self.id)?;
 
         let proof = PiSchProof::prove_from_precommit(
             &precom,
@@ -448,23 +435,19 @@ impl KeygenParticipant {
         // We can't handle this message unless we already calculated the global_rid
         if self
             .storage
-            .retrieve(StorableType::KeygenGlobalRid, message.id(), self.id)
+            .retrieve::<[u8; 32]>(StorableType::KeygenGlobalRid, message.id(), self.id)
             .is_err()
         {
             self.stash_message(message)?;
             return Ok(vec![]);
         }
         let proof = PiSchProof::from_message(message)?;
-        let global_rid: [u8; 32] = deserialize!(&self.storage.retrieve(
-            StorableType::KeygenGlobalRid,
-            message.id(),
-            self.id
-        )?)?;
-        let decom: KeygenDecommit = deserialize!(&self.storage.retrieve(
-            StorableType::KeygenDecommit,
-            message.id(),
-            message.from()
-        )?)?;
+        let global_rid: [u8; 32] =
+            self.storage
+                .retrieve(StorableType::KeygenGlobalRid, message.id(), self.id)?;
+        let decom: KeygenDecommit =
+            self.storage
+                .retrieve(StorableType::KeygenDecommit, message.id(), message.from())?;
 
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
@@ -479,7 +462,7 @@ impl KeygenParticipant {
             StorableType::PublicKeyshare,
             message.id(),
             message.from(),
-            &serialize!(&keyshare)?,
+            &keyshare,
         )?;
 
         //check if we've stored all the public keyshares
@@ -491,20 +474,20 @@ impl KeygenParticipant {
 
         if keyshare_done {
             for oid in self.other_participant_ids.iter() {
-                self.storage.transfer(
+                self.storage.transfer::<KeySharePublic>(
                     main_storage,
                     StorableType::PublicKeyshare,
                     message.id(),
                     *oid,
                 )?;
             }
-            self.storage.transfer(
+            self.storage.transfer::<KeySharePublic>(
                 main_storage,
                 StorableType::PublicKeyshare,
                 message.id(),
                 self.id,
             )?;
-            self.storage.transfer(
+            self.storage.transfer::<KeySharePrivate>(
                 main_storage,
                 StorableType::PrivateKeyshare,
                 message.id(),
@@ -672,12 +655,12 @@ mod tests {
             let player_id = player.id;
             let mut stored_values = vec![];
             for main_storage in main_storages.iter() {
-                let pk_bytes = main_storage.retrieve(
+                let pk: KeySharePublic = main_storage.retrieve(
                     StorableType::PublicKeyshare,
                     keyshare_identifier,
                     player_id,
                 )?;
-                stored_values.push(pk_bytes);
+                stored_values.push(serialize!(&pk)?);
             }
             let base = stored_values.pop();
             while !stored_values.is_empty() {
@@ -691,16 +674,16 @@ mod tests {
             let player = quorum.get(index).unwrap();
             let player_id = player.id;
             let main_storage = main_storages.get(index).unwrap();
-            let pk: KeySharePublic = deserialize!(&main_storage.retrieve(
+            let pk: KeySharePublic = main_storage.retrieve(
                 StorableType::PublicKeyshare,
                 keyshare_identifier,
-                player_id
-            )?)?;
-            let sk: KeySharePrivate = deserialize!(&main_storage.retrieve(
+                player_id,
+            )?;
+            let sk: KeySharePrivate = main_storage.retrieve(
                 StorableType::PrivateKeyshare,
                 keyshare_identifier,
-                player_id
-            )?)?;
+                player_id,
+            )?;
             let g = CurvePoint::GENERATOR;
             let X = CurvePoint(g.0 * crate::utils::bn_to_scalar(&sk.x)?);
             assert!(X == pk.X);
