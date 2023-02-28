@@ -6,15 +6,14 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use std::collections::HashMap;
-
+use crate::auxinfo::participant::StorageType as AuxInfoStorageType;
 use crate::{
     auxinfo::info::AuxInfoPublic,
     errors::{
         InternalError::{self, CouldNotConvertToScalar, RetryFailed},
         Result,
     },
-    storage::{Storable, StorableType, Storage},
+    storage::{Storable, Storage},
     Identifier, Message, ParticipantIdentifier,
 };
 use generic_array::GenericArray;
@@ -26,6 +25,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::HashMap;
 
 pub(crate) const CRYPTOGRAPHIC_RETRY_MAX: usize = 500usize;
 
@@ -278,13 +278,13 @@ mod tests {
 
 /// Errors unless there is one storable_type for each other participant in the
 /// quorum.
-pub(crate) fn has_collected_all_of_others(
+pub(crate) fn has_collected_all_of_others<T: Storable>(
     other_ids: &[ParticipantIdentifier],
     storage: &Storage,
-    storable_type: StorableType,
+    storable_type: T,
     identifier: Identifier,
 ) -> Result<bool> {
-    let indices: Vec<(StorableType, Identifier, ParticipantIdentifier)> = other_ids
+    let indices: Vec<(T, Identifier, ParticipantIdentifier)> = other_ids
         .iter()
         .map(|participant_id| (storable_type, identifier, *participant_id))
         .collect();
@@ -301,17 +301,13 @@ pub(crate) fn get_other_participants_public_auxinfo(
     storage: &Storage,
     identifier: Identifier,
 ) -> Result<HashMap<ParticipantIdentifier, AuxInfoPublic>> {
-    if !has_collected_all_of_others(other_ids, storage, StorableType::AuxInfoPublic, identifier)? {
+    if !has_collected_all_of_others(other_ids, storage, AuxInfoStorageType::Public, identifier)? {
         return Err(InternalError::StorageItemNotFound);
     }
 
     let mut hm = HashMap::new();
     for &other_participant_id in other_ids {
-        let val = storage.retrieve(
-            StorableType::AuxInfoPublic,
-            identifier,
-            other_participant_id,
-        )?;
+        let val = storage.retrieve(AuxInfoStorageType::Public, identifier, other_participant_id)?;
         let _ = hm.insert(other_participant_id, val);
     }
     Ok(hm)

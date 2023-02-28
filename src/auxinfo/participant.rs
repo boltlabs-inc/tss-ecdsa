@@ -6,6 +6,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use super::info::{AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses};
 use crate::{
     auxinfo::{
         auxinfo_commit::{AuxInfoCommit, AuxInfoDecommit},
@@ -19,14 +20,26 @@ use crate::{
     protocol::ParticipantIdentifier,
     ring_pedersen::VerifiedRingPedersen,
     run_only_once,
-    storage::{StorableType, Storage},
+    storage::{Storable, Storage},
     utils::process_ready_message,
 };
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, instrument};
 
-use super::info::{AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses};
+/// Storage identifiers for the auxinfo protocol.
+#[derive(Clone, Copy, Debug, Serialize)]
+pub(crate) enum StorageType {
+    Ready,
+    Private,
+    Public,
+    Commit,
+    Decommit,
+    GlobalRid,
+    Witnesses,
+}
+
+impl Storable for StorageType {}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct AuxInfoParticipant {
@@ -124,7 +137,7 @@ impl AuxInfoParticipant {
             &self.other_participant_ids,
             &mut self.storage,
             message,
-            StorableType::AuxInfoReady,
+            StorageType::Ready,
         )?;
 
         if is_ready {
@@ -146,19 +159,15 @@ impl AuxInfoParticipant {
 
         let (auxinfo_private, auxinfo_public, auxinfo_witnesses) = new_auxinfo(rng)?;
         self.storage.store(
-            StorableType::AuxInfoPrivate,
+            StorageType::Private,
             message.id(),
             self.id,
             &auxinfo_private,
         )?;
+        self.storage
+            .store(StorageType::Public, message.id(), self.id, &auxinfo_public)?;
         self.storage.store(
-            StorableType::AuxInfoPublic,
-            message.id(),
-            self.id,
-            &auxinfo_public,
-        )?;
-        self.storage.store(
-            StorableType::AuxInfoWitnesses,
+            StorageType::Witnesses,
             message.id(),
             self.id,
             &auxinfo_witnesses,
@@ -169,9 +178,9 @@ impl AuxInfoParticipant {
         let com_bytes = &serialize!(&com)?;
 
         self.storage
-            .store(StorableType::AuxInfoCommit, message.id(), self.id, &com)?;
+            .store(StorageType::Commit, message.id(), self.id, &com)?;
         self.storage
-            .store(StorableType::AuxInfoDecommit, message.id(), self.id, &decom)?;
+            .store(StorageType::Decommit, message.id(), self.id, &decom)?;
 
         let messages = self.broadcast(
             rng,
@@ -198,7 +207,7 @@ impl AuxInfoParticipant {
         }
         let message = &broadcast_message.msg;
         self.storage.store(
-            StorableType::AuxInfoCommit,
+            StorageType::Commit,
             message.id(),
             message.from(),
             &AuxInfoCommit::from_message(message)?,
@@ -206,7 +215,7 @@ impl AuxInfoParticipant {
 
         // check if we've received all the commits.
         let r1_done = self.storage.contains_for_all_ids(
-            StorableType::AuxInfoCommit,
+            StorageType::Commit,
             message.id(),
             &self.other_participant_ids.clone(),
         )?;
@@ -240,7 +249,7 @@ impl AuxInfoParticipant {
         info!("Generating round two auxinfo messages.");
 
         // check that we've generated our public info before trying to retrieve it
-        let fetch = vec![(StorableType::AuxInfoPublic, message.id(), self.id)];
+        let fetch = vec![(StorageType::Public, message.id(), self.id)];
         let public_keyshare_generated = self.storage.contains_batch(&fetch)?;
         let mut messages = vec![];
         if !public_keyshare_generated {
@@ -252,7 +261,7 @@ impl AuxInfoParticipant {
         // retrieve your decom from storage
         let decom: AuxInfoDecommit =
             self.storage
-                .retrieve(StorableType::AuxInfoDecommit, message.id(), self.id)?;
+                .retrieve(StorageType::Decommit, message.id(), self.id)?;
         let decom_bytes = serialize!(&decom)?;
         let more_messages: Vec<Message> = self
             .other_participant_ids
@@ -284,7 +293,7 @@ impl AuxInfoParticipant {
         // We must receive all commitments in round 1 before we start processing
         // decommits in round 2.
         let r1_done = self.storage.contains_for_all_ids(
-            StorableType::AuxInfoCommit,
+            StorageType::Commit,
             message.id(),
             &[self.other_participant_ids.clone(), vec![self.id]].concat(),
         )?;
@@ -298,18 +307,14 @@ impl AuxInfoParticipant {
 
         let com: AuxInfoCommit =
             self.storage
-                .retrieve(StorableType::AuxInfoCommit, message.id(), message.from())?;
+                .retrieve(StorageType::Commit, message.id(), message.from())?;
         decom.verify(&message.id(), &message.from(), &com)?;
-        self.storage.store(
-            StorableType::AuxInfoDecommit,
-            message.id(),
-            message.from(),
-            &decom,
-        )?;
+        self.storage
+            .store(StorageType::Decommit, message.id(), message.from(), &decom)?;
 
         // check if we've received all the decommits
         let r2_done = self.storage.contains_for_all_ids(
-            StorableType::AuxInfoDecommit,
+            StorageType::Decommit,
             message.id(),
             &self.other_participant_ids.clone(),
         )?;
@@ -346,7 +351,7 @@ impl AuxInfoParticipant {
             .iter()
             .map(|&other_participant_id| {
                 let decom: AuxInfoDecommit = self.storage.retrieve(
-                    StorableType::AuxInfoDecommit,
+                    StorageType::Decommit,
                     message.id(),
                     other_participant_id,
                 )?;
@@ -355,10 +360,10 @@ impl AuxInfoParticipant {
             .collect::<Result<Vec<[u8; 32]>>>()?;
         let my_decom: AuxInfoDecommit =
             self.storage
-                .retrieve(StorableType::AuxInfoDecommit, message.id(), self.id)?;
+                .retrieve(StorageType::Decommit, message.id(), self.id)?;
         let my_public: AuxInfoPublic =
             self.storage
-                .retrieve(StorableType::AuxInfoPublic, message.id(), self.id)?;
+                .retrieve(StorageType::Public, message.id(), self.id)?;
 
         let mut global_rid = my_decom.rid;
         // xor all the rids together. In principle, many different options for combining
@@ -368,16 +373,12 @@ impl AuxInfoParticipant {
                 global_rid[i] ^= rid[i];
             }
         }
-        self.storage.store(
-            StorableType::AuxInfoGlobalRid,
-            message.id(),
-            self.id,
-            &global_rid,
-        )?;
+        self.storage
+            .store(StorageType::GlobalRid, message.id(), self.id, &global_rid)?;
 
         let witness: AuxInfoWitnesses =
             self.storage
-                .retrieve(StorableType::AuxInfoWitnesses, message.id(), self.id)?;
+                .retrieve(StorageType::Witnesses, message.id(), self.id)?;
 
         let proof = AuxInfoProof::prove(
             rng,
@@ -419,11 +420,7 @@ impl AuxInfoParticipant {
         // We can't handle this message unless we already calculated the global_rid
         if self
             .storage
-            .retrieve::<StorableType, [u8; 32]>(
-                StorableType::AuxInfoGlobalRid,
-                message.id(),
-                self.id,
-            )
+            .retrieve::<StorageType, [u8; 32]>(StorageType::GlobalRid, message.id(), self.id)
             .is_err()
         {
             self.stash_message(message)?;
@@ -432,10 +429,10 @@ impl AuxInfoParticipant {
 
         let global_rid: [u8; 32] =
             self.storage
-                .retrieve(StorableType::AuxInfoGlobalRid, message.id(), self.id)?;
+                .retrieve(StorageType::GlobalRid, message.id(), self.id)?;
         let decom: AuxInfoDecommit =
             self.storage
-                .retrieve(StorableType::AuxInfoDecommit, message.id(), message.from())?;
+                .retrieve(StorageType::Decommit, message.id(), message.from())?;
 
         let auxinfo_pub = decom.get_pk();
 
@@ -448,7 +445,7 @@ impl AuxInfoParticipant {
         )?;
 
         self.storage.store(
-            StorableType::AuxInfoPublic,
+            StorageType::Public,
             message.id(),
             message.from(),
             &auxinfo_pub,
@@ -456,29 +453,29 @@ impl AuxInfoParticipant {
 
         //check if we've stored all the public auxinfo_pubs
         let keyshare_done = self.storage.contains_for_all_ids(
-            StorableType::AuxInfoPublic,
+            StorageType::Public,
             message.id(),
             &[self.other_participant_ids.clone(), vec![self.id]].concat(),
         )?;
 
         if keyshare_done {
             for oid in self.other_participant_ids.iter() {
-                self.storage.transfer::<StorableType, AuxInfoPublic>(
+                self.storage.transfer::<StorageType, AuxInfoPublic>(
                     main_storage,
-                    StorableType::AuxInfoPublic,
+                    StorageType::Public,
                     message.id(),
                     *oid,
                 )?;
             }
-            self.storage.transfer::<StorableType, AuxInfoPublic>(
+            self.storage.transfer::<StorageType, AuxInfoPublic>(
                 main_storage,
-                StorableType::AuxInfoPublic,
+                StorageType::Public,
                 message.id(),
                 self.id,
             )?;
-            self.storage.transfer::<StorableType, AuxInfoPrivate>(
+            self.storage.transfer::<StorageType, AuxInfoPrivate>(
                 main_storage,
-                StorableType::AuxInfoPrivate,
+                StorageType::Private,
                 message.id(),
                 self.id,
             )?;
@@ -554,10 +551,10 @@ mod tests {
         pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<bool> {
             let mut fetch = vec![];
             for participant in self.other_participant_ids.clone() {
-                fetch.push((StorableType::AuxInfoPublic, auxinfo_identifier, participant));
+                fetch.push((StorageType::Public, auxinfo_identifier, participant));
             }
-            fetch.push((StorableType::AuxInfoPublic, auxinfo_identifier, self.id));
-            fetch.push((StorableType::AuxInfoPrivate, auxinfo_identifier, self.id));
+            fetch.push((StorageType::Public, auxinfo_identifier, self.id));
+            fetch.push((StorageType::Private, auxinfo_identifier, self.id));
 
             self.storage.contains_batch(&fetch)
         }
@@ -659,11 +656,8 @@ mod tests {
             let player_id = player.id;
             let mut stored_values = vec![];
             for main_storage in main_storages.iter() {
-                let pk: AuxInfoPublic = main_storage.retrieve(
-                    StorableType::AuxInfoPublic,
-                    keyshare_identifier,
-                    player_id,
-                )?;
+                let pk: AuxInfoPublic =
+                    main_storage.retrieve(StorageType::Public, keyshare_identifier, player_id)?;
                 stored_values.push(serialize!(&pk)?);
             }
             let base = stored_values.pop();
@@ -678,16 +672,10 @@ mod tests {
             let player = quorum.get(index).unwrap();
             let player_id = player.id;
             let main_storage = main_storages.get(index).unwrap();
-            let pk: AuxInfoPublic = main_storage.retrieve(
-                StorableType::AuxInfoPublic,
-                keyshare_identifier,
-                player_id,
-            )?;
-            let sk: AuxInfoPrivate = main_storage.retrieve(
-                StorableType::AuxInfoPrivate,
-                keyshare_identifier,
-                player_id,
-            )?;
+            let pk: AuxInfoPublic =
+                main_storage.retrieve(StorageType::Public, keyshare_identifier, player_id)?;
+            let sk: AuxInfoPrivate =
+                main_storage.retrieve(StorageType::Private, keyshare_identifier, player_id)?;
             let pk2 = sk.sk.encryption_key();
             assert!(serialize!(&pk2) == serialize!(&pk.pk));
         }
