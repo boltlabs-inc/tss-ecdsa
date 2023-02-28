@@ -324,7 +324,7 @@ pub(crate) fn process_ready_message(
     message: &Message,
     storable_type: StorableType,
 ) -> Result<(Vec<Message>, bool)> {
-    storage.store(storable_type, message.id(), message.from(), b"")?;
+    storage.store::<[u8; 0]>(storable_type, message.id(), message.from(), &[])?;
 
     let mut messages = vec![];
 
