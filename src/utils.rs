@@ -6,9 +6,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::auxinfo::participant::StorageType as AuxInfoStorageType;
 use crate::{
-    auxinfo::info::AuxInfoPublic,
+    auxinfo::{info::AuxInfoPublic, participant::StorageType as AuxInfoStorageType},
     errors::{
         InternalError::{self, CouldNotConvertToScalar, RetryFailed},
         Result,

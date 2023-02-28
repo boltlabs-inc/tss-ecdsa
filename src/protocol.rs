@@ -8,9 +8,8 @@
 
 //! Contains the main protocol that is executed through a [Participant]
 
-use crate::auxinfo::participant::StorageType as AuxInfoStorageType;
 use crate::{
-    auxinfo::participant::AuxInfoParticipant,
+    auxinfo::participant::{AuxInfoParticipant, StorageType as AuxInfoStorageType},
     errors::{InternalError, Result},
     keygen::{keyshare::KeySharePublic, participant::KeygenParticipant},
     messages::{AuxinfoMessageType, KeygenMessageType, MessageType},

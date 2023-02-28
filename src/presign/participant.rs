@@ -6,9 +6,11 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::auxinfo::participant::StorageType as AuxInfoStorageType;
 use crate::{
-    auxinfo::info::{AuxInfoPrivate, AuxInfoPublic},
+    auxinfo::{
+        info::{AuxInfoPrivate, AuxInfoPublic},
+        participant::StorageType as AuxInfoStorageType,
+    },
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::{
         InternalError::{self, InternalInvariantFailed},
