@@ -19,11 +19,6 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 #[derive(Debug, Copy, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub(crate) enum StorableType {
-    KeygenReady,
-    KeygenCommit,
-    KeygenDecommit,
-    KeygenSchnorrPrecom,
-    KeygenGlobalRid,
     AuxInfoReady,
     AuxInfoPrivate,
     AuxInfoPublic,
