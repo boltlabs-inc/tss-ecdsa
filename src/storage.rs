@@ -19,24 +19,15 @@ use std::{collections::HashMap, fmt::Debug};
 
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(tag = "Main")]
-pub(crate) enum StorableType {
+pub(crate) enum MainStorageType {
     PrivateKeyshare,
     PublicKeyshare,
-    PresignReady,
-    PresignRoundOnePrivate,
-    PresignRoundOnePublic,
-    PresignRoundOnePublicBroadcast,
-    PresignRoundTwoPrivate,
-    PresignRoundTwoPublic,
-    PresignRoundThreePrivate,
-    PresignRoundThreePublic,
-    PresignRecord,
     MessageQueue,
     ProgressStore,
     BroadcastSet,
 }
 
-impl Storable for StorableType {}
+impl Storable for MainStorageType {}
 
 /// A message that can be posted to (and read from) the broadcast channel
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]

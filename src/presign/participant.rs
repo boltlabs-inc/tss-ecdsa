@@ -6,6 +6,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use super::round_two;
 use crate::{
     auxinfo::{
         info::{AuxInfoPrivate, AuxInfoPublic},
@@ -30,7 +31,7 @@ use crate::{
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
     },
     protocol::ParticipantIdentifier,
-    storage::{StorableType, Storage},
+    storage::{MainStorageType, Storable, Storage},
     utils::{
         bn_to_scalar, get_other_participants_public_auxinfo, has_collected_all_of_others,
         k256_order, process_ready_message, random_plusminus_by_size, random_positive_bn,
@@ -50,7 +51,22 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{error, info, instrument};
 
-use super::round_two;
+/// Storage identifiers for the presign protocol.
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(tag = "Presign")]
+pub(crate) enum StorageType {
+    Ready,
+    RoundOnePrivate,
+    RoundOnePublic,
+    RoundOnePublicBroadcast,
+    RoundTwoPrivate,
+    RoundTwoPublic,
+    RoundThreePrivate,
+    RoundThreePublic,
+    Record,
+}
+
+impl Storable for StorageType {}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct PresignParticipant {
@@ -161,7 +177,7 @@ impl PresignParticipant {
             &self.other_participant_ids,
             &mut self.storage,
             message,
-            StorableType::PresignReady,
+            StorageType::Ready,
         )?;
 
         if is_ready {
@@ -241,7 +257,7 @@ impl PresignParticipant {
 
         // Store private round one value locally
         self.storage.store(
-            StorableType::PresignRoundOnePrivate,
+            StorageType::RoundOnePrivate,
             message.id(),
             self.id,
             &private,
@@ -310,7 +326,7 @@ impl PresignParticipant {
         let message = &broadcast_message.msg;
         let public_broadcast: RoundOnePublicBroadcast = deserialize!(&message.unverified_bytes)?;
         self.storage.store(
-            StorableType::PresignRoundOnePublicBroadcast,
+            StorageType::RoundOnePublicBroadcast,
             message.id(),
             message.from(),
             &public_broadcast,
@@ -346,15 +362,11 @@ impl PresignParticipant {
         // in order to respond and have started round one
         let search_keys = [
             (
-                StorableType::PresignRoundOnePublicBroadcast,
+                StorageType::RoundOnePublicBroadcast,
                 message.id(),
                 message.from(),
             ),
-            (
-                StorableType::PresignRoundOnePrivate,
-                message.id(),
-                message.to(),
-            ),
+            (StorageType::RoundOnePrivate, message.id(), message.to()),
         ];
         if !self.storage.contains_batch(&search_keys)? {
             self.stash_message(message)?;
@@ -407,15 +419,13 @@ impl PresignParticipant {
             .ok_or(InternalInvariantFailed)?;
 
         // Get this participant's round 1 private value
-        let r1_priv: RoundOnePrivate = self.storage.retrieve(
-            StorableType::PresignRoundOnePrivate,
-            message.id(),
-            message.to(),
-        )?;
+        let r1_priv: RoundOnePrivate =
+            self.storage
+                .retrieve(StorageType::RoundOnePrivate, message.id(), message.to())?;
 
         // Get the round one message broadcasted by this sender
         let r1_public_broadcast: RoundOnePublicBroadcast = self.storage.retrieve(
-            StorableType::PresignRoundOnePublicBroadcast,
+            StorageType::RoundOnePublicBroadcast,
             message.id(),
             message.from(),
         )?;
@@ -429,7 +439,7 @@ impl PresignParticipant {
 
         // Store the round 1 public value
         self.storage.store(
-            StorableType::PresignRoundOnePublic,
+            StorageType::RoundOnePublic,
             message.id(),
             message.from(),
             &r1_public,
@@ -440,7 +450,7 @@ impl PresignParticipant {
 
         // Store the private value for this round 2 pair
         self.storage.store(
-            StorableType::PresignRoundTwoPrivate,
+            StorageType::RoundTwoPrivate,
             message.id(),
             message.from(),
             &r2_priv_ij,
@@ -483,11 +493,7 @@ impl PresignParticipant {
         info!("Handling round two presign message.");
 
         // First, check that the sender's Round One messages have been processed
-        let search_key = [(
-            StorableType::PresignRoundOnePublic,
-            message.id(),
-            message.from(),
-        )];
+        let search_key = [(StorageType::RoundOnePublic, message.id(), message.from())];
         if !self.storage.contains_batch(&search_key)? {
             self.stash_message(message)?;
             return Ok((None, vec![]));
@@ -521,13 +527,13 @@ impl PresignParticipant {
         let all_privates_received = has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
-            StorableType::PresignRoundTwoPrivate,
+            StorageType::RoundTwoPrivate,
             message.id(),
         )?;
         let all_publics_received = has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
-            StorableType::PresignRoundTwoPublic,
+            StorageType::RoundTwoPublic,
             message.id(),
         )?;
         if all_privates_received && all_publics_received {
@@ -579,16 +585,16 @@ impl PresignParticipant {
         )?;
 
         // Get this participant's round 1 private value
-        let r1_priv =
-            self.storage
-                .retrieve(StorableType::PresignRoundOnePrivate, message.id(), self.id)?;
+        let r1_priv = self
+            .storage
+            .retrieve(StorageType::RoundOnePrivate, message.id(), self.id)?;
 
         let (r3_private, r3_publics_map) =
             keyshare.round_three(rng, &r1_priv, &round_three_hashmap)?;
 
         // Store round 3 private value
         self.storage.store(
-            StorableType::PresignRoundThreePrivate,
+            StorageType::RoundThreePrivate,
             message.id(),
             self.id,
             &r3_private,
@@ -642,8 +648,8 @@ impl PresignParticipant {
         // If we have not yet started round three, stash the message for later
         let r3_started = self
             .storage
-            .retrieve::<StorableType, RoundThreePrivate>(
-                StorableType::PresignRoundThreePrivate,
+            .retrieve::<StorageType, RoundThreePrivate>(
+                StorageType::RoundThreePrivate,
                 message.id(),
                 self.id,
             )
@@ -662,7 +668,7 @@ impl PresignParticipant {
         if has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
-            StorableType::PresignRoundThreePublic,
+            StorageType::RoundThreePublic,
             message.id(),
         )? {
             presign_record_option = Some(self.do_presign_finish(message)?);
@@ -683,11 +689,9 @@ impl PresignParticipant {
         let r3_pubs = self.get_other_participants_round_three_publics(message.id())?;
 
         // Get this participant's round 3 private value
-        let r3_private: RoundThreePrivate = self.storage.retrieve(
-            StorableType::PresignRoundThreePrivate,
-            message.id(),
-            self.id,
-        )?;
+        let r3_private: RoundThreePrivate =
+            self.storage
+                .retrieve(StorageType::RoundThreePrivate, message.id(), self.id)?;
 
         // Check consistency across all Gamma values
         for r3_pub in r3_pubs.iter() {
@@ -733,17 +737,15 @@ impl PresignParticipant {
             message.from(),
         )?;
         let sender_keyshare_public = main_storage.retrieve(
-            StorableType::PublicKeyshare,
+            MainStorageType::PublicKeyshare,
             keyshare_identifier,
             message.from(),
         )?;
-        let receiver_r1_private = self.storage.retrieve(
-            StorableType::PresignRoundOnePrivate,
-            message.id(),
-            message.to(),
-        )?;
+        let receiver_r1_private =
+            self.storage
+                .retrieve(StorageType::RoundOnePrivate, message.id(), message.to())?;
         let sender_r1_public_broadcast = self.storage.retrieve(
-            StorableType::PresignRoundOnePublicBroadcast,
+            StorageType::RoundOnePublicBroadcast,
             message.id(),
             message.from(),
         )?;
@@ -758,7 +760,7 @@ impl PresignParticipant {
         )?;
 
         self.storage.store(
-            StorableType::PresignRoundTwoPublic,
+            StorageType::RoundTwoPublic,
             message.id(),
             message.from(),
             &round_two_public,
@@ -782,7 +784,7 @@ impl PresignParticipant {
             message.from(),
         )?;
         let sender_r1_public_broadcast = self.storage.retrieve(
-            StorableType::PresignRoundOnePublicBroadcast,
+            StorageType::RoundOnePublicBroadcast,
             message.id(),
             message.from(),
         )?;
@@ -795,7 +797,7 @@ impl PresignParticipant {
         )?;
 
         self.storage.store(
-            StorableType::PresignRoundThreePublic,
+            StorageType::RoundThreePublic,
             message.id(),
             message.from(),
             &public_message,
@@ -827,12 +829,12 @@ impl PresignParticipant {
         )? || !has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
-            StorableType::PresignRoundTwoPrivate,
+            StorageType::RoundTwoPrivate,
             identifier,
         )? || !has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
-            StorableType::PresignRoundTwoPublic,
+            StorageType::RoundTwoPublic,
             identifier,
         )? {
             return Err(InternalError::StorageItemNotFound);
@@ -846,12 +848,12 @@ impl PresignParticipant {
                 other_participant_id,
             )?;
             let r2_private: round_two::Private = self.storage.retrieve(
-                StorableType::PresignRoundTwoPrivate,
+                StorageType::RoundTwoPrivate,
                 identifier,
                 other_participant_id,
             )?;
             let r2_public: round_two::Public = self.storage.retrieve(
-                StorableType::PresignRoundTwoPublic,
+                StorageType::RoundTwoPublic,
                 identifier,
                 other_participant_id,
             )?;
@@ -878,7 +880,7 @@ impl PresignParticipant {
         if !has_collected_all_of_others(
             &self.other_participant_ids,
             &self.storage,
-            StorableType::PresignRoundThreePublic,
+            StorageType::RoundThreePublic,
             identifier,
         )? {
             return Err(InternalError::StorageItemNotFound);
@@ -888,7 +890,7 @@ impl PresignParticipant {
             .iter()
             .map(|other_participant_id| {
                 let r3pub = self.storage.retrieve(
-                    StorableType::PresignRoundThreePublic,
+                    StorageType::RoundThreePublic,
                     identifier,
                     *other_participant_id,
                 )?;
@@ -918,12 +920,12 @@ pub(crate) fn get_keyshare(
             self_id,
         )?,
         keyshare_private: storage.retrieve(
-            StorableType::PrivateKeyshare,
+            MainStorageType::PrivateKeyshare,
             keyshare_identifier,
             self_id,
         )?,
         keyshare_public: storage.retrieve(
-            StorableType::PublicKeyshare,
+            MainStorageType::PublicKeyshare,
             keyshare_identifier,
             self_id,
         )?,

@@ -12,7 +12,7 @@ use crate::{
     message_queue::MessageQueue,
     messages::{Message, MessageType},
     protocol::ParticipantIdentifier,
-    storage::{StorableType, Storage},
+    storage::{MainStorageType, Storage},
     Identifier,
 };
 use rand::{CryptoRng, RngCore};
@@ -113,12 +113,12 @@ pub(crate) trait ProtocolParticipant {
     fn stash_message(&mut self, message: &Message) -> Result<()> {
         let mut message_storage: MessageQueue = self
             .storage()
-            .retrieve(StorableType::MessageQueue, message.id(), self.id())
+            .retrieve(MainStorageType::MessageQueue, message.id(), self.id())
             .unwrap_or_default();
         message_storage.store(message.message_type(), message.id(), message.clone())?;
         let my_id = self.id();
         self.storage_mut().store(
-            StorableType::MessageQueue,
+            MainStorageType::MessageQueue,
             message.id(),
             my_id,
             &message_storage,
@@ -152,7 +152,7 @@ pub(crate) trait ProtocolParticipant {
     fn get_message_queue(&mut self, sid: Identifier) -> Result<MessageQueue> {
         let message_storage: MessageQueue = self
             .storage()
-            .retrieve(StorableType::MessageQueue, sid, self.id())
+            .retrieve(MainStorageType::MessageQueue, sid, self.id())
             .unwrap_or_default();
         Ok(message_storage)
     }
@@ -160,26 +160,30 @@ pub(crate) trait ProtocolParticipant {
     fn write_message_queue(&mut self, sid: Identifier, message_queue: MessageQueue) -> Result<()> {
         let my_id = self.id();
         self.storage_mut()
-            .store(StorableType::MessageQueue, sid, my_id, &message_queue)
+            .store(MainStorageType::MessageQueue, sid, my_id, &message_queue)
     }
 
     fn write_progress(&mut self, func_name: String, sid: Identifier) -> Result<()> {
         let mut progress_storage: HashMap<Vec<u8>, bool> = self
             .storage()
-            .retrieve(StorableType::ProgressStore, sid, self.id())
+            .retrieve(MainStorageType::ProgressStore, sid, self.id())
             .unwrap_or_default();
         let key = serialize!(&ProgressIndex { func_name, sid })?;
         let _ = progress_storage.insert(key, true);
         let my_id = self.id();
-        self.storage_mut()
-            .store(StorableType::ProgressStore, sid, my_id, &progress_storage)?;
+        self.storage_mut().store(
+            MainStorageType::ProgressStore,
+            sid,
+            my_id,
+            &progress_storage,
+        )?;
         Ok(())
     }
 
     fn read_progress(&self, func_name: String, sid: Identifier) -> Result<bool> {
         let progress_storage: HashMap<Vec<u8>, bool> = self
             .storage()
-            .retrieve(StorableType::ProgressStore, sid, self.id())
+            .retrieve(MainStorageType::ProgressStore, sid, self.id())
             .unwrap_or_default();
         let key = serialize!(&ProgressIndex { func_name, sid })?;
         let result = match progress_storage.get(&key) {

@@ -17,7 +17,7 @@ use crate::{
     participant::{Broadcast, ProcessOutcome, ProtocolParticipant},
     protocol::ParticipantIdentifier,
     run_only_once,
-    storage::{Storable, StorableType, Storage},
+    storage::{MainStorageType, Storable, Storage},
     utils::{k256_order, process_ready_message},
     zkp::pisch::{PiSchInput, PiSchPrecommit, PiSchProof, PiSchSecret},
     CurvePoint,
@@ -162,13 +162,13 @@ impl KeygenParticipant {
 
         let (keyshare_private, keyshare_public) = new_keyshare(rng)?;
         self.storage.store(
-            StorableType::PrivateKeyshare,
+            MainStorageType::PrivateKeyshare,
             message.id(),
             self.id,
             &keyshare_private,
         )?;
         self.storage.store(
-            StorableType::PublicKeyshare,
+            MainStorageType::PublicKeyshare,
             message.id(),
             self.id,
             &keyshare_public,
@@ -264,7 +264,7 @@ impl KeygenParticipant {
         info!("Generating round two keygen messages.");
 
         // check that we've generated our keyshare before trying to retrieve it
-        let fetch = vec![(StorableType::PublicKeyshare, message.id(), self.id)];
+        let fetch = vec![(MainStorageType::PublicKeyshare, message.id(), self.id)];
         let public_keyshare_generated = self.storage.contains_batch(&fetch)?;
         let mut messages = vec![];
         if !public_keyshare_generated {
@@ -394,12 +394,12 @@ impl KeygenParticipant {
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
         let my_pk: KeySharePublic =
             self.storage
-                .retrieve(StorableType::PublicKeyshare, message.id(), self.id)?;
+                .retrieve(MainStorageType::PublicKeyshare, message.id(), self.id)?;
         let input = PiSchInput::new(&g, &q, &my_pk.X);
 
         let my_sk: KeySharePrivate =
             self.storage
-                .retrieve(StorableType::PrivateKeyshare, message.id(), self.id)?;
+                .retrieve(MainStorageType::PrivateKeyshare, message.id(), self.id)?;
 
         let proof = PiSchProof::prove_from_precommit(
             &precom,
@@ -462,7 +462,7 @@ impl KeygenParticipant {
         proof.verify_with_transcript(&input, &transcript)?;
         let keyshare = decom.get_keyshare();
         self.storage.store(
-            StorableType::PublicKeyshare,
+            MainStorageType::PublicKeyshare,
             message.id(),
             message.from(),
             &keyshare,
@@ -470,29 +470,29 @@ impl KeygenParticipant {
 
         //check if we've stored all the public keyshares
         let keyshare_done = self.storage.contains_for_all_ids(
-            StorableType::PublicKeyshare,
+            MainStorageType::PublicKeyshare,
             message.id(),
             &[self.other_participant_ids.clone(), vec![self.id]].concat(),
         )?;
 
         if keyshare_done {
             for oid in self.other_participant_ids.iter() {
-                self.storage.transfer::<StorableType, KeySharePublic>(
+                self.storage.transfer::<MainStorageType, KeySharePublic>(
                     main_storage,
-                    StorableType::PublicKeyshare,
+                    MainStorageType::PublicKeyshare,
                     message.id(),
                     *oid,
                 )?;
             }
-            self.storage.transfer::<StorableType, KeySharePublic>(
+            self.storage.transfer::<MainStorageType, KeySharePublic>(
                 main_storage,
-                StorableType::PublicKeyshare,
+                MainStorageType::PublicKeyshare,
                 message.id(),
                 self.id,
             )?;
-            self.storage.transfer::<StorableType, KeySharePrivate>(
+            self.storage.transfer::<MainStorageType, KeySharePrivate>(
                 main_storage,
-                StorableType::PrivateKeyshare,
+                MainStorageType::PrivateKeyshare,
                 message.id(),
                 self.id,
             )?;
@@ -556,10 +556,14 @@ mod tests {
         pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> Result<bool> {
             let mut fetch = vec![];
             for participant in self.other_participant_ids.clone() {
-                fetch.push((StorableType::PublicKeyshare, keygen_identifier, participant));
+                fetch.push((
+                    MainStorageType::PublicKeyshare,
+                    keygen_identifier,
+                    participant,
+                ));
             }
-            fetch.push((StorableType::PublicKeyshare, keygen_identifier, self.id));
-            fetch.push((StorableType::PrivateKeyshare, keygen_identifier, self.id));
+            fetch.push((MainStorageType::PublicKeyshare, keygen_identifier, self.id));
+            fetch.push((MainStorageType::PrivateKeyshare, keygen_identifier, self.id));
 
             self.storage.contains_batch(&fetch)
         }
@@ -659,7 +663,7 @@ mod tests {
             let mut stored_values = vec![];
             for main_storage in main_storages.iter() {
                 let pk: KeySharePublic = main_storage.retrieve(
-                    StorableType::PublicKeyshare,
+                    MainStorageType::PublicKeyshare,
                     keyshare_identifier,
                     player_id,
                 )?;
@@ -678,12 +682,12 @@ mod tests {
             let player_id = player.id;
             let main_storage = main_storages.get(index).unwrap();
             let pk: KeySharePublic = main_storage.retrieve(
-                StorableType::PublicKeyshare,
+                MainStorageType::PublicKeyshare,
                 keyshare_identifier,
                 player_id,
             )?;
             let sk: KeySharePrivate = main_storage.retrieve(
-                StorableType::PrivateKeyshare,
+                MainStorageType::PrivateKeyshare,
                 keyshare_identifier,
                 player_id,
             )?;

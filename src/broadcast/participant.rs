@@ -13,7 +13,7 @@ use crate::{
     participant::{ProcessOutcome, ProtocolParticipant},
     protocol::ParticipantIdentifier,
     run_only_once_per_tag,
-    storage::{StorableType, Storage},
+    storage::{MainStorageType, Storage},
     Identifier,
 };
 use rand::{CryptoRng, RngCore};
@@ -173,7 +173,7 @@ impl BroadcastParticipant {
 
         let mut message_votes: HashMap<BroadcastIndex, Vec<u8>> = self
             .storage
-            .retrieve(StorableType::BroadcastSet, sid, self.id())
+            .retrieve(MainStorageType::BroadcastSet, sid, self.id())
             .unwrap_or_default();
         // if not already in database, store. else, ignore
         let idx = BroadcastIndex {
@@ -186,8 +186,12 @@ impl BroadcastParticipant {
         }
         let _ = message_votes.insert(idx, data.data.clone());
 
-        self.storage
-            .store(StorableType::BroadcastSet, sid, self.id(), &message_votes)?;
+        self.storage.store(
+            MainStorageType::BroadcastSet,
+            sid,
+            self.id(),
+            &message_votes,
+        )?;
 
         // check if we've received all the votes for this tag||leader yet
         let mut redispersed_messages: Vec<Vec<u8>> = vec![];
