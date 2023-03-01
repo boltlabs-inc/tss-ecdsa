@@ -30,6 +30,7 @@ use tracing::{info, instrument};
 
 // Storage identifiers for the keygen protocol.
 #[derive(Clone, Copy, Debug, Serialize)]
+#[serde(tag = "KeyGen")]
 enum StorageType {
     Ready,
     Commit,

@@ -29,6 +29,7 @@ use tracing::{debug, info, instrument};
 
 /// Storage identifiers for the auxinfo protocol.
 #[derive(Clone, Copy, Debug, Serialize)]
+#[serde(tag = "AuxInfo")]
 pub(crate) enum StorageType {
     Ready,
     Private,

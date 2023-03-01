@@ -11,13 +11,14 @@ use crate::{
     protocol::{Identifier, ParticipantIdentifier},
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{collections::HashMap, fmt::Debug};
 
 /////////////////////////
 // Private Storage API //
 /////////////////////////
 
-#[derive(Debug, Copy, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(tag = "Main")]
 pub(crate) enum StorableType {
     PrivateKeyshare,
     PublicKeyshare,
