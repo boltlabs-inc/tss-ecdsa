@@ -14,8 +14,10 @@ use crate::{
     keygen::{keyshare::KeySharePublic, participant::KeygenParticipant},
     messages::{AuxinfoMessageType, KeygenMessageType, MessageType},
     participant::ProtocolParticipant,
-    presign::participant::StorageType as PresignStorageType,
-    presign::{participant::PresignParticipant, record::PresignRecord},
+    presign::{
+        participant::{PresignParticipant, StorageType as PresignStorageType},
+        record::PresignRecord,
+    },
     storage::{MainStorageType, Storage},
     utils::CurvePoint,
     Message,
