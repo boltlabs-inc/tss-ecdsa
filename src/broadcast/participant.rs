@@ -13,13 +13,22 @@ use crate::{
     participant::{ProcessOutcome, ProtocolParticipant},
     protocol::ParticipantIdentifier,
     run_only_once_per_tag,
-    storage::{PersistentStorageType, Storage},
+    storage::{Storable, Storage},
     Identifier,
 };
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{info, instrument};
+
+// Storage identifiers for the broadcast protocol.
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(tag = "Broadcast")]
+enum StorageType {
+    Votes,
+}
+
+impl Storable for StorageType {}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct BroadcastParticipant {
@@ -177,7 +186,7 @@ impl BroadcastParticipant {
 
         let mut message_votes: HashMap<BroadcastIndex, Vec<u8>> = self
             .storage
-            .retrieve(PersistentStorageType::BroadcastSet, sid, self.id())
+            .retrieve(StorageType::Votes, sid, self.id())
             .unwrap_or_default();
         // if not already in database, store. else, ignore
         let idx = BroadcastIndex {
@@ -190,12 +199,8 @@ impl BroadcastParticipant {
         }
         let _ = message_votes.insert(idx, data.data.clone());
 
-        self.storage.store(
-            PersistentStorageType::BroadcastSet,
-            sid,
-            self.id(),
-            &message_votes,
-        )?;
+        self.storage
+            .store(StorageType::Votes, sid, self.id(), &message_votes)?;
 
         // check if we've received all the votes for this tag||leader yet
         let mut redispersed_messages: Vec<Vec<u8>> = vec![];

@@ -18,13 +18,12 @@ use std::{collections::HashMap, fmt::Debug};
 /////////////////////////
 
 #[derive(Clone, Copy, Debug, Serialize)]
-#[serde(tag = "Main")]
+#[serde(tag = "Persistent")]
 pub(crate) enum PersistentStorageType {
     PrivateKeyshare,
     PublicKeyshare,
     MessageQueue,
     ProgressStore,
-    BroadcastSet,
 }
 
 impl Storable for PersistentStorageType {}
