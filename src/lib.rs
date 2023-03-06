@@ -53,6 +53,7 @@ pub mod errors;
 mod auxinfo;
 mod broadcast;
 mod keygen;
+mod local_storage;
 mod message_queue;
 mod messages;
 mod paillier;

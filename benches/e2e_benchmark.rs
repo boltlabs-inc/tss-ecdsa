@@ -147,26 +147,16 @@ fn run_benchmarks_for_given_size(c: &mut Criterion, num_players: usize) {
     let keygen_identifier = Identifier::random(&mut rng);
     // Use cloned values for the quorum and inboxes to keep runs independent
     c.bench_function(&format!("Keygen with {num_players} nodes"), |b| {
-        b.iter(|| {
-            run_keygen(
-                &mut players.clone(),
-                &mut inboxes.clone(),
-                keygen_identifier,
-            )
-        })
+        b.iter(|| run_keygen(&mut players, &mut inboxes, keygen_identifier))
     });
 
+    let (mut players, mut inboxes) = init_new_player_set(num_players);
     let auxinfo_identifier = Identifier::random(&mut rng);
     c.bench_function(&format!("Auxinfo with {num_players} nodes"), |b| {
-        b.iter(|| {
-            run_auxinfo(
-                &mut players.clone(),
-                &mut inboxes.clone(),
-                auxinfo_identifier,
-            )
-        })
+        b.iter(|| run_auxinfo(&mut players, &mut inboxes, auxinfo_identifier))
     });
 
+    let (mut players, mut inboxes) = init_new_player_set(num_players);
     // Presign needs Keygen and Auxinfo to be completed before it can run,
     // so we run those first
     run_keygen(&mut players, &mut inboxes, keygen_identifier).unwrap();
@@ -176,8 +166,8 @@ fn run_benchmarks_for_given_size(c: &mut Criterion, num_players: usize) {
     c.bench_function(&format!("Presign with {num_players} nodes"), |b| {
         b.iter(|| {
             run_presign(
-                &mut players.clone(),
-                &mut inboxes.clone(),
+                &mut players,
+                &mut inboxes,
                 auxinfo_identifier,
                 keygen_identifier,
                 presign_identifier,

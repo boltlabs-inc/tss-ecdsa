@@ -33,7 +33,7 @@ use tracing::{info, instrument, trace};
 /////////////////////
 
 /// Each participant has an inbox which can contain messages.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Debug)]
 pub struct Participant {
     /// A unique identifier for this participant
     pub id: ParticipantIdentifier,

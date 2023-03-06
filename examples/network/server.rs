@@ -78,15 +78,12 @@ pub(crate) async fn process(state: &State<ParticipantState>, message_bytes: Vec<
     let message: Message = bincode::deserialize(&message_bytes)?;
 
     let mut state_participant = state.participant.write().await;
-    let mut participant = (*state_participant)
-        .clone()
+    let participant = (*state_participant)
+        .as_mut()
         .ok_or_else(|| anyhow!("Config not set"))?;
 
     let mut rng = OsRng;
     let messages = participant.process_single_message(&message, &mut rng)?;
-
-    *state_participant = Some(participant.clone());
-    drop(state_participant); // Release the lock
 
     // Deliver messages to other participants
     let client = reqwest::Client::new();
@@ -164,13 +161,12 @@ pub(crate) struct SignFromPresignParameters {
 async fn auxinfo(state: &State<ParticipantState>, parameters: Json<AuxInfoParameters>) -> Result {
     let auxinfo_identifier = parameters.auxinfo_identifier;
 
-    let participant = {
-        let state_participant = state.participant.read().await;
-        (*state_participant)
-            .clone()
-            .ok_or_else(|| anyhow!("Config not set"))?
-    };
+    let state_participant = state.participant.read().await;
+    let participant = (*state_participant)
+        .as_ref()
+        .ok_or_else(|| anyhow!("Config not set"))?;
     let message = participant.initialize_auxinfo_message(auxinfo_identifier);
+    drop(state_participant);
 
     // Create new notification for this auxinfo identifier
     let mut state_notifications = state.auxinfo_notifications.write().await;
@@ -202,14 +198,12 @@ async fn keygen(
     let _auxinfo_identifier = parameters.auxinfo_identifier;
     let keygen_identifier = parameters.keygen_identifier;
 
-    let participant = {
-        let state_participant = state.participant.read().await;
-        (*state_participant)
-            .clone()
-            .ok_or_else(|| anyhow!("Config not set"))?
-    };
+    let state_participant = state.participant.read().await;
+    let participant = (*state_participant)
+        .as_ref()
+        .ok_or_else(|| anyhow!("Config not set"))?;
     let message = participant.initialize_keygen_message(keygen_identifier);
-    drop(participant);
+    drop(state_participant);
 
     // Create new notification for this keygen identifier
     let mut state_notifications = state.keygen_notifications.write().await;
@@ -231,14 +225,12 @@ async fn keygen(
     drop(state_notifications);
 
     // Read from participant again to get the public keyshare
-    let participant = {
-        let state_participant = state.participant.read().await;
-        (*state_participant)
-            .clone()
-            .ok_or_else(|| anyhow!("Config not set"))?
-    };
+    let state_participant = state.participant.read().await;
+    let participant = (*state_participant)
+        .as_ref()
+        .ok_or_else(|| anyhow!("Config not set"))?;
     let curve_point = participant.get_public_keyshare(keygen_identifier)?;
-    drop(participant);
+    drop(state_participant);
 
     Ok(Json(curve_point))
 }
@@ -250,16 +242,14 @@ async fn presign(state: &State<ParticipantState>, parameters: Json<PresignParame
     let presign_identifier = parameters.presign_identifier;
 
     let mut state_participant = state.participant.write().await;
-    let mut participant = (*state_participant)
-        .clone()
+    let participant = (*state_participant)
+        .as_mut()
         .ok_or_else(|| anyhow!("Config not set"))?;
     let message = participant.initialize_presign_message(
         auxinfo_identifier,
         keygen_identifier,
         presign_identifier,
     )?;
-
-    *state_participant = Some(participant.clone());
     drop(state_participant); // Release the lock
 
     // Create new notification for this keygen identifier
@@ -300,13 +290,11 @@ async fn sign_from_presign(
     hasher.update(parameters.input.clone());
 
     let mut state_participant = state.participant.write().await;
-    let mut participant = (*state_participant)
-        .clone()
+    let participant = (*state_participant)
+        .as_mut()
         .ok_or_else(|| anyhow!("Config not set"))?;
 
     let signature_share = participant.sign(presign_identifier, hasher.clone())?;
-
-    *state_participant = Some(participant.clone());
     drop(state_participant); // Release the lock
 
     Ok(Json((

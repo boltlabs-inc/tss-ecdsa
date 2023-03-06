@@ -9,6 +9,7 @@
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::{InternalError, Result},
+    local_storage::{LocalStorage, TypeTag},
     message_queue::MessageQueue,
     messages::{Message, MessageType},
     protocol::ParticipantIdentifier,
@@ -200,6 +201,51 @@ pub(crate) trait ProtocolParticipant {
             .map(|pid| (storable_type, message.id(), *pid))
             .collect();
         let is_ready = self.storage().contains_batch(&fetch)?;
+
+        Ok((self_initiated_outcome, is_ready))
+    }
+
+    /// Process a `ready` message: tell other participants that we're ready and
+    /// see if all others have also reported that they are ready.
+    ///
+    /// XXX This version is temporary and will replace `process_ready_message`
+    /// once we've transitioned all of the subprotocols to use
+    /// `LocalStorage`.
+    fn process_ready_message_local<T: TypeTag<Value = ()>>(
+        &self,
+        message: &Message,
+        storage: &LocalStorage,
+    ) -> Result<(ProcessOutcome<Self::Output>, bool)> {
+        // Unlike in `process_ready_message`, we don't store the ready message here.
+        // That's because that would require taking `LocalStorage` as a `&mut`, which
+        // causes problems with the borrow checker when we're calling
+        // `self.process_ready_message_local(..., &mut self.local_storage)`.
+        // Once we've swapped all the protocols to use the new `LocalStorage` we'll
+        // be able to undo this limitation, since `self.storage()` will return
+        // `LocalStorage`.
+
+        // If message came from self, then tell the other participants that we are ready
+        let self_initiated_outcome = if message.from() == self.id() {
+            let messages = self
+                .other_ids()
+                .iter()
+                .map(|other_id| {
+                    Message::new(
+                        message.message_type(),
+                        message.id(),
+                        self.id(),
+                        *other_id,
+                        &[],
+                    )
+                })
+                .collect();
+            ProcessOutcome::Processed(messages)
+        } else {
+            ProcessOutcome::Incomplete
+        };
+
+        // Make sure that all parties are ready before proceeding
+        let is_ready = storage.contains_for_all_ids::<T>(message.id(), &self.all_participants());
 
         Ok((self_initiated_outcome, is_ready))
     }
