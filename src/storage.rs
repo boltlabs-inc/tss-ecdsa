@@ -19,7 +19,7 @@ use std::{collections::HashMap, fmt::Debug};
 
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(tag = "Main")]
-pub(crate) enum MainStorageType {
+pub(crate) enum PersistentStorageType {
     PrivateKeyshare,
     PublicKeyshare,
     MessageQueue,
@@ -27,7 +27,7 @@ pub(crate) enum MainStorageType {
     BroadcastSet,
 }
 
-impl Storable for MainStorageType {}
+impl Storable for PersistentStorageType {}
 
 /// A message that can be posted to (and read from) the broadcast channel
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]

@@ -18,7 +18,7 @@ use crate::{
         participant::{PresignParticipant, StorageType as PresignStorageType},
         record::PresignRecord,
     },
-    storage::{MainStorageType, Storage},
+    storage::{PersistentStorageType, Storage},
     utils::CurvePoint,
     Message,
 };
@@ -224,13 +224,21 @@ impl Participant {
         let mut fetch = vec![];
         for participant in self.other_participant_ids.clone() {
             fetch.push((
-                MainStorageType::PublicKeyshare,
+                PersistentStorageType::PublicKeyshare,
                 keygen_identifier,
                 participant,
             ));
         }
-        fetch.push((MainStorageType::PublicKeyshare, keygen_identifier, self.id));
-        fetch.push((MainStorageType::PrivateKeyshare, keygen_identifier, self.id));
+        fetch.push((
+            PersistentStorageType::PublicKeyshare,
+            keygen_identifier,
+            self.id,
+        ));
+        fetch.push((
+            PersistentStorageType::PrivateKeyshare,
+            keygen_identifier,
+            self.id,
+        ));
 
         self.main_storage.contains_batch(&fetch)
     }
@@ -251,9 +259,11 @@ impl Participant {
     #[instrument(skip_all, err(Debug))]
     pub fn get_public_keyshare(&self, identifier: Identifier) -> Result<CurvePoint> {
         info!("Retrieving our associated public keyshare.");
-        let keyshare_public: KeySharePublic =
-            self.main_storage
-                .retrieve(MainStorageType::PublicKeyshare, identifier, self.id)?;
+        let keyshare_public: KeySharePublic = self.main_storage.retrieve(
+            PersistentStorageType::PublicKeyshare,
+            identifier,
+            self.id,
+        )?;
         Ok(keyshare_public.X)
     }
 

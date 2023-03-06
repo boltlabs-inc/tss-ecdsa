@@ -17,7 +17,7 @@ use crate::{
     participant::{Broadcast, ProcessOutcome, ProtocolParticipant},
     protocol::ParticipantIdentifier,
     run_only_once,
-    storage::{MainStorageType, Storable, Storage},
+    storage::{PersistentStorageType, Storable, Storage},
     utils::{k256_order, process_ready_message},
     zkp::pisch::{PiSchInput, PiSchPrecommit, PiSchProof, PiSchSecret},
     CurvePoint,
@@ -162,13 +162,13 @@ impl KeygenParticipant {
 
         let (keyshare_private, keyshare_public) = new_keyshare(rng)?;
         self.storage.store(
-            MainStorageType::PrivateKeyshare,
+            PersistentStorageType::PrivateKeyshare,
             message.id(),
             self.id,
             &keyshare_private,
         )?;
         self.storage.store(
-            MainStorageType::PublicKeyshare,
+            PersistentStorageType::PublicKeyshare,
             message.id(),
             self.id,
             &keyshare_public,
@@ -264,7 +264,7 @@ impl KeygenParticipant {
         info!("Generating round two keygen messages.");
 
         // check that we've generated our keyshare before trying to retrieve it
-        let fetch = vec![(MainStorageType::PublicKeyshare, message.id(), self.id)];
+        let fetch = vec![(PersistentStorageType::PublicKeyshare, message.id(), self.id)];
         let public_keyshare_generated = self.storage.contains_batch(&fetch)?;
         let mut messages = vec![];
         if !public_keyshare_generated {
@@ -394,12 +394,14 @@ impl KeygenParticipant {
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
         let my_pk: KeySharePublic =
             self.storage
-                .retrieve(MainStorageType::PublicKeyshare, message.id(), self.id)?;
+                .retrieve(PersistentStorageType::PublicKeyshare, message.id(), self.id)?;
         let input = PiSchInput::new(&g, &q, &my_pk.X);
 
-        let my_sk: KeySharePrivate =
-            self.storage
-                .retrieve(MainStorageType::PrivateKeyshare, message.id(), self.id)?;
+        let my_sk: KeySharePrivate = self.storage.retrieve(
+            PersistentStorageType::PrivateKeyshare,
+            message.id(),
+            self.id,
+        )?;
 
         let proof = PiSchProof::prove_from_precommit(
             &precom,
@@ -462,7 +464,7 @@ impl KeygenParticipant {
         proof.verify_with_transcript(&input, &transcript)?;
         let keyshare = decom.get_keyshare();
         self.storage.store(
-            MainStorageType::PublicKeyshare,
+            PersistentStorageType::PublicKeyshare,
             message.id(),
             message.from(),
             &keyshare,
@@ -470,29 +472,29 @@ impl KeygenParticipant {
 
         //check if we've stored all the public keyshares
         let keyshare_done = self.storage.contains_for_all_ids(
-            MainStorageType::PublicKeyshare,
+            PersistentStorageType::PublicKeyshare,
             message.id(),
             &[self.other_participant_ids.clone(), vec![self.id]].concat(),
         )?;
 
         if keyshare_done {
             for oid in self.other_participant_ids.iter() {
-                self.storage.transfer::<MainStorageType, KeySharePublic>(
+                self.storage.transfer::<_, KeySharePublic>(
                     main_storage,
-                    MainStorageType::PublicKeyshare,
+                    PersistentStorageType::PublicKeyshare,
                     message.id(),
                     *oid,
                 )?;
             }
-            self.storage.transfer::<MainStorageType, KeySharePublic>(
+            self.storage.transfer::<_, KeySharePublic>(
                 main_storage,
-                MainStorageType::PublicKeyshare,
+                PersistentStorageType::PublicKeyshare,
                 message.id(),
                 self.id,
             )?;
-            self.storage.transfer::<MainStorageType, KeySharePrivate>(
+            self.storage.transfer::<_, KeySharePrivate>(
                 main_storage,
-                MainStorageType::PrivateKeyshare,
+                PersistentStorageType::PrivateKeyshare,
                 message.id(),
                 self.id,
             )?;
@@ -557,13 +559,21 @@ mod tests {
             let mut fetch = vec![];
             for participant in self.other_participant_ids.clone() {
                 fetch.push((
-                    MainStorageType::PublicKeyshare,
+                    PersistentStorageType::PublicKeyshare,
                     keygen_identifier,
                     participant,
                 ));
             }
-            fetch.push((MainStorageType::PublicKeyshare, keygen_identifier, self.id));
-            fetch.push((MainStorageType::PrivateKeyshare, keygen_identifier, self.id));
+            fetch.push((
+                PersistentStorageType::PublicKeyshare,
+                keygen_identifier,
+                self.id,
+            ));
+            fetch.push((
+                PersistentStorageType::PrivateKeyshare,
+                keygen_identifier,
+                self.id,
+            ));
 
             self.storage.contains_batch(&fetch)
         }
@@ -663,7 +673,7 @@ mod tests {
             let mut stored_values = vec![];
             for main_storage in main_storages.iter() {
                 let pk: KeySharePublic = main_storage.retrieve(
-                    MainStorageType::PublicKeyshare,
+                    PersistentStorageType::PublicKeyshare,
                     keyshare_identifier,
                     player_id,
                 )?;
@@ -682,12 +692,12 @@ mod tests {
             let player_id = player.id;
             let main_storage = main_storages.get(index).unwrap();
             let pk: KeySharePublic = main_storage.retrieve(
-                MainStorageType::PublicKeyshare,
+                PersistentStorageType::PublicKeyshare,
                 keyshare_identifier,
                 player_id,
             )?;
             let sk: KeySharePrivate = main_storage.retrieve(
-                MainStorageType::PrivateKeyshare,
+                PersistentStorageType::PrivateKeyshare,
                 keyshare_identifier,
                 player_id,
             )?;

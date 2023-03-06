@@ -31,7 +31,7 @@ use crate::{
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
     },
     protocol::ParticipantIdentifier,
-    storage::{MainStorageType, Storable, Storage},
+    storage::{PersistentStorageType, Storable, Storage},
     utils::{
         bn_to_scalar, get_other_participants_public_auxinfo, has_collected_all_of_others,
         k256_order, process_ready_message, random_plusminus_by_size, random_positive_bn,
@@ -737,7 +737,7 @@ impl PresignParticipant {
             message.from(),
         )?;
         let sender_keyshare_public = main_storage.retrieve(
-            MainStorageType::PublicKeyshare,
+            PersistentStorageType::PublicKeyshare,
             keyshare_identifier,
             message.from(),
         )?;
@@ -920,12 +920,12 @@ pub(crate) fn get_keyshare(
             self_id,
         )?,
         keyshare_private: storage.retrieve(
-            MainStorageType::PrivateKeyshare,
+            PersistentStorageType::PrivateKeyshare,
             keyshare_identifier,
             self_id,
         )?,
         keyshare_public: storage.retrieve(
-            MainStorageType::PublicKeyshare,
+            PersistentStorageType::PublicKeyshare,
             keyshare_identifier,
             self_id,
         )?,
