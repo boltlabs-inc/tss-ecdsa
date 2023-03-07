@@ -328,7 +328,7 @@ impl KeygenParticipant {
         let com = self
             .local_storage
             .retrieve::<StorageTypeCommit>(message.id(), message.from())?;
-        decom.verify(&message.id(), &message.from(), &com)?;
+        decom.verify(&message.id(), &message.from(), com)?;
         self.local_storage
             .store::<StorageTypeDecommit>(message.id(), message.from(), decom);
 
@@ -410,7 +410,7 @@ impl KeygenParticipant {
         )?;
 
         let proof = PiSchProof::prove_from_precommit(
-            &precom,
+            precom,
             &input,
             &PiSchSecret::new(&my_sk.x),
             &transcript,

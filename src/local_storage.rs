@@ -27,7 +27,7 @@ pub(crate) trait TypeTag: 'static {
 }
 
 /// A type for storing values local to a protocol.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct LocalStorage {
     storage: HashMap<(Identifier, ParticipantIdentifier, TypeId), Box<dyn Any + Send + Sync>>,
 }
@@ -73,13 +73,5 @@ impl LocalStorage {
             }
         }
         true
-    }
-}
-
-impl Default for LocalStorage {
-    fn default() -> Self {
-        Self {
-            storage: Default::default(),
-        }
     }
 }
