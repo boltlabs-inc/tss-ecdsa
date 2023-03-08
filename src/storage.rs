@@ -24,6 +24,8 @@ pub(crate) enum PersistentStorageType {
     PublicKeyshare,
     MessageQueue,
     ProgressStore,
+    AuxInfoPublic,
+    AuxInfoPrivate,
 }
 
 impl Storable for PersistentStorageType {}

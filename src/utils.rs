@@ -7,12 +7,12 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::{info::AuxInfoPublic, participant::StorageType as AuxInfoStorageType},
+    auxinfo::info::AuxInfoPublic,
     errors::{
         InternalError::{self, CouldNotConvertToScalar, RetryFailed},
         Result,
     },
-    storage::{Storable, Storage},
+    storage::{PersistentStorageType, Storable, Storage},
     Identifier, ParticipantIdentifier,
 };
 use generic_array::GenericArray;
@@ -300,13 +300,22 @@ pub(crate) fn get_other_participants_public_auxinfo(
     storage: &Storage,
     identifier: Identifier,
 ) -> Result<HashMap<ParticipantIdentifier, AuxInfoPublic>> {
-    if !has_collected_all_of_others(other_ids, storage, AuxInfoStorageType::Public, identifier)? {
+    if !has_collected_all_of_others(
+        other_ids,
+        storage,
+        PersistentStorageType::AuxInfoPublic,
+        identifier,
+    )? {
         return Err(InternalError::StorageItemNotFound);
     }
 
     let mut hm = HashMap::new();
     for &other_participant_id in other_ids {
-        let val = storage.retrieve(AuxInfoStorageType::Public, identifier, other_participant_id)?;
+        let val = storage.retrieve(
+            PersistentStorageType::AuxInfoPublic,
+            identifier,
+            other_participant_id,
+        )?;
         let _ = hm.insert(other_participant_id, val);
     }
     Ok(hm)

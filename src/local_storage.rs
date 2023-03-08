@@ -71,10 +71,21 @@ impl LocalStorage {
         participant_ids: &[ParticipantIdentifier],
     ) -> bool {
         for pid in participant_ids {
-            if !self.storage.contains_key(&(id, *pid, TypeId::of::<T>())) {
+            if !self.contains::<T>(id, *pid) {
                 return false;
             }
         }
         true
+    }
+
+    /// Returns `true` if a value exists for the given [`TypeTag`],
+    /// [`Identifier`], and [`ParticipantIdentifier`].
+    pub(crate) fn contains<T: TypeTag>(
+        &self,
+        id: Identifier,
+        participant_id: ParticipantIdentifier,
+    ) -> bool {
+        self.storage
+            .contains_key(&(id, participant_id, TypeId::of::<T>()))
     }
 }

@@ -9,7 +9,7 @@
 //! Contains the main protocol that is executed through a [Participant]
 
 use crate::{
-    auxinfo::participant::{AuxInfoParticipant, StorageType as AuxInfoStorageType},
+    auxinfo::participant::AuxInfoParticipant,
     errors::{InternalError, Result},
     keygen::{keyshare::KeySharePublic, participant::KeygenParticipant},
     messages::{AuxinfoMessageType, KeygenMessageType, MessageType},
@@ -210,10 +210,22 @@ impl Participant {
     pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<bool> {
         let mut fetch = vec![];
         for participant in self.other_participant_ids.clone() {
-            fetch.push((AuxInfoStorageType::Public, auxinfo_identifier, participant));
+            fetch.push((
+                PersistentStorageType::AuxInfoPublic,
+                auxinfo_identifier,
+                participant,
+            ));
         }
-        fetch.push((AuxInfoStorageType::Public, auxinfo_identifier, self.id));
-        fetch.push((AuxInfoStorageType::Private, auxinfo_identifier, self.id));
+        fetch.push((
+            PersistentStorageType::AuxInfoPublic,
+            auxinfo_identifier,
+            self.id,
+        ));
+        fetch.push((
+            PersistentStorageType::AuxInfoPrivate,
+            auxinfo_identifier,
+            self.id,
+        ));
 
         self.main_storage.contains_batch(&fetch)
     }
