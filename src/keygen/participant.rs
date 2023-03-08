@@ -28,24 +28,24 @@ use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use tracing::{info, instrument};
 
-struct StorageTypeReady;
-impl TypeTag for StorageTypeReady {
+struct ReadyStorageType;
+impl TypeTag for ReadyStorageType {
     type Value = ();
 }
-struct StorageTypeCommit;
-impl TypeTag for StorageTypeCommit {
+struct CommitStorageType;
+impl TypeTag for CommitStorageType {
     type Value = KeygenCommit;
 }
-struct StorageTypeDecommit;
-impl TypeTag for StorageTypeDecommit {
+struct DecommitStorageType;
+impl TypeTag for DecommitStorageType {
     type Value = KeygenDecommit;
 }
-struct StorageTypeSchnorrPrecom;
-impl TypeTag for StorageTypeSchnorrPrecom {
+struct SchnorrPrecomStorageType;
+impl TypeTag for SchnorrPrecomStorageType {
     type Value = PiSchPrecommit;
 }
-struct StorageTypeGlobalRid;
-impl TypeTag for StorageTypeGlobalRid {
+struct GlobalRidStorageType;
+impl TypeTag for GlobalRidStorageType {
     type Value = [u8; 32];
 }
 
@@ -58,7 +58,7 @@ pub(crate) struct KeygenParticipant {
     other_participant_ids: Vec<ParticipantIdentifier>,
     /// Old storage mechanism currently used to store persistent data
     ///
-    /// XXX To be removed once we remove the need for persistent storage
+    /// TODO #205: To be removed once we remove the need for persistent storage
     main_storage: Storage,
     /// Local storage for this participant to store secrets
     local_storage: LocalStorage,
@@ -153,9 +153,9 @@ impl KeygenParticipant {
         info!("Handling ready keygen message.");
 
         self.local_storage
-            .store::<StorageTypeReady>(message.id(), message.from(), ());
+            .store::<ReadyStorageType>(message.id(), message.from(), ());
         let (outcome, is_ready) =
-            self.process_ready_message_local::<StorageTypeReady>(message, &self.local_storage)?;
+            self.process_ready_message_local::<ReadyStorageType>(message, &self.local_storage)?;
         let mut messages = outcome.into_messages();
 
         if is_ready {
@@ -202,11 +202,11 @@ impl KeygenParticipant {
         let com_bytes = &serialize!(&com)?;
 
         self.local_storage
-            .store::<StorageTypeCommit>(message.id(), self.id, com);
+            .store::<CommitStorageType>(message.id(), self.id, com);
         self.local_storage
-            .store::<StorageTypeDecommit>(message.id(), self.id, decom);
+            .store::<DecommitStorageType>(message.id(), self.id, decom);
         self.local_storage
-            .store::<StorageTypeSchnorrPrecom>(message.id(), self.id, sch_precom);
+            .store::<SchnorrPrecomStorageType>(message.id(), self.id, sch_precom);
 
         let messages = self.broadcast(
             rng,
@@ -232,7 +232,7 @@ impl KeygenParticipant {
             return Err(InternalError::IncorrectBroadcastMessageTag);
         }
         let message = &broadcast_message.msg;
-        self.local_storage.store::<StorageTypeCommit>(
+        self.local_storage.store::<CommitStorageType>(
             message.id(),
             message.from(),
             KeygenCommit::from_message(message)?,
@@ -241,7 +241,7 @@ impl KeygenParticipant {
         // check if we've received all the commits.
         let r1_done = self
             .local_storage
-            .contains_for_all_ids::<StorageTypeCommit>(message.id(), &self.other_participant_ids);
+            .contains_for_all_ids::<CommitStorageType>(message.id(), &self.other_participant_ids);
         let mut messages = vec![];
 
         if r1_done {
@@ -283,7 +283,7 @@ impl KeygenParticipant {
 
         let decom = self
             .local_storage
-            .retrieve::<StorageTypeDecommit>(message.id(), self.id)?;
+            .retrieve::<DecommitStorageType>(message.id(), self.id)?;
         let decom_bytes = serialize!(&decom)?;
         let more_messages: Vec<Message> = self
             .other_participant_ids
@@ -315,7 +315,7 @@ impl KeygenParticipant {
         // decommits in round 2.
         let r1_done = self
             .local_storage
-            .contains_for_all_ids::<StorageTypeCommit>(
+            .contains_for_all_ids::<CommitStorageType>(
                 message.id(),
                 &[self.other_participant_ids.clone(), vec![self.id]].concat(),
             );
@@ -327,15 +327,15 @@ impl KeygenParticipant {
         let decom = KeygenDecommit::from_message(message)?;
         let com = self
             .local_storage
-            .retrieve::<StorageTypeCommit>(message.id(), message.from())?;
+            .retrieve::<CommitStorageType>(message.id(), message.from())?;
         decom.verify(&message.id(), &message.from(), com)?;
         self.local_storage
-            .store::<StorageTypeDecommit>(message.id(), message.from(), decom);
+            .store::<DecommitStorageType>(message.id(), message.from(), decom);
 
         // check if we've received all the decommits
         let r2_done = self
             .local_storage
-            .contains_for_all_ids::<StorageTypeDecommit>(message.id(), &self.other_participant_ids);
+            .contains_for_all_ids::<DecommitStorageType>(message.id(), &self.other_participant_ids);
         let mut messages = vec![];
 
         if r2_done {
@@ -370,13 +370,13 @@ impl KeygenParticipant {
             .map(|&other_participant_id| {
                 let decom = self
                     .local_storage
-                    .retrieve::<StorageTypeDecommit>(message.id(), other_participant_id)?;
+                    .retrieve::<DecommitStorageType>(message.id(), other_participant_id)?;
                 Ok(decom.rid)
             })
             .collect::<Result<Vec<[u8; 32]>>>()?;
         let my_decom = self
             .local_storage
-            .retrieve::<StorageTypeDecommit>(message.id(), self.id)?;
+            .retrieve::<DecommitStorageType>(message.id(), self.id)?;
         let mut global_rid = my_decom.rid;
         // xor all the rids together. In principle, many different options for combining
         // these should be okay
@@ -386,13 +386,13 @@ impl KeygenParticipant {
             }
         }
         self.local_storage
-            .store::<StorageTypeGlobalRid>(message.id(), self.id, global_rid);
+            .store::<GlobalRidStorageType>(message.id(), self.id, global_rid);
 
         let mut transcript = Transcript::new(b"keygen schnorr");
         transcript.append_message(b"rid", &serialize!(&global_rid)?);
         let precom = self
             .local_storage
-            .retrieve::<StorageTypeSchnorrPrecom>(message.id(), self.id)?;
+            .retrieve::<SchnorrPrecomStorageType>(message.id(), self.id)?;
 
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
@@ -445,7 +445,7 @@ impl KeygenParticipant {
 
         if self
             .local_storage
-            .retrieve::<StorageTypeGlobalRid>(message.id(), self.id)
+            .retrieve::<GlobalRidStorageType>(message.id(), self.id)
             .is_err()
         {
             self.stash_message(message)?;
@@ -454,10 +454,10 @@ impl KeygenParticipant {
         let proof = PiSchProof::from_message(message)?;
         let global_rid = self
             .local_storage
-            .retrieve::<StorageTypeGlobalRid>(message.id(), self.id)?;
+            .retrieve::<GlobalRidStorageType>(message.id(), self.id)?;
         let decom = self
             .local_storage
-            .retrieve::<StorageTypeDecommit>(message.id(), message.from())?;
+            .retrieve::<DecommitStorageType>(message.id(), message.from())?;
 
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);

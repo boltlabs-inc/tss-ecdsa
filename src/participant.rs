@@ -216,13 +216,13 @@ pub(crate) trait ProtocolParticipant {
         message: &Message,
         storage: &LocalStorage,
     ) -> Result<(ProcessOutcome<Self::Output>, bool)> {
-        // Unlike in `process_ready_message`, we don't store the ready message here.
-        // That's because that would require taking `LocalStorage` as a `&mut`, which
-        // causes problems with the borrow checker when we're calling
-        // `self.process_ready_message_local(..., &mut self.local_storage)`.
-        // Once we've swapped all the protocols to use the new `LocalStorage` we'll
-        // be able to undo this limitation, since `self.storage()` will return
-        // `LocalStorage`.
+        // TODO #185: Unlike in `process_ready_message`, we don't store the ready
+        // message here. That's because that would require taking `LocalStorage`
+        // as a `&mut`, which causes problems with the borrow checker when we're
+        // calling `self.process_ready_message_local(..., &mut
+        // self.local_storage)`. Once we've swapped all the protocols to use the
+        // new `LocalStorage` we'll be able to undo this limitation, since
+        // `self.storage()` will return `LocalStorage`.
 
         // If message came from self, then tell the other participants that we are ready
         let self_initiated_outcome = if message.from() == self.id() {

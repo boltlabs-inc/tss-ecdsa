@@ -55,8 +55,11 @@ impl LocalStorage {
     ) -> Result<&T::Value> {
         self.storage
             .get(&(id, participant_id, TypeId::of::<T>()))
-            .map(|any| any.downcast_ref::<T::Value>().unwrap())
-            .ok_or(InternalError::StorageItemNotFound)
+            .map(|any| {
+                any.downcast_ref::<T::Value>()
+                    .ok_or(InternalError::InternalInvariantFailed)
+            })
+            .unwrap_or(Err(InternalError::StorageItemNotFound))
     }
 
     /// Checks whether values exist for the given [`TypeTag`], [`Identifier`],
