@@ -28,7 +28,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{instrument, warn};
 
 // Soundness parameter.
 const SOUNDNESS: usize = crate::parameters::SOUNDNESS_PARAMETER;
@@ -123,6 +123,7 @@ impl Proof for PiPrmProof {
     }
 
     #[cfg_attr(feature = "flame_it", flame("PiPrmProof"))]
+    #[instrument(skip_all, err(Debug))]
     fn verify(&self, input: &Self::CommonInput, transcript: &mut Transcript) -> Result<()> {
         // Check that all the lengths equal the soundness parameter.
         if self.commitments.len() != SOUNDNESS

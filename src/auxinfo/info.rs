@@ -17,7 +17,7 @@ use crate::{
 use k256::elliptic_curve::zeroize::ZeroizeOnDrop;
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tracing::{instrument, error};
 
 /// The private key corresponding to a given Participant's [`AuxInfoPublic`].
 ///
@@ -90,6 +90,7 @@ impl AuxInfoPublic {
 
     /// Verifies that the public key's modulus matches the ZKSetupParameters
     /// modulus N, and that the parameters have appropriate s and t values.
+    #[instrument(skip_all, err(Debug))]
     pub(crate) fn verify(&self) -> Result<()> {
         if self.pk.modulus() != self.params.scheme().modulus() {
             error!("Mismatch between public key modulus and setup parameters modulus");

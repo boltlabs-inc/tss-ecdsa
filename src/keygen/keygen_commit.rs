@@ -17,7 +17,7 @@ use crate::{
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{instrument, warn};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct KeygenCommit {
@@ -85,6 +85,7 @@ impl KeygenDecommit {
         Ok(KeygenCommit { hash })
     }
 
+    #[instrument(skip_all, err(Debug))]
     pub(crate) fn verify(
         &self,
         sid: &Identifier,

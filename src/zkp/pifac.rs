@@ -20,7 +20,7 @@ use merlin::Transcript;
 use num_bigint::{BigInt, Sign};
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{instrument, warn};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct PiFacProof {
@@ -146,6 +146,7 @@ impl Proof for PiFacProof {
         Ok(proof)
     }
 
+    #[instrument(skip_all, err(Debug))]
     fn verify(&self, input: &Self::CommonInput, transcript: &mut Transcript) -> Result<()> {
         transcript.append_message(b"CommonInput", &serialize!(&input)?);
         transcript.append_message(

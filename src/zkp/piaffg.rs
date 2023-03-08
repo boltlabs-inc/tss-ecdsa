@@ -23,7 +23,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{instrument, warn};
 use utils::CurvePoint;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -188,6 +188,7 @@ impl Proof for PiAffgProof {
     }
 
     #[cfg_attr(feature = "flame_it", flame("PiAffgProof"))]
+    #[instrument(skip_all, err(Debug))]
     fn verify(&self, input: &Self::CommonInput, transcript: &mut Transcript) -> Result<()> {
         // First, do Fiat-Shamir consistency check
 

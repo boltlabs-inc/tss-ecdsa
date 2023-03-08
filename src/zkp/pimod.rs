@@ -16,7 +16,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{error, instrument, warn};
 
 // Soundness parameter lambda
 static LAMBDA: usize = crate::parameters::SOUNDNESS_PARAMETER;
@@ -93,13 +93,16 @@ impl Proof for PiModProof {
 
             // Compute phi(N) = (p-1) * (q-1)
             let phi_n = (&secret.p - 1) * (&secret.q - 1);
-            let exp = &input
+            let exp_result = input
                 .N
                 .invert(&phi_n)
-                // Reason: "Could not invert a BigNumber"
-                .ok_or(InternalError::CouldNotGenerateProof)?;
-            let z = modpow(&y, exp, &input.N);
+                .ok_or(InternalError::CouldNotGenerateProof);
 
+            if exp_result.is_err() {
+                error!("Could not invert a BigNumber");
+            }
+            let exp = exp_result?;
+            let z = modpow(&y, &exp, &input.N);
             elements.push(PiModProofElements {
                 x: x[0].clone(),
                 a,
@@ -115,6 +118,7 @@ impl Proof for PiModProof {
     }
 
     #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
+    #[instrument(skip_all, err(Debug))]
     fn verify(&self, input: &Self::CommonInput, transcript: &mut Transcript) -> Result<()> {
         // Verify that proof is sound -- it must have exactly LAMBDA elements
         match self.elements.len().cmp(&LAMBDA) {
@@ -229,6 +233,7 @@ fn jacobi(numerator: &BigNumber, denominator: &BigNumber) -> isize {
 /// Finds the two x's such that x^2 = n (mod p), where p is a prime that is 3
 /// (mod 4)
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
+#[instrument(skip_all, err(Debug))]
 fn square_roots_mod_prime(n: &BigNumber, p: &BigNumber) -> Result<(BigNumber, BigNumber)> {
     // Compute r = +- n^{p+1/4} (mod p)
     let r = modpow(n, &(&(p + 1) / 4), p);
@@ -240,17 +245,18 @@ fn square_roots_mod_prime(n: &BigNumber, p: &BigNumber) -> Result<(BigNumber, Bi
     if modpow(&r, &BigNumber::from(2), p) == bn_mod(n, p) {
         return Ok((r, neg_r));
     }
-    // Reason: Could not find square roots modulo n
+    error!("Could not find square roots modulo n");
     Err(InternalError::CouldNotGenerateProof)
 }
 
 // Finds an (x,y) such that ax + by = 1, or returns error if gcd(a,b) != 1
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
+#[instrument(skip_all, err(Debug))]
 fn extended_euclidean(a: &BigNumber, b: &BigNumber) -> Result<(BigNumber, BigNumber)> {
     let result = a.extended_gcd(b);
 
     if result.gcd != BigNumber::one() {
-        // Reason: Elements are not coprime
+        error!("Elements are not coprime");
         Err(InternalError::CouldNotGenerateProof)?
     }
 
@@ -269,6 +275,7 @@ fn extended_euclidean(a: &BigNumber, b: &BigNumber) -> Result<(BigNumber, BigNum
 /// - `a2` is not in the range `[0, q)`.
 #[allow(clippy::many_single_char_names)]
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
+#[instrument(skip_all, err(Debug))]
 fn chinese_remainder_theorem(
     a1: &BigNumber,
     a2: &BigNumber,
@@ -277,8 +284,7 @@ fn chinese_remainder_theorem(
 ) -> Result<BigNumber> {
     let zero = &BigNumber::zero();
     if a1 >= p || a1 < zero || a2 >= q || a2 < zero {
-        // Reason: One or more of the integer inputs to the Chinese remainder theorem
-        // were outside the expected range
+        error!("One or more of the integer inputs to the Chinese remainder theorem were outside the expected range");
         Err(InternalError::CouldNotGenerateProof)?
     }
     let (z, w) = extended_euclidean(p, q)?;
@@ -289,6 +295,7 @@ fn chinese_remainder_theorem(
 /// Finds the four x's such that x^2 = n (mod pq), where p,q are primes that are
 /// 3 (mod 4)
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
+#[instrument(skip_all, err(Debug))]
 fn square_roots_mod_composite(
     n: &BigNumber,
     p: &BigNumber,
@@ -306,6 +313,7 @@ fn square_roots_mod_composite(
 }
 
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
+#[instrument(skip_all, err(Debug))]
 fn fourth_roots_mod_composite(
     n: &BigNumber,
     p: &BigNumber,
@@ -348,6 +356,7 @@ fn y_prime_from_y(y: &BigNumber, w: &BigNumber, a: usize, b: usize, N: &BigNumbe
 /// Finds unique a,b in {0,1} such that, for y' = (-1)^a * w^b * y, there is an
 /// x such that x^4 = y (mod pq)
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
+#[instrument(skip_all, err(Debug))]
 fn y_prime_combinations(
     w: &BigNumber,
     y: &BigNumber,
@@ -380,8 +389,9 @@ fn y_prime_combinations(
     }
 
     if has_fourth_roots != 1 {
-        // Reason: Could not find uniqueness for fourth roots combination in
-        // Paillier-Blum modulus proof
+        error!(
+            "Could not find uniqueness for fourth roots combination in Paillier-Blum modulus proof"
+        );
         return Err(InternalError::CouldNotGenerateProof);
     }
 

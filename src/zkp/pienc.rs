@@ -38,7 +38,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{instrument, warn};
 
 /// Proof of knowledge of the plaintext value of a ciphertext, where the value
 /// is within a desired range.
@@ -171,6 +171,7 @@ impl Proof for PiEncProof {
     }
 
     #[cfg_attr(feature = "flame_it", flame("PiEncProof"))]
+    #[instrument(skip_all, err(Debug))]
     fn verify(&self, input: &Self::CommonInput, transcript: &mut Transcript) -> Result<()> {
         // Check Fiat-Shamir challenge consistency: update the transcript with
         // commitments...

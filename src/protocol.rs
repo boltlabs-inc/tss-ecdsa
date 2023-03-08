@@ -23,7 +23,7 @@ use k256::elliptic_curve::{Field, IsHigh};
 use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
-use tracing::{info, instrument, trace};
+use tracing::{error, info, instrument, trace};
 
 /////////////////////
 // Participant API //
@@ -325,8 +325,10 @@ impl SignatureShare {
     /// Can be used to combine [SignatureShare]s
     pub fn chain(&self, share: Self) -> Result<Self> {
         let r = match (self.r, share.r) {
-            // Reason: Input share was not initialized
-            (_, None) => Err(InternalError::InternalInvariantFailed),
+            (_, None) => {
+                error!("Input share was not initialized");
+                Err(InternalError::InternalInvariantFailed)
+            }
             (Some(prev_r), Some(new_r)) => {
                 if prev_r != new_r {
                     return Err(InternalError::SignatureInstantiationError);

@@ -17,7 +17,7 @@ use crate::{
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tracing::{instrument, error};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct AuxInfoCommit {
@@ -141,6 +141,7 @@ impl AuxInfoDecommit {
 
     /// Verify that this [`AuxInfoDecommit`] corresponds to the given
     /// [`AuxInfoCommit`].
+    #[instrument(skip_all, err(Debug))]
     pub(crate) fn verify(
         &self,
         sid: &Identifier,

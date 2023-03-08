@@ -31,7 +31,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{instrument, warn};
 use utils::CurvePoint;
 
 /// Proof of knowledge that:
@@ -246,6 +246,7 @@ impl Proof for PiLogProof {
     }
 
     #[cfg_attr(feature = "flame_it", flame("PiLogProof"))]
+    #[instrument(skip_all, err(Debug))]
     fn verify(&self, input: &Self::CommonInput, transcript: &mut Transcript) -> Result<()> {
         // See the comment in `prove` for a high-level description of how the protocol
         // works.
