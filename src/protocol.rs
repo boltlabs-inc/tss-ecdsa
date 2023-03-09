@@ -14,10 +14,7 @@ use crate::{
     keygen::{keyshare::KeySharePublic, participant::KeygenParticipant},
     messages::{AuxinfoMessageType, KeygenMessageType, MessageType},
     participant::ProtocolParticipant,
-    presign::{
-        participant::{PresignParticipant, StorageType as PresignStorageType},
-        record::PresignRecord,
-    },
+    presign::{participant::PresignParticipant, record::PresignRecord},
     storage::{PersistentStorageType, Storage},
     utils::CurvePoint,
     Message,
@@ -146,7 +143,7 @@ impl Participant {
 
                 if let Some(presign_record) = output {
                     self.main_storage.store(
-                        PresignStorageType::Record,
+                        PersistentStorageType::PresignRecord,
                         message.id(),
                         self.id,
                         &presign_record,
@@ -260,7 +257,7 @@ impl Participant {
     #[instrument(skip_all)]
     pub fn is_presigning_done(&self, presign_identifier: Identifier) -> Result<bool> {
         self.main_storage.contains_batch(&[(
-            PresignStorageType::Record,
+            PersistentStorageType::PresignRecord,
             presign_identifier,
             self.id,
         )])
@@ -289,16 +286,20 @@ impl Participant {
     ) -> Result<SignatureShare> {
         info!("Issuing signature with presign record.");
 
-        let presign_record: PresignRecord =
-            self.main_storage
-                .retrieve(PresignStorageType::Record, presign_identifier, self.id)?;
+        let presign_record: PresignRecord = self.main_storage.retrieve(
+            PersistentStorageType::PresignRecord,
+            presign_identifier,
+            self.id,
+        )?;
         let (r, s) = presign_record.sign(digest)?;
         let ret = SignatureShare { r: Some(r), s };
 
         // Clear the presign record after being used once
-        let _ =
-            self.main_storage
-                .delete(PresignStorageType::Record, presign_identifier, self.id)?;
+        let _ = self.main_storage.delete(
+            PersistentStorageType::PresignRecord,
+            presign_identifier,
+            self.id,
+        )?;
         Ok(ret)
     }
 }

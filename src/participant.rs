@@ -13,7 +13,7 @@ use crate::{
     message_queue::MessageQueue,
     messages::{Message, MessageType},
     protocol::ParticipantIdentifier,
-    storage::{PersistentStorageType, Storable, Storage},
+    storage::{PersistentStorageType, Storage},
     Identifier,
 };
 use rand::{CryptoRng, RngCore};
@@ -165,58 +165,12 @@ pub(crate) trait ProtocolParticipant {
 
     /// Process a `ready` message: tell other participants that we're ready and
     /// see if all others have also reported that they are ready.
-    fn process_ready_message<T: Storable>(
-        &mut self,
-        message: &Message,
-        storable_type: T,
-    ) -> Result<(ProcessOutcome<Self::Output>, bool)> {
-        // Save the message to local storage so we know the sending party is ready
-        self.storage_mut()
-            .store::<T, [u8; 0]>(storable_type, message.id(), message.from(), &[])?;
-
-        // If message came from self, then tell the other participants that we are ready
-        let self_initiated_outcome = if message.from() == self.id() {
-            let messages = self
-                .other_ids()
-                .iter()
-                .map(|other_id| {
-                    Message::new(
-                        message.message_type(),
-                        message.id(),
-                        self.id(),
-                        *other_id,
-                        &[],
-                    )
-                })
-                .collect();
-            ProcessOutcome::Processed(messages)
-        } else {
-            ProcessOutcome::Incomplete
-        };
-
-        // Make sure that all parties are ready before proceeding
-        let fetch: Vec<_> = self
-            .all_participants()
-            .iter()
-            .map(|pid| (storable_type, message.id(), *pid))
-            .collect();
-        let is_ready = self.storage().contains_batch(&fetch)?;
-
-        Ok((self_initiated_outcome, is_ready))
-    }
-
-    /// Process a `ready` message: tell other participants that we're ready and
-    /// see if all others have also reported that they are ready.
-    ///
-    /// XXX This version is temporary and will replace `process_ready_message`
-    /// once we've transitioned all of the subprotocols to use
-    /// `LocalStorage`.
-    fn process_ready_message_local<T: TypeTag<Value = ()>>(
+    fn process_ready_message<T: TypeTag<Value = ()>>(
         &self,
         message: &Message,
         storage: &LocalStorage,
     ) -> Result<(ProcessOutcome<Self::Output>, bool)> {
-        // TODO #185: Unlike in `process_ready_message`, we don't store the ready
+        // TODO #205: Unlike before, we don't store the ready
         // message here. That's because that would require taking `LocalStorage`
         // as a `&mut`, which causes problems with the borrow checker when we're
         // calling `self.process_ready_message_local(..., &mut

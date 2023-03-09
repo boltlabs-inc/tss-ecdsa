@@ -26,6 +26,7 @@ pub(crate) enum PersistentStorageType {
     ProgressStore,
     AuxInfoPublic,
     AuxInfoPrivate,
+    PresignRecord,
 }
 
 impl Storable for PersistentStorageType {}

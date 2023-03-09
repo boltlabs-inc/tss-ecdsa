@@ -174,7 +174,7 @@ impl AuxInfoParticipant {
         self.local_storage
             .store::<storage::Ready>(message.id(), message.from(), ());
         let (ready_outcome, is_ready) =
-            self.process_ready_message_local::<storage::Ready>(message, &self.local_storage)?;
+            self.process_ready_message::<storage::Ready>(message, &self.local_storage)?;
 
         if is_ready {
             let round_one_outcome = ProcessOutcome::Processed(run_only_once!(

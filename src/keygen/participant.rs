@@ -160,7 +160,7 @@ impl KeygenParticipant {
         self.local_storage
             .store::<storage::Ready>(message.id(), message.from(), ());
         let (outcome, is_ready) =
-            self.process_ready_message_local::<storage::Ready>(message, &self.local_storage)?;
+            self.process_ready_message::<storage::Ready>(message, &self.local_storage)?;
         let mut messages = outcome.into_messages();
 
         if is_ready {

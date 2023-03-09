@@ -18,7 +18,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Private {
     pub k: BigNumber,
     pub rho: Nonce,
@@ -32,7 +32,7 @@ pub(crate) struct Public {
     pub proof: PiEncProof,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PublicBroadcast {
     pub K: Ciphertext,
     pub G: Ciphertext,
