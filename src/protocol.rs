@@ -291,15 +291,15 @@ impl Participant {
             presign_identifier,
             self.id,
         )?;
-        let (r, s) = presign_record.sign(digest)?;
-        let ret = SignatureShare { r: Some(r), s };
-
         // Clear the presign record after being used once
         let _ = self.main_storage.delete(
             PersistentStorageType::PresignRecord,
             presign_identifier,
             self.id,
         )?;
+        let (r, s) = presign_record.sign(digest)?;
+        let ret = SignatureShare { r: Some(r), s };
+
         Ok(ret)
     }
 }

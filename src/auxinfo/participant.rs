@@ -70,7 +70,7 @@ pub(crate) struct AuxInfoParticipant {
     other_participant_ids: Vec<ParticipantIdentifier>,
     /// Old storage mechanism currently used to store persistent data
     ///
-    /// TODO #205: To be removed once we remove the need for persistent storage
+    /// TODO #180: To be removed once we remove the need for persistent storage
     main_storage: Storage,
     /// Local storage for this participant to store secrets
     local_storage: LocalStorage,

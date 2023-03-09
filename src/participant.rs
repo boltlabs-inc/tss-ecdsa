@@ -170,7 +170,7 @@ pub(crate) trait ProtocolParticipant {
         message: &Message,
         storage: &LocalStorage,
     ) -> Result<(ProcessOutcome<Self::Output>, bool)> {
-        // TODO #205: Unlike before, we don't store the ready
+        // TODO #180: Unlike before, we don't store the ready
         // message here. That's because that would require taking `LocalStorage`
         // as a `&mut`, which causes problems with the borrow checker when we're
         // calling `self.process_ready_message_local(..., &mut
