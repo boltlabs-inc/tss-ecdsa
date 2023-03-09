@@ -489,7 +489,7 @@ impl AuxInfoParticipant {
 
         // If so, we completed the protocol! Return the outputs.
         if keyshare_done {
-            for oid in self.other_participant_ids.iter() {
+            for oid in self.all_participants().iter() {
                 let public = self
                     .local_storage
                     .retrieve::<storage::Public>(message.id(), *oid)?;
@@ -500,15 +500,6 @@ impl AuxInfoParticipant {
                     public,
                 )?;
             }
-            let public = self
-                .local_storage
-                .retrieve::<storage::Public>(message.id(), self.id)?;
-            main_storage.store(
-                PersistentStorageType::AuxInfoPublic,
-                message.id(),
-                self.id,
-                public,
-            )?;
             let private = self
                 .local_storage
                 .retrieve::<storage::Private>(message.id(), self.id)?;
