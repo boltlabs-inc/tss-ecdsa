@@ -62,6 +62,22 @@ impl LocalStorage {
             .unwrap_or(Err(InternalError::StorageItemNotFound))
     }
 
+    /// Retrieves a mutable reference to a value via its [`TypeTag`],
+    /// [`Identifier`], and [`ParticipantIdentifier`].
+    pub(crate) fn retrieve_mut<T: TypeTag>(
+        &mut self,
+        id: Identifier,
+        participant_id: ParticipantIdentifier,
+    ) -> Result<&mut T::Value> {
+        self.storage
+            .get_mut(&(id, participant_id, TypeId::of::<T>()))
+            .map(|any| {
+                any.downcast_mut::<T::Value>()
+                    .ok_or(InternalError::InternalInvariantFailed)
+            })
+            .unwrap_or(Err(InternalError::StorageItemNotFound))
+    }
+
     /// Checks whether values exist for the given [`TypeTag`], [`Identifier`],
     /// and each of the `participant_ids` provided, returning `true` if so
     /// and `false` otherwise.

@@ -9,11 +9,12 @@
 use crate::{
     broadcast::data::BroadcastData,
     errors::{InternalError, Result},
+    local_storage::LocalStorage,
     messages::{BroadcastMessageType, Message, MessageType},
     participant::{ProcessOutcome, ProtocolParticipant},
     protocol::ParticipantIdentifier,
     run_only_once_per_tag,
-    storage::{Storable, Storage},
+    storage::Storage,
     Identifier,
 };
 use rand::{CryptoRng, RngCore};
@@ -21,24 +22,30 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{info, instrument};
 
-// Storage identifiers for the broadcast protocol.
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(tag = "Broadcast")]
-enum StorageType {
-    Votes,
+// Local storage data types.
+mod storage {
+    use super::*;
+    use crate::local_storage::TypeTag;
+
+    pub(super) struct Votes;
+    impl TypeTag for Votes {
+        type Value = HashMap<BroadcastIndex, Vec<u8>>;
+    }
 }
 
-impl Storable for StorageType {}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct BroadcastParticipant {
     /// A unique identifier for this participant
     id: ParticipantIdentifier,
     /// A list of all other participant identifiers participating in the
     /// protocol
     other_participant_ids: Vec<ParticipantIdentifier>,
+    /// Old storage mechanism currently used to store persistent data
+    ///
+    /// TODO #180: To be removed once we remove the need for persistent storage
+    main_storage: Storage,
     /// Local storage for this participant to store secrets
-    storage: Storage,
+    local_storage: LocalStorage,
 }
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Clone, Debug)]
@@ -65,11 +72,11 @@ impl ProtocolParticipant for BroadcastParticipant {
     type Output = BroadcastOutput;
 
     fn storage(&self) -> &Storage {
-        &self.storage
+        &self.main_storage
     }
 
     fn storage_mut(&mut self) -> &mut Storage {
-        &mut self.storage
+        &mut self.main_storage
     }
 
     fn id(&self) -> ParticipantIdentifier {
@@ -111,7 +118,8 @@ impl BroadcastParticipant {
         Self {
             id,
             other_participant_ids,
-            storage: Storage::new(),
+            main_storage: Storage::new(),
+            local_storage: Default::default(),
         }
     }
 
@@ -184,10 +192,21 @@ impl BroadcastParticipant {
     ) -> Result<Option<BroadcastOutput>> {
         info!("Processing broadcast vote.");
 
-        let mut message_votes: HashMap<BroadcastIndex, Vec<u8>> = self
-            .storage
-            .retrieve(StorageType::Votes, sid, self.id())
-            .unwrap_or_default();
+        let message_votes = match self
+            .local_storage
+            .retrieve_mut::<storage::Votes>(sid, self.id())
+        {
+            Ok(votes) => votes,
+            Err(_) => {
+                // If we can't find an entry we assume that means it doesn't
+                // exist, so we create the entry and immediately retrieve it.
+                self.local_storage
+                    .store::<storage::Votes>(sid, self.id(), Default::default());
+                self.local_storage
+                    .retrieve_mut::<storage::Votes>(sid, self.id())?
+            }
+        };
+
         // if not already in database, store. else, ignore
         let idx = BroadcastIndex {
             tag: data.tag.clone(),
@@ -198,9 +217,6 @@ impl BroadcastParticipant {
             return Ok(None);
         }
         let _ = message_votes.insert(idx, data.data.clone());
-
-        self.storage
-            .store(StorageType::Votes, sid, self.id(), &message_votes)?;
 
         // check if we've received all the votes for this tag||leader yet
         let mut redispersed_messages: Vec<Vec<u8>> = vec![];
