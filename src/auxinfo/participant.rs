@@ -6,15 +6,15 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use super::info::{AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses};
 use crate::{
     auxinfo::{
         auxinfo_commit::{AuxInfoCommit, AuxInfoDecommit},
+        info::{AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses},
         proof::AuxInfoProof,
     },
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::{InternalError, Result},
-    local_storage::{LocalStorage, TypeTag},
+    local_storage::LocalStorage,
     messages::{AuxinfoMessageType, Message, MessageType},
     paillier::DecryptionKey,
     participant::{Broadcast, ProcessOutcome, ProtocolParticipant},
@@ -26,33 +26,39 @@ use crate::{
 use rand::{CryptoRng, RngCore};
 use tracing::{debug, info, instrument};
 
-struct ReadyStorageType;
-impl TypeTag for ReadyStorageType {
-    type Value = ();
-}
-struct PrivateStorageType;
-impl TypeTag for PrivateStorageType {
-    type Value = AuxInfoPrivate;
-}
-struct PublicStorageType;
-impl TypeTag for PublicStorageType {
-    type Value = AuxInfoPublic;
-}
-struct CommitStorageType;
-impl TypeTag for CommitStorageType {
-    type Value = AuxInfoCommit;
-}
-struct DecommitStorageType;
-impl TypeTag for DecommitStorageType {
-    type Value = AuxInfoDecommit;
-}
-struct GlobalRidStorageType;
-impl TypeTag for GlobalRidStorageType {
-    type Value = [u8; 32];
-}
-struct WitnessesStorageType;
-impl TypeTag for WitnessesStorageType {
-    type Value = AuxInfoWitnesses;
+// Local storage data types.
+mod storage {
+    use super::*;
+    use crate::local_storage::TypeTag;
+
+    pub(super) struct Ready;
+    impl TypeTag for Ready {
+        type Value = ();
+    }
+    pub(super) struct Private;
+    impl TypeTag for Private {
+        type Value = AuxInfoPrivate;
+    }
+    pub(super) struct Public;
+    impl TypeTag for Public {
+        type Value = AuxInfoPublic;
+    }
+    pub(super) struct Commit;
+    impl TypeTag for Commit {
+        type Value = AuxInfoCommit;
+    }
+    pub(super) struct Decommit;
+    impl TypeTag for Decommit {
+        type Value = AuxInfoDecommit;
+    }
+    pub(super) struct GlobalRid;
+    impl TypeTag for GlobalRid {
+        type Value = [u8; 32];
+    }
+    pub(super) struct Witnesses;
+    impl TypeTag for Witnesses {
+        type Value = AuxInfoWitnesses;
+    }
 }
 
 #[derive(Debug)]
@@ -166,9 +172,9 @@ impl AuxInfoParticipant {
         info!("Handling auxinfo ready message.");
 
         self.local_storage
-            .store::<ReadyStorageType>(message.id(), message.from(), ());
+            .store::<storage::Ready>(message.id(), message.from(), ());
         let (ready_outcome, is_ready) =
-            self.process_ready_message_local::<ReadyStorageType>(message, &self.local_storage)?;
+            self.process_ready_message_local::<storage::Ready>(message, &self.local_storage)?;
 
         if is_ready {
             let round_one_outcome = ProcessOutcome::Processed(run_only_once!(
@@ -193,22 +199,19 @@ impl AuxInfoParticipant {
 
         let (auxinfo_private, auxinfo_public, auxinfo_witnesses) = new_auxinfo(self.id(), rng)?;
         self.local_storage
-            .store::<PrivateStorageType>(message.id(), self.id, auxinfo_private);
-        self.local_storage.store::<PublicStorageType>(
-            message.id(),
-            self.id,
-            auxinfo_public.clone(),
-        );
+            .store::<storage::Private>(message.id(), self.id, auxinfo_private);
         self.local_storage
-            .store::<WitnessesStorageType>(message.id(), self.id, auxinfo_witnesses);
+            .store::<storage::Public>(message.id(), self.id, auxinfo_public.clone());
+        self.local_storage
+            .store::<storage::Witnesses>(message.id(), self.id, auxinfo_witnesses);
 
         let decom = AuxInfoDecommit::new(rng, &message.id(), &self.id, auxinfo_public)?;
         let com = decom.commit()?;
 
         self.local_storage
-            .store::<CommitStorageType>(message.id(), self.id, com.clone());
+            .store::<storage::Commit>(message.id(), self.id, com.clone());
         self.local_storage
-            .store::<DecommitStorageType>(message.id(), self.id, decom);
+            .store::<storage::Decommit>(message.id(), self.id, decom);
 
         let messages = self.broadcast(
             rng,
@@ -234,7 +237,7 @@ impl AuxInfoParticipant {
             return Err(InternalError::IncorrectBroadcastMessageTag);
         }
         let message = &broadcast_message.msg;
-        self.local_storage.store::<CommitStorageType>(
+        self.local_storage.store::<storage::Commit>(
             message.id(),
             message.from(),
             AuxInfoCommit::from_message(message)?,
@@ -243,7 +246,7 @@ impl AuxInfoParticipant {
         // check if we've received all the commits.
         let r1_done = self
             .local_storage
-            .contains_for_all_ids::<CommitStorageType>(message.id(), &self.other_participant_ids);
+            .contains_for_all_ids::<storage::Commit>(message.id(), &self.other_participant_ids);
 
         if r1_done {
             // Generate messages for round two...
@@ -281,7 +284,7 @@ impl AuxInfoParticipant {
         // check that we've generated our public info before trying to retrieve it
         let public_keyshare_generated = self
             .local_storage
-            .contains::<PublicStorageType>(message.id(), self.id);
+            .contains::<storage::Public>(message.id(), self.id);
         let mut messages = vec![];
         if !public_keyshare_generated {
             let more_messages =
@@ -292,7 +295,7 @@ impl AuxInfoParticipant {
         // retrieve your decom from storage
         let decom = self
             .local_storage
-            .retrieve::<DecommitStorageType>(message.id(), self.id)?;
+            .retrieve::<storage::Decommit>(message.id(), self.id)?;
         let decom_bytes = serialize!(&decom)?;
         let more_messages: Vec<Message> = self
             .other_participant_ids
@@ -323,12 +326,10 @@ impl AuxInfoParticipant {
 
         // We must receive all commitments in round 1 before we start processing
         // decommits in round 2.
-        let r1_done = self
-            .local_storage
-            .contains_for_all_ids::<CommitStorageType>(
-                message.id(),
-                &[self.other_participant_ids.clone(), vec![self.id]].concat(),
-            );
+        let r1_done = self.local_storage.contains_for_all_ids::<storage::Commit>(
+            message.id(),
+            &[self.other_participant_ids.clone(), vec![self.id]].concat(),
+        );
         if !r1_done {
             // store any early round2 messages
             self.stash_message(message)?;
@@ -337,15 +338,15 @@ impl AuxInfoParticipant {
         let decom = AuxInfoDecommit::from_message(message)?;
         let com = self
             .local_storage
-            .retrieve::<CommitStorageType>(message.id(), message.from())?;
+            .retrieve::<storage::Commit>(message.id(), message.from())?;
         decom.verify(&message.id(), &message.from(), com)?;
         self.local_storage
-            .store::<DecommitStorageType>(message.id(), message.from(), decom);
+            .store::<storage::Decommit>(message.id(), message.from(), decom);
 
         // check if we've received all the decommits
         let r2_done = self
             .local_storage
-            .contains_for_all_ids::<DecommitStorageType>(message.id(), &self.other_participant_ids);
+            .contains_for_all_ids::<storage::Decommit>(message.id(), &self.other_participant_ids);
         if r2_done {
             // Generate messages for round 3...
             let round_two_outcome = ProcessOutcome::Processed(run_only_once!(
@@ -384,16 +385,16 @@ impl AuxInfoParticipant {
             .map(|&other_participant_id| {
                 let decom = self
                     .local_storage
-                    .retrieve::<DecommitStorageType>(message.id(), other_participant_id)?;
+                    .retrieve::<storage::Decommit>(message.id(), other_participant_id)?;
                 Ok(decom.rid())
             })
             .collect::<Result<Vec<[u8; 32]>>>()?;
         let my_decom = self
             .local_storage
-            .retrieve::<DecommitStorageType>(message.id(), self.id)?;
+            .retrieve::<storage::Decommit>(message.id(), self.id)?;
         let my_public = self
             .local_storage
-            .retrieve::<PublicStorageType>(message.id(), self.id)?
+            .retrieve::<storage::Public>(message.id(), self.id)?
             .clone();
 
         let mut global_rid = my_decom.rid();
@@ -405,11 +406,11 @@ impl AuxInfoParticipant {
             }
         }
         self.local_storage
-            .store::<GlobalRidStorageType>(message.id(), self.id, global_rid);
+            .store::<storage::GlobalRid>(message.id(), self.id, global_rid);
 
         let witness = self
             .local_storage
-            .retrieve::<WitnessesStorageType>(message.id(), self.id)?;
+            .retrieve::<storage::Witnesses>(message.id(), self.id)?;
 
         let proof = AuxInfoProof::prove(
             rng,
@@ -453,7 +454,7 @@ impl AuxInfoParticipant {
         // We can't handle this message unless we already calculated the global_rid
         if self
             .local_storage
-            .retrieve::<GlobalRidStorageType>(message.id(), self.id)
+            .retrieve::<storage::GlobalRid>(message.id(), self.id)
             .is_err()
         {
             self.stash_message(message)?;
@@ -462,10 +463,10 @@ impl AuxInfoParticipant {
 
         let global_rid = self
             .local_storage
-            .retrieve::<GlobalRidStorageType>(message.id(), self.id)?;
+            .retrieve::<storage::GlobalRid>(message.id(), self.id)?;
         let decom = self
             .local_storage
-            .retrieve::<DecommitStorageType>(message.id(), message.from())?;
+            .retrieve::<storage::Decommit>(message.id(), message.from())?;
 
         let auxinfo_pub = decom.clone().into_public();
 
@@ -478,22 +479,20 @@ impl AuxInfoParticipant {
         )?;
 
         self.local_storage
-            .store::<PublicStorageType>(message.id(), message.from(), auxinfo_pub);
+            .store::<storage::Public>(message.id(), message.from(), auxinfo_pub);
 
         // Check if we've stored all the public auxinfo_pubs
-        let keyshare_done = self
-            .local_storage
-            .contains_for_all_ids::<PublicStorageType>(
-                message.id(),
-                &[self.other_participant_ids.clone(), vec![self.id]].concat(),
-            );
+        let keyshare_done = self.local_storage.contains_for_all_ids::<storage::Public>(
+            message.id(),
+            &[self.other_participant_ids.clone(), vec![self.id]].concat(),
+        );
 
         // If so, we completed the protocol! Return the outputs.
         if keyshare_done {
             for oid in self.other_participant_ids.iter() {
                 let public = self
                     .local_storage
-                    .retrieve::<PublicStorageType>(message.id(), *oid)?;
+                    .retrieve::<storage::Public>(message.id(), *oid)?;
                 main_storage.store(
                     PersistentStorageType::AuxInfoPublic,
                     message.id(),
@@ -503,7 +502,7 @@ impl AuxInfoParticipant {
             }
             let public = self
                 .local_storage
-                .retrieve::<PublicStorageType>(message.id(), self.id)?;
+                .retrieve::<storage::Public>(message.id(), self.id)?;
             main_storage.store(
                 PersistentStorageType::AuxInfoPublic,
                 message.id(),
@@ -512,7 +511,7 @@ impl AuxInfoParticipant {
             )?;
             let private = self
                 .local_storage
-                .retrieve::<PrivateStorageType>(message.id(), self.id)?;
+                .retrieve::<storage::Private>(message.id(), self.id)?;
             main_storage.store(
                 PersistentStorageType::AuxInfoPrivate,
                 message.id(),
@@ -526,13 +525,13 @@ impl AuxInfoParticipant {
                 .map(|pid| {
                     let value = self
                         .local_storage
-                        .retrieve::<PublicStorageType>(message.id(), *pid)?;
+                        .retrieve::<storage::Public>(message.id(), *pid)?;
                     Ok(value.clone())
                 })
                 .collect::<Result<Vec<_>>>()?;
             let auxinfo_private = self
                 .local_storage
-                .retrieve::<PrivateStorageType>(message.id(), self.id)?;
+                .retrieve::<storage::Private>(message.id(), self.id)?;
 
             Ok(ProcessOutcome::Terminated((
                 auxinfo_public,
@@ -607,19 +606,13 @@ mod tests {
             )
         }
 
-        pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<bool> {
-            Ok(self
+        pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> bool {
+            self.local_storage.contains_for_all_ids::<storage::Public>(
+                auxinfo_identifier,
+                &self.all_participants(),
+            ) && self
                 .local_storage
-                .contains_for_all_ids::<PublicStorageType>(
-                    auxinfo_identifier,
-                    &self.other_participant_ids,
-                )
-                && self
-                    .local_storage
-                    .contains::<PublicStorageType>(auxinfo_identifier, self.id)
-                && self
-                    .local_storage
-                    .contains::<PrivateStorageType>(auxinfo_identifier, self.id))
+                .contains::<storage::Private>(auxinfo_identifier, self.id)
         }
     }
     /// Delivers all messages into their respective participant's inboxes
@@ -643,7 +636,7 @@ mod tests {
         auxinfo_identifier: Identifier,
     ) -> Result<bool> {
         for participant in quorum {
-            if !participant.is_auxinfo_done(auxinfo_identifier)? {
+            if !participant.is_auxinfo_done(auxinfo_identifier) {
                 return Ok(false);
             }
         }
