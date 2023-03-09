@@ -20,6 +20,9 @@ use serde::{Deserialize, Serialize};
 use tracing::error;
 
 /// The private key corresponding to a given Participant's [`AuxInfoPublic`].
+///
+/// TODO #169: Let's be more careful about allowing `Clone`, `Serialize`, etc.
+/// here due to this being sensitive data.
 #[derive(Clone, Serialize, Deserialize, ZeroizeOnDrop)]
 pub(crate) struct AuxInfoPrivate {
     decryption_key: DecryptionKey,
