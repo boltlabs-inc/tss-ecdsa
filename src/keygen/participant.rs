@@ -52,6 +52,14 @@ mod storage {
     impl TypeTag for GlobalRid {
         type Value = [u8; 32];
     }
+    pub(super) struct PrivateKeyshare;
+    impl TypeTag for PrivateKeyshare {
+        type Value = KeySharePrivate;
+    }
+    pub(super) struct PublicKeyshare;
+    impl TypeTag for PublicKeyshare {
+        type Value = KeySharePublic;
+    }
 }
 
 #[derive(Debug)]
@@ -61,10 +69,6 @@ pub(crate) struct KeygenParticipant {
     /// A list of all other participant identifiers participating in the
     /// protocol
     other_participant_ids: Vec<ParticipantIdentifier>,
-    /// Old storage mechanism currently used to store persistent data
-    ///
-    /// TODO #180: To be removed once we remove the need for persistent storage
-    main_storage: Storage,
     /// Local storage for this participant to store secrets
     local_storage: LocalStorage,
     /// Broadcast subprotocol handler
@@ -76,12 +80,12 @@ impl ProtocolParticipant for KeygenParticipant {
     // participants (including ourselves) and `KeySharePrivate` for ourselves.
     type Output = (Vec<KeySharePublic>, KeySharePrivate);
 
-    fn storage(&self) -> &Storage {
-        &self.main_storage
+    fn local_storage(&self) -> &LocalStorage {
+        &self.local_storage
     }
 
-    fn storage_mut(&mut self) -> &mut Storage {
-        &mut self.main_storage
+    fn local_storage_mut(&mut self) -> &mut LocalStorage {
+        &mut self.local_storage
     }
 
     fn id(&self) -> ParticipantIdentifier {
@@ -146,7 +150,6 @@ impl KeygenParticipant {
         Self {
             id,
             other_participant_ids: other_participant_ids.clone(),
-            main_storage: Storage::new(),
             local_storage: Default::default(),
             broadcast_participant: BroadcastParticipant::from_ids(id, other_participant_ids),
         }
@@ -161,10 +164,7 @@ impl KeygenParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling ready keygen message.");
 
-        self.local_storage
-            .store::<storage::Ready>(message.id(), message.from(), ());
-        let (ready_outcome, is_ready) =
-            self.process_ready_message::<storage::Ready>(message, &self.local_storage)?;
+        let (ready_outcome, is_ready) = self.process_ready_message::<storage::Ready>(message)?;
 
         if is_ready {
             let round_one_outcome = ProcessOutcome::Processed(run_only_once!(
@@ -188,18 +188,16 @@ impl KeygenParticipant {
         info!("Generating round one keygen messages.");
 
         let (keyshare_private, keyshare_public) = new_keyshare(self.id(), rng)?;
-        self.main_storage.store(
-            PersistentStorageType::PrivateKeyshare,
+        self.local_storage.store::<storage::PrivateKeyshare>(
             message.id(),
             self.id,
-            &keyshare_private,
-        )?;
-        self.main_storage.store(
-            PersistentStorageType::PublicKeyshare,
+            keyshare_private,
+        );
+        self.local_storage.store::<storage::PublicKeyshare>(
             message.id(),
             self.id,
-            &keyshare_public,
-        )?;
+            keyshare_public.clone(),
+        );
 
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
@@ -287,11 +285,12 @@ impl KeygenParticipant {
     ) -> Result<Vec<Message>> {
         info!("Generating round two keygen messages.");
 
-        // check that we've generated our keyshare before trying to retrieve it
-        let fetch = vec![(PersistentStorageType::PublicKeyshare, message.id(), self.id)];
-        let public_keyshare_generated = self.main_storage.contains_batch(&fetch)?;
         let mut messages = vec![];
-        if !public_keyshare_generated {
+        // check that we've generated our keyshare before trying to retrieve it
+        if !self
+            .local_storage
+            .contains::<storage::PublicKeyshare>(message.id(), self.id)
+        {
             let more_messages =
                 run_only_once!(self.gen_round_one_msgs(rng, message), message.id())?;
             messages.extend_from_slice(&more_messages);
@@ -415,18 +414,14 @@ impl KeygenParticipant {
 
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
-        let my_pk: KeySharePublic = self.main_storage.retrieve(
-            PersistentStorageType::PublicKeyshare,
-            message.id(),
-            self.id,
-        )?;
+        let my_pk = self
+            .local_storage
+            .retrieve::<storage::PublicKeyshare>(message.id(), self.id)?;
         let input = PiSchInput::new(&g, &q, &my_pk.X);
 
-        let my_sk: KeySharePrivate = self.main_storage.retrieve(
-            PersistentStorageType::PrivateKeyshare,
-            message.id(),
-            self.id,
-        )?;
+        let my_sk = self
+            .local_storage
+            .retrieve::<storage::PrivateKeyshare>(message.id(), self.id)?;
 
         let proof = PiSchProof::prove_from_precommit(
             precom,
@@ -487,31 +482,31 @@ impl KeygenParticipant {
 
         proof.verify_with_transcript(&input, &transcript)?;
         let keyshare = decom.get_keyshare();
-        self.main_storage.store(
-            PersistentStorageType::PublicKeyshare,
+        self.local_storage.store::<storage::PublicKeyshare>(
             message.id(),
             message.from(),
-            &keyshare,
-        )?;
+            keyshare.clone(),
+        );
 
-        // Check if we've stored all the public keyshares
-        let keyshare_done = self.main_storage.contains_for_all_ids(
-            PersistentStorageType::PublicKeyshare,
-            message.id(),
-            &self.all_participants(),
-        )?;
+        //check if we've stored all the public keyshares
+        let keyshare_done = self
+            .local_storage
+            .contains_for_all_ids::<storage::PublicKeyshare>(
+                message.id(),
+                &self.all_participants(),
+            );
 
         // If so, we completed the protocol! Return the outputs.
         if keyshare_done {
-            for pid in self.all_participants() {
-                self.main_storage.transfer::<_, KeySharePublic>(
+            for pid in self.all_participants().iter() {
+                self.local_storage.transfer::<storage::PublicKeyshare>(
                     main_storage,
                     PersistentStorageType::PublicKeyshare,
                     message.id(),
-                    pid,
+                    *pid,
                 )?;
             }
-            self.main_storage.transfer::<_, KeySharePrivate>(
+            self.local_storage.transfer::<storage::PrivateKeyshare>(
                 main_storage,
                 PersistentStorageType::PrivateKeyshare,
                 message.id(),
@@ -522,14 +517,10 @@ impl KeygenParticipant {
                 .all_participants()
                 .iter()
                 .map(|pid| {
-                    self.main_storage.retrieve(
-                        PersistentStorageType::PublicKeyshare,
-                        message.id(),
-                        *pid,
-                    )
+                    main_storage.retrieve(PersistentStorageType::PublicKeyshare, message.id(), *pid)
                 })
                 .collect::<Result<Vec<_>>>()?;
-            let private_key_share = self.main_storage.retrieve(
+            let private_key_share = main_storage.retrieve(
                 PersistentStorageType::PrivateKeyshare,
                 message.id(),
                 self.id,
@@ -604,27 +595,15 @@ mod tests {
                 &[],
             )
         }
-        pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> Result<bool> {
-            let mut fetch = vec![];
-            for participant in self.other_participant_ids.clone() {
-                fetch.push((
-                    PersistentStorageType::PublicKeyshare,
+        pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> bool {
+            self.local_storage
+                .contains_for_all_ids::<storage::PublicKeyshare>(
                     keygen_identifier,
-                    participant,
-                ));
-            }
-            fetch.push((
-                PersistentStorageType::PublicKeyshare,
-                keygen_identifier,
-                self.id,
-            ));
-            fetch.push((
-                PersistentStorageType::PrivateKeyshare,
-                keygen_identifier,
-                self.id,
-            ));
-
-            self.main_storage.contains_batch(&fetch)
+                    &self.all_participants(),
+                )
+                && self
+                    .local_storage
+                    .contains::<storage::PrivateKeyshare>(keygen_identifier, self.id)
         }
     }
     /// Delivers all messages into their respective participant's inboxes
@@ -645,7 +624,7 @@ mod tests {
 
     fn is_keygen_done(quorum: &[KeygenParticipant], keygen_identifier: Identifier) -> Result<bool> {
         for participant in quorum {
-            if !participant.is_keygen_done(keygen_identifier)? {
+            if !participant.is_keygen_done(keygen_identifier) {
                 return Ok(false);
             }
         }

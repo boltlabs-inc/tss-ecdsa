@@ -13,6 +13,7 @@
 
 use crate::{
     errors::{InternalError, Result},
+    storage::{PersistentStorageType, Storage},
     Identifier, ParticipantIdentifier,
 };
 use std::{
@@ -24,6 +25,21 @@ use std::{
 /// values of type `<T as TypeTag>::Value`.
 pub(crate) trait TypeTag: 'static {
     type Value: Send + Sync;
+}
+
+pub(crate) mod storage {
+    use super::TypeTag;
+    use std::collections::HashMap;
+
+    pub(crate) struct MessageQueue;
+    impl TypeTag for MessageQueue {
+        type Value = crate::message_queue::MessageQueue;
+    }
+
+    pub(crate) struct ProgressStore;
+    impl TypeTag for ProgressStore {
+        type Value = HashMap<Vec<u8>, bool>;
+    }
 }
 
 /// A type for storing values local to a protocol.
@@ -76,6 +92,25 @@ impl LocalStorage {
                     .ok_or(InternalError::InternalInvariantFailed)
             })
             .unwrap_or(Err(InternalError::StorageItemNotFound))
+    }
+
+    /// Transfers an item associated with the given [`TypeTag`] in local storage
+    /// to `main_storage`, using the [`PersistentStorageType`],
+    /// [`Identifier`] and [`ParticipantIdentifier`] tuple as the persistent
+    /// storage key.
+    pub(crate) fn transfer<T: TypeTag>(
+        &self,
+        main_storage: &mut Storage,
+        storage_type: PersistentStorageType,
+        id: Identifier,
+        participant_id: ParticipantIdentifier,
+    ) -> Result<()>
+    where
+        T::Value: serde::Serialize,
+    {
+        let item = self.retrieve::<T>(id, participant_id)?;
+        main_storage.store(storage_type, id, participant_id, item)?;
+        Ok(())
     }
 
     /// Checks whether values exist for the given [`TypeTag`], [`Identifier`],

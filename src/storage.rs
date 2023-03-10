@@ -22,8 +22,6 @@ use std::{collections::HashMap, fmt::Debug};
 pub(crate) enum PersistentStorageType {
     PrivateKeyshare,
     PublicKeyshare,
-    MessageQueue,
-    ProgressStore,
     AuxInfoPublic,
     AuxInfoPrivate,
     PresignRecord,
@@ -87,19 +85,6 @@ impl Storage {
         })?)
     }
 
-    /// Transfers an entry stored in `self` to [`Storage`] specified by `other`.
-    pub(crate) fn transfer<T: Storable, D: Serialize + DeserializeOwned>(
-        &self,
-        other: &mut Self,
-        storable_type: T,
-        identifier: Identifier,
-        participant: ParticipantIdentifier,
-    ) -> Result<()> {
-        let data: D = self.retrieve(storable_type, identifier, participant)?;
-        other.store(storable_type, identifier, participant, &data)?;
-        Ok(())
-    }
-
     pub(crate) fn delete<T: Storable>(
         &mut self,
         storable_type: T,
@@ -126,21 +111,6 @@ impl Storage {
             })
             .collect();
         self.contains_index_batch(&storable_indices)
-    }
-
-    /// Check if storage contains entries for a given StorableType for each
-    /// listed ParticipantIdentifier (in the same sid)
-    pub(crate) fn contains_for_all_ids<T: Storable>(
-        &self,
-        s_type: T,
-        sid: Identifier,
-        participants: &[ParticipantIdentifier],
-    ) -> Result<bool> {
-        let fetch: Vec<(T, Identifier, ParticipantIdentifier)> = participants
-            .iter()
-            .map(|participant| (s_type, sid, *participant))
-            .collect();
-        self.contains_batch(&fetch)
     }
 
     // Inner functions

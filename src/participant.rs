@@ -9,16 +9,15 @@
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::{InternalError, Result},
-    local_storage::{LocalStorage, TypeTag},
-    message_queue::MessageQueue,
+    local_storage::{storage as local_storage, LocalStorage, TypeTag},
     messages::{Message, MessageType},
     protocol::ParticipantIdentifier,
-    storage::{PersistentStorageType, Storage},
+    storage::Storage,
     Identifier,
 };
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 use tracing::error;
 
 #[derive(Serialize, Deserialize)]
@@ -129,8 +128,12 @@ pub(crate) trait ProtocolParticipant {
     /// Output type of a successful protocol execution.
     type Output;
 
-    fn storage(&self) -> &Storage;
-    fn storage_mut(&mut self) -> &mut Storage;
+    /// Returns a reference to the [`LocalStorage`] associated with this
+    /// protocol.
+    fn local_storage(&self) -> &LocalStorage;
+    /// Returns a mutable reference to the [`LocalStorage`] associated with this
+    /// protocol.
+    fn local_storage_mut(&mut self) -> &mut LocalStorage;
     fn id(&self) -> ParticipantIdentifier;
     fn other_ids(&self) -> &Vec<ParticipantIdentifier>;
 
@@ -166,18 +169,11 @@ pub(crate) trait ProtocolParticipant {
     /// Process a `ready` message: tell other participants that we're ready and
     /// see if all others have also reported that they are ready.
     fn process_ready_message<T: TypeTag<Value = ()>>(
-        &self,
+        &mut self,
         message: &Message,
-        storage: &LocalStorage,
     ) -> Result<(ProcessOutcome<Self::Output>, bool)> {
-        // TODO #180: Unlike before, we don't store the ready
-        // message here. That's because that would require taking `LocalStorage`
-        // as a `&mut`, which causes problems with the borrow checker when we're
-        // calling `self.process_ready_message_local(..., &mut
-        // self.local_storage)`. Once we've swapped all the protocols to use the
-        // new `LocalStorage` we'll be able to undo this limitation, since
-        // `self.storage()` will return `LocalStorage`.
-
+        self.local_storage_mut()
+            .store::<T>(message.id(), message.from(), ());
         // If message came from self, then tell the other participants that we are ready
         let self_initiated_outcome = if message.from() == self.id() {
             let messages = self
@@ -199,24 +195,31 @@ pub(crate) trait ProtocolParticipant {
         };
 
         // Make sure that all parties are ready before proceeding
-        let is_ready = storage.contains_for_all_ids::<T>(message.id(), &self.all_participants());
+        let is_ready = self
+            .local_storage()
+            .contains_for_all_ids::<T>(message.id(), &self.all_participants());
 
         Ok((self_initiated_outcome, is_ready))
     }
 
+    /// Retrieves an item from [`LocalStorage`] associated with the given
+    /// [`TypeTag`]. If the entry is not found in storage, we populate the
+    /// storage with its [`Default`].
+    fn get_from_storage<T: TypeTag>(&mut self, id: Identifier) -> Result<&mut T::Value>
+    where
+        T::Value: Default,
+    {
+        let pid = self.id();
+        if self.local_storage_mut().retrieve_mut::<T>(id, pid).is_err() {
+            self.local_storage_mut()
+                .store::<T>(id, pid, Default::default());
+        }
+        self.local_storage_mut().retrieve_mut::<T>(id, pid)
+    }
+
     fn stash_message(&mut self, message: &Message) -> Result<()> {
-        let mut message_storage: MessageQueue = self
-            .storage()
-            .retrieve(PersistentStorageType::MessageQueue, message.id(), self.id())
-            .unwrap_or_default();
+        let message_storage = self.get_from_storage::<local_storage::MessageQueue>(message.id())?;
         message_storage.store(message.message_type(), message.id(), message.clone())?;
-        let my_id = self.id();
-        self.storage_mut().store(
-            PersistentStorageType::MessageQueue,
-            message.id(),
-            my_id,
-            &message_storage,
-        )?;
         Ok(())
     }
 
@@ -225,9 +228,8 @@ pub(crate) trait ProtocolParticipant {
         message_type: MessageType,
         sid: Identifier,
     ) -> Result<Vec<Message>> {
-        let mut message_storage = self.get_message_queue(sid)?;
+        let message_storage = self.get_from_storage::<local_storage::MessageQueue>(sid)?;
         let messages = message_storage.retrieve_all(message_type, sid)?;
-        self.write_message_queue(sid, message_storage)?;
         Ok(messages)
     }
 
@@ -237,53 +239,21 @@ pub(crate) trait ProtocolParticipant {
         sid: Identifier,
         sender: ParticipantIdentifier,
     ) -> Result<Vec<Message>> {
-        let mut message_storage = self.get_message_queue(sid)?;
+        let message_storage = self.get_from_storage::<local_storage::MessageQueue>(sid)?;
         let messages = message_storage.retrieve(message_type, sid, sender)?;
-        self.write_message_queue(sid, message_storage)?;
         Ok(messages)
     }
 
-    fn get_message_queue(&mut self, sid: Identifier) -> Result<MessageQueue> {
-        let message_storage: MessageQueue = self
-            .storage()
-            .retrieve(PersistentStorageType::MessageQueue, sid, self.id())
-            .unwrap_or_default();
-        Ok(message_storage)
-    }
-
-    fn write_message_queue(&mut self, sid: Identifier, message_queue: MessageQueue) -> Result<()> {
-        let my_id = self.id();
-        self.storage_mut().store(
-            PersistentStorageType::MessageQueue,
-            sid,
-            my_id,
-            &message_queue,
-        )
-    }
-
     fn write_progress(&mut self, func_name: String, sid: Identifier) -> Result<()> {
-        let mut progress_storage: HashMap<Vec<u8>, bool> = self
-            .storage()
-            .retrieve(PersistentStorageType::ProgressStore, sid, self.id())
-            .unwrap_or_default();
         let key = serialize!(&ProgressIndex { func_name, sid })?;
+        let progress_storage = self.get_from_storage::<local_storage::ProgressStore>(sid)?;
         let _ = progress_storage.insert(key, true);
-        let my_id = self.id();
-        self.storage_mut().store(
-            PersistentStorageType::ProgressStore,
-            sid,
-            my_id,
-            &progress_storage,
-        )?;
         Ok(())
     }
 
-    fn read_progress(&self, func_name: String, sid: Identifier) -> Result<bool> {
-        let progress_storage: HashMap<Vec<u8>, bool> = self
-            .storage()
-            .retrieve(PersistentStorageType::ProgressStore, sid, self.id())
-            .unwrap_or_default();
+    fn read_progress(&mut self, func_name: String, sid: Identifier) -> Result<bool> {
         let key = serialize!(&ProgressIndex { func_name, sid })?;
+        let progress_storage = self.get_from_storage::<local_storage::ProgressStore>(sid)?;
         let result = match progress_storage.get(&key) {
             None => false,
             Some(value) => *value,

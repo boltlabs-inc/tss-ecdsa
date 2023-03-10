@@ -68,10 +68,6 @@ pub(crate) struct AuxInfoParticipant {
     /// A list of all other participant identifiers participating in the
     /// protocol
     other_participant_ids: Vec<ParticipantIdentifier>,
-    /// Old storage mechanism currently used to store persistent data
-    ///
-    /// TODO #180: To be removed once we remove the need for persistent storage
-    main_storage: Storage,
     /// Local storage for this participant to store secrets
     local_storage: LocalStorage,
     /// Broadcast subprotocol handler
@@ -83,12 +79,12 @@ impl ProtocolParticipant for AuxInfoParticipant {
     // (including ourselves) and `AuxInfoPrivate` for ourselves.
     type Output = (Vec<AuxInfoPublic>, AuxInfoPrivate);
 
-    fn storage(&self) -> &Storage {
-        &self.main_storage
+    fn local_storage(&self) -> &LocalStorage {
+        &self.local_storage
     }
 
-    fn storage_mut(&mut self) -> &mut Storage {
-        &mut self.main_storage
+    fn local_storage_mut(&mut self) -> &mut LocalStorage {
+        &mut self.local_storage
     }
 
     fn id(&self) -> ParticipantIdentifier {
@@ -156,7 +152,6 @@ impl AuxInfoParticipant {
         Self {
             id,
             other_participant_ids: other_participant_ids.clone(),
-            main_storage: Storage::new(),
             local_storage: Default::default(),
             broadcast_participant: BroadcastParticipant::from_ids(id, other_participant_ids),
         }
@@ -171,10 +166,7 @@ impl AuxInfoParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling auxinfo ready message.");
 
-        self.local_storage
-            .store::<storage::Ready>(message.id(), message.from(), ());
-        let (ready_outcome, is_ready) =
-            self.process_ready_message::<storage::Ready>(message, &self.local_storage)?;
+        let (ready_outcome, is_ready) = self.process_ready_message::<storage::Ready>(message)?;
 
         if is_ready {
             let round_one_outcome = ProcessOutcome::Processed(run_only_once!(
@@ -490,24 +482,18 @@ impl AuxInfoParticipant {
         // If so, we completed the protocol! Return the outputs.
         if keyshare_done {
             for oid in self.all_participants().iter() {
-                let public = self
-                    .local_storage
-                    .retrieve::<storage::Public>(message.id(), *oid)?;
-                main_storage.store(
+                self.local_storage.transfer::<storage::Public>(
+                    main_storage,
                     PersistentStorageType::AuxInfoPublic,
                     message.id(),
                     *oid,
-                    public,
                 )?;
             }
-            let private = self
-                .local_storage
-                .retrieve::<storage::Private>(message.id(), self.id)?;
-            main_storage.store(
+            self.local_storage.transfer::<storage::Private>(
+                main_storage,
                 PersistentStorageType::AuxInfoPrivate,
                 message.id(),
                 self.id,
-                private,
             )?;
 
             let auxinfo_public = self

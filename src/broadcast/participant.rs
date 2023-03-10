@@ -40,10 +40,6 @@ pub(crate) struct BroadcastParticipant {
     /// A list of all other participant identifiers participating in the
     /// protocol
     other_participant_ids: Vec<ParticipantIdentifier>,
-    /// Old storage mechanism currently used to store persistent data
-    ///
-    /// TODO #180: To be removed once we remove the need for persistent storage
-    main_storage: Storage,
     /// Local storage for this participant to store secrets
     local_storage: LocalStorage,
 }
@@ -71,12 +67,12 @@ pub(crate) struct BroadcastOutput {
 impl ProtocolParticipant for BroadcastParticipant {
     type Output = BroadcastOutput;
 
-    fn storage(&self) -> &Storage {
-        &self.main_storage
+    fn local_storage(&self) -> &LocalStorage {
+        &self.local_storage
     }
 
-    fn storage_mut(&mut self) -> &mut Storage {
-        &mut self.main_storage
+    fn local_storage_mut(&mut self) -> &mut LocalStorage {
+        &mut self.local_storage
     }
 
     fn id(&self) -> ParticipantIdentifier {
@@ -118,7 +114,6 @@ impl BroadcastParticipant {
         Self {
             id,
             other_participant_ids,
-            main_storage: Storage::new(),
             local_storage: Default::default(),
         }
     }
@@ -192,20 +187,8 @@ impl BroadcastParticipant {
     ) -> Result<Option<BroadcastOutput>> {
         info!("Processing broadcast vote.");
 
-        let message_votes = match self
-            .local_storage
-            .retrieve_mut::<storage::Votes>(sid, self.id())
-        {
-            Ok(votes) => votes,
-            Err(_) => {
-                // If we can't find an entry we assume that means it doesn't
-                // exist, so we create the entry and immediately retrieve it.
-                self.local_storage
-                    .store::<storage::Votes>(sid, self.id(), Default::default());
-                self.local_storage
-                    .retrieve_mut::<storage::Votes>(sid, self.id())?
-            }
-        };
+        let other_participant_ids = self.other_participant_ids.clone();
+        let message_votes = self.get_from_storage::<storage::Votes>(sid)?;
 
         // if not already in database, store. else, ignore
         let idx = BroadcastIndex {
@@ -220,7 +203,7 @@ impl BroadcastParticipant {
 
         // check if we've received all the votes for this tag||leader yet
         let mut redispersed_messages: Vec<Vec<u8>> = vec![];
-        for oid in self.other_participant_ids.iter() {
+        for oid in other_participant_ids.iter() {
             let idx = BroadcastIndex {
                 tag: data.tag.clone(),
                 leader: data.leader,

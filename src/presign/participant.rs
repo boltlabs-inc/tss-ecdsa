@@ -92,10 +92,6 @@ pub(crate) struct PresignParticipant {
     /// A list of all other participant identifiers participating in the
     /// protocol
     other_participant_ids: Vec<ParticipantIdentifier>,
-    /// Old storage mechanism currently used to store persistent data
-    ///
-    /// TODO #180: To be removed once we remove the need for persistent storage
-    main_storage: Storage,
     /// Local storage for this participant to store secrets
     local_storage: LocalStorage,
     /// presign -> {keyshare, auxinfo} map
@@ -107,12 +103,12 @@ pub(crate) struct PresignParticipant {
 impl ProtocolParticipant for PresignParticipant {
     type Output = PresignRecord;
 
-    fn storage(&self) -> &Storage {
-        &self.main_storage
+    fn local_storage(&self) -> &LocalStorage {
+        &self.local_storage
     }
 
-    fn storage_mut(&mut self) -> &mut Storage {
-        &mut self.main_storage
+    fn local_storage_mut(&mut self) -> &mut LocalStorage {
+        &mut self.local_storage
     }
 
     fn id(&self) -> ParticipantIdentifier {
@@ -183,7 +179,6 @@ impl PresignParticipant {
         Self {
             id,
             other_participant_ids: other_participant_ids.clone(),
-            main_storage: Storage::new(),
             local_storage: Default::default(),
             presign_map: HashMap::new(),
             broadcast_participant: BroadcastParticipant::from_ids(id, other_participant_ids),
@@ -200,10 +195,7 @@ impl PresignParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling ready presign message.");
 
-        self.local_storage
-            .store::<storage::Ready>(message.id(), message.from(), ());
-        let (ready_outcome, is_ready) =
-            self.process_ready_message::<storage::Ready>(message, &self.local_storage)?;
+        let (ready_outcome, is_ready) = self.process_ready_message::<storage::Ready>(message)?;
 
         if is_ready {
             let round_one_outcome = self.gen_round_one_msgs(rng, message, main_storage)?;
