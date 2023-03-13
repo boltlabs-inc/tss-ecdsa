@@ -18,7 +18,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::{instrument, warn};
+use tracing::warn;
 use utils::CurvePoint;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -94,7 +94,6 @@ impl Proof for PiSchProof {
     }
 
     #[cfg_attr(feature = "flame_it", flame("PiEncProof"))]
-    #[instrument(skip_all, err(Debug))]
     fn verify(&self, input: &Self::CommonInput, transcript: &mut Transcript) -> Result<()> {
         // First check Fiat-Shamir challenge consistency
 
@@ -154,7 +153,6 @@ impl PiSchProof {
         let proof = Self { A, e, z };
         Ok(proof)
     }
-    #[instrument(skip_all, err(Debug))]
     pub fn verify_with_transcript(
         &self,
         input: &PiSchInput,
