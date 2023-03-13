@@ -98,8 +98,9 @@ impl Storage {
         })
     }
 
-    /// Returns `true` if the storage contains entries associated with a given `storage_type`,
-    /// [`Identifier`], and list of [`ParticipantIdentifier`]s.
+    /// Returns `true` if the storage contains entries associated with a given
+    /// `storage_type`, [`Identifier`], and list of
+    /// [`ParticipantIdentifier`]s.
     pub(crate) fn contains_for_all_ids<T: Storable>(
         &self,
         storage_type: T,
@@ -113,8 +114,8 @@ impl Storage {
         self.contains_batch(&fetch)
     }
 
-    /// Retrieves all items associated with a given `storage_type`, [`Identifier`], and list of
-    /// [`ParticipantIdentifier`]s.
+    /// Retrieves all items associated with a given `storage_type`,
+    /// [`Identifier`], and list of [`ParticipantIdentifier`]s.
     pub(crate) fn retrieve_for_all_ids<T: Storable, D: DeserializeOwned>(
         &self,
         storage_type: T,
