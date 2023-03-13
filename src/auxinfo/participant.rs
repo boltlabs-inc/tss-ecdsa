@@ -474,19 +474,20 @@ impl AuxInfoParticipant {
             .store::<storage::Public>(message.id(), message.from(), auxinfo_pub);
 
         // Check if we've stored all the public auxinfo_pubs
-        let keyshare_done = self.local_storage.contains_for_all_ids::<storage::Public>(
-            message.id(),
-            &[self.other_participant_ids.clone(), vec![self.id]].concat(),
-        );
+        let done = self
+            .local_storage
+            .contains_for_all_ids::<storage::Public>(message.id(), &self.all_participants());
 
         // If so, we completed the protocol! Return the outputs.
-        if keyshare_done {
-            for oid in self.all_participants().iter() {
+        if done {
+            // TODO #180: This is still needed as some protocols rely on checking
+            // that this info is available in main storage.
+            for pid in self.all_participants().iter() {
                 self.local_storage.transfer::<storage::Public>(
                     main_storage,
                     PersistentStorageType::AuxInfoPublic,
                     message.id(),
-                    *oid,
+                    *pid,
                 )?;
             }
             self.local_storage.transfer::<storage::Private>(
@@ -752,14 +753,16 @@ mod tests {
         for player in &quorum {
             let player_id = player.id;
             let mut stored_values = vec![];
-            for main_storage in main_storages.iter() {
-                let pk: AuxInfoPublic = main_storage.retrieve(
-                    PersistentStorageType::AuxInfoPublic,
-                    keyshare_identifier,
-                    player_id,
-                )?;
-                stored_values.push(serialize!(&pk)?);
+            // Check all outputs for `AuxInfoPublic` public keys that match
+            // the given player's ID.
+            for output in outputs.iter() {
+                for aux_info_public in output.0.iter() {
+                    if *aux_info_public.participant() == player_id {
+                        stored_values.push(aux_info_public.pk());
+                    }
+                }
             }
+            // Make sure that all the stored values are equal.
             let base = stored_values.pop();
             while !stored_values.is_empty() {
                 assert!(base == stored_values.pop());
@@ -771,19 +774,12 @@ mod tests {
         for index in 0..quorum.len() {
             let player = quorum.get(index).unwrap();
             let player_id = player.id;
-            let main_storage = main_storages.get(index).unwrap();
-            let pk: AuxInfoPublic = main_storage.retrieve(
-                PersistentStorageType::AuxInfoPublic,
-                keyshare_identifier,
-                player_id,
-            )?;
-            let sk: AuxInfoPrivate = main_storage.retrieve(
-                PersistentStorageType::AuxInfoPrivate,
-                keyshare_identifier,
-                player_id,
-            )?;
-            let pk2 = sk.encryption_key();
-            assert_eq!(&pk2, pk.pk());
+            let (pks, sk) = outputs.get(index).unwrap();
+            let pk = pks
+                .iter()
+                .find(|item| *item.participant() == player_id)
+                .unwrap();
+            assert_eq!(sk.encryption_key(), pk.pk().clone());
         }
 
         Ok(())

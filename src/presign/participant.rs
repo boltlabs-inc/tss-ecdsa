@@ -29,10 +29,7 @@ use crate::{
     },
     protocol::ParticipantIdentifier,
     storage::{PersistentStorageType, Storage},
-    utils::{
-        bn_to_scalar, get_other_participants_public_auxinfo, has_collected_all_of_others,
-        k256_order, random_plusminus_by_size, random_positive_bn,
-    },
+    utils::{bn_to_scalar, k256_order, random_plusminus_by_size, random_positive_bn},
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof, PiAffgSecret},
         pienc::PiEncProof,
@@ -261,10 +258,10 @@ impl PresignParticipant {
             keyshare_identifier,
             main_storage,
         )?;
-        let other_public_auxinfo = get_other_participants_public_auxinfo(
-            &self.other_participant_ids,
-            main_storage,
+        let other_public_auxinfo = main_storage.retrieve_for_all_ids(
+            PersistentStorageType::AuxInfoPublic,
             auxinfo_identifier,
+            &self.other_participant_ids,
         )?;
 
         // Run Round One
@@ -408,15 +405,16 @@ impl PresignParticipant {
             keyshare_identifier,
             main_storage,
         )?;
-        let other_public_keyshares = get_other_participants_public_auxinfo(
-            &self.other_participant_ids,
-            main_storage,
+        let other_public_keyshares = main_storage.retrieve_for_all_ids::<_, AuxInfoPublic>(
+            PersistentStorageType::AuxInfoPublic,
             auxinfo_identifier,
+            &self.other_participant_ids,
         )?;
 
         // Find the keyshare corresponding to the "from" participant
         let keyshare_from = other_public_keyshares
-            .get(&message.from())
+            .iter()
+            .find(|item| *item.participant() == message.from())
             .ok_or(InternalInvariantFailed)?;
 
         // Get this participant's round 1 private value
@@ -522,11 +520,10 @@ impl PresignParticipant {
         // Since we are in round 2, it should certainly be the case that all
         // public auxinfo for other participants have been stored, since
         // this was a requirement to proceed for round 1.
-        if !has_collected_all_of_others(
-            &self.other_participant_ids,
-            main_storage,
+        if !main_storage.contains_for_all_ids(
             PersistentStorageType::AuxInfoPublic,
             auxinfo_identifier,
+            &self.other_participant_ids,
         )? {
             return Err(InternalError::StorageItemNotFound);
         }
@@ -816,11 +813,10 @@ impl PresignParticipant {
         main_storage: &Storage,
     ) -> Result<HashMap<ParticipantIdentifier, RoundThreeInput>> {
         // begin by checking Storage contents to ensure we're ready for round three
-        if !has_collected_all_of_others(
-            &self.other_participant_ids,
-            main_storage,
+        if !main_storage.contains_for_all_ids(
             PersistentStorageType::AuxInfoPublic,
             auxinfo_identifier,
+            &self.other_participant_ids,
         )? || !self
             .local_storage
             .contains_for_all_ids::<storage::RoundTwoPrivate>(
@@ -950,7 +946,7 @@ impl PresignKeyShareAndInfo {
     pub(crate) fn round_one<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
-        public_keys: &HashMap<ParticipantIdentifier, AuxInfoPublic>,
+        public_keys: &Vec<AuxInfoPublic>,
     ) -> Result<(
         RoundOnePrivate,
         HashMap<ParticipantIdentifier, RoundOnePublic>,
@@ -969,7 +965,7 @@ impl PresignKeyShareAndInfo {
         let (G, nu) = self.aux_info_public.pk().encrypt(rng, &gamma)?;
 
         let mut r1_publics = HashMap::new();
-        for (id, aux_info_public) in public_keys {
+        for aux_info_public in public_keys {
             // Compute psi_{j,i} for every participant j != i
             let mut transcript = Transcript::new(b"PiEncProof");
             let proof = PiEncProof::prove(
@@ -983,7 +979,7 @@ impl PresignKeyShareAndInfo {
                 rng,
             )?;
             let r1_public = RoundOnePublic { proof };
-            let _ = r1_publics.insert(*id, r1_public);
+            let _ = r1_publics.insert(*aux_info_public.participant(), r1_public);
         }
 
         let r1_public_broadcast = RoundOnePublicBroadcast {

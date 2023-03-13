@@ -498,6 +498,8 @@ impl KeygenParticipant {
 
         // If so, we completed the protocol! Return the outputs.
         if keyshare_done {
+            // TODO #180: This is still needed as some protocols rely on
+            // checking that this info is available in main storage.
             for pid in self.all_participants().iter() {
                 self.local_storage.transfer::<storage::PublicKeyshare>(
                     main_storage,
@@ -517,18 +519,19 @@ impl KeygenParticipant {
                 .all_participants()
                 .iter()
                 .map(|pid| {
-                    main_storage.retrieve(PersistentStorageType::PublicKeyshare, message.id(), *pid)
+                    let value = self
+                        .local_storage
+                        .retrieve::<storage::PublicKeyshare>(message.id(), *pid)?;
+                    Ok(value.clone())
                 })
                 .collect::<Result<Vec<_>>>()?;
-            let private_key_share = main_storage.retrieve(
-                PersistentStorageType::PrivateKeyshare,
-                message.id(),
-                self.id,
-            )?;
+            let private_key_share = self
+                .local_storage
+                .retrieve::<storage::PrivateKeyshare>(message.id(), self.id)?;
 
             Ok(ProcessOutcome::Terminated((
                 public_key_shares,
-                private_key_share,
+                private_key_share.clone(),
             )))
         } else {
             // Otherwise, we'll have to wait for more round three messages.
@@ -762,14 +765,16 @@ mod tests {
         for player in quorum.iter() {
             let player_id = player.id;
             let mut stored_values = vec![];
-            for main_storage in main_storages.iter() {
-                let pk: KeySharePublic = main_storage.retrieve(
-                    PersistentStorageType::PublicKeyshare,
-                    keyshare_identifier,
-                    player_id,
-                )?;
-                stored_values.push(serialize!(&pk)?);
+            // Check all outputs for `PublicKeyshare` public keys that match
+            // the given player's ID.
+            for output in outputs.iter() {
+                for public_keyshare in output.0.iter() {
+                    if public_keyshare.participant() == player_id {
+                        stored_values.push(public_keyshare.X);
+                    }
+                }
             }
+            // Make sure that all the stored values are equal.
             let base = stored_values.pop();
             while !stored_values.is_empty() {
                 assert!(base == stored_values.pop());
@@ -781,20 +786,14 @@ mod tests {
         for index in 0..quorum.len() {
             let player = quorum.get(index).unwrap();
             let player_id = player.id;
-            let main_storage = main_storages.get(index).unwrap();
-            let pk: KeySharePublic = main_storage.retrieve(
-                PersistentStorageType::PublicKeyshare,
-                keyshare_identifier,
-                player_id,
-            )?;
-            let sk: KeySharePrivate = main_storage.retrieve(
-                PersistentStorageType::PrivateKeyshare,
-                keyshare_identifier,
-                player_id,
-            )?;
+            let (pks, sk) = outputs.get(index).unwrap();
+            let pk = pks
+                .iter()
+                .find(|item| item.participant() == player_id)
+                .unwrap();
             let g = CurvePoint::GENERATOR;
             let X = CurvePoint(g.0 * crate::utils::bn_to_scalar(&sk.x)?);
-            assert!(X == pk.X);
+            assert_eq!(X, pk.X);
         }
 
         Ok(())

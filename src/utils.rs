@@ -6,14 +6,9 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::{
-    auxinfo::info::AuxInfoPublic,
-    errors::{
-        InternalError::{self, CouldNotConvertToScalar, RetryFailed},
-        Result,
-    },
-    storage::{PersistentStorageType, Storable, Storage},
-    Identifier, ParticipantIdentifier,
+use crate::errors::{
+    InternalError::{CouldNotConvertToScalar, RetryFailed},
+    Result,
 };
 use generic_array::GenericArray;
 use k256::{
@@ -24,7 +19,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::{collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 
 pub(crate) const CRYPTOGRAPHIC_RETRY_MAX: usize = 500usize;
 
@@ -136,6 +131,8 @@ pub(crate) fn random_plusminus_by_size_with_minimum<R: RngCore + CryptoRng>(
     max: usize,
     min: usize,
 ) -> crate::errors::Result<BigNumber> {
+    use crate::errors::InternalError;
+
     if min >= max {
         return Err(InternalError::InternalInvariantFailed);
     }
@@ -269,56 +266,6 @@ mod tests {
         let scalar = bn_to_scalar(&neg1).unwrap();
         assert_eq!(k256::Scalar::ZERO, scalar.add(&k256::Scalar::ONE));
     }
-}
-
-////////////////////////////////
-// Protocol Utility Functions //
-////////////////////////////////
-
-/// Errors unless there is one storable_type for each other participant in the
-/// quorum.
-pub(crate) fn has_collected_all_of_others<T: Storable>(
-    other_ids: &[ParticipantIdentifier],
-    storage: &Storage,
-    storable_type: T,
-    identifier: Identifier,
-) -> Result<bool> {
-    let indices: Vec<(T, Identifier, ParticipantIdentifier)> = other_ids
-        .iter()
-        .map(|participant_id| (storable_type, identifier, *participant_id))
-        .collect();
-    storage.contains_batch(&indices)
-}
-
-/// Aggregate the other participants' public keyshares from storage. But don't
-/// remove them from storage.
-///
-/// This returns a HashMap with the key as the participant id and the value as
-/// the KeygenPublic
-pub(crate) fn get_other_participants_public_auxinfo(
-    other_ids: &[ParticipantIdentifier],
-    storage: &Storage,
-    identifier: Identifier,
-) -> Result<HashMap<ParticipantIdentifier, AuxInfoPublic>> {
-    if !has_collected_all_of_others(
-        other_ids,
-        storage,
-        PersistentStorageType::AuxInfoPublic,
-        identifier,
-    )? {
-        return Err(InternalError::StorageItemNotFound);
-    }
-
-    let mut hm = HashMap::new();
-    for &other_participant_id in other_ids {
-        let val = storage.retrieve(
-            PersistentStorageType::AuxInfoPublic,
-            identifier,
-            other_participant_id,
-        )?;
-        let _ = hm.insert(other_participant_id, val);
-    }
-    Ok(hm)
 }
 
 ////////////////////////////

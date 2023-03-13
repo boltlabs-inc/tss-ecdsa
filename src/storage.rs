@@ -98,6 +98,40 @@ impl Storage {
         })
     }
 
+    /// Returns `true` if the storage contains entries associated with a given `storage_type`,
+    /// [`Identifier`], and list of [`ParticipantIdentifier`]s.
+    pub(crate) fn contains_for_all_ids<T: Storable>(
+        &self,
+        storage_type: T,
+        identifier: Identifier,
+        participants: &[ParticipantIdentifier],
+    ) -> Result<bool> {
+        let fetch: Vec<(T, Identifier, ParticipantIdentifier)> = participants
+            .iter()
+            .map(|participant| (storage_type, identifier, *participant))
+            .collect();
+        self.contains_batch(&fetch)
+    }
+
+    /// Retrieves all items associated with a given `storage_type`, [`Identifier`], and list of
+    /// [`ParticipantIdentifier`]s.
+    pub(crate) fn retrieve_for_all_ids<T: Storable, D: DeserializeOwned>(
+        &self,
+        storage_type: T,
+        identifier: Identifier,
+        participants: &[ParticipantIdentifier],
+    ) -> Result<Vec<D>> {
+        if !self.contains_for_all_ids(storage_type, identifier, participants)? {
+            return Err(InternalError::StorageItemNotFound);
+        }
+        let mut result = vec![];
+        for pid in participants {
+            let item = self.retrieve(PersistentStorageType::AuxInfoPublic, identifier, *pid)?;
+            result.push(item);
+        }
+        Ok(result)
+    }
+
     pub(crate) fn contains_batch<T: Storable>(
         &self,
         type_and_id: &[(T, Identifier, ParticipantIdentifier)],

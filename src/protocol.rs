@@ -206,18 +206,13 @@ impl Participant {
     #[instrument(skip_all)]
     pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<bool> {
         let mut fetch = vec![];
-        for participant in self.other_participant_ids.clone() {
+        for participant in self.auxinfo_participant.all_participants() {
             fetch.push((
                 PersistentStorageType::AuxInfoPublic,
                 auxinfo_identifier,
                 participant,
             ));
         }
-        fetch.push((
-            PersistentStorageType::AuxInfoPublic,
-            auxinfo_identifier,
-            self.id,
-        ));
         fetch.push((
             PersistentStorageType::AuxInfoPrivate,
             auxinfo_identifier,
