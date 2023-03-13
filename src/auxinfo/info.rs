@@ -17,7 +17,7 @@ use crate::{
 use k256::elliptic_curve::zeroize::ZeroizeOnDrop;
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
-use tracing::{instrument, error};
+use tracing::{error, instrument};
 
 /// The private key corresponding to a given Participant's [`AuxInfoPublic`].
 ///
