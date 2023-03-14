@@ -88,21 +88,16 @@ impl Proof for PiModProof {
         let mut elements = vec![];
         for _ in 0..LAMBDA {
             let y = positive_bn_random_from_transcript(transcript, &input.N);
-
             let (a, b, x) = y_prime_combinations(&w, &y, &secret.p, &secret.q)?;
 
             // Compute phi(N) = (p-1) * (q-1)
             let phi_n = (&secret.p - 1) * (&secret.q - 1);
-            let exp_result = input
-                .N
-                .invert(&phi_n)
-                .ok_or(InternalError::CouldNotGenerateProof);
-
-            if exp_result.is_err() {
+            let exp = input.N.invert(&phi_n).ok_or_else(|| {
                 error!("Could not invert a BigNumber");
-            }
-            let exp = exp_result?;
+                InternalError::CouldNotGenerateProof
+            })?;
             let z = modpow(&y, &exp, &input.N);
+
             elements.push(PiModProofElements {
                 x: x[0].clone(),
                 a,
