@@ -715,7 +715,8 @@ mod tests {
         let outputs: Vec<_> = outputs.into_iter().flatten().collect();
         assert!(outputs.len() == QUORUM_SIZE);
 
-        // 1. Check returned outputs
+        // Check returned outputs
+        //
         // Every participant should have a public output from every other participant
         // and, for a given participant, they should be the same in every output
         for party in &quorum {
@@ -744,42 +745,6 @@ mod tests {
                 .find(|public_key| *public_key.participant() == pid);
             assert!(public_key.is_some());
             assert_eq!(*public_key.unwrap().pk(), private.encryption_key());
-        }
-
-        // 2. Do the same checks on stored outputs
-
-        // Check that all players have a PublicKeyshare stored for every player and that
-        // these values all match
-        for player in &quorum {
-            let player_id = player.id;
-            let mut stored_values = vec![];
-            // Check all outputs for `AuxInfoPublic` public keys that match
-            // the given player's ID.
-            for output in outputs.iter() {
-                for aux_info_public in output.0.iter() {
-                    if *aux_info_public.participant() == player_id {
-                        stored_values.push(aux_info_public.pk());
-                    }
-                }
-            }
-            // Make sure that all the stored values are equal.
-            let base = stored_values.pop();
-            while !stored_values.is_empty() {
-                assert!(base == stored_values.pop());
-            }
-        }
-
-        // Check that each player's own AuxInfoPublic corresponds to their
-        // AuxInfoPrivate
-        for index in 0..quorum.len() {
-            let player = quorum.get(index).unwrap();
-            let player_id = player.id;
-            let (pks, sk) = outputs.get(index).unwrap();
-            let pk = pks
-                .iter()
-                .find(|item| *item.participant() == player_id)
-                .unwrap();
-            assert_eq!(sk.encryption_key(), pk.pk().clone());
         }
 
         Ok(())

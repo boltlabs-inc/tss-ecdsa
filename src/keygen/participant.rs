@@ -724,7 +724,8 @@ mod tests {
         let outputs: Vec<_> = outputs.into_iter().flatten().collect();
         assert!(outputs.len() == QUORUM_SIZE);
 
-        // 1. Check returned outputs
+        // Check returned outputs
+        //
         // Every participant should have a public output from every other participant
         // and, for a given participant, they should be the same in every output
         for party in &quorum {
@@ -757,43 +758,6 @@ mod tests {
             let expected_public_share =
                 CurvePoint(CurvePoint::GENERATOR.0 * crate::utils::bn_to_scalar(&private.x)?);
             assert_eq!(public_share.unwrap().X, expected_public_share);
-        }
-
-        // 2. Check saved outputs
-        // check that all players have a PublicKeyshare stored for every player and that
-        // these values all match
-        for player in quorum.iter() {
-            let player_id = player.id;
-            let mut stored_values = vec![];
-            // Check all outputs for `PublicKeyshare` public keys that match
-            // the given player's ID.
-            for output in outputs.iter() {
-                for public_keyshare in output.0.iter() {
-                    if public_keyshare.participant() == player_id {
-                        stored_values.push(public_keyshare.X);
-                    }
-                }
-            }
-            // Make sure that all the stored values are equal.
-            let base = stored_values.pop();
-            while !stored_values.is_empty() {
-                assert!(base == stored_values.pop());
-            }
-        }
-
-        // check that each player's own PublicKeyshare corresponds to their
-        // PrivateKeyshare
-        for index in 0..quorum.len() {
-            let player = quorum.get(index).unwrap();
-            let player_id = player.id;
-            let (pks, sk) = outputs.get(index).unwrap();
-            let pk = pks
-                .iter()
-                .find(|item| item.participant() == player_id)
-                .unwrap();
-            let g = CurvePoint::GENERATOR;
-            let X = CurvePoint(g.0 * crate::utils::bn_to_scalar(&sk.x)?);
-            assert_eq!(X, pk.X);
         }
 
         Ok(())

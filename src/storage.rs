@@ -125,12 +125,10 @@ impl Storage {
         if !self.contains_for_all_ids(storage_type, identifier, participants)? {
             return Err(InternalError::StorageItemNotFound);
         }
-        let mut result = vec![];
-        for pid in participants {
-            let item = self.retrieve(PersistentStorageType::AuxInfoPublic, identifier, *pid)?;
-            result.push(item);
-        }
-        Ok(result)
+        participants
+            .iter()
+            .map(|pid| self.retrieve(PersistentStorageType::AuxInfoPublic, identifier, *pid))
+            .collect::<Result<Vec<_>>>()
     }
 
     pub(crate) fn contains_batch<T: Storable>(
