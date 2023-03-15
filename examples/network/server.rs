@@ -105,7 +105,7 @@ pub(crate) async fn process(state: &State<ParticipantState>, message_bytes: Vec<
 
     let auxinfo_notifications = state.auxinfo_notifications.read().await;
     if auxinfo_notifications.contains_key(&message.id())
-        && participant.is_auxinfo_done(message.id()).unwrap()
+        && participant.is_auxinfo_done(message.id())
     {
         let notify = auxinfo_notifications.get(&message.id()).unwrap().clone();
         notify.notify_one();
@@ -113,8 +113,7 @@ pub(crate) async fn process(state: &State<ParticipantState>, message_bytes: Vec<
     drop(auxinfo_notifications);
 
     let keygen_notifications = state.keygen_notifications.read().await;
-    if keygen_notifications.contains_key(&message.id())
-        && participant.is_keygen_done(message.id()).unwrap()
+    if keygen_notifications.contains_key(&message.id()) && participant.is_keygen_done(message.id())
     {
         let notify = keygen_notifications.get(&message.id()).unwrap().clone();
         notify.notify_one();
@@ -123,7 +122,7 @@ pub(crate) async fn process(state: &State<ParticipantState>, message_bytes: Vec<
 
     let presign_notifications = state.presign_notifications.read().await;
     if presign_notifications.contains_key(&message.id())
-        && participant.is_presigning_done(message.id()).unwrap()
+        && participant.is_presigning_done(message.id())
     {
         let notify = presign_notifications.get(&message.id()).unwrap().clone();
         notify.notify_one();

@@ -18,7 +18,6 @@ use crate::{
 };
 use k256::Scalar;
 use libpaillier::unknown_order::BigNumber;
-use serde::{Deserialize, Serialize};
 use sha2::Digest;
 
 use super::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic};
@@ -30,7 +29,7 @@ pub(crate) struct RecordPair {
 }
 
 /// The precomputation used to create a partial signature
-#[derive(Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct PresignRecord {
     R: CurvePoint,
     k: BigNumber,

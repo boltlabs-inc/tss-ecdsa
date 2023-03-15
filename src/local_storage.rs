@@ -81,6 +81,22 @@ impl LocalStorage {
             .unwrap_or(Err(InternalError::StorageItemNotFound))
     }
 
+    pub(crate) fn retrieve_for_all_ids<T: TypeTag>(
+        &self,
+        id: Identifier,
+        pids: &[ParticipantIdentifier],
+    ) -> Result<Vec<T::Value>>
+    where
+        T::Value: Clone,
+    {
+        let mut result = Vec::with_capacity(pids.len());
+        for pid in pids {
+            let item = self.retrieve::<T>(id, *pid)?;
+            result.push(item.clone());
+        }
+        Ok(result)
+    }
+
     /// Retrieves a mutable reference to a value via its [`TypeTag`],
     /// [`Identifier`], and [`ParticipantIdentifier`].
     ///

@@ -21,14 +21,16 @@ use crate::{
     messages::{AuxinfoMessageType, KeygenMessageType, MessageType},
     participant::ProtocolParticipant,
     presign::{participant::PresignParticipant, record::PresignRecord},
-    storage::{PersistentStorageType, Storage},
     utils::CurvePoint,
     Message,
 };
 use k256::elliptic_curve::{Field, IsHigh};
 use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Serialize};
-use std::fmt::{Debug, Formatter};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::{Debug, Formatter},
+};
 use tracing::{error, info, instrument, trace};
 
 /////////////////////
@@ -43,16 +45,20 @@ pub struct Participant {
     /// A list of all other participant identifiers participating in the
     /// protocol
     pub other_participant_ids: Vec<ParticipantIdentifier>,
-    /// Local storage for this participant to store finalized auxinfo, keygen,
-    /// and presign values. This storage is not responsible for storing
-    /// round-specific material.
-    main_storage: Storage,
     /// Participant subprotocol for handling auxinfo messages
     auxinfo_participant: AuxInfoParticipant,
+    /// Contains [`Identifier`]s of completed auxinfo protocols.
+    auxinfo_completed: HashSet<Identifier>,
     /// Participant subprotocol for handling keygen messages
     keygen_participant: KeygenParticipant,
+    /// Contains an [`Identifier`]-[`KeySharePublic`] mapping for completed
+    /// keygen protocols.
+    keygen_completed: HashMap<Identifier, KeySharePublic>,
     /// Participant subprotocol for handling presign messages
     presign_participant: PresignParticipant,
+    /// Contain an [`Identifier`]-[`PresignRecord`] mapping for completed
+    /// presign protocols.
+    presign_completed: HashMap<Identifier, PresignRecord>,
 }
 
 impl Participant {
@@ -64,10 +70,12 @@ impl Participant {
         Ok(Participant {
             id: config.id,
             other_participant_ids: config.other_ids.clone(),
-            main_storage: Storage::new(),
             auxinfo_participant: AuxInfoParticipant::from_ids(config.id, config.other_ids.clone()),
+            auxinfo_completed: Default::default(),
             keygen_participant: KeygenParticipant::from_ids(config.id, config.other_ids.clone()),
+            keygen_completed: Default::default(),
             presign_participant: PresignParticipant::from_ids(config.id, config.other_ids),
+            presign_completed: Default::default(),
         })
     }
 
@@ -138,19 +146,18 @@ impl Participant {
                         // TODO #180: Remove storage once we've pulled the use of main storage out
                         // of `presign`.
                         for auxinfo_public in &auxinfo_publics {
-                            self.main_storage.store(
-                                PersistentStorageType::AuxInfoPublic,
+                            self.presign_participant.store_auxinfo_public(
                                 message.id(),
                                 *auxinfo_public.participant(),
-                                auxinfo_public,
-                            )?;
+                                auxinfo_public.clone(),
+                            );
                         }
-                        self.main_storage.store(
-                            PersistentStorageType::AuxInfoPrivate,
+                        self.presign_participant.store_auxinfo_private(
                             message.id(),
                             self.id,
-                            &auxinfo_private,
-                        )?;
+                            auxinfo_private.clone(),
+                        );
+                        let _ = self.auxinfo_completed.insert(message.id());
 
                         Output::AuxInfo(auxinfo_publics, auxinfo_private)
                     }
@@ -166,19 +173,22 @@ impl Participant {
                         // TODO #180: Remove storage once we've pulled the use of main storage out
                         // of `presign`.
                         for keyshare_public in &keyshare_publics {
-                            self.main_storage.store(
-                                PersistentStorageType::PublicKeyshare,
+                            self.presign_participant.store_keyshare_public(
                                 message.id(),
                                 keyshare_public.participant(),
-                                keyshare_public,
-                            )?;
+                                keyshare_public.clone(),
+                            );
+                            if keyshare_public.participant() == self.id {
+                                let _ = self
+                                    .keygen_completed
+                                    .insert(message.id(), keyshare_public.clone());
+                            }
                         }
-                        self.main_storage.store(
-                            PersistentStorageType::PrivateKeyshare,
+                        self.presign_participant.store_keyshare_private(
                             message.id(),
                             self.id,
-                            &keyshare_private,
-                        )?;
+                            keyshare_private.clone(),
+                        );
                         Output::KeyGen(keyshare_publics, keyshare_private)
                     }
                     None => Output::None,
@@ -188,20 +198,15 @@ impl Participant {
             MessageType::Presign(_) => {
                 // Send presign message and existing storage containing auxinfo and
                 // keyshare values that presign needs to operate
-                let outcome =
-                    self.presign_participant
-                        .process_message(rng, message, &self.main_storage)?;
+                let outcome = self
+                    .presign_participant
+                    .process_message(rng, message, &())?;
 
                 let (output, messages) = outcome.into_parts();
 
                 let public_output = match output {
                     Some(record) => {
-                        self.main_storage.store(
-                            PersistentStorageType::PresignRecord,
-                            message.id(),
-                            self.id,
-                            &record,
-                        )?;
+                        let _ = self.presign_completed.insert(message.id(), record.clone());
                         Output::Presign(record)
                     }
                     None => Output::None,
@@ -262,58 +267,21 @@ impl Participant {
 
     /// Returns true if auxinfo generation has completed for this identifier
     #[instrument(skip_all)]
-    pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<bool> {
-        let mut fetch = vec![];
-        for participant in self.auxinfo_participant.all_participants() {
-            fetch.push((
-                PersistentStorageType::AuxInfoPublic,
-                auxinfo_identifier,
-                participant,
-            ));
-        }
-        fetch.push((
-            PersistentStorageType::AuxInfoPrivate,
-            auxinfo_identifier,
-            self.id,
-        ));
-
-        self.main_storage.contains_batch(&fetch)
+    pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> bool {
+        self.auxinfo_completed.contains(&auxinfo_identifier)
     }
 
     /// Returns true if keyshare generation has completed for this identifier
     #[instrument(skip_all)]
-    pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> Result<bool> {
-        let mut fetch = vec![];
-        for participant in self.other_participant_ids.clone() {
-            fetch.push((
-                PersistentStorageType::PublicKeyshare,
-                keygen_identifier,
-                participant,
-            ));
-        }
-        fetch.push((
-            PersistentStorageType::PublicKeyshare,
-            keygen_identifier,
-            self.id,
-        ));
-        fetch.push((
-            PersistentStorageType::PrivateKeyshare,
-            keygen_identifier,
-            self.id,
-        ));
-
-        self.main_storage.contains_batch(&fetch)
+    pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> bool {
+        self.keygen_completed.contains_key(&keygen_identifier)
     }
 
     /// Returns true if presignature generation has completed for this
     /// identifier
     #[instrument(skip_all)]
-    pub fn is_presigning_done(&self, presign_identifier: Identifier) -> Result<bool> {
-        self.main_storage.contains_batch(&[(
-            PersistentStorageType::PresignRecord,
-            presign_identifier,
-            self.id,
-        )])
+    pub fn is_presigning_done(&self, presign_identifier: Identifier) -> bool {
+        self.presign_completed.contains_key(&presign_identifier)
     }
 
     /// Retrieves this participant's associated public keyshare for this
@@ -321,12 +289,11 @@ impl Participant {
     #[instrument(skip_all, err(Debug))]
     pub fn get_public_keyshare(&self, identifier: Identifier) -> Result<CurvePoint> {
         info!("Retrieving our associated public keyshare.");
-        let keyshare_public: KeySharePublic = self.main_storage.retrieve(
-            PersistentStorageType::PublicKeyshare,
-            identifier,
-            self.id,
-        )?;
-        Ok(keyshare_public.X)
+        let keyshare = self
+            .keygen_completed
+            .get(&identifier)
+            .ok_or(InternalError::StorageItemNotFound)?;
+        Ok(keyshare.X)
     }
 
     /// If presign record is populated, then this participant is ready to issue
@@ -341,17 +308,10 @@ impl Participant {
     ) -> Result<SignatureShare> {
         info!("Issuing signature with presign record.");
 
-        let presign_record: PresignRecord = self.main_storage.retrieve(
-            PersistentStorageType::PresignRecord,
-            presign_identifier,
-            self.id,
-        )?;
-        // Clear the presign record after being used once
-        let _ = self.main_storage.delete(
-            PersistentStorageType::PresignRecord,
-            presign_identifier,
-            self.id,
-        )?;
+        let presign_record = self
+            .presign_completed
+            .remove(&presign_identifier)
+            .ok_or(InternalError::StorageItemNotFound)?;
         let (r, s) = presign_record.sign(digest)?;
         let ret = SignatureShare { r: Some(r), s };
 
@@ -565,7 +525,7 @@ mod tests {
     /// signing.
     fn is_presigning_done(quorum: &[Participant], presign_identifier: Identifier) -> Result<bool> {
         for participant in quorum {
-            if !participant.is_presigning_done(presign_identifier)? {
+            if !participant.is_presigning_done(presign_identifier) {
                 return Ok(false);
             }
         }
@@ -575,7 +535,7 @@ mod tests {
     /// generation.
     fn is_auxinfo_done(quorum: &[Participant], auxinfo_identifier: Identifier) -> Result<bool> {
         for participant in quorum {
-            if !participant.is_auxinfo_done(auxinfo_identifier)? {
+            if !participant.is_auxinfo_done(auxinfo_identifier) {
                 return Ok(false);
             }
         }
@@ -585,7 +545,7 @@ mod tests {
     /// by a call to KeyGen.
     fn is_keygen_done(quorum: &[Participant], keygen_identifier: Identifier) -> Result<bool> {
         for participant in quorum {
-            if !participant.is_keygen_done(keygen_identifier)? {
+            if !participant.is_keygen_done(keygen_identifier) {
                 return Ok(false);
             }
         }
@@ -624,7 +584,7 @@ mod tests {
             Output::AuxInfo(_, _) => participant.is_auxinfo_done(sid),
             Output::KeyGen(_, _) => participant.is_keygen_done(sid),
             Output::Presign(_) => participant.is_presigning_done(sid),
-            Output::Sign(_) => Ok(true), // this doesn't have a check
+            Output::Sign(_) => true, // this doesn't have a check
             Output::None => {
                 let auxinfo = participant.is_auxinfo_done(sid);
                 let keygen = participant.is_keygen_done(sid);
@@ -634,13 +594,13 @@ mod tests {
                 // corresponds to a different protocol. Perhaps the "most
                 // correct" version of this would check that exactly
                 // one of these returns Ok(false), and the others return Err, but here we are:
-                assert_eq!(auxinfo, Ok(false));
-                assert_eq!(keygen, Ok(false));
-                assert_eq!(presign, Ok(false));
-                Ok(true)
+                assert!(!auxinfo);
+                assert!(!keygen);
+                assert!(!presign);
+                true
             }
         };
-        assert!(is_done_computes_correctly.is_ok() && is_done_computes_correctly.unwrap());
+        assert!(is_done_computes_correctly);
 
         Ok(())
     }
