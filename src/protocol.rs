@@ -44,6 +44,7 @@ pub struct Participant {
     pub id: ParticipantIdentifier,
     /// A list of all other participant identifiers participating in the
     /// protocol
+    // TODO: This doesn't appear to be used!
     pub other_participant_ids: Vec<ParticipantIdentifier>,
     /// Participant subprotocol for handling auxinfo messages
     auxinfo_participant: AuxInfoParticipant,
@@ -62,7 +63,7 @@ pub struct Participant {
 }
 
 impl Participant {
-    /// Initialized the participant from a [ParticipantConfig]
+    /// Initialize the participant from a [`ParticipantConfig`].
     #[instrument(err(Debug))]
     pub fn from_config(config: ParticipantConfig) -> Result<Self> {
         info!("Initializing participant from config.");
@@ -80,7 +81,7 @@ impl Participant {
     }
 
     /// Instantiate a new quorum of participants of a specified size. Random
-    /// identifiers are selected
+    /// [`ParticipantIdentifier`]s are selected.
     #[instrument(skip_all, err(Debug))]
     pub fn new_quorum<R: RngCore + CryptoRng>(
         quorum_size: usize,
@@ -143,8 +144,6 @@ impl Participant {
                 let (output, messages) = outcome.into_parts();
                 let public_output = match output {
                     Some((auxinfo_publics, auxinfo_private)) => {
-                        // TODO #180: Remove storage once we've pulled the use of main storage out
-                        // of `presign`.
                         for auxinfo_public in &auxinfo_publics {
                             self.presign_participant.store_auxinfo_public(
                                 message.id(),
@@ -170,8 +169,6 @@ impl Participant {
                 let (output, messages) = outcome.into_parts();
                 let public_output = match output {
                     Some((keyshare_publics, keyshare_private)) => {
-                        // TODO #180: Remove storage once we've pulled the use of main storage out
-                        // of `presign`.
                         for keyshare_public in &keyshare_publics {
                             self.presign_participant.store_keyshare_public(
                                 message.id(),
@@ -308,6 +305,8 @@ impl Participant {
     ) -> Result<SignatureShare> {
         info!("Issuing signature with presign record.");
 
+        // NOTE: Rather than store the `PresignRecord` in the `presign_completed`
+        // map, we should use the `PresignRecord` that's returned as `Output`.
         let presign_record = self
             .presign_completed
             .remove(&presign_identifier)
