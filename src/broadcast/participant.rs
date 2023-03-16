@@ -13,9 +13,7 @@ use crate::{
     messages::{BroadcastMessageType, Message, MessageType},
     participant::{ProcessOutcome, ProtocolParticipant},
     protocol::ParticipantIdentifier,
-    run_only_once_per_tag,
-    storage::Storage,
-    Identifier,
+    run_only_once_per_tag, Identifier,
 };
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -65,6 +63,7 @@ pub(crate) struct BroadcastOutput {
 }
 
 impl ProtocolParticipant for BroadcastParticipant {
+    type Input = ();
     type Output = BroadcastOutput;
 
     fn local_storage(&self) -> &LocalStorage {
@@ -88,7 +87,7 @@ impl ProtocolParticipant for BroadcastParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        _main_storage: &mut Storage,
+        _: &Self::Input,
     ) -> Result<ProcessOutcome<Self::Output>> {
         info!("Processing broadcast message.");
 

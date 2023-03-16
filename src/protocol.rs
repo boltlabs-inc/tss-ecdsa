@@ -115,29 +115,58 @@ impl Participant {
         }
         match message.message_type() {
             MessageType::Auxinfo(_) => {
-                let outcome = self.auxinfo_participant.process_message(
-                    rng,
-                    message,
-                    &mut self.main_storage,
-                )?;
-                Ok(outcome.into_messages())
+                let outcome = self
+                    .auxinfo_participant
+                    .process_message(rng, message, &())?;
+                // TODO #180: Remove once we've pulled the use of main storage out of `presign`.
+                let (output, messages) = outcome.into_parts();
+                if let Some((auxinfo_publics, auxinfo_private)) = output {
+                    for auxinfo_public in auxinfo_publics {
+                        self.main_storage.store(
+                            PersistentStorageType::AuxInfoPublic,
+                            message.id(),
+                            *auxinfo_public.participant(),
+                            &auxinfo_public,
+                        )?;
+                    }
+                    self.main_storage.store(
+                        PersistentStorageType::AuxInfoPrivate,
+                        message.id(),
+                        self.id,
+                        &auxinfo_private,
+                    )?;
+                }
+
+                Ok(messages)
             }
             MessageType::Keygen(_) => {
-                let outcome = self.keygen_participant.process_message(
-                    rng,
-                    message,
-                    &mut self.main_storage,
-                )?;
-                Ok(outcome.into_messages())
+                let outcome = self.keygen_participant.process_message(rng, message, &())?;
+                // TODO #180: Remove once we've pulled the use of main storage out of `presign`.
+                let (output, messages) = outcome.into_parts();
+                if let Some((keyshare_publics, keyshare_private)) = output {
+                    for keyshare_public in keyshare_publics {
+                        self.main_storage.store(
+                            PersistentStorageType::PublicKeyshare,
+                            message.id(),
+                            keyshare_public.participant(),
+                            &keyshare_public,
+                        )?;
+                    }
+                    self.main_storage.store(
+                        PersistentStorageType::PrivateKeyshare,
+                        message.id(),
+                        self.id,
+                        &keyshare_private,
+                    )?;
+                }
+                Ok(messages)
             }
             MessageType::Presign(_) => {
                 // Send presign message and existing storage containing auxinfo and
                 // keyshare values that presign needs to operate
-                let outcome = self.presign_participant.process_message(
-                    rng,
-                    message,
-                    &mut self.main_storage,
-                )?;
+                let outcome =
+                    self.presign_participant
+                        .process_message(rng, message, &self.main_storage)?;
 
                 let (output, messages) = outcome.into_parts();
 

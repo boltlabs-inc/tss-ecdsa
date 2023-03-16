@@ -18,7 +18,6 @@ use crate::{
     participant::{Broadcast, ProcessOutcome, ProtocolParticipant},
     protocol::ParticipantIdentifier,
     run_only_once,
-    storage::{PersistentStorageType, Storage},
     utils::k256_order,
     zkp::pisch::{PiSchInput, PiSchPrecommit, PiSchProof, PiSchSecret},
     CurvePoint,
@@ -76,6 +75,7 @@ pub(crate) struct KeygenParticipant {
 }
 
 impl ProtocolParticipant for KeygenParticipant {
+    type Input = ();
     // The output type includes public key shares `KeySharePublic` for all
     // participants (including ourselves) and `KeySharePrivate` for ourselves.
     type Output = (Vec<KeySharePublic>, KeySharePrivate);
@@ -102,7 +102,7 @@ impl ProtocolParticipant for KeygenParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        main_storage: &mut Storage,
+        input: &Self::Input,
     ) -> Result<ProcessOutcome<Self::Output>> {
         info!("Processing keygen message.");
 
@@ -111,14 +111,14 @@ impl ProtocolParticipant for KeygenParticipant {
                 let broadcast_outcome = self.handle_broadcast(rng, message)?;
 
                 // Handle the broadcasted message if all parties have agreed on it
-                broadcast_outcome.convert(self, Self::handle_round_one_msg, rng, main_storage)
+                broadcast_outcome.convert(self, Self::handle_round_one_msg, rng, input)
             }
             MessageType::Keygen(KeygenMessageType::Ready) => self.handle_ready_msg(rng, message),
             MessageType::Keygen(KeygenMessageType::R2Decommit) => {
-                self.handle_round_two_msg(rng, message, main_storage)
+                self.handle_round_two_msg(rng, message, input)
             }
             MessageType::Keygen(KeygenMessageType::R3Proof) => {
-                self.handle_round_three_msg(rng, message, main_storage)
+                self.handle_round_three_msg(rng, message, input)
             }
             MessageType::Keygen(_) => Err(InternalError::MessageMustBeBroadcasted)?,
             _ => Err(InternalError::MisroutedMessage)?,
@@ -222,7 +222,7 @@ impl KeygenParticipant {
         &mut self,
         rng: &mut R,
         broadcast_message: &BroadcastOutput,
-        main_storage: &mut Storage,
+        input: &(),
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round one keygen message.");
 
@@ -253,7 +253,7 @@ impl KeygenParticipant {
                     message.id(),
                 )?
                 .iter()
-                .map(|msg| self.handle_round_two_msg(rng, msg, main_storage))
+                .map(|msg| self.handle_round_two_msg(rng, msg, input))
                 .collect::<Result<Vec<_>>>()?;
 
             ProcessOutcome::collect_with_messages(round_two_outcomes, round_one_messages)
@@ -310,7 +310,7 @@ impl KeygenParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        main_storage: &mut Storage,
+        input: &(),
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round two keygen message.");
         // We must receive all commitments in round 1 before we start processing
@@ -349,7 +349,7 @@ impl KeygenParticipant {
                     message.id(),
                 )?
                 .iter()
-                .map(|msg| self.handle_round_three_msg(rng, msg, main_storage))
+                .map(|msg| self.handle_round_three_msg(rng, msg, input))
                 .collect::<Result<Vec<_>>>()?;
             ProcessOutcome::collect_with_messages(round_three_outcomes, round_two_messages)
         } else {
@@ -438,7 +438,7 @@ impl KeygenParticipant {
         &mut self,
         _rng: &mut R,
         message: &Message,
-        main_storage: &mut Storage,
+        _input: &(),
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round three keygen message.");
 
@@ -483,23 +483,6 @@ impl KeygenParticipant {
 
         // If so, we completed the protocol! Return the outputs.
         if keyshare_done {
-            // TODO #180: This is still needed as some protocols rely on
-            // checking that this info is available in main storage.
-            for pid in self.all_participants().iter() {
-                self.local_storage.transfer::<storage::PublicKeyshare>(
-                    main_storage,
-                    PersistentStorageType::PublicKeyshare,
-                    message.id(),
-                    *pid,
-                )?;
-            }
-            self.local_storage.transfer::<storage::PrivateKeyshare>(
-                main_storage,
-                PersistentStorageType::PrivateKeyshare,
-                message.id(),
-                self.id,
-            )?;
-
             let public_key_shares = self
                 .all_participants()
                 .iter()
@@ -623,7 +606,6 @@ mod tests {
         quorum: &mut Vec<KeygenParticipant>,
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
-        main_storages: &mut [Storage],
     ) -> Option<(
         usize,
         ProcessOutcome<(Vec<KeySharePublic>, KeySharePrivate)>,
@@ -637,8 +619,6 @@ mod tests {
             // No messages to process for this participant, so pick another participant
             return None;
         }
-        let main_storage = main_storages.get_mut(index).unwrap();
-
         let message = inbox.remove(rng.gen_range(0..inbox.len()));
         debug!(
             "processing participant: {}, with message type: {:?} from {}",
@@ -648,9 +628,7 @@ mod tests {
         );
         Some((
             index,
-            participant
-                .process_message(rng, &message, main_storage)
-                .unwrap(),
+            participant.process_message(rng, &message, &()).unwrap(),
         ))
     }
 
@@ -672,10 +650,8 @@ mod tests {
         let mut rng = init_testing();
         let mut quorum = KeygenParticipant::new_quorum(QUORUM_SIZE, &mut rng)?;
         let mut inboxes = HashMap::new();
-        let mut main_storages: Vec<Storage> = vec![];
         for participant in &quorum {
             let _ = inboxes.insert(participant.id, vec![]);
-            main_storages.append(&mut vec![Storage::new()]);
         }
         let mut outputs = std::iter::repeat_with(|| None)
             .take(QUORUM_SIZE)
@@ -688,11 +664,10 @@ mod tests {
             inbox.push(participant.initialize_keygen_message(keyshare_identifier));
         }
         while !is_keygen_done(&quorum, keyshare_identifier)? {
-            let (index, outcome) =
-                match process_messages(&mut quorum, &mut inboxes, &mut rng, &mut main_storages) {
-                    None => continue,
-                    Some(x) => x,
-                };
+            let (index, outcome) = match process_messages(&mut quorum, &mut inboxes, &mut rng) {
+                None => continue,
+                Some(x) => x,
+            };
 
             // Deliver messages and save outputs
             match outcome {

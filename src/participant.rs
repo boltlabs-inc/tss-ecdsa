@@ -12,16 +12,14 @@ use crate::{
     local_storage::{storage as local_storage, LocalStorage, TypeTag},
     messages::{Message, MessageType},
     protocol::ParticipantIdentifier,
-    storage::Storage,
     Identifier,
 };
 use rand::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
 
-#[derive(Serialize, Deserialize)]
-struct ProgressIndex {
+#[derive(Eq, Hash, PartialEq)]
+pub(crate) struct ProgressIndex {
     func_name: String,
     sid: Identifier,
 }
@@ -35,14 +33,14 @@ struct ProgressIndex {
 /// completion of a protocol round, which may produce messages to be sent to
 /// other participants, an output (if the round was the final round), or both.
 pub(crate) enum ProcessOutcome<O> {
-    // The message was not fully processed; we need more inputs to continue.
+    /// The message was not fully processed; we need more inputs to continue.
     Incomplete,
-    // The message was processed successfully but the subprotocol isn't done.
+    /// The message was processed successfully but the subprotocol isn't done.
     Processed(Vec<Message>),
-    // The subprotocol is done for this participant but there are still messages to send to
-    // others.
+    /// The subprotocol is done for this participant but there are still
+    /// messages to send to others.
     TerminatedForThisParticipant(O, Vec<Message>),
-    // The entire subprotocol is done and there are no more messages to send.
+    /// The entire subprotocol is done and there are no more messages to send.
     Terminated(O),
 }
 
@@ -73,18 +71,6 @@ where
         }
     }
 
-    /// Extract the outgoing messages from the [`ProcessOutcome`].
-    ///
-    /// This method drops the outcome, if it exists, so it's no longer
-    /// accessible.
-    pub(crate) fn into_messages(self) -> Vec<Message> {
-        match self {
-            Self::Incomplete | Self::Terminated(_) => Vec::new(),
-            Self::Processed(messages) => messages,
-            Self::TerminatedForThisParticipant(_, messages) => messages,
-        }
-    }
-
     /// Convert the caller into a `ProcessOutcome` with a different output type.
     ///
     /// This method handles both the output and message components of the
@@ -99,11 +85,11 @@ where
         participant: &mut P,
         mut handle_output: F,
         rng: &mut R,
-        storage: &mut Storage,
+        storage: &P::Input,
     ) -> Result<ProcessOutcome<P::Output>>
     where
         P: ProtocolParticipant,
-        F: FnMut(&mut P, &mut R, &O, &mut Storage) -> Result<ProcessOutcome<P::Output>>,
+        F: FnMut(&mut P, &mut R, &O, &P::Input) -> Result<ProcessOutcome<P::Output>>,
         R: CryptoRng + RngCore,
     {
         let (output, messages) = self.into_parts();
@@ -183,6 +169,8 @@ where
 }
 
 pub(crate) trait ProtocolParticipant {
+    /// Input type used to process incoming messages.
+    type Input;
     /// Output type of a successful protocol execution.
     type Output: Debug;
 
@@ -214,7 +202,7 @@ pub(crate) trait ProtocolParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        main_storage: &mut Storage,
+        input: &Self::Input,
     ) -> Result<ProcessOutcome<Self::Output>>;
 
     /// Returns a list of all participant IDs, including `self`'s.
@@ -303,14 +291,14 @@ pub(crate) trait ProtocolParticipant {
     }
     ///`sid` corresponds to a unique session identifier.
     fn write_progress(&mut self, func_name: String, sid: Identifier) -> Result<()> {
-        let key = serialize!(&ProgressIndex { func_name, sid })?;
+        let key = ProgressIndex { func_name, sid };
         let progress_storage = self.get_from_storage::<local_storage::ProgressStore>(sid)?;
         let _ = progress_storage.insert(key, true);
         Ok(())
     }
 
     fn read_progress(&mut self, func_name: String, sid: Identifier) -> Result<bool> {
-        let key = serialize!(&ProgressIndex { func_name, sid })?;
+        let key = ProgressIndex { func_name, sid };
         let progress_storage = self.get_from_storage::<local_storage::ProgressStore>(sid)?;
         let result = match progress_storage.get(&key) {
             None => false,
@@ -352,15 +340,9 @@ pub(crate) trait Broadcast {
         let message_type = message.message_type;
         let broadcast_input: Message = deserialize!(&message.unverified_bytes)?;
 
-        // Make some empty storage to satisfy the trait. TODO #180: remove this.
-        let mut empty_storage = Storage::new();
-
-        // ...process the message...
-        let outcome = self.broadcast_participant().process_message(
-            rng,
-            &broadcast_input,
-            &mut empty_storage,
-        )?;
+        let outcome = self
+            .broadcast_participant()
+            .process_message(rng, &broadcast_input, &())?;
 
         // ...and then re-wrap the output messages.
         let (output, mut messages) = outcome.into_parts();

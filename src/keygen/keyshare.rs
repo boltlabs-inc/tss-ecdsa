@@ -33,7 +33,6 @@ impl KeySharePublic {
 
     /// Get the ID of the participant who claims to hold the private share
     /// corresponding to this public key share.
-    #[cfg(test)]
     pub(crate) fn participant(&self) -> ParticipantIdentifier {
         self.participant
     }
