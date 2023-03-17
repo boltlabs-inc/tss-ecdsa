@@ -20,7 +20,7 @@ use crate::{
     participant::{Broadcast, ProcessOutcome, ProtocolParticipant},
     protocol::ParticipantIdentifier,
     ring_pedersen::VerifiedRingPedersen,
-    run_only_once,
+    run_only_once, Identifier,
 };
 use rand::{CryptoRng, RngCore};
 use tracing::{debug, info, instrument};
@@ -62,6 +62,8 @@ mod storage {
 
 #[derive(Debug)]
 pub(crate) struct AuxInfoParticipant {
+    /// The session identifier associated with this protocol.
+    sid: Identifier,
     /// A unique identifier for this participant
     id: ParticipantIdentifier,
     /// A list of all other participant identifiers participating in the
@@ -105,6 +107,11 @@ impl ProtocolParticipant for AuxInfoParticipant {
     ) -> Result<ProcessOutcome<Self::Output>> {
         info!("Processing auxinfo message.");
 
+        // Make sure this message has the right Session ID before processing.
+        if message.id() != self.sid {
+            return Err(InternalError::InvalidSessionIdentifier);
+        }
+
         match message.message_type() {
             MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash) => {
                 let broadcast_outcome = self.handle_broadcast(rng, message)?;
@@ -133,14 +140,16 @@ impl Broadcast for AuxInfoParticipant {
 
 impl AuxInfoParticipant {
     pub(crate) fn from_ids(
+        sid: Identifier,
         id: ParticipantIdentifier,
         other_participant_ids: Vec<ParticipantIdentifier>,
     ) -> Self {
         Self {
+            sid,
             id,
             other_participant_ids: other_participant_ids.clone(),
             local_storage: Default::default(),
-            broadcast_participant: BroadcastParticipant::from_ids(id, other_participant_ids),
+            broadcast_participant: BroadcastParticipant::from_ids(sid, id, other_participant_ids),
         }
     }
 
@@ -514,6 +523,7 @@ mod tests {
 
     impl AuxInfoParticipant {
         pub fn new_quorum<R: RngCore + CryptoRng>(
+            sid: Identifier,
             quorum_size: usize,
             rng: &mut R,
         ) -> Result<Vec<Self>> {
@@ -531,29 +541,28 @@ mod tests {
                             other_ids.push(id);
                         }
                     }
-                    Self::from_ids(participant_id, other_ids)
+                    Self::from_ids(sid, participant_id, other_ids)
                 })
                 .collect::<Vec<AuxInfoParticipant>>();
             Ok(participants)
         }
 
-        pub fn initialize_auxinfo_message(&self, auxinfo_identifier: Identifier) -> Message {
+        pub fn initialize_auxinfo_message(&self) -> Message {
             Message::new(
                 MessageType::Auxinfo(AuxinfoMessageType::Ready),
-                auxinfo_identifier,
+                self.sid,
                 self.id,
                 self.id,
                 &[],
             )
         }
 
-        pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> bool {
-            self.local_storage.contains_for_all_ids::<storage::Public>(
-                auxinfo_identifier,
-                &self.all_participants(),
-            ) && self
-                .local_storage
-                .contains::<storage::Private>(auxinfo_identifier, self.id)
+        pub fn is_auxinfo_done(&self) -> bool {
+            self.local_storage
+                .contains_for_all_ids::<storage::Public>(self.sid, &self.all_participants())
+                && self
+                    .local_storage
+                    .contains::<storage::Private>(self.sid, self.id)
         }
     }
     /// Delivers all messages into their respective participant's inboxes
@@ -572,12 +581,9 @@ mod tests {
         Ok(())
     }
 
-    fn is_auxinfo_done(
-        quorum: &[AuxInfoParticipant],
-        auxinfo_identifier: Identifier,
-    ) -> Result<bool> {
+    fn is_auxinfo_done(quorum: &[AuxInfoParticipant]) -> Result<bool> {
         for participant in quorum {
-            if !participant.is_auxinfo_done(auxinfo_identifier) {
+            if !participant.is_auxinfo_done() {
                 return Ok(false);
             }
         }
@@ -634,7 +640,8 @@ mod tests {
     fn test_run_auxinfo_protocol() -> Result<()> {
         let QUORUM_SIZE = 3;
         let mut rng = init_testing();
-        let mut quorum = AuxInfoParticipant::new_quorum(QUORUM_SIZE, &mut rng)?;
+        let sid = Identifier::random(&mut rng);
+        let mut quorum = AuxInfoParticipant::new_quorum(sid, QUORUM_SIZE, &mut rng)?;
         let mut inboxes = HashMap::new();
         for participant in &quorum {
             let _ = inboxes.insert(participant.id, vec![]);
@@ -643,13 +650,11 @@ mod tests {
             .take(QUORUM_SIZE)
             .collect::<Vec<_>>();
 
-        let keyshare_identifier = Identifier::random(&mut rng);
-
         for participant in &quorum {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
-            inbox.push(participant.initialize_auxinfo_message(keyshare_identifier));
+            inbox.push(participant.initialize_auxinfo_message());
         }
-        while !is_auxinfo_done(&quorum, keyshare_identifier)? {
+        while !is_auxinfo_done(&quorum)? {
             // Try processing a message
             let (index, outcome) = match process_messages(&mut quorum, &mut inboxes, &mut rng) {
                 None => continue,

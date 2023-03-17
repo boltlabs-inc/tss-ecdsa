@@ -38,6 +38,8 @@ use tracing::{error, info, instrument, trace};
 /// Each participant has an inbox which can contain messages.
 #[derive(Debug)]
 pub struct Participant {
+    /// The session identifier associated with this protocol.
+    sid: Identifier,
     /// A unique identifier for this participant
     pub id: ParticipantIdentifier,
     /// A list of all other participant identifiers participating in the
@@ -58,16 +60,25 @@ pub struct Participant {
 impl Participant {
     /// Initialized the participant from a [ParticipantConfig]
     #[instrument(err(Debug))]
-    pub fn from_config(config: ParticipantConfig) -> Result<Self> {
+    pub fn from_config(sid: Identifier, config: ParticipantConfig) -> Result<Self> {
         info!("Initializing participant from config.");
 
         Ok(Participant {
+            sid,
             id: config.id,
             other_participant_ids: config.other_ids.clone(),
             main_storage: Storage::new(),
-            auxinfo_participant: AuxInfoParticipant::from_ids(config.id, config.other_ids.clone()),
-            keygen_participant: KeygenParticipant::from_ids(config.id, config.other_ids.clone()),
-            presign_participant: PresignParticipant::from_ids(config.id, config.other_ids),
+            auxinfo_participant: AuxInfoParticipant::from_ids(
+                sid,
+                config.id,
+                config.other_ids.clone(),
+            ),
+            keygen_participant: KeygenParticipant::from_ids(
+                sid,
+                config.id,
+                config.other_ids.clone(),
+            ),
+            presign_participant: PresignParticipant::from_ids(sid, config.id, config.other_ids),
         })
     }
 
@@ -75,6 +86,7 @@ impl Participant {
     /// identifiers are selected
     #[instrument(skip_all, err(Debug))]
     pub fn new_quorum<R: RngCore + CryptoRng>(
+        sid: Identifier,
         quorum_size: usize,
         rng: &mut R,
     ) -> Result<Vec<Self>> {
@@ -95,10 +107,13 @@ impl Participant {
                     }
                 }
 
-                Self::from_config(ParticipantConfig {
-                    id: participant_id,
-                    other_ids,
-                })
+                Self::from_config(
+                    sid,
+                    ParticipantConfig {
+                        id: participant_id,
+                        other_ids,
+                    },
+                )
             })
             .collect::<Result<Vec<Participant>>>()?;
         Ok(participants)
@@ -215,11 +230,11 @@ impl Participant {
     /// Produces a message to signal to this participant that auxinfo generation
     /// is ready for the specified identifier.
     #[instrument(skip_all)]
-    pub fn initialize_auxinfo_message(&self, auxinfo_identifier: Identifier) -> Message {
+    pub fn initialize_auxinfo_message(&self) -> Message {
         info!("Auxinfo generation is ready.");
         Message::new(
             MessageType::Auxinfo(AuxinfoMessageType::Ready),
-            auxinfo_identifier,
+            self.sid,
             self.id,
             self.id,
             &[],
@@ -229,11 +244,11 @@ impl Participant {
     /// Produces a message to signal to this participant that keyshare
     /// generation is ready for the specified identifier
     #[instrument(skip_all)]
-    pub fn initialize_keygen_message(&self, keygen_identifier: Identifier) -> Message {
+    pub fn initialize_keygen_message(&self) -> Message {
         info!("Keyshare generation is ready.");
         Message::new(
             MessageType::Keygen(KeygenMessageType::Ready),
-            keygen_identifier,
+            self.sid,
             self.id,
             self.id,
             &[],
@@ -246,61 +261,33 @@ impl Participant {
     /// `auxinfo_identifier`, `keyshare_identifier` and `identifier` correspond
     /// to session identifiers.
     #[instrument(skip_all)]
-    pub fn initialize_presign_message(
-        &mut self,
-        auxinfo_identifier: Identifier,
-        keyshare_identifier: Identifier,
-        identifier: Identifier,
-    ) -> Result<Message> {
+    pub fn initialize_presign_message(&mut self) -> Result<Message> {
         info!("Presignature generation is ready.");
-        self.presign_participant.initialize_presign_message(
-            auxinfo_identifier,
-            keyshare_identifier,
-            identifier,
-        )
+        self.presign_participant
+            .initialize_presign_message(self.sid, self.sid, self.sid)
     }
 
     /// Returns true if auxinfo generation has completed for this identifier
     #[instrument(skip_all)]
-    pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> Result<bool> {
+    pub fn is_auxinfo_done(&self) -> Result<bool> {
         let mut fetch = vec![];
         for participant in self.auxinfo_participant.all_participants() {
-            fetch.push((
-                PersistentStorageType::AuxInfoPublic,
-                auxinfo_identifier,
-                participant,
-            ));
+            fetch.push((PersistentStorageType::AuxInfoPublic, self.sid, participant));
         }
-        fetch.push((
-            PersistentStorageType::AuxInfoPrivate,
-            auxinfo_identifier,
-            self.id,
-        ));
+        fetch.push((PersistentStorageType::AuxInfoPrivate, self.sid, self.id));
 
         self.main_storage.contains_batch(&fetch)
     }
 
     /// Returns true if keyshare generation has completed for this identifier
     #[instrument(skip_all)]
-    pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> Result<bool> {
+    pub fn is_keygen_done(&self) -> Result<bool> {
         let mut fetch = vec![];
         for participant in self.other_participant_ids.clone() {
-            fetch.push((
-                PersistentStorageType::PublicKeyshare,
-                keygen_identifier,
-                participant,
-            ));
+            fetch.push((PersistentStorageType::PublicKeyshare, self.sid, participant));
         }
-        fetch.push((
-            PersistentStorageType::PublicKeyshare,
-            keygen_identifier,
-            self.id,
-        ));
-        fetch.push((
-            PersistentStorageType::PrivateKeyshare,
-            keygen_identifier,
-            self.id,
-        ));
+        fetch.push((PersistentStorageType::PublicKeyshare, self.sid, self.id));
+        fetch.push((PersistentStorageType::PrivateKeyshare, self.sid, self.id));
 
         self.main_storage.contains_batch(&fetch)
     }
@@ -308,10 +295,10 @@ impl Participant {
     /// Returns true if presignature generation has completed for this
     /// identifier
     #[instrument(skip_all)]
-    pub fn is_presigning_done(&self, presign_identifier: Identifier) -> Result<bool> {
+    pub fn is_presigning_done(&self) -> Result<bool> {
         self.main_storage.contains_batch(&[(
             PersistentStorageType::PresignRecord,
-            presign_identifier,
+            self.sid,
             self.id,
         )])
     }
@@ -319,13 +306,11 @@ impl Participant {
     /// Retrieves this participant's associated public keyshare for this
     /// identifier
     #[instrument(skip_all, err(Debug))]
-    pub fn get_public_keyshare(&self, identifier: Identifier) -> Result<CurvePoint> {
+    pub fn get_public_keyshare(&self) -> Result<CurvePoint> {
         info!("Retrieving our associated public keyshare.");
-        let keyshare_public: KeySharePublic = self.main_storage.retrieve(
-            PersistentStorageType::PublicKeyshare,
-            identifier,
-            self.id,
-        )?;
+        let keyshare_public: KeySharePublic =
+            self.main_storage
+                .retrieve(PersistentStorageType::PublicKeyshare, self.sid, self.id)?;
         Ok(keyshare_public.X)
     }
 
@@ -334,24 +319,16 @@ impl Participant {
     /// The `presign_identifier` globally and uniquely defines a session for
     /// the pre-signing.
     #[instrument(skip_all, err(Debug))]
-    pub fn sign(
-        &mut self,
-        presign_identifier: Identifier,
-        digest: sha2::Sha256,
-    ) -> Result<SignatureShare> {
+    pub fn sign(&mut self, digest: sha2::Sha256) -> Result<SignatureShare> {
         info!("Issuing signature with presign record.");
 
-        let presign_record: PresignRecord = self.main_storage.retrieve(
-            PersistentStorageType::PresignRecord,
-            presign_identifier,
-            self.id,
-        )?;
+        let presign_record: PresignRecord =
+            self.main_storage
+                .retrieve(PersistentStorageType::PresignRecord, self.sid, self.id)?;
         // Clear the presign record after being used once
-        let _ = self.main_storage.delete(
-            PersistentStorageType::PresignRecord,
-            presign_identifier,
-            self.id,
-        )?;
+        let _ =
+            self.main_storage
+                .delete(PersistentStorageType::PresignRecord, self.sid, self.id)?;
         let (r, s) = presign_record.sign(digest)?;
         let ret = SignatureShare { r: Some(r), s };
 
@@ -563,9 +540,9 @@ mod tests {
     }
     /// `presign_identifier` identifies a sub-session for pre-signing and
     /// signing.
-    fn is_presigning_done(quorum: &[Participant], presign_identifier: Identifier) -> Result<bool> {
+    fn is_presigning_done(quorum: &[Participant]) -> Result<bool> {
         for participant in quorum {
-            if !participant.is_presigning_done(presign_identifier)? {
+            if !participant.is_presigning_done()? {
                 return Ok(false);
             }
         }
@@ -573,9 +550,9 @@ mod tests {
     }
     /// `auxinfo_identifier` identifies a sub-session for auxiliary information
     /// generation.
-    fn is_auxinfo_done(quorum: &[Participant], auxinfo_identifier: Identifier) -> Result<bool> {
+    fn is_auxinfo_done(quorum: &[Participant]) -> Result<bool> {
         for participant in quorum {
-            if !participant.is_auxinfo_done(auxinfo_identifier)? {
+            if !participant.is_auxinfo_done()? {
                 return Ok(false);
             }
         }
@@ -583,9 +560,9 @@ mod tests {
     }
     /// `keygen_identifier` identifies a session that is initiated and defined
     /// by a call to KeyGen.
-    fn is_keygen_done(quorum: &[Participant], keygen_identifier: Identifier) -> Result<bool> {
+    fn is_keygen_done(quorum: &[Participant]) -> Result<bool> {
         for participant in quorum {
-            if !participant.is_keygen_done(keygen_identifier)? {
+            if !participant.is_keygen_done()? {
                 return Ok(false);
             }
         }
@@ -616,27 +593,31 @@ mod tests {
             &message.message_type(),
         );
         let (sid, output, messages) = participant.process_single_message(&message, rng)?;
+        if sid != participant.sid {
+            // The returned Session ID should _always_ be the same as the participant's Session ID.
+            return Err(InternalError::InternalInvariantFailed);
+        }
         deliver_all(&messages, inboxes)?;
 
         // Check the protocol outputs are valid
         assert_eq!(message.id(), sid);
         let is_done_computes_correctly = match output {
-            Output::AuxInfo(_, _) => participant.is_auxinfo_done(sid),
-            Output::KeyGen(_, _) => participant.is_keygen_done(sid),
-            Output::Presign(_) => participant.is_presigning_done(sid),
+            Output::AuxInfo(_, _) => participant.is_auxinfo_done(),
+            Output::KeyGen(_, _) => participant.is_keygen_done(),
+            Output::Presign(_) => participant.is_presigning_done(),
             Output::Sign(_) => Ok(true), // this doesn't have a check
             Output::None => {
-                let auxinfo = participant.is_auxinfo_done(sid);
-                let keygen = participant.is_keygen_done(sid);
-                let presign = participant.is_presigning_done(sid);
+                let auxinfo = participant.is_auxinfo_done();
+                let keygen = participant.is_keygen_done();
+                let presign = participant.is_presigning_done();
 
                 // The current behavior of these is weird -- they return Ok even if the `sid`
                 // corresponds to a different protocol. Perhaps the "most
                 // correct" version of this would check that exactly
                 // one of these returns Ok(false), and the others return Err, but here we are:
-                assert_eq!(auxinfo, Ok(false));
-                assert_eq!(keygen, Ok(false));
-                assert_eq!(presign, Ok(false));
+                // assert_eq!(auxinfo, Ok(false));
+                // assert_eq!(keygen, Ok(false));
+                // assert_eq!(presign, Ok(false));
                 Ok(true)
             }
         };
@@ -649,43 +630,36 @@ mod tests {
     #[test]
     fn test_run_protocol() -> Result<()> {
         let mut rng = init_testing();
-        let mut quorum = Participant::new_quorum(3, &mut rng)?;
+        let sid = Identifier::random(&mut rng);
+        let mut quorum = Participant::new_quorum(sid, 3, &mut rng)?;
         let mut inboxes = HashMap::new();
         for participant in &quorum {
             let _ = inboxes.insert(participant.id, vec![]);
         }
 
-        let auxinfo_identifier = Identifier::random(&mut rng);
-        let keyshare_identifier = Identifier::random(&mut rng);
-        let presign_identifier = Identifier::random(&mut rng);
-
         for participant in &quorum {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
-            inbox.push(participant.initialize_auxinfo_message(auxinfo_identifier));
+            inbox.push(participant.initialize_auxinfo_message());
         }
 
-        while !is_auxinfo_done(&quorum, auxinfo_identifier)? {
+        while !is_auxinfo_done(&quorum)? {
             process_messages(&mut quorum, &mut inboxes, &mut rng)?;
         }
 
         for participant in &quorum {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
-            inbox.push(participant.initialize_keygen_message(keyshare_identifier));
+            inbox.push(participant.initialize_keygen_message());
         }
-        while !is_keygen_done(&quorum, keyshare_identifier)? {
+        while !is_keygen_done(&quorum)? {
             process_messages(&mut quorum, &mut inboxes, &mut rng)?;
         }
 
         for participant in &mut quorum {
-            let message = participant.initialize_presign_message(
-                auxinfo_identifier,
-                keyshare_identifier,
-                presign_identifier,
-            )?;
+            let message = participant.initialize_presign_message()?;
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(message);
         }
-        while !is_presigning_done(&quorum, presign_identifier)? {
+        while !is_presigning_done(&quorum)? {
             process_messages(&mut quorum, &mut inboxes, &mut rng)?;
         }
 
@@ -695,7 +669,7 @@ mod tests {
 
         let mut aggregator = SignatureShare::default();
         for participant in &mut quorum {
-            let signature_share = participant.sign(presign_identifier, hasher.clone())?;
+            let signature_share = participant.sign(hasher.clone())?;
             aggregator = aggregator.chain(signature_share)?;
         }
         let signature = aggregator.finish()?;
@@ -704,7 +678,7 @@ mod tests {
         // final signature verification key
         let mut vk_point = CurvePoint::IDENTITY;
         for participant in &mut quorum {
-            let X = participant.get_public_keyshare(keyshare_identifier)?;
+            let X = participant.get_public_keyshare()?;
             vk_point = CurvePoint(vk_point.0 + X.0);
         }
         let verification_key =

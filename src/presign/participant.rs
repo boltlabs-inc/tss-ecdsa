@@ -164,6 +164,7 @@ impl Broadcast for PresignParticipant {
 
 impl PresignParticipant {
     pub(crate) fn from_ids(
+        sid: Identifier,
         id: ParticipantIdentifier,
         other_participant_ids: Vec<ParticipantIdentifier>,
     ) -> Self {
@@ -172,7 +173,7 @@ impl PresignParticipant {
             other_participant_ids: other_participant_ids.clone(),
             local_storage: Default::default(),
             presign_map: HashMap::new(),
-            broadcast_participant: BroadcastParticipant::from_ids(id, other_participant_ids),
+            broadcast_participant: BroadcastParticipant::from_ids(sid, id, other_participant_ids),
         }
     }
 

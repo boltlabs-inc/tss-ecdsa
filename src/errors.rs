@@ -57,6 +57,8 @@ pub enum InternalError {
         "Tried to start a new protocol instance with an Identifier used in an existing instance"
     )]
     IdentifierInUse,
+    #[error("Message session identifier does not match protocol session identifier")]
+    InvalidSessionIdentifier,
 }
 
 macro_rules! serialize {

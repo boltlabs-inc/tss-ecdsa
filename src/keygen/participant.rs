@@ -20,7 +20,7 @@ use crate::{
     run_only_once,
     utils::k256_order,
     zkp::pisch::{PiSchInput, PiSchPrecommit, PiSchProof, PiSchSecret},
-    CurvePoint,
+    CurvePoint, Identifier,
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -63,6 +63,8 @@ mod storage {
 
 #[derive(Debug)]
 pub(crate) struct KeygenParticipant {
+    /// The session identifier associated with this protocol.
+    sid: Identifier,
     /// A unique identifier for this participant.
     id: ParticipantIdentifier,
     /// A list of all other participant identifiers participating in the
@@ -106,6 +108,11 @@ impl ProtocolParticipant for KeygenParticipant {
     ) -> Result<ProcessOutcome<Self::Output>> {
         info!("Processing keygen message.");
 
+        // Make sure this message has the right Session ID before processing.
+        if message.id() != self.sid {
+            return Err(InternalError::InvalidSessionIdentifier);
+        }
+
         match message.message_type() {
             MessageType::Keygen(KeygenMessageType::R1CommitHash) => {
                 let broadcast_outcome = self.handle_broadcast(rng, message)?;
@@ -134,14 +141,16 @@ impl Broadcast for KeygenParticipant {
 
 impl KeygenParticipant {
     pub(crate) fn from_ids(
+        sid: Identifier,
         id: ParticipantIdentifier,
         other_participant_ids: Vec<ParticipantIdentifier>,
     ) -> Self {
         Self {
+            sid,
             id,
             other_participant_ids: other_participant_ids.clone(),
             local_storage: Default::default(),
-            broadcast_participant: BroadcastParticipant::from_ids(id, other_participant_ids),
+            broadcast_participant: BroadcastParticipant::from_ids(sid, id, other_participant_ids),
         }
     }
 
@@ -537,6 +546,7 @@ mod tests {
             quorum_size: usize,
             rng: &mut R,
         ) -> Result<Vec<Self>> {
+            let sid = Identifier::random(rng);
             let mut participant_ids = vec![];
             for _ in 0..quorum_size {
                 participant_ids.push(ParticipantIdentifier::random(rng));
@@ -551,29 +561,26 @@ mod tests {
                             other_ids.push(id);
                         }
                     }
-                    Self::from_ids(participant_id, other_ids)
+                    Self::from_ids(sid, participant_id, other_ids)
                 })
                 .collect::<Vec<KeygenParticipant>>();
             Ok(participants)
         }
-        pub fn initialize_keygen_message(&self, keygen_identifier: Identifier) -> Message {
+        pub fn initialize_keygen_message(&self) -> Message {
             Message::new(
                 MessageType::Keygen(KeygenMessageType::Ready),
-                keygen_identifier,
+                self.sid,
                 self.id,
                 self.id,
                 &[],
             )
         }
-        pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> bool {
+        pub fn is_keygen_done(&self) -> bool {
             self.local_storage
-                .contains_for_all_ids::<storage::PublicKeyshare>(
-                    keygen_identifier,
-                    &self.all_participants(),
-                )
+                .contains_for_all_ids::<storage::PublicKeyshare>(self.sid, &self.all_participants())
                 && self
                     .local_storage
-                    .contains::<storage::PrivateKeyshare>(keygen_identifier, self.id)
+                    .contains::<storage::PrivateKeyshare>(self.sid, self.id)
         }
     }
     /// Delivers all messages into their respective participant's inboxes
@@ -592,9 +599,9 @@ mod tests {
         Ok(())
     }
 
-    fn is_keygen_done(quorum: &[KeygenParticipant], keygen_identifier: Identifier) -> Result<bool> {
+    fn is_keygen_done(quorum: &[KeygenParticipant]) -> Result<bool> {
         for participant in quorum {
-            if !participant.is_keygen_done(keygen_identifier) {
+            if !participant.is_keygen_done() {
                 return Ok(false);
             }
         }
@@ -657,13 +664,11 @@ mod tests {
             .take(QUORUM_SIZE)
             .collect::<Vec<_>>();
 
-        let keyshare_identifier = Identifier::random(&mut rng);
-
         for participant in &quorum {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
-            inbox.push(participant.initialize_keygen_message(keyshare_identifier));
+            inbox.push(participant.initialize_keygen_message());
         }
-        while !is_keygen_done(&quorum, keyshare_identifier)? {
+        while !is_keygen_done(&quorum)? {
             let (index, outcome) = match process_messages(&mut quorum, &mut inboxes, &mut rng) {
                 None => continue,
                 Some(x) => x,

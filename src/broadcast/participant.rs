@@ -33,6 +33,8 @@ mod storage {
 
 #[derive(Debug)]
 pub(crate) struct BroadcastParticipant {
+    /// The session identifier associated with this protocol.
+    sid: Identifier,
     /// A unique identifier for this participant
     id: ParticipantIdentifier,
     /// A list of all other participant identifiers participating in the
@@ -91,6 +93,11 @@ impl ProtocolParticipant for BroadcastParticipant {
     ) -> Result<ProcessOutcome<Self::Output>> {
         info!("Processing broadcast message.");
 
+        // Make sure this message has the right Session ID before processing.
+        if message.id() != self.sid {
+            return Err(InternalError::InvalidSessionIdentifier);
+        }
+
         match message.message_type() {
             MessageType::Broadcast(BroadcastMessageType::Disperse) => {
                 self.handle_round_one_msg(rng, message)
@@ -105,10 +112,12 @@ impl ProtocolParticipant for BroadcastParticipant {
 
 impl BroadcastParticipant {
     pub(crate) fn from_ids(
+        sid: Identifier,
         id: ParticipantIdentifier,
         other_participant_ids: Vec<ParticipantIdentifier>,
     ) -> Self {
         Self {
+            sid,
             id,
             other_participant_ids,
             local_storage: Default::default(),

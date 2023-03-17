@@ -356,7 +356,7 @@ pub(crate) trait Broadcast {
 
 #[macro_export]
 /// A macro to keep track of which functions have already been run in a given
-/// session Must be a self.function() so that we can access storage
+/// session. Must be a self.function() so that we can access local storage.
 macro_rules! run_only_once {
     ($self:ident . $func_name:ident $args:tt, $sid:expr) => {{
         if $self.read_progress(stringify!($func_name).to_string(), $sid)? {

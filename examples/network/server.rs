@@ -61,12 +61,15 @@ pub(crate) async fn server_main(args: Args) -> Result {
 pub(crate) async fn initialize(state: &State<ParticipantState>, config_bytes: Vec<u8>) -> Result {
     let input: ParticipantInitConfig = bincode::deserialize(&config_bytes)?;
 
+    let mut rng = OsRng;
+    let sid = Identifier::random(&mut rng);
+
     let mut init_config = state.init_config.write().await;
     *init_config = Some(input.clone());
     drop(init_config);
 
     let mut participant = state.participant.write().await;
-    *participant = Some(Participant::from_config(input.config)?);
+    *participant = Some(Participant::from_config(sid, input.config)?);
     drop(participant);
 
     Ok(())
@@ -104,18 +107,14 @@ pub(crate) async fn process(state: &State<ParticipantState>, message_bytes: Vec<
     // Ping notifications if protocol was completed
 
     let auxinfo_notifications = state.auxinfo_notifications.read().await;
-    if auxinfo_notifications.contains_key(&message.id())
-        && participant.is_auxinfo_done(message.id()).unwrap()
-    {
+    if auxinfo_notifications.contains_key(&message.id()) && participant.is_auxinfo_done().unwrap() {
         let notify = auxinfo_notifications.get(&message.id()).unwrap().clone();
         notify.notify_one();
     }
     drop(auxinfo_notifications);
 
     let keygen_notifications = state.keygen_notifications.read().await;
-    if keygen_notifications.contains_key(&message.id())
-        && participant.is_keygen_done(message.id()).unwrap()
-    {
+    if keygen_notifications.contains_key(&message.id()) && participant.is_keygen_done().unwrap() {
         let notify = keygen_notifications.get(&message.id()).unwrap().clone();
         notify.notify_one();
     }
@@ -123,7 +122,7 @@ pub(crate) async fn process(state: &State<ParticipantState>, message_bytes: Vec<
 
     let presign_notifications = state.presign_notifications.read().await;
     if presign_notifications.contains_key(&message.id())
-        && participant.is_presigning_done(message.id()).unwrap()
+        && participant.is_presigning_done().unwrap()
     {
         let notify = presign_notifications.get(&message.id()).unwrap().clone();
         notify.notify_one();
@@ -165,7 +164,7 @@ async fn auxinfo(state: &State<ParticipantState>, parameters: Json<AuxInfoParame
     let participant = (*state_participant)
         .as_ref()
         .ok_or_else(|| anyhow!("Config not set"))?;
-    let message = participant.initialize_auxinfo_message(auxinfo_identifier);
+    let message = participant.initialize_auxinfo_message();
     drop(state_participant);
 
     // Create new notification for this auxinfo identifier
@@ -202,7 +201,7 @@ async fn keygen(
     let participant = (*state_participant)
         .as_ref()
         .ok_or_else(|| anyhow!("Config not set"))?;
-    let message = participant.initialize_keygen_message(keygen_identifier);
+    let message = participant.initialize_keygen_message();
     drop(state_participant);
 
     // Create new notification for this keygen identifier
@@ -229,7 +228,7 @@ async fn keygen(
     let participant = (*state_participant)
         .as_ref()
         .ok_or_else(|| anyhow!("Config not set"))?;
-    let curve_point = participant.get_public_keyshare(keygen_identifier)?;
+    let curve_point = participant.get_public_keyshare()?;
     drop(state_participant);
 
     Ok(Json(curve_point))
@@ -237,19 +236,13 @@ async fn keygen(
 
 #[post("/presign", data = "<parameters>")]
 async fn presign(state: &State<ParticipantState>, parameters: Json<PresignParameters>) -> Result {
-    let auxinfo_identifier = parameters.auxinfo_identifier;
-    let keygen_identifier = parameters.keygen_identifier;
     let presign_identifier = parameters.presign_identifier;
 
     let mut state_participant = state.participant.write().await;
     let participant = (*state_participant)
         .as_mut()
         .ok_or_else(|| anyhow!("Config not set"))?;
-    let message = participant.initialize_presign_message(
-        auxinfo_identifier,
-        keygen_identifier,
-        presign_identifier,
-    )?;
+    let message = participant.initialize_presign_message()?;
     drop(state_participant); // Release the lock
 
     // Create new notification for this keygen identifier
@@ -284,8 +277,6 @@ async fn sign_from_presign(
 ) -> std::result::Result<Json<(Vec<u8>, Vec<u8>)>, ErrorWrapper> {
     use sha2::{Digest, Sha256};
 
-    let presign_identifier = parameters.presign_identifier;
-
     let mut hasher = Sha256::new();
     hasher.update(parameters.input.clone());
 
@@ -294,7 +285,7 @@ async fn sign_from_presign(
         .as_mut()
         .ok_or_else(|| anyhow!("Config not set"))?;
 
-    let signature_share = participant.sign(presign_identifier, hasher.clone())?;
+    let signature_share = participant.sign(hasher.clone())?;
     drop(state_participant); // Release the lock
 
     Ok(Json((
