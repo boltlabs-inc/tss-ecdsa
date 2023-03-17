@@ -608,9 +608,9 @@ mod tests {
             Output::Presign(_) => participant.is_presigning_done(),
             Output::Sign(_) => Ok(true), // this doesn't have a check
             Output::None => {
-                let auxinfo = participant.is_auxinfo_done();
-                let keygen = participant.is_keygen_done();
-                let presign = participant.is_presigning_done();
+                let _auxinfo = participant.is_auxinfo_done();
+                let _keygen = participant.is_keygen_done();
+                let _presign = participant.is_presigning_done();
 
                 // The current behavior of these is weird -- they return Ok even if the `sid`
                 // corresponds to a different protocol. Perhaps the "most
