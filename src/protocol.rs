@@ -594,7 +594,8 @@ mod tests {
         );
         let (sid, output, messages) = participant.process_single_message(&message, rng)?;
         if sid != participant.sid {
-            // The returned Session ID should _always_ be the same as the participant's Session ID.
+            // The returned Session ID should _always_ be the same as the participant's
+            // Session ID.
             return Err(InternalError::InternalInvariantFailed);
         }
         deliver_all(&messages, inboxes)?;
