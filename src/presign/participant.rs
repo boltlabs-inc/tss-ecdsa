@@ -109,8 +109,9 @@ pub(crate) struct Input {
 }
 
 impl Input {
-    /// Creates a new [`Input`] from the outputs of [`AuxInfoParticipant`]
-    /// and [`KeygenParticipant`].
+    /// Creates a new [`Input`] from the outputs of
+    /// [`crate::auxinfo::participant::AuxInfoParticipant`]
+    /// and [`crate::keygen::participant::KeygenParticipant`].
     pub(crate) fn new(
         all_auxinfo_public: Vec<AuxInfoPublic>,
         auxinfo_private: AuxInfoPrivate,
