@@ -138,8 +138,7 @@ impl Participant {
                 let (output, messages) = outcome.into_parts();
                 let public_output = match output {
                     Some((auxinfo_publics, auxinfo_private)) => {
-                        // TODO #180: Remove storage once we've pulled the use of main storage out
-                        // of `presign`.
+                        // TODO #180: Remove once we've removed the use of main storage.
                         for auxinfo_public in &auxinfo_publics {
                             self.main_storage.store(
                                 PersistentStorageType::AuxInfoPublic,
@@ -165,8 +164,7 @@ impl Participant {
                 let (output, messages) = outcome.into_parts();
                 let public_output = match output {
                     Some((keyshare_publics, keyshare_private)) => {
-                        // TODO #180: Remove storage once we've pulled the use of main storage out
-                        // of `presign`.
+                        // TODO #180: Remove once we've removed the use of main storage.
                         for keyshare_public in &keyshare_publics {
                             self.main_storage.store(
                                 PersistentStorageType::PublicKeyshare,
@@ -188,7 +186,6 @@ impl Participant {
                 Ok((message.id(), public_output, messages))
             }
             MessageType::Presign(_) => {
-                // Construct input to `PresignParticipant`, if possible.
                 let input = self.construct_presign_input(message.id())?;
                 let outcome = self
                     .presign_participant
