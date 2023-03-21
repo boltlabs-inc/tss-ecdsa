@@ -380,12 +380,12 @@ impl Participant {
             auxinfo_id,
             &self.all_participants(),
         )?;
-        Ok(PresignInput::new(
+        PresignInput::new(
             auxinfo_publics,
             auxinfo_private,
             keyshare_publics,
             keyshare_private,
-        ))
+        )
     }
 
     fn all_participants(&self) -> Vec<ParticipantIdentifier> {

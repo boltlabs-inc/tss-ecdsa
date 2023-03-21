@@ -117,12 +117,16 @@ impl Input {
         auxinfo_private: AuxInfoPrivate,
         all_keyshare_public: Vec<KeySharePublic>,
         keyshare_private: KeySharePrivate,
-    ) -> Self {
-        Self {
-            all_auxinfo_public,
-            auxinfo_private,
-            all_keyshare_public,
-            keyshare_private,
+    ) -> Result<Self> {
+        if all_auxinfo_public.len() != all_keyshare_public.len() {
+            Err(InternalError::InternalInvariantFailed)
+        } else {
+            Ok(Self {
+                all_auxinfo_public,
+                auxinfo_private,
+                all_keyshare_public,
+                keyshare_private,
+            })
         }
     }
 
