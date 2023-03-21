@@ -86,35 +86,6 @@ impl Storage {
             participant,
         })?)
     }
-    /// The `identifier` here corresponds to a unique session identifier.
-    pub(crate) fn delete<T: Storable>(
-        &mut self,
-        storable_type: T,
-        identifier: Identifier,
-        participant: ParticipantIdentifier,
-    ) -> Result<Vec<u8>> {
-        self.delete_index(StorableIndex {
-            storable_type,
-            identifier,
-            participant,
-        })
-    }
-
-    /// Returns `true` if the storage contains entries associated with a given
-    /// `storage_type`, [`Identifier`], and list of
-    /// [`ParticipantIdentifier`]s.
-    pub(crate) fn contains_for_all_ids<T: Storable>(
-        &self,
-        storage_type: T,
-        identifier: Identifier,
-        participants: &[ParticipantIdentifier],
-    ) -> Result<bool> {
-        let fetch: Vec<(T, Identifier, ParticipantIdentifier)> = participants
-            .iter()
-            .map(|participant| (storage_type, identifier, *participant))
-            .collect();
-        self.contains_batch(&fetch)
-    }
 
     /// Retrieves all items associated with a given `storage_type`,
     /// [`Identifier`], and list of [`ParticipantIdentifier`]s.
@@ -129,8 +100,22 @@ impl Storage {
         }
         participants
             .iter()
-            .map(|pid| self.retrieve(PersistentStorageType::AuxInfoPublic, identifier, *pid))
+            .map(|pid| self.retrieve(storage_type, identifier, *pid))
             .collect::<Result<Vec<_>>>()
+    }
+
+    /// The `identifier` here corresponds to a unique session identifier.
+    pub(crate) fn delete<T: Storable>(
+        &mut self,
+        storable_type: T,
+        identifier: Identifier,
+        participant: ParticipantIdentifier,
+    ) -> Result<Vec<u8>> {
+        self.delete_index(StorableIndex {
+            storable_type,
+            identifier,
+            participant,
+        })
     }
 
     pub(crate) fn contains_batch<T: Storable>(
@@ -151,6 +136,22 @@ impl Storage {
     }
 
     // Inner functions
+
+    /// Returns `true` if the storage contains entries associated with a given
+    /// `storage_type`, [`Identifier`], and list of
+    /// [`ParticipantIdentifier`]s.
+    fn contains_for_all_ids<T: Storable>(
+        &self,
+        storage_type: T,
+        identifier: Identifier,
+        participants: &[ParticipantIdentifier],
+    ) -> Result<bool> {
+        let fetch: Vec<(T, Identifier, ParticipantIdentifier)> = participants
+            .iter()
+            .map(|participant| (storage_type, identifier, *participant))
+            .collect();
+        self.contains_batch(&fetch)
+    }
 
     fn store_index<I: Storable>(&mut self, storable_index: I, val: &[u8]) -> Result<()> {
         let key = serialize!(&storable_index)?;

@@ -28,7 +28,6 @@ use crate::{
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
     },
     protocol::ParticipantIdentifier,
-    storage::{PersistentStorageType, Storage},
     utils::{bn_to_scalar, k256_order, random_plusminus_by_size, random_positive_bn},
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof, PiAffgSecret},
@@ -97,9 +96,65 @@ pub(crate) struct PresignParticipant {
     broadcast_participant: BroadcastParticipant,
 }
 
+/// Input needed for [`PresignParticipant`] to run.
+pub(crate) struct Input {
+    /// The private keyshare of this participant.
+    keyshare_private: KeySharePrivate,
+    /// The public keyshares of all the participants.
+    all_keyshare_public: Vec<KeySharePublic>,
+    /// The private auxinfo of this participant.
+    auxinfo_private: AuxInfoPrivate,
+    /// The public auxinfo of all the participants.
+    all_auxinfo_public: Vec<AuxInfoPublic>,
+}
+
+impl Input {
+    /// Creates a new [`Input`] from the outputs of [`AuxInfoParticipant`]
+    /// and [`KeygenParticipant`].
+    pub(crate) fn new(
+        all_auxinfo_public: Vec<AuxInfoPublic>,
+        auxinfo_private: AuxInfoPrivate,
+        all_keyshare_public: Vec<KeySharePublic>,
+        keyshare_private: KeySharePrivate,
+    ) -> Self {
+        Self {
+            all_auxinfo_public,
+            auxinfo_private,
+            all_keyshare_public,
+            keyshare_private,
+        }
+    }
+
+    /// Returns the [`AuxInfoPublic`] associated with the given
+    /// [`ParticipantIdentifier`].
+    fn find_auxinfo_public(&self, pid: ParticipantIdentifier) -> Result<&AuxInfoPublic> {
+        self.all_auxinfo_public
+            .iter()
+            .find(|item| *item.participant() == pid)
+            .ok_or(InternalError::StorageItemNotFound)
+    }
+
+    /// Returns the [`KeySharePublic`] associated with the given
+    /// [`ParticipantIdentifier`].
+    fn find_keyshare_public(&self, pid: ParticipantIdentifier) -> Result<&KeySharePublic> {
+        self.all_keyshare_public
+            .iter()
+            .find(|item| item.participant() == pid)
+            .ok_or(InternalError::StorageItemNotFound)
+    }
+
+    /// Returns the [`AuxInfoPublic`]s associated with all the participants
+    /// _except_ the given [`ParticipantIdentifier`].
+    fn all_but_one_auxinfo_public(&self, pid: ParticipantIdentifier) -> Vec<&AuxInfoPublic> {
+        self.all_auxinfo_public
+            .iter()
+            .filter(|item| *item.participant() != pid)
+            .collect()
+    }
+}
+
 impl ProtocolParticipant for PresignParticipant {
-    // TODO #180: Change to proper input instead of `Storage`.
-    type Input = Storage;
+    type Input = Input;
     type Output = PresignRecord;
 
     fn local_storage(&self) -> &LocalStorage {
@@ -182,7 +237,7 @@ impl PresignParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        input: &Storage,
+        input: &Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling ready presign message.");
 
@@ -238,21 +293,14 @@ impl PresignParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        input: &Storage,
+        input: &Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Generating round one presign messages.");
 
-        let (auxinfo_identifier, keyshare_identifier) =
-            self.get_associated_identifiers_for_presign(&message.id())?;
-
         // Reconstruct keyshare and other participants' public keyshares from local
         // storage
-        let keyshare = get_keyshare(self.id, auxinfo_identifier, keyshare_identifier, input)?;
-        let other_public_auxinfo = input.retrieve_for_all_ids(
-            PersistentStorageType::AuxInfoPublic,
-            auxinfo_identifier,
-            &self.other_participant_ids,
-        )?;
+        let keyshare = get_keyshare(self.id, input)?;
+        let other_public_auxinfo = input.all_but_one_auxinfo_public(self.id);
 
         // Run Round One
         let (private, r1_publics, r1_public_broadcast) =
@@ -305,7 +353,7 @@ impl PresignParticipant {
         &mut self,
         rng: &mut R,
         broadcast_message: &BroadcastOutput,
-        input: &Storage,
+        input: &Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         if broadcast_message.tag != BroadcastTag::PresignR1Ciphertexts {
             error!("Incorrect tag for Presign R1 Broadcast!");
@@ -342,7 +390,7 @@ impl PresignParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        input: &Storage,
+        input: &Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round one presign message.");
 
@@ -378,27 +426,16 @@ impl PresignParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        input: &Storage,
+        input: &Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Generating round two presign messages.");
 
-        let (auxinfo_identifier, keyshare_identifier) =
-            self.get_associated_identifiers_for_presign(&message.id())?;
-
         // Reconstruct keyshare and other participants' public keyshares from local
         // storage
-        let keyshare = get_keyshare(self.id, auxinfo_identifier, keyshare_identifier, input)?;
-        let other_public_keyshares = input.retrieve_for_all_ids::<_, AuxInfoPublic>(
-            PersistentStorageType::AuxInfoPublic,
-            auxinfo_identifier,
-            &self.other_participant_ids,
-        )?;
+        let keyshare = get_keyshare(self.id, input)?;
 
         // Find the keyshare corresponding to the "from" participant
-        let keyshare_from = other_public_keyshares
-            .iter()
-            .find(|item| *item.participant() == message.from())
-            .ok_or(InternalInvariantFailed)?;
+        let keyshare_from = input.find_auxinfo_public(message.from())?;
 
         // Get this participant's round 1 private value
         let r1_priv = self
@@ -476,7 +513,7 @@ impl PresignParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        input: &Storage,
+        input: &Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round two presign message.");
 
@@ -489,27 +526,8 @@ impl PresignParticipant {
             return Ok(ProcessOutcome::Incomplete);
         }
 
-        let (auxinfo_identifier, keyshare_identifier) =
-            self.get_associated_identifiers_for_presign(&message.id())?;
-
         // Verify the bytes of the round two value, and store it locally.
-        self.validate_and_store_round_two_public(
-            input,
-            message,
-            auxinfo_identifier,
-            keyshare_identifier,
-        )?;
-
-        // Since we are in round 2, it should certainly be the case that all
-        // public auxinfo for other participants have been stored, since
-        // this was a requirement to proceed for round 1.
-        if !input.contains_for_all_ids(
-            PersistentStorageType::AuxInfoPublic,
-            auxinfo_identifier,
-            &self.other_participant_ids,
-        )? {
-            return Err(InternalError::StorageItemNotFound);
-        }
+        self.validate_and_store_round_two_public(input, message)?;
 
         // Check if storage has all of the other participants' round 2 values (both
         // private and public), and start generating the messages for round 3 if so
@@ -552,21 +570,15 @@ impl PresignParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        input: &Storage,
+        input: &Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Generating round three presign messages.");
 
-        let (auxinfo_identifier, keyshare_identifier) =
-            self.get_associated_identifiers_for_presign(&message.id())?;
-
         // Reconstruct keyshare from local storage
-        let keyshare = get_keyshare(self.id, auxinfo_identifier, keyshare_identifier, input)?;
+        let keyshare = get_keyshare(self.id, input)?;
 
-        let round_three_hashmap = self.get_other_participants_round_three_values(
-            message.id(),
-            auxinfo_identifier,
-            input,
-        )?;
+        let round_three_hashmap =
+            self.get_other_participants_round_three_values(message.id(), input)?;
 
         // Get this participant's round 1 private value
         let r1_priv = self
@@ -614,7 +626,7 @@ impl PresignParticipant {
         &mut self,
         _rng: &mut R,
         message: &Message,
-        input: &Storage,
+        input: &Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round three presign message.");
 
@@ -628,10 +640,8 @@ impl PresignParticipant {
             return Ok(ProcessOutcome::Incomplete);
         }
 
-        let (auxinfo_identifier, _) = self.get_associated_identifiers_for_presign(&message.id())?;
-
         // First, verify and store the round three value locally
-        self.validate_and_store_round_three_public(input, message, auxinfo_identifier)?;
+        self.validate_and_store_round_three_public(input, message)?;
 
         if self
             .local_storage
@@ -679,7 +689,7 @@ impl PresignParticipant {
 
     ///`presign_identifier` corresponds to a unique session identifier for
     /// presigning.
-    fn get_associated_identifiers_for_presign(
+    pub(crate) fn get_associated_identifiers(
         &self,
         presign_identifier: &Identifier,
     ) -> Result<(Identifier, Identifier)> {
@@ -690,31 +700,16 @@ impl PresignParticipant {
 
         Ok((*id1, *id2))
     }
-    /// `auxinfo_identifier` and `keyshare_identifier` correspond to unique
-    /// session identifiers.
+
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     fn validate_and_store_round_two_public(
         &mut self,
-        input: &Storage,
+        input: &Input,
         message: &Message,
-        auxinfo_identifier: Identifier,
-        keyshare_identifier: Identifier,
     ) -> Result<()> {
-        let receiver_auxinfo_public = input.retrieve(
-            PersistentStorageType::AuxInfoPublic,
-            auxinfo_identifier,
-            message.to(),
-        )?;
-        let sender_auxinfo_public = input.retrieve(
-            PersistentStorageType::AuxInfoPublic,
-            auxinfo_identifier,
-            message.from(),
-        )?;
-        let sender_keyshare_public = input.retrieve(
-            PersistentStorageType::PublicKeyshare,
-            keyshare_identifier,
-            message.from(),
-        )?;
+        let receiver_auxinfo_public = input.find_auxinfo_public(message.to())?;
+        let sender_auxinfo_public = input.find_auxinfo_public(message.from())?;
+        let sender_keyshare_public = input.find_keyshare_public(message.from())?;
         let receiver_r1_private = self
             .local_storage
             .retrieve::<storage::RoundOnePrivate>(message.id(), message.to())?;
@@ -724,9 +719,9 @@ impl PresignParticipant {
 
         let round_two_public = crate::round_two::Public::from_message(
             message,
-            &receiver_auxinfo_public,
-            &sender_auxinfo_public,
-            &sender_keyshare_public,
+            receiver_auxinfo_public,
+            sender_auxinfo_public,
+            sender_keyshare_public,
             receiver_r1_private,
             sender_r1_public_broadcast,
         )?;
@@ -743,28 +738,19 @@ impl PresignParticipant {
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     fn validate_and_store_round_three_public(
         &mut self,
-        input: &Storage,
+        input: &Input,
         message: &Message,
-        auxinfo_identifier: Identifier,
     ) -> Result<()> {
-        let receiver_auxinfo_public = input.retrieve(
-            PersistentStorageType::AuxInfoPublic,
-            auxinfo_identifier,
-            message.to(),
-        )?;
-        let sender_auxinfo_public = input.retrieve(
-            PersistentStorageType::AuxInfoPublic,
-            auxinfo_identifier,
-            message.from(),
-        )?;
+        let receiver_auxinfo_public = input.find_auxinfo_public(message.to())?;
+        let sender_auxinfo_public = input.find_auxinfo_public(message.from())?;
         let sender_r1_public_broadcast = self
             .local_storage
             .retrieve::<storage::RoundOnePublicBroadcast>(message.id(), message.from())?;
 
         let public_message = crate::round_three::Public::from_message(
             message,
-            &receiver_auxinfo_public,
-            &sender_auxinfo_public,
+            receiver_auxinfo_public,
+            sender_auxinfo_public,
             sender_r1_public_broadcast,
         )?;
 
@@ -790,15 +776,10 @@ impl PresignParticipant {
     fn get_other_participants_round_three_values(
         &self,
         identifier: Identifier,
-        auxinfo_identifier: Identifier,
-        input: &Storage,
+        input: &Input,
     ) -> Result<HashMap<ParticipantIdentifier, RoundThreeInput>> {
         // begin by checking Storage contents to ensure we're ready for round three
-        if !input.contains_for_all_ids(
-            PersistentStorageType::AuxInfoPublic,
-            auxinfo_identifier,
-            &self.other_participant_ids,
-        )? || !self
+        if !self
             .local_storage
             .contains_for_all_ids::<storage::RoundTwoPrivate>(
                 identifier,
@@ -816,11 +797,7 @@ impl PresignParticipant {
 
         let mut hm = HashMap::new();
         for other_participant_id in self.other_participant_ids.clone() {
-            let auxinfo_public: AuxInfoPublic = input.retrieve(
-                PersistentStorageType::AuxInfoPublic,
-                auxinfo_identifier,
-                other_participant_id,
-            )?;
+            let auxinfo_public = input.find_auxinfo_public(other_participant_id)?;
             let r2_private = self
                 .local_storage
                 .retrieve::<storage::RoundTwoPrivate>(identifier, other_participant_id)?;
@@ -830,7 +807,7 @@ impl PresignParticipant {
             let _ = hm.insert(
                 other_participant_id,
                 RoundThreeInput {
-                    auxinfo_public,
+                    auxinfo_public: auxinfo_public.clone(),
                     r2_private: r2_private.clone(),
                     r2_public: r2_public.clone(),
                 },
@@ -875,32 +852,14 @@ impl PresignParticipant {
 /// identifiers.
 pub(crate) fn get_keyshare(
     self_id: ParticipantIdentifier,
-    auxinfo_identifier: Identifier,
-    keyshare_identifier: Identifier,
-    storage: &Storage,
+    input: &Input,
 ) -> Result<PresignKeyShareAndInfo> {
     // Reconstruct keyshare from local storage
     let keyshare_and_info = PresignKeyShareAndInfo {
-        aux_info_private: storage.retrieve(
-            PersistentStorageType::AuxInfoPrivate,
-            auxinfo_identifier,
-            self_id,
-        )?,
-        aux_info_public: storage.retrieve(
-            PersistentStorageType::AuxInfoPublic,
-            auxinfo_identifier,
-            self_id,
-        )?,
-        keyshare_private: storage.retrieve(
-            PersistentStorageType::PrivateKeyshare,
-            keyshare_identifier,
-            self_id,
-        )?,
-        keyshare_public: storage.retrieve(
-            PersistentStorageType::PublicKeyshare,
-            keyshare_identifier,
-            self_id,
-        )?,
+        aux_info_private: input.auxinfo_private.clone(),
+        aux_info_public: input.find_auxinfo_public(self_id)?.clone(),
+        keyshare_private: input.keyshare_private.clone(),
+        keyshare_public: input.find_keyshare_public(self_id)?.clone(),
     };
     Ok(keyshare_and_info)
 }
@@ -930,7 +889,7 @@ impl PresignKeyShareAndInfo {
     pub(crate) fn round_one<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
-        public_keys: &Vec<AuxInfoPublic>,
+        public_keys: &[&AuxInfoPublic],
     ) -> Result<(
         RoundOnePrivate,
         HashMap<ParticipantIdentifier, RoundOnePublic>,

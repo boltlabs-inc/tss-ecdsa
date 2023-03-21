@@ -20,7 +20,10 @@ use crate::{
     },
     messages::{AuxinfoMessageType, KeygenMessageType, MessageType},
     participant::ProtocolParticipant,
-    presign::{participant::PresignParticipant, record::PresignRecord},
+    presign::{
+        participant::{Input as PresignInput, PresignParticipant},
+        record::PresignRecord,
+    },
     storage::{PersistentStorageType, Storage},
     utils::CurvePoint,
     Message,
@@ -151,7 +154,6 @@ impl Participant {
                             self.id,
                             &auxinfo_private,
                         )?;
-
                         Output::AuxInfo(auxinfo_publics, auxinfo_private)
                     }
                     None => Output::None,
@@ -186,11 +188,11 @@ impl Participant {
                 Ok((message.id(), public_output, messages))
             }
             MessageType::Presign(_) => {
-                // Send presign message and existing storage containing auxinfo and
-                // keyshare values that presign needs to operate
-                let outcome =
-                    self.presign_participant
-                        .process_message(rng, message, &self.main_storage)?;
+                // Construct input to `PresignParticipant`, if possible.
+                let input = self.construct_presign_input(message.id())?;
+                let outcome = self
+                    .presign_participant
+                    .process_message(rng, message, &input)?;
 
                 let (output, messages) = outcome.into_parts();
 
@@ -356,6 +358,43 @@ impl Participant {
         let ret = SignatureShare { r: Some(r), s };
 
         Ok(ret)
+    }
+
+    /// Constructs [`PresignInput`] from the necessary stored data.
+    fn construct_presign_input(&self, sid: Identifier) -> Result<PresignInput> {
+        let (auxinfo_id, keygen_id) = self.presign_participant.get_associated_identifiers(&sid)?;
+        let keyshare_private = self.main_storage.retrieve(
+            PersistentStorageType::PrivateKeyshare,
+            keygen_id,
+            self.id,
+        )?;
+        let keyshare_publics = self.main_storage.retrieve_for_all_ids(
+            PersistentStorageType::PublicKeyshare,
+            keygen_id,
+            &self.all_participants(),
+        )?;
+        let auxinfo_private = self.main_storage.retrieve(
+            PersistentStorageType::AuxInfoPrivate,
+            auxinfo_id,
+            self.id,
+        )?;
+        let auxinfo_publics = self.main_storage.retrieve_for_all_ids(
+            PersistentStorageType::AuxInfoPublic,
+            auxinfo_id,
+            &self.all_participants(),
+        )?;
+        Ok(PresignInput::new(
+            auxinfo_publics,
+            auxinfo_private,
+            keyshare_publics,
+            keyshare_private,
+        ))
+    }
+
+    fn all_participants(&self) -> Vec<ParticipantIdentifier> {
+        let mut pids = self.other_participant_ids.clone();
+        pids.push(self.id);
+        pids
     }
 }
 
