@@ -207,6 +207,9 @@ pub trait ProtocolParticipant {
         message: &Message,
         input: &Self::Input,
     ) -> Result<ProcessOutcome<Self::Output>>;
+
+    /// Whether the protocol as terminated successfully or not.
+    fn is_done(&self) -> bool;
 }
 
 pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {

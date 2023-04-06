@@ -59,6 +59,8 @@ pub enum InternalError {
         "Tried to start a new protocol instance with an Identifier used in an existing instance"
     )]
     IdentifierInUse,
+    #[error("Protocol has already terminated")]
+    ProtocolAlreadyTerminated,
 }
 
 /// Errors that are caused by incorrect behavior by the calling application.

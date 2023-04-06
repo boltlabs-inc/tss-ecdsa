@@ -61,6 +61,12 @@ mod storage {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum Status {
+    Initialized,
+    TerminatedSuccessfully,
+}
+
 /// A participant that runs the key generation protocol.
 #[derive(Debug)]
 pub struct KeygenParticipant {
@@ -73,6 +79,8 @@ pub struct KeygenParticipant {
     local_storage: LocalStorage,
     /// Broadcast subprotocol handler
     broadcast_participant: BroadcastParticipant,
+    /// Status of the protocol execution.
+    status: Status,
 }
 
 impl ProtocolParticipant for KeygenParticipant {
@@ -87,6 +95,7 @@ impl ProtocolParticipant for KeygenParticipant {
             other_participant_ids: other_participant_ids.clone(),
             local_storage: Default::default(),
             broadcast_participant: BroadcastParticipant::new(id, other_participant_ids),
+            status: Status::Initialized,
         }
     }
 
@@ -108,6 +117,10 @@ impl ProtocolParticipant for KeygenParticipant {
     ) -> Result<ProcessOutcome<Self::Output>> {
         info!("Processing keygen message.");
 
+        if self.is_done() {
+            return Err(InternalError::ProtocolAlreadyTerminated);
+        }
+
         match message.message_type() {
             MessageType::Keygen(KeygenMessageType::R1CommitHash) => {
                 let broadcast_outcome = self.handle_broadcast(rng, message)?;
@@ -125,6 +138,10 @@ impl ProtocolParticipant for KeygenParticipant {
             MessageType::Keygen(_) => Err(InternalError::MessageMustBeBroadcasted)?,
             _ => Err(InternalError::MisroutedMessage)?,
         }
+    }
+
+    fn is_done(&self) -> bool {
+        self.status == Status::TerminatedSuccessfully
     }
 }
 
@@ -487,7 +504,7 @@ impl KeygenParticipant {
             let private_key_share = self
                 .local_storage
                 .retrieve::<storage::PrivateKeyshare>(self.id)?;
-
+            self.status = Status::TerminatedSuccessfully;
             Ok(ProcessOutcome::Terminated((
                 public_key_shares,
                 private_key_share.clone(),
@@ -556,14 +573,8 @@ mod tests {
                 &[],
             )
         }
-        pub fn is_keygen_done(&self, _: Identifier) -> bool {
-            self.local_storage
-                .contains_for_all_ids::<storage::PublicKeyshare>(&self.all_participants())
-                && self
-                    .local_storage
-                    .contains::<storage::PrivateKeyshare>(self.id)
-        }
     }
+
     /// Delivers all messages into their respective participant's inboxes
     fn deliver_all(
         messages: &[Message],
@@ -580,13 +591,13 @@ mod tests {
         Ok(())
     }
 
-    fn is_keygen_done(quorum: &[KeygenParticipant], keygen_identifier: Identifier) -> Result<bool> {
+    fn is_keygen_done(quorum: &[KeygenParticipant]) -> bool {
         for participant in quorum {
-            if !participant.is_keygen_done(keygen_identifier) {
-                return Ok(false);
+            if !participant.is_done() {
+                return false;
             }
         }
-        Ok(true)
+        true
     }
 
     #[allow(clippy::type_complexity)]
@@ -651,7 +662,7 @@ mod tests {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(participant.initialize_keygen_message(keyshare_identifier));
         }
-        while !is_keygen_done(&quorum, keyshare_identifier)? {
+        while !is_keygen_done(&quorum) {
             let (index, outcome) = match process_messages(&mut quorum, &mut inboxes, &mut rng) {
                 None => continue,
                 Some(x) => x,

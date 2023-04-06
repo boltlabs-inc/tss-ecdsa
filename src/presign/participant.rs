@@ -81,6 +81,12 @@ mod storage {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum Status {
+    Initialized,
+    TerminatedSuccessfully,
+}
+
 /// A participant that runs the presign protocol.
 #[derive(Debug)]
 pub struct PresignParticipant {
@@ -93,6 +99,8 @@ pub struct PresignParticipant {
     local_storage: LocalStorage,
     /// Broadcast subprotocol handler
     broadcast_participant: BroadcastParticipant,
+    /// Status of the protocol execution
+    status: Status,
 }
 
 /// Input needed for [`PresignParticipant`] to run.
@@ -168,6 +176,7 @@ impl ProtocolParticipant for PresignParticipant {
             other_participant_ids: other_participant_ids.clone(),
             local_storage: Default::default(),
             broadcast_participant: BroadcastParticipant::new(id, other_participant_ids),
+            status: Status::Initialized,
         }
     }
 
@@ -192,6 +201,10 @@ impl ProtocolParticipant for PresignParticipant {
     ) -> Result<ProcessOutcome<Self::Output>> {
         info!("Processing presign message.");
 
+        if self.is_done() {
+            return Err(InternalError::ProtocolAlreadyTerminated);
+        }
+
         match message.message_type() {
             MessageType::Presign(PresignMessageType::Ready) => {
                 self.handle_ready_msg(rng, message, input)
@@ -214,6 +227,10 @@ impl ProtocolParticipant for PresignParticipant {
 
             _ => Err(InternalError::MisroutedMessage),
         }
+    }
+
+    fn is_done(&self) -> bool {
+        self.status == Status::TerminatedSuccessfully
     }
 }
 
@@ -619,7 +636,9 @@ impl PresignParticipant {
             .local_storage
             .contains_for_all_ids::<storage::RoundThreePublic>(&self.other_participant_ids)
         {
-            Ok(ProcessOutcome::Terminated(self.do_presign_finish()?))
+            let record = self.do_presign_finish()?;
+            self.status = Status::TerminatedSuccessfully;
+            Ok(ProcessOutcome::Terminated(record))
         } else {
             Ok(ProcessOutcome::Incomplete)
         }

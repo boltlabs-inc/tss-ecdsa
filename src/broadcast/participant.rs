@@ -31,6 +31,12 @@ mod storage {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum Status {
+    Initialized,
+    TerminatedSuccessfully,
+}
+
 #[derive(Debug)]
 pub(crate) struct BroadcastParticipant {
     /// A unique identifier for this participant
@@ -40,6 +46,8 @@ pub(crate) struct BroadcastParticipant {
     other_participant_ids: Vec<ParticipantIdentifier>,
     /// Local storage for this participant to store secrets
     local_storage: LocalStorage,
+    /// Status of the protocol execution
+    status: Status,
 }
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Clone, Debug)]
@@ -71,6 +79,7 @@ impl ProtocolParticipant for BroadcastParticipant {
             id,
             other_participant_ids,
             local_storage: Default::default(),
+            status: Status::Initialized,
         }
     }
 
@@ -94,6 +103,14 @@ impl ProtocolParticipant for BroadcastParticipant {
     ) -> Result<ProcessOutcome<Self::Output>> {
         info!("Processing broadcast message.");
 
+        // XXX Protocols that utilize `BroadcastParticipant` never "reset" the
+        // participant between executions, and hence an already terminated
+        // `BroadcastParticipant` may get called again!
+        //
+        // if self.is_done() {
+        //     return Err(InternalError::ProtocolAlreadyTerminated);
+        // }
+
         match message.message_type() {
             MessageType::Broadcast(BroadcastMessageType::Disperse) => {
                 self.handle_round_one_msg(rng, message)
@@ -103,6 +120,10 @@ impl ProtocolParticipant for BroadcastParticipant {
             }
             _ => Err(InternalError::MisroutedMessage),
         }
+    }
+
+    fn is_done(&self) -> bool {
+        self.status == Status::TerminatedSuccessfully
     }
 }
 
@@ -242,6 +263,7 @@ impl BroadcastParticipant {
             if *v == self.other_participant_ids.len() {
                 let msg = Message::new(data.message_type, sid, data.leader, self.id(), k);
                 let out = BroadcastOutput { tag: data.tag, msg };
+                self.status = Status::TerminatedSuccessfully;
                 return Ok(ProcessOutcome::Terminated(out));
             }
         }

@@ -60,6 +60,12 @@ mod storage {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum Status {
+    Initialized,
+    TerminatedSuccessfully,
+}
+
 /// A participant that runs the auxiliary information protocol.
 ///
 /// Note that this does not include the key-refresh steps included in the
@@ -75,6 +81,8 @@ pub struct AuxInfoParticipant {
     local_storage: LocalStorage,
     /// Broadcast subprotocol handler
     broadcast_participant: BroadcastParticipant,
+    /// The status of the protocol execution
+    status: Status,
 }
 
 impl ProtocolParticipant for AuxInfoParticipant {
@@ -89,6 +97,7 @@ impl ProtocolParticipant for AuxInfoParticipant {
             other_participant_ids: other_participant_ids.clone(),
             local_storage: Default::default(),
             broadcast_participant: BroadcastParticipant::new(id, other_participant_ids),
+            status: Status::Initialized,
         }
     }
 
@@ -110,6 +119,10 @@ impl ProtocolParticipant for AuxInfoParticipant {
     ) -> Result<ProcessOutcome<Self::Output>> {
         info!("Processing auxinfo message.");
 
+        if self.is_done() {
+            return Err(InternalError::ProtocolAlreadyTerminated);
+        }
+
         match message.message_type() {
             MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash) => {
                 let broadcast_outcome = self.handle_broadcast(rng, message)?;
@@ -127,6 +140,10 @@ impl ProtocolParticipant for AuxInfoParticipant {
             MessageType::Auxinfo(_) => Err(InternalError::MessageMustBeBroadcasted),
             _ => Err(InternalError::MisroutedMessage),
         }
+    }
+
+    fn is_done(&self) -> bool {
+        self.status == Status::TerminatedSuccessfully
     }
 }
 
@@ -474,6 +491,7 @@ impl AuxInfoParticipant {
                 .collect::<Result<Vec<_>>>()?;
             let auxinfo_private = self.local_storage.retrieve::<storage::Private>(self.id)?;
 
+            self.status = Status::TerminatedSuccessfully;
             Ok(ProcessOutcome::Terminated((
                 auxinfo_public,
                 auxinfo_private.clone(),
@@ -545,13 +563,8 @@ mod tests {
                 &[],
             )
         }
-
-        pub fn is_auxinfo_done(&self, _: Identifier) -> bool {
-            self.local_storage
-                .contains_for_all_ids::<storage::Public>(&self.all_participants())
-                && self.local_storage.contains::<storage::Private>(self.id)
-        }
     }
+
     /// Delivers all messages into their respective participant's inboxes
     fn deliver_all(
         messages: &[Message],
@@ -568,16 +581,13 @@ mod tests {
         Ok(())
     }
 
-    fn is_auxinfo_done(
-        quorum: &[AuxInfoParticipant],
-        auxinfo_identifier: Identifier,
-    ) -> Result<bool> {
+    fn is_auxinfo_done(quorum: &[AuxInfoParticipant]) -> bool {
         for participant in quorum {
-            if !participant.is_auxinfo_done(auxinfo_identifier) {
-                return Ok(false);
+            if !participant.is_done() {
+                return false;
             }
         }
-        Ok(true)
+        true
     }
 
     /// Pick a random participant and process one of the messages in their
@@ -645,7 +655,7 @@ mod tests {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(participant.initialize_auxinfo_message(keyshare_identifier));
         }
-        while !is_auxinfo_done(&quorum, keyshare_identifier)? {
+        while !is_auxinfo_done(&quorum) {
             // Try processing a message
             let (index, outcome) = match process_messages(&mut quorum, &mut inboxes, &mut rng) {
                 None => continue,
