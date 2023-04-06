@@ -193,19 +193,19 @@ impl AuxInfoParticipant {
 
         let (auxinfo_private, auxinfo_public, auxinfo_witnesses) = new_auxinfo(self.id(), rng)?;
         self.local_storage
-            .store::<storage::Private>(message.id(), self.id, auxinfo_private);
+            .store::<storage::Private>(self.id, auxinfo_private);
         self.local_storage
-            .store::<storage::Public>(message.id(), self.id, auxinfo_public.clone());
+            .store::<storage::Public>(self.id, auxinfo_public.clone());
         self.local_storage
-            .store::<storage::Witnesses>(message.id(), self.id, auxinfo_witnesses);
+            .store::<storage::Witnesses>(self.id, auxinfo_witnesses);
 
         let decom = AuxInfoDecommit::new(rng, &message.id(), &self.id, auxinfo_public)?;
         let com = decom.commit()?;
 
         self.local_storage
-            .store::<storage::Commit>(message.id(), self.id, com.clone());
+            .store::<storage::Commit>(self.id, com.clone());
         self.local_storage
-            .store::<storage::Decommit>(message.id(), self.id, decom);
+            .store::<storage::Decommit>(self.id, decom);
 
         let messages = self.broadcast(
             rng,
@@ -231,16 +231,13 @@ impl AuxInfoParticipant {
             return Err(InternalError::IncorrectBroadcastMessageTag);
         }
         let message = &broadcast_message.msg;
-        self.local_storage.store::<storage::Commit>(
-            message.id(),
-            message.from(),
-            AuxInfoCommit::from_message(message)?,
-        );
+        self.local_storage
+            .store::<storage::Commit>(message.from(), AuxInfoCommit::from_message(message)?);
 
         // check if we've received all the commits.
         let r1_done = self
             .local_storage
-            .contains_for_all_ids::<storage::Commit>(message.id(), &self.other_participant_ids);
+            .contains_for_all_ids::<storage::Commit>(&self.other_participant_ids);
 
         if r1_done {
             // Generate messages for round two...
@@ -274,9 +271,7 @@ impl AuxInfoParticipant {
         info!("Generating round two auxinfo messages.");
 
         // check that we've generated our public info before trying to retrieve it
-        let public_keyshare_generated = self
-            .local_storage
-            .contains::<storage::Public>(message.id(), self.id);
+        let public_keyshare_generated = self.local_storage.contains::<storage::Public>(self.id);
         let mut messages = vec![];
         if !public_keyshare_generated {
             let more_messages =
@@ -285,9 +280,7 @@ impl AuxInfoParticipant {
         }
 
         // retrieve your decom from storage
-        let decom = self
-            .local_storage
-            .retrieve::<storage::Decommit>(message.id(), self.id)?;
+        let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
         let decom_bytes = serialize!(&decom)?;
         let more_messages: Vec<Message> = self
             .other_participant_ids
@@ -319,7 +312,6 @@ impl AuxInfoParticipant {
         // We must receive all commitments in round 1 before we start processing
         // decommits in round 2.
         let r1_done = self.local_storage.contains_for_all_ids::<storage::Commit>(
-            message.id(),
             &[self.other_participant_ids.clone(), vec![self.id]].concat(),
         );
         if !r1_done {
@@ -330,15 +322,15 @@ impl AuxInfoParticipant {
         let decom = AuxInfoDecommit::from_message(message)?;
         let com = self
             .local_storage
-            .retrieve::<storage::Commit>(message.id(), message.from())?;
+            .retrieve::<storage::Commit>(message.from())?;
         decom.verify(&message.id(), &message.from(), com)?;
         self.local_storage
-            .store::<storage::Decommit>(message.id(), message.from(), decom);
+            .store::<storage::Decommit>(message.from(), decom);
 
         // check if we've received all the decommits
         let r2_done = self
             .local_storage
-            .contains_for_all_ids::<storage::Decommit>(message.id(), &self.other_participant_ids);
+            .contains_for_all_ids::<storage::Decommit>(&self.other_participant_ids);
         if r2_done {
             // Generate messages for round 3...
             let round_two_messages =
@@ -375,16 +367,14 @@ impl AuxInfoParticipant {
             .map(|&other_participant_id| {
                 let decom = self
                     .local_storage
-                    .retrieve::<storage::Decommit>(message.id(), other_participant_id)?;
+                    .retrieve::<storage::Decommit>(other_participant_id)?;
                 Ok(decom.rid())
             })
             .collect::<Result<Vec<[u8; 32]>>>()?;
-        let my_decom = self
-            .local_storage
-            .retrieve::<storage::Decommit>(message.id(), self.id)?;
+        let my_decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
         let my_public = self
             .local_storage
-            .retrieve::<storage::Public>(message.id(), self.id)?
+            .retrieve::<storage::Public>(self.id)?
             .clone();
 
         let mut global_rid = my_decom.rid();
@@ -396,11 +386,9 @@ impl AuxInfoParticipant {
             }
         }
         self.local_storage
-            .store::<storage::GlobalRid>(message.id(), self.id, global_rid);
+            .store::<storage::GlobalRid>(self.id, global_rid);
 
-        let witness = self
-            .local_storage
-            .retrieve::<storage::Witnesses>(message.id(), self.id)?;
+        let witness = self.local_storage.retrieve::<storage::Witnesses>(self.id)?;
 
         let proof = AuxInfoProof::prove(
             rng,
@@ -444,19 +432,17 @@ impl AuxInfoParticipant {
         // We can't handle this message unless we already calculated the global_rid
         if self
             .local_storage
-            .retrieve::<storage::GlobalRid>(message.id(), self.id)
+            .retrieve::<storage::GlobalRid>(self.id)
             .is_err()
         {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
 
-        let global_rid = self
-            .local_storage
-            .retrieve::<storage::GlobalRid>(message.id(), self.id)?;
+        let global_rid = self.local_storage.retrieve::<storage::GlobalRid>(self.id)?;
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(message.id(), message.from())?;
+            .retrieve::<storage::Decommit>(message.from())?;
 
         let auxinfo_pub = decom.clone().into_public();
 
@@ -469,12 +455,12 @@ impl AuxInfoParticipant {
         )?;
 
         self.local_storage
-            .store::<storage::Public>(message.id(), message.from(), auxinfo_pub);
+            .store::<storage::Public>(message.from(), auxinfo_pub);
 
         // Check if we've stored all the public auxinfo_pubs
         let done = self
             .local_storage
-            .contains_for_all_ids::<storage::Public>(message.id(), &self.all_participants());
+            .contains_for_all_ids::<storage::Public>(&self.all_participants());
 
         // If so, we completed the protocol! Return the outputs.
         if done {
@@ -482,15 +468,11 @@ impl AuxInfoParticipant {
                 .all_participants()
                 .iter()
                 .map(|pid| {
-                    let value = self
-                        .local_storage
-                        .retrieve::<storage::Public>(message.id(), *pid)?;
+                    let value = self.local_storage.retrieve::<storage::Public>(*pid)?;
                     Ok(value.clone())
                 })
                 .collect::<Result<Vec<_>>>()?;
-            let auxinfo_private = self
-                .local_storage
-                .retrieve::<storage::Private>(message.id(), self.id)?;
+            let auxinfo_private = self.local_storage.retrieve::<storage::Private>(self.id)?;
 
             Ok(ProcessOutcome::Terminated((
                 auxinfo_public,
@@ -564,13 +546,10 @@ mod tests {
             )
         }
 
-        pub fn is_auxinfo_done(&self, auxinfo_identifier: Identifier) -> bool {
-            self.local_storage.contains_for_all_ids::<storage::Public>(
-                auxinfo_identifier,
-                &self.all_participants(),
-            ) && self
-                .local_storage
-                .contains::<storage::Private>(auxinfo_identifier, self.id)
+        pub fn is_auxinfo_done(&self, _: Identifier) -> bool {
+            self.local_storage
+                .contains_for_all_ids::<storage::Public>(&self.all_participants())
+                && self.local_storage.contains::<storage::Private>(self.id)
         }
     }
     /// Delivers all messages into their respective participant's inboxes

@@ -8,12 +8,12 @@
 //! The `LocalStorage` type for storing data local to a protocol.
 //!
 //! [`LocalStorage`] provides a means for storing values associated with a
-//! [`TypeTag`], [`Identifier`], and [`ParticipantIdentifier`] tuple. Values can
+//! [`TypeTag`] and [`ParticipantIdentifier`]. Values can
 //! be either stored, retrieved, and looked up in the storage.
 
 use crate::{
     errors::{InternalError, Result},
-    Identifier, ParticipantIdentifier,
+    ParticipantIdentifier,
 };
 use std::{
     any::{Any, TypeId},
@@ -44,36 +44,30 @@ pub(crate) mod storage {
 /// A type for storing values local to a protocol.
 #[derive(Debug, Default)]
 pub(crate) struct LocalStorage {
-    storage: HashMap<(Identifier, ParticipantIdentifier, TypeId), Box<dyn Any + Send + Sync>>,
+    storage: HashMap<(ParticipantIdentifier, TypeId), Box<dyn Any + Send + Sync>>,
 }
 
 impl LocalStorage {
-    /// Stores `value` via a [`TypeTag`], [`Identifier`], and
+    /// Stores `value` via a [`TypeTag`] and
     /// [`ParticipantIdentifier`] tuple.
-    ///
-    /// `id` correspond to unique session identifier.
     pub(crate) fn store<T: TypeTag>(
         &mut self,
-        id: Identifier,
         participant_id: ParticipantIdentifier,
         value: T::Value,
     ) {
         let _ = self
             .storage
-            .insert((id, participant_id, TypeId::of::<T>()), Box::new(value));
+            .insert((participant_id, TypeId::of::<T>()), Box::new(value));
     }
 
-    /// Retrieves a reference to a value via its [`TypeTag`], [`Identifier`],
+    /// Retrieves a reference to a value via its [`TypeTag`]
     /// and [`ParticipantIdentifier`].
-    ///
-    /// `id` correspond to unique session identifier.
     pub(crate) fn retrieve<T: TypeTag>(
         &self,
-        id: Identifier,
         participant_id: ParticipantIdentifier,
     ) -> Result<&T::Value> {
         self.storage
-            .get(&(id, participant_id, TypeId::of::<T>()))
+            .get(&(participant_id, TypeId::of::<T>()))
             .map(|any| {
                 any.downcast_ref::<T::Value>()
                     .ok_or(InternalError::InternalInvariantFailed)
@@ -81,17 +75,14 @@ impl LocalStorage {
             .unwrap_or(Err(InternalError::StorageItemNotFound))
     }
 
-    /// Retrieves a mutable reference to a value via its [`TypeTag`],
-    /// [`Identifier`], and [`ParticipantIdentifier`].
-    ///
-    /// `id` correspond to unique session identifier.
+    /// Retrieves a mutable reference to a value via its [`TypeTag`]
+    /// and [`ParticipantIdentifier`].
     pub(crate) fn retrieve_mut<T: TypeTag>(
         &mut self,
-        id: Identifier,
         participant_id: ParticipantIdentifier,
     ) -> Result<&mut T::Value> {
         self.storage
-            .get_mut(&(id, participant_id, TypeId::of::<T>()))
+            .get_mut(&(participant_id, TypeId::of::<T>()))
             .map(|any| {
                 any.downcast_mut::<T::Value>()
                     .ok_or(InternalError::InternalInvariantFailed)
@@ -99,34 +90,25 @@ impl LocalStorage {
             .unwrap_or(Err(InternalError::StorageItemNotFound))
     }
 
-    /// Checks whether values exist for the given [`TypeTag`], [`Identifier`],
+    /// Checks whether values exist for the given [`TypeTag`]
     /// and each of the `participant_ids` provided, returning `true` if so
     /// and `false` otherwise.
-    ///
-    ///`id` corresponds to a unique session identifier.
     pub(crate) fn contains_for_all_ids<T: TypeTag>(
         &self,
-        id: Identifier,
         participant_ids: &[ParticipantIdentifier],
     ) -> bool {
         for pid in participant_ids {
-            if !self.contains::<T>(id, *pid) {
+            if !self.contains::<T>(*pid) {
                 return false;
             }
         }
         true
     }
 
-    /// Returns `true` if a value exists for the given [`TypeTag`],
-    /// [`Identifier`], and [`ParticipantIdentifier`].
-    ///
-    /// `id` corresponds to a unique session identifier.
-    pub(crate) fn contains<T: TypeTag>(
-        &self,
-        id: Identifier,
-        participant_id: ParticipantIdentifier,
-    ) -> bool {
+    /// Returns `true` if a value exists for the given [`TypeTag`]
+    /// and [`ParticipantIdentifier`].
+    pub(crate) fn contains<T: TypeTag>(&self, participant_id: ParticipantIdentifier) -> bool {
         self.storage
-            .contains_key(&(id, participant_id, TypeId::of::<T>()))
+            .contains_key(&(participant_id, TypeId::of::<T>()))
     }
 }

@@ -239,8 +239,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         &mut self,
         message: &Message,
     ) -> Result<(ProcessOutcome<Self::Output>, bool)> {
-        self.local_storage_mut()
-            .store::<T>(message.id(), message.from(), ());
+        self.local_storage_mut().store::<T>(message.from(), ());
         // If message came from self, then tell the other participants that we are ready
         let self_initiated_outcome = if message.from() == self.id() {
             let messages = self
@@ -264,7 +263,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         // Make sure that all parties are ready before proceeding
         let is_ready = self
             .local_storage()
-            .contains_for_all_ids::<T>(message.id(), &self.all_participants());
+            .contains_for_all_ids::<T>(&self.all_participants());
 
         Ok((self_initiated_outcome, is_ready))
     }
@@ -272,20 +271,19 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
     /// Retrieves an item from [`LocalStorage`] associated with the given
     /// [`TypeTag`]. If the entry is not found in storage, we populate the
     /// storage with its [`Default`].
-    fn get_from_storage<T: TypeTag>(&mut self, id: Identifier) -> Result<&mut T::Value>
+    fn get_from_storage<T: TypeTag>(&mut self) -> Result<&mut T::Value>
     where
         T::Value: Default,
     {
         let pid = self.id();
-        if self.local_storage_mut().retrieve_mut::<T>(id, pid).is_err() {
-            self.local_storage_mut()
-                .store::<T>(id, pid, Default::default());
+        if self.local_storage_mut().retrieve_mut::<T>(pid).is_err() {
+            self.local_storage_mut().store::<T>(pid, Default::default());
         }
-        self.local_storage_mut().retrieve_mut::<T>(id, pid)
+        self.local_storage_mut().retrieve_mut::<T>(pid)
     }
 
     fn stash_message(&mut self, message: &Message) -> Result<()> {
-        let message_storage = self.get_from_storage::<local_storage::MessageQueue>(message.id())?;
+        let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
         message_storage.store(message.message_type(), message.id(), message.clone())?;
         Ok(())
     }
@@ -295,7 +293,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         message_type: MessageType,
         sid: Identifier,
     ) -> Result<Vec<Message>> {
-        let message_storage = self.get_from_storage::<local_storage::MessageQueue>(sid)?;
+        let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
         let messages = message_storage.retrieve_all(message_type, sid)?;
         Ok(messages)
     }
@@ -306,21 +304,21 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         sid: Identifier,
         sender: ParticipantIdentifier,
     ) -> Result<Vec<Message>> {
-        let message_storage = self.get_from_storage::<local_storage::MessageQueue>(sid)?;
+        let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
         let messages = message_storage.retrieve(message_type, sid, sender)?;
         Ok(messages)
     }
     ///`sid` corresponds to a unique session identifier.
     fn write_progress(&mut self, func_name: String, sid: Identifier) -> Result<()> {
         let key = ProgressIndex { func_name, sid };
-        let progress_storage = self.get_from_storage::<local_storage::ProgressStore>(sid)?;
+        let progress_storage = self.get_from_storage::<local_storage::ProgressStore>()?;
         let _ = progress_storage.insert(key, true);
         Ok(())
     }
 
     fn read_progress(&mut self, func_name: String, sid: Identifier) -> Result<bool> {
         let key = ProgressIndex { func_name, sid };
-        let progress_storage = self.get_from_storage::<local_storage::ProgressStore>(sid)?;
+        let progress_storage = self.get_from_storage::<local_storage::ProgressStore>()?;
         let result = match progress_storage.get(&key) {
             None => false,
             Some(value) => *value,

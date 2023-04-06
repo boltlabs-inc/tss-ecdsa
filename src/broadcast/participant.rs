@@ -202,7 +202,7 @@ impl BroadcastParticipant {
         info!("Processing broadcast vote.");
 
         let other_participant_ids = self.other_participant_ids.clone();
-        let message_votes = self.get_from_storage::<storage::Votes>(sid)?;
+        let message_votes = self.get_from_storage::<storage::Votes>()?;
 
         // if not already in database, store. else, ignore
         let idx = BroadcastIndex {

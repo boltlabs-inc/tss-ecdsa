@@ -190,16 +190,10 @@ impl KeygenParticipant {
         info!("Generating round one keygen messages.");
 
         let (keyshare_private, keyshare_public) = new_keyshare(self.id(), rng)?;
-        self.local_storage.store::<storage::PrivateKeyshare>(
-            message.id(),
-            self.id,
-            keyshare_private,
-        );
-        self.local_storage.store::<storage::PublicKeyshare>(
-            message.id(),
-            self.id,
-            keyshare_public.clone(),
-        );
+        self.local_storage
+            .store::<storage::PrivateKeyshare>(self.id, keyshare_private);
+        self.local_storage
+            .store::<storage::PublicKeyshare>(self.id, keyshare_public.clone());
 
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
@@ -213,12 +207,11 @@ impl KeygenParticipant {
         let com = decom.commit()?;
         let com_bytes = &serialize!(&com)?;
 
+        self.local_storage.store::<storage::Commit>(self.id, com);
         self.local_storage
-            .store::<storage::Commit>(message.id(), self.id, com);
+            .store::<storage::Decommit>(self.id, decom);
         self.local_storage
-            .store::<storage::Decommit>(message.id(), self.id, decom);
-        self.local_storage
-            .store::<storage::SchnorrPrecom>(message.id(), self.id, sch_precom);
+            .store::<storage::SchnorrPrecom>(self.id, sch_precom);
 
         let messages = self.broadcast(
             rng,
@@ -244,16 +237,13 @@ impl KeygenParticipant {
             return Err(InternalError::IncorrectBroadcastMessageTag);
         }
         let message = &broadcast_message.msg;
-        self.local_storage.store::<storage::Commit>(
-            message.id(),
-            message.from(),
-            KeygenCommit::from_message(message)?,
-        );
+        self.local_storage
+            .store::<storage::Commit>(message.from(), KeygenCommit::from_message(message)?);
 
         // check if we've received all the commits.
         let r1_done = self
             .local_storage
-            .contains_for_all_ids::<storage::Commit>(message.id(), &self.other_participant_ids);
+            .contains_for_all_ids::<storage::Commit>(&self.other_participant_ids);
 
         if r1_done {
             // Finish round 1 by generating messages for round 2
@@ -290,16 +280,14 @@ impl KeygenParticipant {
         // check that we've generated our keyshare before trying to retrieve it
         if !self
             .local_storage
-            .contains::<storage::PublicKeyshare>(message.id(), self.id)
+            .contains::<storage::PublicKeyshare>(self.id)
         {
             let more_messages =
                 run_only_once!(self.gen_round_one_msgs(rng, message), message.id())?;
             messages.extend_from_slice(&more_messages);
         }
 
-        let decom = self
-            .local_storage
-            .retrieve::<storage::Decommit>(message.id(), self.id)?;
+        let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
         let decom_bytes = serialize!(&decom)?;
         let more_messages: Vec<Message> = self
             .other_participant_ids
@@ -330,7 +318,6 @@ impl KeygenParticipant {
         // We must receive all commitments in round 1 before we start processing
         // decommits in round 2.
         let r1_done = self.local_storage.contains_for_all_ids::<storage::Commit>(
-            message.id(),
             &[self.other_participant_ids.clone(), vec![self.id]].concat(),
         );
         if !r1_done {
@@ -341,15 +328,15 @@ impl KeygenParticipant {
         let decom = KeygenDecommit::from_message(message)?;
         let com = self
             .local_storage
-            .retrieve::<storage::Commit>(message.id(), message.from())?;
+            .retrieve::<storage::Commit>(message.from())?;
         decom.verify(&message.id(), &message.from(), com)?;
         self.local_storage
-            .store::<storage::Decommit>(message.id(), message.from(), decom);
+            .store::<storage::Decommit>(message.from(), decom);
 
         // Check if we've received all the decommits
         let r2_done = self
             .local_storage
-            .contains_for_all_ids::<storage::Decommit>(message.id(), &self.other_participant_ids);
+            .contains_for_all_ids::<storage::Decommit>(&self.other_participant_ids);
 
         if r2_done {
             // Generate messages for round 3...
@@ -387,13 +374,11 @@ impl KeygenParticipant {
             .map(|&other_participant_id| {
                 let decom = self
                     .local_storage
-                    .retrieve::<storage::Decommit>(message.id(), other_participant_id)?;
+                    .retrieve::<storage::Decommit>(other_participant_id)?;
                 Ok(decom.rid)
             })
             .collect::<Result<Vec<[u8; 32]>>>()?;
-        let my_decom = self
-            .local_storage
-            .retrieve::<storage::Decommit>(message.id(), self.id)?;
+        let my_decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
         let mut global_rid = my_decom.rid;
         // xor all the rids together. In principle, many different options for combining
         // these should be okay
@@ -403,24 +388,24 @@ impl KeygenParticipant {
             }
         }
         self.local_storage
-            .store::<storage::GlobalRid>(message.id(), self.id, global_rid);
+            .store::<storage::GlobalRid>(self.id, global_rid);
 
         let mut transcript = Transcript::new(b"keygen schnorr");
         transcript.append_message(b"rid", &serialize!(&global_rid)?);
         let precom = self
             .local_storage
-            .retrieve::<storage::SchnorrPrecom>(message.id(), self.id)?;
+            .retrieve::<storage::SchnorrPrecom>(self.id)?;
 
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
         let my_pk = self
             .local_storage
-            .retrieve::<storage::PublicKeyshare>(message.id(), self.id)?;
+            .retrieve::<storage::PublicKeyshare>(self.id)?;
         let input = PiSchInput::new(&g, &q, &my_pk.X);
 
         let my_sk = self
             .local_storage
-            .retrieve::<storage::PrivateKeyshare>(message.id(), self.id)?;
+            .retrieve::<storage::PrivateKeyshare>(self.id)?;
 
         let proof = PiSchProof::prove_from_precommit(
             precom,
@@ -458,19 +443,17 @@ impl KeygenParticipant {
 
         if self
             .local_storage
-            .retrieve::<storage::GlobalRid>(message.id(), self.id)
+            .retrieve::<storage::GlobalRid>(self.id)
             .is_err()
         {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
         let proof = PiSchProof::from_message(message)?;
-        let global_rid = self
-            .local_storage
-            .retrieve::<storage::GlobalRid>(message.id(), self.id)?;
+        let global_rid = self.local_storage.retrieve::<storage::GlobalRid>(self.id)?;
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(message.id(), message.from())?;
+            .retrieve::<storage::Decommit>(message.from())?;
 
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
@@ -481,19 +464,13 @@ impl KeygenParticipant {
 
         proof.verify_with_transcript(&input, &transcript)?;
         let keyshare = decom.get_keyshare();
-        self.local_storage.store::<storage::PublicKeyshare>(
-            message.id(),
-            message.from(),
-            keyshare.clone(),
-        );
+        self.local_storage
+            .store::<storage::PublicKeyshare>(message.from(), keyshare.clone());
 
         //check if we've stored all the public keyshares
         let keyshare_done = self
             .local_storage
-            .contains_for_all_ids::<storage::PublicKeyshare>(
-                message.id(),
-                &self.all_participants(),
-            );
+            .contains_for_all_ids::<storage::PublicKeyshare>(&self.all_participants());
 
         // If so, we completed the protocol! Return the outputs.
         if keyshare_done {
@@ -503,13 +480,13 @@ impl KeygenParticipant {
                 .map(|pid| {
                     let value = self
                         .local_storage
-                        .retrieve::<storage::PublicKeyshare>(message.id(), *pid)?;
+                        .retrieve::<storage::PublicKeyshare>(*pid)?;
                     Ok(value.clone())
                 })
                 .collect::<Result<Vec<_>>>()?;
             let private_key_share = self
                 .local_storage
-                .retrieve::<storage::PrivateKeyshare>(message.id(), self.id)?;
+                .retrieve::<storage::PrivateKeyshare>(self.id)?;
 
             Ok(ProcessOutcome::Terminated((
                 public_key_shares,
@@ -579,15 +556,12 @@ mod tests {
                 &[],
             )
         }
-        pub fn is_keygen_done(&self, keygen_identifier: Identifier) -> bool {
+        pub fn is_keygen_done(&self, _: Identifier) -> bool {
             self.local_storage
-                .contains_for_all_ids::<storage::PublicKeyshare>(
-                    keygen_identifier,
-                    &self.all_participants(),
-                )
+                .contains_for_all_ids::<storage::PublicKeyshare>(&self.all_participants())
                 && self
                     .local_storage
-                    .contains::<storage::PrivateKeyshare>(keygen_identifier, self.id)
+                    .contains::<storage::PrivateKeyshare>(self.id)
         }
     }
     /// Delivers all messages into their respective participant's inboxes
