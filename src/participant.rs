@@ -176,6 +176,8 @@ pub trait ProtocolParticipant {
     type Input: Debug;
     /// Output type of a successful protocol execution.
     type Output: Debug;
+    /// Type to determine status of protocol execution.
+    type Status: Debug + PartialEq;
 
     /// Get the type of a "ready" message, signalling that a participant
     /// is ready to begin protocol execution.
@@ -208,8 +210,8 @@ pub trait ProtocolParticipant {
         input: &Self::Input,
     ) -> Result<ProcessOutcome<Self::Output>>;
 
-    /// Whether the protocol as terminated successfully or not.
-    fn is_done(&self) -> bool;
+    /// The status of the protocol execution.
+    fn status(&self) -> &Self::Status;
 }
 
 pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {

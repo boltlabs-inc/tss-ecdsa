@@ -61,8 +61,9 @@ mod storage {
     }
 }
 
+/// Protocol status for [`KeygenParticipant`].
 #[derive(Debug, PartialEq)]
-enum Status {
+pub enum Status {
     Initialized,
     TerminatedSuccessfully,
 }
@@ -88,6 +89,7 @@ impl ProtocolParticipant for KeygenParticipant {
     // The output type includes public key shares `KeySharePublic` for all
     // participants (including ourselves) and `KeySharePrivate` for ourselves.
     type Output = (Vec<KeySharePublic>, KeySharePrivate);
+    type Status = Status;
 
     fn new(id: ParticipantIdentifier, other_participant_ids: Vec<ParticipantIdentifier>) -> Self {
         Self {
@@ -117,7 +119,7 @@ impl ProtocolParticipant for KeygenParticipant {
     ) -> Result<ProcessOutcome<Self::Output>> {
         info!("Processing keygen message.");
 
-        if self.is_done() {
+        if *self.status() == Status::TerminatedSuccessfully {
             return Err(InternalError::ProtocolAlreadyTerminated);
         }
 
@@ -140,8 +142,8 @@ impl ProtocolParticipant for KeygenParticipant {
         }
     }
 
-    fn is_done(&self) -> bool {
-        self.status == Status::TerminatedSuccessfully
+    fn status(&self) -> &Self::Status {
+        &self.status
     }
 }
 
@@ -593,7 +595,7 @@ mod tests {
 
     fn is_keygen_done(quorum: &[KeygenParticipant]) -> bool {
         for participant in quorum {
-            if !participant.is_done() {
+            if *participant.status() != Status::TerminatedSuccessfully {
                 return false;
             }
         }

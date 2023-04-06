@@ -81,8 +81,9 @@ mod storage {
     }
 }
 
+/// Protocol status for [`PresignParticipant`].
 #[derive(Debug, PartialEq)]
-enum Status {
+pub enum Status {
     Initialized,
     TerminatedSuccessfully,
 }
@@ -169,6 +170,7 @@ impl Input {
 impl ProtocolParticipant for PresignParticipant {
     type Input = Input;
     type Output = PresignRecord;
+    type Status = Status;
 
     fn new(id: ParticipantIdentifier, other_participant_ids: Vec<ParticipantIdentifier>) -> Self {
         Self {
@@ -201,7 +203,7 @@ impl ProtocolParticipant for PresignParticipant {
     ) -> Result<ProcessOutcome<Self::Output>> {
         info!("Processing presign message.");
 
-        if self.is_done() {
+        if *self.status() == Status::TerminatedSuccessfully {
             return Err(InternalError::ProtocolAlreadyTerminated);
         }
 
@@ -229,8 +231,8 @@ impl ProtocolParticipant for PresignParticipant {
         }
     }
 
-    fn is_done(&self) -> bool {
-        self.status == Status::TerminatedSuccessfully
+    fn status(&self) -> &Self::Status {
+        &self.status
     }
 }
 

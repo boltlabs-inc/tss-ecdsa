@@ -31,8 +31,9 @@ mod storage {
     }
 }
 
+/// Protocol status for [`BroadcastParticipant`].
 #[derive(Debug, PartialEq)]
-enum Status {
+pub enum Status {
     Initialized,
     TerminatedSuccessfully,
 }
@@ -73,6 +74,7 @@ pub(crate) struct BroadcastOutput {
 impl ProtocolParticipant for BroadcastParticipant {
     type Input = ();
     type Output = BroadcastOutput;
+    type Status = Status;
 
     fn new(id: ParticipantIdentifier, other_participant_ids: Vec<ParticipantIdentifier>) -> Self {
         Self {
@@ -122,8 +124,8 @@ impl ProtocolParticipant for BroadcastParticipant {
         }
     }
 
-    fn is_done(&self) -> bool {
-        self.status == Status::TerminatedSuccessfully
+    fn status(&self) -> &Self::Status {
+        &self.status
     }
 }
 

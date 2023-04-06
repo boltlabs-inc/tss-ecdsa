@@ -60,8 +60,9 @@ mod storage {
     }
 }
 
+/// Protocol status for [`AuxInfoParticipant`].
 #[derive(Debug, PartialEq)]
-enum Status {
+pub enum Status {
     Initialized,
     TerminatedSuccessfully,
 }
@@ -90,6 +91,7 @@ impl ProtocolParticipant for AuxInfoParticipant {
     // The output type includes `AuxInfoPublic` material for all participants
     // (including ourselves) and `AuxInfoPrivate` for ourselves.
     type Output = (Vec<AuxInfoPublic>, AuxInfoPrivate);
+    type Status = Status;
 
     fn new(id: ParticipantIdentifier, other_participant_ids: Vec<ParticipantIdentifier>) -> Self {
         Self {
@@ -119,7 +121,7 @@ impl ProtocolParticipant for AuxInfoParticipant {
     ) -> Result<ProcessOutcome<Self::Output>> {
         info!("Processing auxinfo message.");
 
-        if self.is_done() {
+        if *self.status() == Status::TerminatedSuccessfully {
             return Err(InternalError::ProtocolAlreadyTerminated);
         }
 
@@ -142,8 +144,8 @@ impl ProtocolParticipant for AuxInfoParticipant {
         }
     }
 
-    fn is_done(&self) -> bool {
-        self.status == Status::TerminatedSuccessfully
+    fn status(&self) -> &Self::Status {
+        &self.status
     }
 }
 
@@ -583,7 +585,7 @@ mod tests {
 
     fn is_auxinfo_done(quorum: &[AuxInfoParticipant]) -> bool {
         for participant in quorum {
-            if !participant.is_done() {
+            if *participant.status() != Status::TerminatedSuccessfully {
                 return false;
             }
         }
