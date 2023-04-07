@@ -37,7 +37,8 @@ pub(crate) mod storage {
 
     pub(crate) struct ProgressStore;
     impl TypeTag for ProgressStore {
-        type Value = HashMap<crate::participant::ProgressIndex, bool>;
+        // XXX We only ever store `true` here, so replace by a `HashSet` instead?
+        type Value = HashMap<String, bool>;
     }
 }
 

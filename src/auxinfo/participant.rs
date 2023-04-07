@@ -192,8 +192,7 @@ impl AuxInfoParticipant {
         let (ready_outcome, is_ready) = self.process_ready_message::<storage::Ready>(message)?;
 
         if is_ready {
-            let round_one_messages =
-                run_only_once!(self.gen_round_one_msgs(rng, message), message.id())?;
+            let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, message))?;
 
             Ok(ready_outcome.with_messages(round_one_messages))
         } else {
@@ -260,15 +259,11 @@ impl AuxInfoParticipant {
 
         if r1_done {
             // Generate messages for round two...
-            let round_one_messages =
-                run_only_once!(self.gen_round_two_msgs(rng, message), message.id())?;
+            let round_one_messages = run_only_once!(self.gen_round_two_msgs(rng, message))?;
 
             // ...and process any round two messages we may have received early.
             let round_two_outcomes = self
-                .fetch_messages(
-                    MessageType::Auxinfo(AuxinfoMessageType::R2Decommit),
-                    message.id(),
-                )?
+                .fetch_messages(MessageType::Auxinfo(AuxinfoMessageType::R2Decommit))?
                 .iter()
                 .map(|msg| self.handle_round_two_msg(rng, msg, input))
                 .collect::<Result<Vec<_>>>()?;
@@ -293,8 +288,7 @@ impl AuxInfoParticipant {
         let public_keyshare_generated = self.local_storage.contains::<storage::Public>(self.id);
         let mut messages = vec![];
         if !public_keyshare_generated {
-            let more_messages =
-                run_only_once!(self.gen_round_one_msgs(rng, message), message.id())?;
+            let more_messages = run_only_once!(self.gen_round_one_msgs(rng, message))?;
             messages.extend_from_slice(&more_messages);
         }
 
@@ -352,15 +346,11 @@ impl AuxInfoParticipant {
             .contains_for_all_ids::<storage::Decommit>(&self.other_participant_ids);
         if r2_done {
             // Generate messages for round 3...
-            let round_two_messages =
-                run_only_once!(self.gen_round_three_msgs(rng, message), message.id())?;
+            let round_two_messages = run_only_once!(self.gen_round_three_msgs(rng, message))?;
 
             // ...and handle any messages that other participants have sent for round 3.
             let round_three_outcomes = self
-                .fetch_messages(
-                    MessageType::Auxinfo(AuxinfoMessageType::R3Proof),
-                    message.id(),
-                )?
+                .fetch_messages(MessageType::Auxinfo(AuxinfoMessageType::R3Proof))?
                 .iter()
                 .map(|msg| self.handle_round_three_msg(rng, msg, input))
                 .collect::<Result<Vec<_>>>()?;

@@ -342,10 +342,8 @@ impl PresignParticipant {
 
         // Additionally, handle any round 1 messages which may have been received too
         // early
-        let retrieved_messages = self.fetch_messages(
-            MessageType::Presign(PresignMessageType::RoundOne),
-            message.id(),
-        )?;
+        let retrieved_messages =
+            self.fetch_messages(MessageType::Presign(PresignMessageType::RoundOne))?;
         let round_two_outcomes = retrieved_messages
             .iter()
             .map(|msg| self.handle_round_one_msg(rng, msg, input))
@@ -376,7 +374,6 @@ impl PresignParticipant {
         // retrieve and process it
         let retrieved_messages = self.fetch_messages_by_sender(
             MessageType::Presign(PresignMessageType::RoundOne),
-            message.id(),
             message.from(),
         )?;
         let non_broadcasted_portion = match retrieved_messages.get(0) {
@@ -482,7 +479,6 @@ impl PresignParticipant {
         // Check if there's a round 2 message that this now allows us to process
         let retrieved_messages = self.fetch_messages_by_sender(
             MessageType::Presign(PresignMessageType::RoundTwo),
-            message.id(),
             message.from(),
         )?;
 
@@ -599,10 +595,8 @@ impl PresignParticipant {
 
         // Additionally, handle any round 3 messages which may have been received too
         // early
-        let retrieved_messages = self.fetch_messages(
-            MessageType::Presign(PresignMessageType::RoundThree),
-            message.id(),
-        )?;
+        let retrieved_messages =
+            self.fetch_messages(MessageType::Presign(PresignMessageType::RoundThree))?;
         let round_three_outcomes = retrieved_messages
             .iter()
             .map(|msg| self.handle_round_three_msg(rng, msg, input))

@@ -221,11 +221,9 @@ impl BroadcastParticipant {
         // it's possible that all Redisperse messages are received before the original
         // Disperse, causing an output
         let redisperse_outcome = self.process_vote(data, message.id(), message.from())?;
-        let disperse_messages = run_only_once_per_tag!(
-            self.gen_round_two_msgs(rng, message, message.from()),
-            message.id(),
-            &tag
-        )?;
+        let disperse_messages =
+            run_only_once_per_tag!(self.gen_round_two_msgs(rng, message, message.from()), &tag)?;
+
         Ok(redisperse_outcome.with_messages(disperse_messages))
     }
 

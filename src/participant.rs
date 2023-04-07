@@ -18,12 +18,6 @@ use rand::{CryptoRng, RngCore};
 use std::fmt::Debug;
 use tracing::error;
 
-#[derive(Eq, Hash, PartialEq)]
-pub(crate) struct ProgressIndex {
-    func_name: String,
-    sid: Identifier,
-}
-
 /// Possible outcomes from processing one or more messages.
 ///
 /// Processing an individual message causes various outcomes in a protocol
@@ -289,42 +283,32 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
 
     fn stash_message(&mut self, message: &Message) -> Result<()> {
         let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
-        message_storage.store(message.message_type(), message.id(), message.clone())?;
+        message_storage.store(message.message_type(), message.clone())?;
         Ok(())
     }
-    ///`sid` corresponds to a unique session identifier.
-    fn fetch_messages(
-        &mut self,
-        message_type: MessageType,
-        sid: Identifier,
-    ) -> Result<Vec<Message>> {
+    fn fetch_messages(&mut self, message_type: MessageType) -> Result<Vec<Message>> {
         let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
-        let messages = message_storage.retrieve_all(message_type, sid)?;
+        let messages = message_storage.retrieve_all(message_type)?;
         Ok(messages)
     }
-    ///`sid` corresponds to a unique session identifier.
     fn fetch_messages_by_sender(
         &mut self,
         message_type: MessageType,
-        sid: Identifier,
         sender: ParticipantIdentifier,
     ) -> Result<Vec<Message>> {
         let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
-        let messages = message_storage.retrieve(message_type, sid, sender)?;
+        let messages = message_storage.retrieve(message_type, sender)?;
         Ok(messages)
     }
-    ///`sid` corresponds to a unique session identifier.
-    fn write_progress(&mut self, func_name: String, sid: Identifier) -> Result<()> {
-        let key = ProgressIndex { func_name, sid };
+    fn write_progress(&mut self, func_name: String) -> Result<()> {
         let progress_storage = self.get_from_storage::<local_storage::ProgressStore>()?;
-        let _ = progress_storage.insert(key, true);
+        let _ = progress_storage.insert(func_name, true);
         Ok(())
     }
 
-    fn read_progress(&mut self, func_name: String, sid: Identifier) -> Result<bool> {
-        let key = ProgressIndex { func_name, sid };
+    fn read_progress(&mut self, func_name: String) -> Result<bool> {
         let progress_storage = self.get_from_storage::<local_storage::ProgressStore>()?;
-        let result = match progress_storage.get(&key) {
+        let result = match progress_storage.get(&func_name) {
             None => false,
             Some(value) => *value,
         };
@@ -382,11 +366,11 @@ pub(crate) trait Broadcast {
 /// A macro to keep track of which functions have already been run in a given
 /// session Must be a self.function() so that we can access storage
 macro_rules! run_only_once {
-    ($self:ident . $func_name:ident $args:tt, $sid:expr) => {{
-        if $self.read_progress(stringify!($func_name).to_string(), $sid)? {
+    ($self:ident . $func_name:ident $args:tt) => {{
+        if $self.read_progress(stringify!($func_name).to_string())? {
             Ok(vec![])
         } else {
-            $self.write_progress(stringify!($func_name).to_string(), $sid)?;
+            $self.write_progress(stringify!($func_name).to_string())?;
             $self.$func_name$args
         }
     }};
@@ -396,12 +380,12 @@ macro_rules! run_only_once {
 /// A macro to keep track of which function||tag combos have already been run in
 /// a given session
 macro_rules! run_only_once_per_tag {
-    ($self:ident . $func_name:ident $args:tt, $sid:expr, $tag:expr) => {{
+    ($self:ident . $func_name:ident $args:tt, $tag:expr) => {{
         let tag_str = format!("{:?}", $tag);
-        if $self.read_progress(stringify!($func_name).to_string() + &tag_str, $sid)? {
+        if $self.read_progress(stringify!($func_name).to_string() + &tag_str)? {
             Ok(vec![])
         } else {
-            $self.write_progress(stringify!($func_name).to_string(), $sid)?;
+            $self.write_progress(stringify!($func_name).to_string())?;
             $self.$func_name$args
         }
     }};
