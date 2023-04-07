@@ -690,7 +690,7 @@ mod tests {
         //
         // Every participant should have a public output from every other participant
         // and, for a given participant, they should be the same in every output
-        for party in &quorum {
+        for party in quorum.iter_mut() {
             let pid = party.id;
 
             // Collect the KeySharePublic associated with pid from every output
@@ -707,6 +707,16 @@ mod tests {
 
             // Make sure they're all equal
             assert!(publics_for_pid.windows(2).all(|pks| pks[0] == pks[1]));
+
+            // Check that each participant fully completed its broadcast portion.
+            if let crate::broadcast::participant::Status::ParticipantCompletedBroadcast(
+                participants,
+            ) = party.broadcast_participant().status()
+            {
+                assert_eq!(participants.len(), party.other_participant_ids.len());
+            } else {
+                panic!("Broadcast not completed!");
+            }
         }
 
         // Check that each participant's own `PublicKeyshare` corresponds to their

@@ -479,6 +479,10 @@ mod tests {
 
         // Auxinfo is done! Make sure there are no more messages.
         assert!(inboxes_are_empty(&inboxes));
+        // And make sure all participants have successfully terminated.
+        assert!(auxinfo_quorum
+            .iter()
+            .all(|p| *p.status() == crate::auxinfo::participant::Status::TerminatedSuccessfully));
 
         // Set up keygen participants
         let keygen_sid = Identifier::random(&mut rng);
