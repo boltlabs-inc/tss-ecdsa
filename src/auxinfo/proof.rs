@@ -33,7 +33,7 @@ pub(crate) struct AuxInfoProof {
 impl AuxInfoProof {
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         if message.message_type() != MessageType::Auxinfo(AuxinfoMessageType::R3Proof) {
-            return Err(InternalError::IncorrectBroadcastMessageTag);
+            return Err(InternalError::MisroutedMessage);
         }
         let auxinfo_proof: AuxInfoProof = deserialize!(&message.unverified_bytes)?;
         Ok(auxinfo_proof)

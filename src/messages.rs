@@ -36,8 +36,6 @@ pub enum MessageType {
 pub enum AuxinfoMessageType {
     /// Signals that auxinfo generation is ready
     Ready,
-    /// Public auxinfo produced by auxinfo generation for a participant
-    Public,
     /// A hash commitment to the public keyshare and associated proofs
     R1CommitHash,
     /// The information committed to in Round 1

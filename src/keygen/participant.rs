@@ -28,7 +28,7 @@ use crate::{
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 
 mod storage {
     use super::*;
@@ -304,7 +304,12 @@ impl KeygenParticipant {
         // message _after_ round one is complete? Likewise for all other rounds.
 
         if broadcast_message.tag != BroadcastTag::KeyGenR1CommitHash {
-            return Err(InternalError::IncorrectBroadcastMessageTag);
+            error!(
+                "Incorrect Broadcast Tag on received message. Expected {:?}, got {:?}",
+                BroadcastTag::KeyGenR1CommitHash,
+                broadcast_message.tag
+            );
+            return Err(InternalError::ProtocolError);
         }
         let message = &broadcast_message.msg;
         self.local_storage

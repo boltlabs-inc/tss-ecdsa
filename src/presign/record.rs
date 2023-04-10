@@ -7,10 +7,7 @@
 // of this source tree.
 
 use crate::{
-    errors::{
-        InternalError::{CouldNotConvertToScalar, CouldNotInvertScalar, InternalInvariantFailed},
-        Result,
-    },
+    errors::{InternalError::InternalInvariantFailed, Result},
     presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
     utils::bn_to_scalar,
     CurvePoint,
@@ -73,7 +70,10 @@ impl TryFrom<RecordPair> for PresignRecord {
             return Err(InternalInvariantFailed);
         }
 
-        let delta_inv = Option::<Scalar>::from(delta.invert()).ok_or(CouldNotInvertScalar)?;
+        let delta_inv = Option::<Scalar>::from(delta.invert()).ok_or_else(|| {
+            error!("Could not invert delta as it is 0. Either you got profoundly unlucky or more likely there's a bug");
+            InternalInvariantFailed
+        })?;
         let R = CurvePoint(private.Gamma.0 * delta_inv);
 
         Ok(PresignRecord {
@@ -87,13 +87,18 @@ impl TryFrom<RecordPair> for PresignRecord {
 impl PresignRecord {
     fn x_from_point(p: &CurvePoint) -> Result<k256::Scalar> {
         let r = &p.0.to_affine().x();
-        Option::from(k256::Scalar::from_repr(*r)).ok_or(CouldNotConvertToScalar)
+        Option::from(k256::Scalar::from_repr(*r)).ok_or_else(|| {
+            error!("Unable to create Scalar from bytes representation");
+            InternalInvariantFailed
+        })
     }
 
     pub(crate) fn sign(&self, d: sha2::Sha256) -> Result<(k256::Scalar, k256::Scalar)> {
         let r = Self::x_from_point(&self.R)?;
-        let m = Option::<Scalar>::from(k256::Scalar::from_repr(d.finalize()))
-            .ok_or(CouldNotConvertToScalar)?;
+        let m = Option::<Scalar>::from(k256::Scalar::from_repr(d.finalize())).ok_or_else(|| {
+            error!("Unable to create Scalar from bytes representation");
+            InternalInvariantFailed
+        })?;
         let s = bn_to_scalar(&self.k)? * m + r * self.chi;
 
         Ok((r, s))

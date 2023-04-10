@@ -23,7 +23,7 @@ pub enum InternalError {
     CallingApplicationMistake(#[from] CallerError),
     #[error("Serialization Error")]
     Serialization,
-    #[error("Protocol error")]
+    #[error("Some player sent a message which does not match the protocol specification")]
     ProtocolError,
     #[error("Could not successfully generate proof")]
     CouldNotGenerateProof,
@@ -33,28 +33,14 @@ pub enum InternalError {
     InternalInvariantFailed,
     #[error("Paillier error: `{0}`")]
     PaillierError(#[from] paillier::Error),
-    #[error("Failed to convert BigNumber to k256::Scalar, as BigNumber was not in [0,p)")]
-    CouldNotConvertToScalar,
-    #[error("Could not invert a Scalar")]
-    CouldNotInvertScalar,
     #[error("Reached the maximum allowed number of retries")]
     RetryFailed,
     #[error("This Participant was given a message intended for somebody else")]
     WrongMessageRecipient,
     #[error("Encountered a MessageType which was not expected in this context")]
     MisroutedMessage,
-    #[error("Could not construct signature from provided scalars")]
-    SignatureInstantiationError,
-    #[error("Tried to produce a signature without including shares")]
-    NoChainedShares,
     #[error("Storage does not contain the requested item")]
     StorageItemNotFound,
-    #[error("The provided Broadcast Tag was not the expected tag for this context")]
-    IncorrectBroadcastMessageTag,
-    #[error("Encountered a Message sent directly, when it should have been broadcasted")]
-    MessageMustBeBroadcasted,
-    #[error("Broadcast has irrecoverably failed: `{0}`")]
-    BroadcastFailure(String),
     #[error(
         "Tried to start a new protocol instance with an Identifier used in an existing instance"
     )]
