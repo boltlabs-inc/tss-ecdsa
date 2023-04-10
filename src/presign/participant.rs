@@ -155,6 +155,7 @@ impl Input {
         keyshare_private: KeySharePrivate,
     ) -> Result<Self> {
         if all_auxinfo_public.len() != all_keyshare_public.len() {
+            error!("Number of auxinfo and keyshare public entries is not equal");
             Err(InternalError::InternalInvariantFailed)
         } else {
             Ok(Self {
@@ -690,6 +691,7 @@ impl PresignParticipant {
         // Check consistency across all Gamma values
         for r3_pub in r3_pubs.iter() {
             if r3_pub.Gamma != r3_private.Gamma {
+                error!("Mismatch in Gamma values for r3_pub and r3_private");
                 return Err(InternalInvariantFailed);
             }
         }

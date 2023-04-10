@@ -22,6 +22,7 @@ use k256::{
 use libpaillier::unknown_order::BigNumber;
 use sha2::Digest;
 use std::fmt::Debug;
+use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
 pub(crate) struct RecordPair {
@@ -68,6 +69,7 @@ impl TryFrom<RecordPair> for PresignRecord {
 
         let g = CurvePoint::GENERATOR;
         if CurvePoint(g.0 * delta) != Delta {
+            error!("Could not create PresignRecord: mismatch between calculated private and public deltas");
             return Err(InternalInvariantFailed);
         }
 

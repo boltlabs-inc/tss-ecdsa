@@ -139,6 +139,7 @@ pub(crate) fn random_plusminus_by_size_with_minimum<R: RngCore + CryptoRng>(
     use crate::errors::InternalError;
 
     if min >= max {
+        tracing::error!("Invalid arguments to random_plusminus_by_size_with_minimum (min >= max)");
         return Err(InternalError::InternalInvariantFailed);
     }
     // Sample from [0, 2^max - 2^min], then add 2^min to bump into correct range.

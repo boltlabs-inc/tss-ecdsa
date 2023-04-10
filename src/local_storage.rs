@@ -11,6 +11,8 @@
 //! [`TypeTag`] and [`ParticipantIdentifier`]. Values can
 //! be either stored, retrieved, and looked up in the storage.
 
+use tracing::error;
+
 use crate::{
     errors::{InternalError, Result},
     ParticipantIdentifier,
@@ -69,8 +71,10 @@ impl LocalStorage {
         self.storage
             .get(&(participant_id, TypeId::of::<T>()))
             .map(|any| {
-                any.downcast_ref::<T::Value>()
-                    .ok_or(InternalError::InternalInvariantFailed)
+                any.downcast_ref::<T::Value>().ok_or_else(|| {
+                    error!("Could not downcast storage entry to <T as TypeTag>::Value");
+                    InternalError::InternalInvariantFailed
+                })
             })
             .unwrap_or(Err(InternalError::StorageItemNotFound))
     }
@@ -84,8 +88,10 @@ impl LocalStorage {
         self.storage
             .get_mut(&(participant_id, TypeId::of::<T>()))
             .map(|any| {
-                any.downcast_mut::<T::Value>()
-                    .ok_or(InternalError::InternalInvariantFailed)
+                any.downcast_mut::<T::Value>().ok_or_else(|| {
+                    error!("Could not downcast storage entry to <T as TypeTag>::Value");
+                    InternalError::InternalInvariantFailed
+                })
             })
             .unwrap_or(Err(InternalError::StorageItemNotFound))
     }
