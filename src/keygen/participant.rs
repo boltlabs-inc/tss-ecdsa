@@ -181,7 +181,10 @@ impl ProtocolParticipant for KeygenParticipant {
                 self.handle_round_two_msg(message)
             }
             MessageType::Keygen(KeygenMessageType::R3Proof) => self.handle_round_three_msg(message),
-            _ => Err(InternalError::MisroutedMessage)?,
+            _ => {
+                error!("Incorrect MessageType given to KeygenParticipant");
+                Err(InternalError::InternalInvariantFailed)
+            }
         }
     }
 

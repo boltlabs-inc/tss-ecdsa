@@ -165,7 +165,10 @@ impl ProtocolParticipant for AuxInfoParticipant {
             MessageType::Auxinfo(AuxinfoMessageType::R3Proof) => {
                 self.handle_round_three_msg(rng, message, input)
             }
-            _ => Err(InternalError::MisroutedMessage),
+            _ => {
+                error!("Incorrect MessageType given to AuxInfoParticipant");
+                Err(InternalError::InternalInvariantFailed)
+            }
         }
     }
 

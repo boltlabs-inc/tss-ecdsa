@@ -264,7 +264,10 @@ impl ProtocolParticipant for PresignParticipant {
                 self.handle_round_three_msg(rng, message, input)
             }
 
-            _ => Err(InternalError::MisroutedMessage),
+            _ => {
+                error!("Incorrect MessageType given to PresignParticipant");
+                Err(InternalError::InternalInvariantFailed)
+            }
         }
     }
 

@@ -37,8 +37,6 @@ pub enum InternalError {
     RetryFailed,
     #[error("This Participant was given a message intended for somebody else")]
     WrongMessageRecipient,
-    #[error("Encountered a MessageType which was not expected in this context")]
-    MisroutedMessage,
     #[error("Storage does not contain the requested item")]
     StorageItemNotFound,
     #[error(

@@ -25,6 +25,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
 #[derive(Clone, Serialize, Deserialize, ZeroizeOnDrop)]
@@ -92,7 +93,12 @@ impl Public {
         sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<Self> {
         if message.message_type() != MessageType::Presign(PresignMessageType::RoundThree) {
-            return Err(InternalError::MisroutedMessage);
+            error!(
+                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
+                MessageType::Presign(PresignMessageType::RoundThree),
+                message.message_type()
+            );
+            return Err(InternalError::InternalInvariantFailed);
         }
 
         let round_three_public: Self = deserialize!(&message.unverified_bytes)?;

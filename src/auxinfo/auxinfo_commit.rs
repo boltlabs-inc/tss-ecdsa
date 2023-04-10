@@ -26,7 +26,12 @@ pub(crate) struct AuxInfoCommit {
 impl AuxInfoCommit {
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         if message.message_type() != MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash) {
-            return Err(InternalError::MisroutedMessage);
+            error!(
+                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
+                MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash),
+                message.message_type()
+            );
+            return Err(InternalError::InternalInvariantFailed);
         }
         let auxinfo_commit: AuxInfoCommit = deserialize!(&message.unverified_bytes)?;
         Ok(auxinfo_commit)
@@ -90,7 +95,12 @@ impl AuxInfoDecommit {
         context: &<AuxInfoParticipant as InnerProtocolParticipant>::Context,
     ) -> Result<Self> {
         if message.message_type() != MessageType::Auxinfo(AuxinfoMessageType::R2Decommit) {
-            return Err(InternalError::MisroutedMessage);
+            error!(
+                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
+                MessageType::Auxinfo(AuxinfoMessageType::R2Decommit),
+                message.message_type()
+            );
+            return Err(InternalError::InternalInvariantFailed);
         }
         let auxinfo_decommit: AuxInfoDecommit = deserialize!(&message.unverified_bytes)?;
 

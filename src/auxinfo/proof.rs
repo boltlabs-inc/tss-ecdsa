@@ -23,6 +23,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct AuxInfoProof {
@@ -33,7 +34,12 @@ pub(crate) struct AuxInfoProof {
 impl AuxInfoProof {
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         if message.message_type() != MessageType::Auxinfo(AuxinfoMessageType::R3Proof) {
-            return Err(InternalError::MisroutedMessage);
+            error!(
+                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
+                MessageType::Auxinfo(AuxinfoMessageType::R3Proof),
+                message.message_type()
+            );
+            return Err(InternalError::InternalInvariantFailed);
         }
         let auxinfo_proof: AuxInfoProof = deserialize!(&message.unverified_bytes)?;
         Ok(auxinfo_proof)

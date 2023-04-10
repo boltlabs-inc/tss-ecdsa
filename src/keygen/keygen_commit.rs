@@ -17,7 +17,7 @@ use crate::{
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::{instrument, warn};
+use tracing::{error, instrument, warn};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct KeygenCommit {
@@ -26,7 +26,12 @@ pub(crate) struct KeygenCommit {
 impl KeygenCommit {
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         if message.message_type() != MessageType::Keygen(KeygenMessageType::R1CommitHash) {
-            return Err(InternalError::MisroutedMessage);
+            error!(
+                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
+                MessageType::Keygen(KeygenMessageType::R1CommitHash),
+                message.message_type()
+            );
+            return Err(InternalError::InternalInvariantFailed);
         }
         let keygen_commit: KeygenCommit = deserialize!(&message.unverified_bytes)?;
         Ok(keygen_commit)
@@ -69,7 +74,12 @@ impl KeygenDecommit {
 
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         if message.message_type() != MessageType::Keygen(KeygenMessageType::R2Decommit) {
-            return Err(InternalError::MisroutedMessage);
+            error!(
+                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
+                MessageType::Keygen(KeygenMessageType::R2Decommit),
+                message.message_type()
+            );
+            return Err(InternalError::InternalInvariantFailed);
         }
         let keygen_decommit: KeygenDecommit = deserialize!(&message.unverified_bytes)?;
         Ok(keygen_decommit)
