@@ -25,24 +25,31 @@ use std::collections::HashMap;
 pub(crate) struct MessageQueue(HashMap<MessageType, Vec<Message>>);
 
 impl MessageQueue {
-    /// Store a message by the given [`MessageType`].
-    pub(crate) fn store(&mut self, message_type: MessageType, message: Message) -> Result<()> {
-        self.0.entry(message_type).or_default().push(message);
+    /// Store a message by its [`MessageType`].
+    pub(crate) fn store(&mut self, message: Message) -> Result<()> {
+        self.0
+            .entry(message.message_type())
+            .or_default()
+            .push(message);
         Ok(())
     }
 
     /// Retrieve (and remove) all messages of a given [`MessageType`].
-    pub(crate) fn retrieve_all(&mut self, message_type: MessageType) -> Result<Vec<Message>> {
+    ///
+    /// If the given [`MessageType`] is not found, an empty [`Vec`] is returned.
+    pub(crate) fn retrieve_all(&mut self, message_type: MessageType) -> Vec<Message> {
         self.do_retrieve(message_type, None)
     }
 
     /// Retrieve (and remove) all messages of a given [`MessageType`] associated
     /// with the given [`ParticipantIdentifier`].
+    ///
+    /// If the given [`MessageType`] is not found, an empty [`Vec`] is returned.
     pub(crate) fn retrieve(
         &mut self,
         message_type: MessageType,
         sender: ParticipantIdentifier,
-    ) -> Result<Vec<Message>> {
+    ) -> Vec<Message> {
         self.do_retrieve(message_type, Some(sender))
     }
 
@@ -50,13 +57,13 @@ impl MessageQueue {
         &mut self,
         message_type: MessageType,
         sender: Option<ParticipantIdentifier>,
-    ) -> Result<Vec<Message>> {
+    ) -> Vec<Message> {
         // delete retrieved messages from storage so that they aren't accidentally
         // processed again.
         let queue = self.0.remove(&message_type).unwrap_or_default();
 
         match sender {
-            None => Ok(queue),
+            None => queue,
             Some(sender) => {
                 // separate messages we want to retrieve
                 let (out, new_queue): (Vec<_>, Vec<_>) =
@@ -66,7 +73,7 @@ impl MessageQueue {
                 if !new_queue.is_empty() {
                     let _ = self.0.insert(message_type, new_queue);
                 }
-                Ok(out)
+                out
             }
         }
     }

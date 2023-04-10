@@ -28,7 +28,7 @@ pub(crate) trait TypeTag: 'static {
 
 pub(crate) mod storage {
     use super::TypeTag;
-    use std::collections::HashMap;
+    use std::collections::HashSet;
 
     pub(crate) struct MessageQueue;
     impl TypeTag for MessageQueue {
@@ -37,8 +37,7 @@ pub(crate) mod storage {
 
     pub(crate) struct ProgressStore;
     impl TypeTag for ProgressStore {
-        // XXX We only ever store `true` here, so replace by a `HashSet` instead?
-        type Value = HashMap<String, bool>;
+        type Value = HashSet<String>;
     }
 }
 

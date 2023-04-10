@@ -283,13 +283,12 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
 
     fn stash_message(&mut self, message: &Message) -> Result<()> {
         let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
-        message_storage.store(message.message_type(), message.clone())?;
+        message_storage.store(message.clone())?;
         Ok(())
     }
     fn fetch_messages(&mut self, message_type: MessageType) -> Result<Vec<Message>> {
         let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
-        let messages = message_storage.retrieve_all(message_type)?;
-        Ok(messages)
+        Ok(message_storage.retrieve_all(message_type))
     }
     fn fetch_messages_by_sender(
         &mut self,
@@ -297,22 +296,17 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         sender: ParticipantIdentifier,
     ) -> Result<Vec<Message>> {
         let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
-        let messages = message_storage.retrieve(message_type, sender)?;
-        Ok(messages)
+        Ok(message_storage.retrieve(message_type, sender))
     }
     fn write_progress(&mut self, func_name: String) -> Result<()> {
         let progress_storage = self.get_from_storage::<local_storage::ProgressStore>()?;
-        let _ = progress_storage.insert(func_name, true);
+        let _ = progress_storage.insert(func_name);
         Ok(())
     }
 
     fn read_progress(&mut self, func_name: String) -> Result<bool> {
         let progress_storage = self.get_from_storage::<local_storage::ProgressStore>()?;
-        let result = match progress_storage.get(&func_name) {
-            None => false,
-            Some(value) => *value,
-        };
-        Ok(result)
+        Ok(progress_storage.get(&func_name).is_some())
     }
 }
 
