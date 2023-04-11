@@ -64,7 +64,9 @@ mod storage {
 /// Protocol status for [`KeygenParticipant`].
 #[derive(Debug, PartialEq)]
 pub enum Status {
+    /// The protocol has been initialized.
     Initialized,
+    /// The protocol has terminated successfully.
     TerminatedSuccessfully,
 }
 
@@ -231,8 +233,8 @@ impl KeygenParticipant {
         self.local_storage
             .store::<storage::PublicKeyshare>(self.id, keyshare_public.clone());
 
-        let q = crate::utils::k256_order();
-        let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
+        let q = k256_order();
+        let g = CurvePoint::GENERATOR;
         let X = keyshare_public.X;
 
         // todo: maybe there should be a function for generating a PiSchInput
@@ -240,8 +242,9 @@ impl KeygenParticipant {
         let sch_precom = PiSchProof::precommit(rng, &input)?;
         let decom =
             KeygenDecommit::new(rng, &message.id(), &self.id, &keyshare_public, &sch_precom);
+        // `com` matches `V_i` in the protocol description.
         let com = decom.commit()?;
-        let com_bytes = &serialize!(&com)?;
+        let com_bytes = serialize!(&com)?;
 
         self.local_storage.store::<storage::Commit>(self.id, com);
         self.local_storage
@@ -252,7 +255,7 @@ impl KeygenParticipant {
         let messages = self.broadcast(
             rng,
             MessageType::Keygen(KeygenMessageType::R1CommitHash),
-            com_bytes.clone(),
+            com_bytes,
             message.id(),
             BroadcastTag::KeyGenR1CommitHash,
         )?;
@@ -277,6 +280,8 @@ impl KeygenParticipant {
             .store::<storage::Commit>(message.from(), KeygenCommit::from_message(message)?);
 
         // check if we've received all the commits.
+        // XXX We only check `other_participant_ids`, but we add our own commitment in
+        // `gen_round_one_msgs`. Just in case, should we check `all_participants` here?
         let r1_done = self
             .local_storage
             .contains_for_all_ids::<storage::Commit>(&self.other_participant_ids);
@@ -310,6 +315,11 @@ impl KeygenParticipant {
 
         let mut messages = vec![];
         // check that we've generated our keyshare before trying to retrieve it
+        //
+        // XXX this seems like an error-prone way to check that Round 1 has
+        // completed? Would it be better if storage contained a `RoundNDone`
+        // message? Actually, we only ever reach here if round 1 is handled, so
+        // will this ever get triggered in the first place?
         if !self
             .local_storage
             .contains::<storage::PublicKeyshare>(self.id)
@@ -348,9 +358,11 @@ impl KeygenParticipant {
         info!("Handling round two keygen message.");
         // We must receive all commitments in round 1 before we start processing
         // decommits in round 2.
-        let r1_done = self.local_storage.contains_for_all_ids::<storage::Commit>(
-            &[self.other_participant_ids.clone(), vec![self.id]].concat(),
-        );
+        //
+        // XXX would it be less error-prone to have a `RoundOneDone` storage entry?
+        let r1_done = self
+            .local_storage
+            .contains_for_all_ids::<storage::Commit>(&self.all_participants());
         if !r1_done {
             // Store any early round 2 messages
             self.stash_message(message)?;
@@ -365,6 +377,8 @@ impl KeygenParticipant {
             .store::<storage::Decommit>(message.from(), decom);
 
         // Check if we've received all the decommits
+        //
+        // XXX check `all_participants` here just in case?
         let r2_done = self
             .local_storage
             .contains_for_all_ids::<storage::Decommit>(&self.other_participant_ids);
@@ -409,6 +423,9 @@ impl KeygenParticipant {
         let mut global_rid = my_decom.rid;
         // xor all the rids together. In principle, many different options for combining
         // these should be okay
+        //
+        // XXX might be better if `rid` is abstracted away, and this could be replaced
+        // by a `rid.combine` method.
         for rid in rids.iter() {
             for i in 0..32 {
                 global_rid[i] ^= rid[i];
@@ -416,18 +433,20 @@ impl KeygenParticipant {
         }
         self.local_storage
             .store::<storage::GlobalRid>(self.id, global_rid);
-
+        // XXX Encapsulate this transcript generation as a method.
         let mut transcript = Transcript::new(b"keygen schnorr");
         transcript.append_message(b"rid", &serialize!(&global_rid)?);
+
         let precom = self
             .local_storage
             .retrieve::<storage::SchnorrPrecom>(self.id)?;
 
-        let q = crate::utils::k256_order();
-        let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
+        let q = k256_order();
+        let g = CurvePoint::GENERATOR;
         let my_pk = self
             .local_storage
             .retrieve::<storage::PublicKeyshare>(self.id)?;
+        // XXX this input generation might be better as a method on `KeySharePublic`.
         let input = PiSchInput::new(&g, &q, &my_pk.X);
 
         let my_sk = self
@@ -437,6 +456,7 @@ impl KeygenParticipant {
         let proof = PiSchProof::prove_from_precommit(
             precom,
             &input,
+            // XXX this secret generation might be better as a method on `KeySharePrivate`.
             &PiSchSecret::new(&my_sk.x),
             &transcript,
         )?;
@@ -468,6 +488,7 @@ impl KeygenParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round three keygen message.");
 
+        // XXX error prone, use a `RoundTwoDone` storage entry instead.
         if self
             .local_storage
             .retrieve::<storage::GlobalRid>(self.id)
@@ -482,6 +503,7 @@ impl KeygenParticipant {
             .local_storage
             .retrieve::<storage::Decommit>(message.from())?;
 
+        // XXX replace with method on `KeySharePublic`
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
         let input = PiSchInput::new(&g, &q, &decom.pk.X);
@@ -511,12 +533,15 @@ impl KeygenParticipant {
                     Ok(value.clone())
                 })
                 .collect::<Result<Vec<_>>>()?;
+            // XXX should we have a `local_storage.remove` method for this case
+            // where we can try to securely delete the entry?
             let private_key_share = self
                 .local_storage
                 .retrieve::<storage::PrivateKeyshare>(self.id)?;
             self.status = Status::TerminatedSuccessfully;
             Ok(ProcessOutcome::Terminated((
                 public_key_shares,
+                // XXX with a `local_storage.remove` method we can avoid this `clone`.
                 private_key_share.clone(),
             )))
         } else {
@@ -526,7 +551,7 @@ impl KeygenParticipant {
     }
 }
 
-/// Generates a new [KeySharePrivate] and [KeySharePublic]
+/// Generates a new [`KeySharePrivate`] and [`KeySharePublic`].
 fn new_keyshare<R: RngCore + CryptoRng>(
     participant: ParticipantIdentifier,
     rng: &mut R,
@@ -534,6 +559,7 @@ fn new_keyshare<R: RngCore + CryptoRng>(
     let order = k256_order();
     let private_share = BigNumber::from_rng(&order, rng);
     let g = CurvePoint::GENERATOR;
+    // XXX Replace with `g.multiply_by_scalar`?
     let public_share = CurvePoint(g.0 * crate::utils::bn_to_scalar(&private_share)?);
 
     Ok((

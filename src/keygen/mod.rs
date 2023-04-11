@@ -6,8 +6,6 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Creates a [keyshare::KeySharePublic] and [keyshare::KeySharePrivate]
-
 pub(crate) mod keygen_commit;
 pub(crate) mod keyshare;
 pub(crate) mod participant;

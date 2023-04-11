@@ -200,6 +200,13 @@ pub trait ProtocolParticipant {
     /// - The message was not parseable
     /// - The message does not belong to this participant or session
     /// - The message contained invalid values and a protocol check failed
+    ///
+    /// # Assumptions
+    /// This method can safely assume (and thus doesn't need to check) the
+    /// following:
+    /// - The message SID matches the participant's SID.
+    /// - The recipient ID matches the participant's ID.
+    /// - The message type is belongs to the correct protocol.
     fn process_message<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
@@ -361,12 +368,14 @@ pub(crate) trait Broadcast {
 
 #[macro_export]
 /// A macro to keep track of which functions have already been run in a given
-/// session Must be a self.function() so that we can access storage
+/// session. Must be a `self.function()` so that we can access local storage.
 macro_rules! run_only_once {
     ($self:ident . $func_name:ident $args:tt) => {{
         if $self.read_progress(stringify!($func_name).to_string())? {
             Ok(vec![])
         } else {
+            // XXX Should these two lines be swapped? If `func_name` fails
+            // we'll claim that we successfully evaluated that function.
             $self.write_progress(stringify!($func_name).to_string())?;
             $self.$func_name$args
         }
@@ -382,6 +391,8 @@ macro_rules! run_only_once_per_tag {
         if $self.read_progress(stringify!($func_name).to_string() + &tag_str)? {
             Ok(vec![])
         } else {
+            // XXX Should these two lines be swapped? If `func_name` fails
+            // we'll claim that we successfully evaluated that function.
             $self.write_progress(stringify!($func_name).to_string())?;
             $self.$func_name$args
         }

@@ -10,7 +10,6 @@
 //! passed between participants
 
 use crate::protocol::{Identifier, ParticipantIdentifier};
-use displaydoc::Display;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use tracing::{instrument, trace};
@@ -87,8 +86,13 @@ pub enum BroadcastMessageType {
     Redisperse,
 }
 
-/// A message that can be posted to (and read from) the broadcast channel
-#[derive(Clone, Display, Serialize, Deserialize)]
+/// A message that can be posted to (and read from) the broadcast channel.
+///
+/// TODO: The [`ProtocolParticipant`] implementations assume that `Message` is
+/// validly constructed. Is there anything bad that can happen if
+/// `message_type`, `identifier`, etc are maliciously generated? I don't think
+/// so but worth checking.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Message {
     /// The type of the message
     pub(crate) message_type: MessageType,
@@ -118,7 +122,11 @@ impl Debug for Message {
 }
 
 impl Message {
-    /// Creates a new instance of [Message]
+    /// Creates a new instance of [`Message`].
+    ///
+    /// XXX rather than require the caller to manually serialize, might be
+    /// better to take a `T: Serializable` parameter and do the
+    /// serialization here.
     #[instrument(skip_all)]
     pub fn new(
         message_type: MessageType,
