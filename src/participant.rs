@@ -200,6 +200,13 @@ pub trait ProtocolParticipant {
     /// - The message was not parseable
     /// - The message does not belong to this participant or session
     /// - The message contained invalid values and a protocol check failed
+    ///
+    /// # Assumptions
+    /// This method can safely assume (and thus doesn't need to check) the
+    /// following:
+    /// - The message SID matches the participant's SID.
+    /// - The recipient ID matches the participant's ID.
+    /// - The message type belongs to the correct protocol.
     fn process_message<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
@@ -225,7 +232,10 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
     /// Returns a mutable reference to the [`LocalStorage`] associated with this
     /// protocol.
     fn local_storage_mut(&mut self) -> &mut LocalStorage;
+    /// Returns this participant's [`ParticipantIdentifier`].
     fn id(&self) -> ParticipantIdentifier;
+    /// Returns the [`ParticipantIdentifier`]s of all other participants in this
+    /// protocol.
     fn other_ids(&self) -> &Vec<ParticipantIdentifier>;
 
     /// Returns a list of all participant IDs, including `self`'s.
@@ -361,7 +371,7 @@ pub(crate) trait Broadcast {
 
 #[macro_export]
 /// A macro to keep track of which functions have already been run in a given
-/// session Must be a self.function() so that we can access storage
+/// session. Must be a `self.function()` so that we can access local storage.
 macro_rules! run_only_once {
     ($self:ident . $func_name:ident $args:tt) => {{
         if $self.read_progress(stringify!($func_name).to_string())? {

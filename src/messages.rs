@@ -10,7 +10,6 @@
 //! passed between participants
 
 use crate::protocol::{Identifier, ParticipantIdentifier};
-use displaydoc::Display;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use tracing::{instrument, trace};
@@ -53,8 +52,6 @@ pub enum AuxinfoMessageType {
 pub enum KeygenMessageType {
     /// Signals that keyshare generation is ready
     Ready,
-    /// Public keyshare produced by keygen for a participant
-    PublicKeyshare,
     /// A hash commitment to the public keyshare and associated proofs
     R1CommitHash,
     /// The information committed to in Round 1
@@ -87,8 +84,14 @@ pub enum BroadcastMessageType {
     Redisperse,
 }
 
-/// A message that can be posted to (and read from) the broadcast channel
-#[derive(Clone, Display, Serialize, Deserialize)]
+/// A message that can be posted to (and read from) the communication channel.
+///
+/// TODO: The [`ProtocolParticipant`](crate::ProtocolParticipant)
+/// implementations assume that `Message` is validly constructed. Is there
+/// anything bad that can happen if `message_type`, `identifier`, etc are
+/// maliciously generated? In particular, what if participant A uses the
+/// `ParticipantIdentifier` of participant B?
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Message {
     /// The type of the message
     pub(crate) message_type: MessageType,
@@ -118,7 +121,7 @@ impl Debug for Message {
 }
 
 impl Message {
-    /// Creates a new instance of [Message]
+    /// Creates a new instance of [`Message`].
     #[instrument(skip_all)]
     pub fn new(
         message_type: MessageType,
