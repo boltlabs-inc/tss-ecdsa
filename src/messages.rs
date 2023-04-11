@@ -52,8 +52,6 @@ pub enum AuxinfoMessageType {
 pub enum KeygenMessageType {
     /// Signals that keyshare generation is ready
     Ready,
-    /// Public keyshare produced by keygen for a participant
-    PublicKeyshare,
     /// A hash commitment to the public keyshare and associated proofs
     R1CommitHash,
     /// The information committed to in Round 1
@@ -88,10 +86,10 @@ pub enum BroadcastMessageType {
 
 /// A message that can be posted to (and read from) the broadcast channel.
 ///
-/// TODO: The [`ProtocolParticipant`] implementations assume that `Message` is
-/// validly constructed. Is there anything bad that can happen if
-/// `message_type`, `identifier`, etc are maliciously generated? I don't think
-/// so but worth checking.
+/// TODO: The [`ProtocolParticipant`](crate::ProtocolParticipant)
+/// implementations assume that `Message` is validly constructed. Is there
+/// anything bad that can happen if `message_type`, `identifier`, etc are
+/// maliciously generated? I don't think so but worth checking.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Message {
     /// The type of the message

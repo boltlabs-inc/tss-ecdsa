@@ -157,7 +157,6 @@ impl ProtocolParticipant for KeygenParticipant {
             MessageType::Keygen(KeygenMessageType::R3Proof) => {
                 self.handle_round_three_msg(rng, message, input)
             }
-            MessageType::Keygen(_) => Err(InternalError::MessageMustBeBroadcasted)?,
             _ => Err(InternalError::MisroutedMessage)?,
         }
     }
@@ -240,6 +239,8 @@ impl KeygenParticipant {
         // todo: maybe there should be a function for generating a PiSchInput
         let input = PiSchInput::new(&g, &q, &X);
         let sch_precom = PiSchProof::precommit(rng, &input)?;
+        // XXX does `KeygenDecommit` need to contain the SID? I don't think so, since
+        // it's only stored locally and already the message specifies the SID.
         let decom =
             KeygenDecommit::new(rng, &message.id(), &self.id, &keyshare_public, &sch_precom);
         // `com` matches `V_i` in the protocol description.
@@ -272,6 +273,11 @@ impl KeygenParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round one keygen message.");
 
+        // XXX should we have a check that we haven't recieved a round one
+        // message _after_ round one is complete? Likewise for all other rounds.
+
+        // XXX this pattern repeats in other sub-protocols. Extract into a
+        // method on `BroadcastOutput`?
         if broadcast_message.tag != BroadcastTag::KeyGenR1CommitHash {
             return Err(InternalError::IncorrectBroadcastMessageTag);
         }
@@ -282,6 +288,7 @@ impl KeygenParticipant {
         // check if we've received all the commits.
         // XXX We only check `other_participant_ids`, but we add our own commitment in
         // `gen_round_one_msgs`. Just in case, should we check `all_participants` here?
+        // XXX Won't matter if we replace with a `RoundOneDone` storage entry.
         let r1_done = self
             .local_storage
             .contains_for_all_ids::<storage::Commit>(&self.other_participant_ids);
@@ -330,12 +337,16 @@ impl KeygenParticipant {
 
         let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
         let decom_bytes = serialize!(&decom)?;
+        // XXX add method to `ProtocolParticipant` to encapsulate this message
+        // creation (it's a very common pattern)        .
         let more_messages: Vec<Message> = self
             .other_participant_ids
             .iter()
             .map(|&other_participant_id| {
                 Message::new(
                     MessageType::Keygen(KeygenMessageType::R2Decommit),
+                    // XXX Instead of using `message.id()` here should we be
+                    // more defensive and use `self.sid`?
                     message.id(),
                     self.id,
                     other_participant_id,
@@ -512,6 +523,9 @@ impl KeygenParticipant {
         transcript.append_message(b"rid", &serialize!(&global_rid)?);
 
         proof.verify_with_transcript(&input, &transcript)?;
+
+        // Only if the proof verifies do we store the participant's public key
+        // share.
         let keyshare = decom.get_keyshare();
         self.local_storage
             .store::<storage::PublicKeyshare>(message.from(), keyshare.clone());
@@ -581,6 +595,7 @@ mod tests {
             quorum_size: usize,
             rng: &mut R,
         ) -> Result<Vec<Self>> {
+            // XXX Use existing `random_quorum` method to simplify this implementation.
             let mut participant_ids = vec![];
             for _ in 0..quorum_size {
                 participant_ids.push(ParticipantIdentifier::random(rng));
@@ -600,6 +615,7 @@ mod tests {
                 .collect::<Vec<KeygenParticipant>>();
             Ok(participants)
         }
+        // XXX Already exists as `Participant::initialize_message`
         pub fn initialize_keygen_message(&self, keygen_identifier: Identifier) -> Message {
             Message::new(
                 MessageType::Keygen(KeygenMessageType::Ready),
@@ -679,6 +695,7 @@ mod tests {
         }
         Ok(())
     }
+    // XXX should this test be re-written to use `Participant<KeygenParticipant>`?
     #[test]
     fn keygen_produces_valid_outputs() -> Result<()> {
         let QUORUM_SIZE = 3;
