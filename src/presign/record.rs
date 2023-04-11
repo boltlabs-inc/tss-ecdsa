@@ -18,7 +18,6 @@ use crate::{
 };
 use k256::Scalar;
 use libpaillier::unknown_order::BigNumber;
-use serde::{Deserialize, Serialize};
 use sha2::Digest;
 
 use super::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic};
@@ -29,8 +28,13 @@ pub(crate) struct RecordPair {
     pub(crate) publics: Vec<RoundThreePublic>,
 }
 
-/// The precomputation used to create a partial signature
-#[derive(Serialize, Deserialize)]
+/// The precomputation used to create a partial signature.
+///
+/// # ⚠️ Storage requirements
+/// This type must be stored securely by the calling application.
+///
+/// # ⚠️ Lifetime requirements
+/// This type must only be used _once_.
 pub struct PresignRecord {
     R: CurvePoint,
     k: BigNumber,

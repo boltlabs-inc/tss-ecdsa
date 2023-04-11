@@ -68,7 +68,25 @@ pub enum Status {
     TerminatedSuccessfully,
 }
 
-/// A participant that runs the key generation protocol.
+/// A [`ProtocolParticipant`] that runs the key generation protocol[^cite].
+///
+/// # Protocol input
+/// The protocol takes no input.
+///
+/// # Protocol output
+/// Upon successful completion, the participant outputs the following:
+/// - A [`Vec`] of [`KeySharePublic`]s, which correspond to the public keyshares
+///   of each participant (including this participant), and
+/// - A single [`KeySharePrivate`], which corresponds to the **private**
+///   keyshare of this participant.
+///
+/// # ⚠️ Storage requirements
+/// The [`KeySharePrivate`] output requires secure persistent storage.
+///
+/// [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
+/// Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
+/// with Identifiable Aborts. [EPrint archive,
+/// 2021](https://eprint.iacr.org/2021/060.pdf). Figure 5.
 #[derive(Debug)]
 pub struct KeygenParticipant {
     /// A unique identifier for this participant.

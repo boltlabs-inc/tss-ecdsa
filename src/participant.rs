@@ -6,6 +6,9 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! This module contains [`ProtocolParticipant`], the core trait for
+//! implementing the various sub-protocols required by `tss-ecsda`.
+
 use crate::{
     broadcast::participant::{BroadcastParticipant, BroadcastTag},
     errors::{InternalError, Result},

@@ -88,7 +88,34 @@ pub enum Status {
     TerminatedSuccessfully,
 }
 
-/// A participant that runs the presign protocol.
+/// A [`ProtocolParticipant`] that runs the presign protocol[^cite].
+///
+/// # Protocol input
+/// The protocol takes as input the following:
+/// - A [`Vec`] of [`KeySharePublic`]s, which correspond to the public keyshares
+///   of each participant (including this participant), and
+/// - A single [`KeySharePrivate`], which corresponds to the **private**
+///   keyshare of this participant.
+/// - A [`Vec`] of [`AuxInfoPublic`]s, which correspond to the public auxiliary
+///   information of each participant (including this participant), and
+/// - A single [`AuxInfoPrivate`], which corresponds to the **private**
+///   auxiliary information of this participant.
+///
+/// # Protocol output
+/// Upon successful completion, the participant outputs the following:
+/// - A single [`PresignRecord`], which corresponds to the **private** presign
+///   record of this participant.
+///
+/// # Storage requirement
+/// The [`PresignRecord`] output requires secure persistent storage.
+///
+/// # Lifetime requirement
+/// The [`PresignRecord`] output must only be used once and then discarded.
+///
+/// [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
+/// Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
+/// with Identifiable Aborts. [EPrint archive,
+/// 2021](https://eprint.iacr.org/2021/060.pdf). Figure 7.
 #[derive(Debug)]
 pub struct PresignParticipant {
     /// A unique identifier for this participant

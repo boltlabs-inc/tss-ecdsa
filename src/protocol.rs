@@ -6,10 +6,12 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! The primary public API for executing protocol.
+//! The primary public API for executing the threshold signing protocol.
 //!
-//! This module includes the main [`Participant`] driver
-//! and defines the set of possible [`Output`]s for each subprotocol.
+//! This module includes the main [`Participant`] driver and defines the set of
+//! possible [`Output`]s for each subprotocol.
+//!
+//! # Storage Requirements
 
 use crate::{
     auxinfo::info::{AuxInfoPrivate, AuxInfoPublic},
@@ -38,10 +40,32 @@ pub enum ProtocolType {
     Broadcast,
 }
 
-/// A `Participant` is the driver for a party executing a subprotocol of the
-/// threshold signing protocol.
+/// The driver for a party executing a sub-protocol of the threshold signing
+/// protocol.
 ///
-/// Each participant has an inbox which can contain messages.
+/// A given [`Participant`] participates in an execution of one of several
+/// sub-protocols required for threshold signing. The core functionality of
+/// [`Participant`] is captured in the
+/// [`process_single_message`](Participant::process_single_message) method: it
+/// takes as input a [`Message`] and outputs a tuple containing the
+/// participant's output alongside a list of messages to process.
+///
+/// # ⚠️ Storage requirements ⚠️
+/// It is up to the calling application to persist outputs used by the
+/// participant. In addition, some of the outputs are private to the
+/// participant, and **these must be stored securely by the calling
+/// application**. Which outputs require secure storage is documented by each
+/// protocol type, under the "Storage requirements" heading:
+/// [`KeygenParticipant`](crate::KeygenParticipant),
+/// [`AuxInfoParticipant`](crate::AuxInfoParticipant), and
+/// [`PresignParticipant`](crate::PresignParticipant). In addition, some outputs
+/// must only be used once and then discarded. These are documented as necessary
+/// under the "Lifetime requirements" heading in the aforementioned types.
+///
+/// ## Requirements of secure storage
+/// Any external secure storage must be able to achieve the following two
+/// requirements: (1) the ability to store data in encrypted form, and (2) the
+/// ability to securely erase data from storage.
 #[derive(Debug)]
 pub struct Participant<P>
 where
@@ -62,7 +86,7 @@ where
 }
 
 impl<P: ProtocolParticipant> Participant<P> {
-    /// Initialize the participant from a [ParticipantConfig]
+    /// Initialize the participant from a [`ParticipantConfig`].
     pub fn from_config(config: &ParticipantConfig, sid: Identifier, input: P::Input) -> Self {
         info!("Initializing participant from config.");
 
@@ -153,7 +177,7 @@ impl<P: ProtocolParticipant> Participant<P> {
     }
 
     /// Generate a signature share on the given `digest` with the
-    /// `PresignRecord`.
+    /// [`PresignRecord`].
     ///
     /// TODO #251: Move this method to `PresignRecord` instead of having it
     /// belong to a `Participant`.
@@ -263,12 +287,12 @@ impl ParticipantConfig {
     }
 }
 
-/// An identifier corresponding to a [Participant]
+/// An identifier corresponding to a [`Participant`].
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ParticipantIdentifier(u128);
 
 impl ParticipantIdentifier {
-    /// Generates a random [ParticipantIdentifier]
+    /// Generates a random [`ParticipantIdentifier`].
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         // Sample random 32 bytes and convert to hex
         let random_bytes = rng.gen::<u128>();

@@ -67,10 +67,28 @@ pub enum Status {
     TerminatedSuccessfully,
 }
 
-/// A participant that runs the auxiliary information protocol.
+/// A [`ProtocolParticipant`] that runs the auxiliary information
+/// protocol[^cite].
 ///
-/// Note that this does not include the key-refresh steps included in the
-/// original paper specification.
+/// # Protocol input
+/// The protocol takes no input.
+///
+/// # Protocol output
+/// Upon succesful completion, the participant outputs the following:
+/// - A [`Vec`] of [`AuxInfoPublic`]s, which correspond to the public auxiliary
+///   information of each participant (including this participant), and
+/// - A single [`AuxInfoPrivate`], which corresponds to the **private**
+///   auxiliary information of this participant.
+///
+/// # ⚠️ Storage requirements
+/// The [`AuxInfoPrivate`] output requires secure persistent storage.
+///
+/// [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
+/// Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
+/// with Identifiable Aborts. [EPrint archive,
+/// 2021](https://eprint.iacr.org/2021/060.pdf). Figure 6. Note that this does
+/// not include the key-refresh steps included in Figure.
+
 #[derive(Debug)]
 pub struct AuxInfoParticipant {
     /// A unique identifier for this participant

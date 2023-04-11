@@ -10,13 +10,18 @@ use crate::{utils::CurvePoint, ParticipantIdentifier};
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
 
-/// Private key corresponding to a given [KeySharePublic]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Private key corresponding to a given [`Participant`](crate::Participant)'s
+/// [`KeySharePublic`].
+///
+/// # ⚠️ Storage requirements
+/// This type must be stored securely by the calling application.
+#[derive(Debug, Clone)]
 pub struct KeySharePrivate {
     pub(crate) x: BigNumber, // in the range [1, q)
 }
 
-/// A CurvePoint representing a given Participant's public key
+/// A [`CurvePoint`] representing a given [`Participant`](crate::Participant)'s
+/// public key.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KeySharePublic {
     participant: ParticipantIdentifier,
