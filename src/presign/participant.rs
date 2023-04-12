@@ -106,10 +106,10 @@ pub enum Status {
 /// - A single [`PresignRecord`], which corresponds to the **private** presign
 ///   record of this participant.
 ///
-/// # Storage requirement
+/// # 🔒 Storage requirement
 /// The [`PresignRecord`] output requires secure persistent storage.
 ///
-/// # Lifetime requirement
+/// # 🔒 Lifetime requirement
 /// The [`PresignRecord`] output must only be used once and then discarded.
 ///
 /// [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
