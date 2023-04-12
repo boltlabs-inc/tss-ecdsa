@@ -1,7 +1,13 @@
 ## How to run benchmarks
 
-cargo bench e2e_benchmark
-cargo bench bignumber_benchmark
+For running the bignumber benchmarks:
+
+`cargo bench --bench bignumber_benchmark`
+
+For running the end to end benchmarks:
+
+`cargo bench --bench e2e_benchmark`
+
 
 ## Bignumber Benchmarks
 
@@ -13,17 +19,13 @@ cargo bench bignumber_benchmark
 
 ## End to end benchmarks
 
-| lock-keeper flow | key generation    | signing    | 
-| :---   | :--- | :--- |
-| tss-ecdsa protocol | keygen   | aux-info   | presign   | sign   |
+| lock-keeper flow | tss-ecdsa protocol | 3 nodes    | 6 nodes    | 9 nodes    |
 | :---   | :--- | :--- | :--- | :--- |
-| per-party time |
-| :---   | 
-| 3 nodes    | 0.76 ms    | 6650 ms    | 289 ms    | not evaluated (fast)    |
-| :---   | :--- | :--- | :--- | :--- |
-| 6 nodes    | 1.7 ms    | 6858 ms    | 700 ms    | not evaluated (fast)    |
-| :---   | :--- | :--- | :--- | :--- |
-| 9 nodes    | 2.8 ms    | 7061 ms    | 1145 ms    | not evaluated (fast)    |
+| key generation    | keygen  | 0.76 ms    | 1.7 ms    | 2.8 ms    |
+|                   | aux-info   | 6650 ms    | 6858 ms    | 7061 ms    |
+| signing    | presign   | 289 ms    | 700 ms    | 1145 ms    |
+|            | sign   | not evaluated (fast)    | not evaluated (fast)    | not evaluated (fast)    |
+[Per Party Time]
 
 ### Macbook Pro
 
