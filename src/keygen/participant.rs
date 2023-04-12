@@ -80,7 +80,7 @@ pub enum Status {
 /// - A single [`KeySharePrivate`], which corresponds to the **private**
 ///   keyshare of this participant.
 ///
-/// # ⚠️ Storage requirements
+/// # 🔒 Storage requirements
 /// The [`KeySharePrivate`] output requires secure persistent storage.
 ///
 /// [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos

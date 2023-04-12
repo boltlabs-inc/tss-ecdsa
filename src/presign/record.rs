@@ -30,10 +30,10 @@ pub(crate) struct RecordPair {
 
 /// The precomputation used to create a partial signature.
 ///
-/// # ⚠️ Storage requirements
+/// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
 ///
-/// # ⚠️ Lifetime requirements
+/// # 🔒 Lifetime requirements
 /// This type must only be used _once_.
 pub struct PresignRecord {
     R: CurvePoint,

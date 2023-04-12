@@ -10,8 +10,6 @@
 //!
 //! This module includes the main [`Participant`] driver and defines the set of
 //! possible [`Output`]s for each subprotocol.
-//!
-//! # Storage Requirements
 
 use crate::{
     auxinfo::info::{AuxInfoPrivate, AuxInfoPublic},
@@ -50,7 +48,7 @@ pub enum ProtocolType {
 /// takes as input a [`Message`] and outputs a tuple containing the
 /// participant's output alongside a list of messages to process.
 ///
-/// # ⚠️ Storage requirements ⚠️
+/// # 🔒 Storage requirements
 /// It is up to the calling application to persist outputs used by the
 /// participant. In addition, some of the outputs are private to the
 /// participant, and **these must be stored securely by the calling
@@ -62,10 +60,12 @@ pub enum ProtocolType {
 /// must only be used once and then discarded. These are documented as necessary
 /// under the "Lifetime requirements" heading in the aforementioned types.
 ///
-/// ## Requirements of secure storage
-/// Any external secure storage must be able to achieve the following two
-/// requirements: (1) the ability to store data in encrypted form, and (2) the
-/// ability to securely erase data from storage.
+/// ## Requirements of external storage
+/// Any external storage must be able to achieve the following requirements:
+/// - Encryption: Data is stored encrypted.
+/// - Freshness: The storage contains the most recent state of the execution and
+///   avoids replay attacks.
+/// - Secure deletion: Data can be securely deleted from storage.
 #[derive(Debug)]
 pub struct Participant<P>
 where

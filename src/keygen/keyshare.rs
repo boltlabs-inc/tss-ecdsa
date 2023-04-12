@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// Private key corresponding to a given [`Participant`](crate::Participant)'s
 /// [`KeySharePublic`].
 ///
-/// # ⚠️ Storage requirements
+/// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
 #[derive(Debug, Clone)]
 pub struct KeySharePrivate {

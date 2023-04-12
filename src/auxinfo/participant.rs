@@ -80,14 +80,14 @@ pub enum Status {
 /// - A single [`AuxInfoPrivate`], which corresponds to the **private**
 ///   auxiliary information of this participant.
 ///
-/// # ⚠️ Storage requirements
+/// # 🔒 Storage requirements
 /// The [`AuxInfoPrivate`] output requires secure persistent storage.
 ///
 /// [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
 /// Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
 /// with Identifiable Aborts. [EPrint archive,
 /// 2021](https://eprint.iacr.org/2021/060.pdf). Figure 6. Note that this does
-/// not include the key-refresh steps included in Figure.
+/// not include the key-refresh steps included in Figure 6.
 
 #[derive(Debug)]
 pub struct AuxInfoParticipant {
