@@ -24,6 +24,7 @@ use tracing::{error, instrument};
 /// This type must be stored securely by the calling application.
 #[derive(Clone, ZeroizeOnDrop)]
 pub struct AuxInfoPrivate {
+    /// The participant's Paillier private key.
     decryption_key: DecryptionKey,
 }
 
@@ -52,11 +53,14 @@ impl Debug for AuxInfoPrivate {
     }
 }
 
-/// The public Auxilary Information corresponding to a given Participant.
+/// The public auxilary information corresponding to a given participant.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct AuxInfoPublic {
+    /// The participant's identifier.
     participant: ParticipantIdentifier,
+    /// The participant's Paillier public key.
     pk: EncryptionKey,
+    /// The participant's (verified) ring-Pedersen parameters.
     params: VerifiedRingPedersen,
 }
 
@@ -100,6 +104,9 @@ impl AuxInfoPublic {
     }
 }
 
+// XXX this construct is duplicated in several places. Would it be better for
+// `DecryptionKey::new` to output a `DecryptionKeyWitness` type that contains
+// this info so we don't duplicate this struct in multiple places?
 #[derive(Serialize, Deserialize, ZeroizeOnDrop)]
 pub(crate) struct AuxInfoWitnesses {
     pub(crate) p: BigNumber,

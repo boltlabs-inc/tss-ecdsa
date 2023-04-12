@@ -66,9 +66,9 @@ mod storage {
 /// Protocol status for [`AuxInfoParticipant`].
 #[derive(Debug, PartialEq)]
 pub enum Status {
-    /// Participant has been initialized.
+    /// Protocol has initialized successfully.
     Initialized,
-    /// Participant has finished sub-protocol
+    /// Protocol has terminated successfully.
     TerminatedSuccessfully,
 }
 
@@ -87,6 +87,26 @@ pub enum Status {
 ///
 /// # 🔒 Storage requirements
 /// The [`AuxInfoPrivate`] output requires secure persistent storage.
+///
+/// # High-level protocol description
+/// The auxinfo protocol runs in four rounds:
+/// - In the first round, each participant generates an RSA modulus `N = pq`,
+///   alongside ring-Pedersen parameters `(s, t, λ)` such that `s = t^λ mod N`.
+///   Each participant then produces a zero-knowledge proof `𝚷[prm]` that the
+///   ring-Pedersen parameters are correct. Finally, each participant commits to
+///   the tuple `(N, s, t, 𝚷[prm])` and broadcasts this commitment.
+/// - Once all participants have received all broadcasted commitments, in the
+///   second round each participant sends its own decommitment to all other
+///   participants.
+/// - In the third round, each participant (1) checks the validity of all the
+///   commitments plus the validity of the committed `𝚷[prm]` proof, and (2)
+///   produces two additional proofs: the first, `𝚷[mod]`, which asserts the
+///   validity of `N`, and the second, `𝚷[fac]`, which ????. Each participant
+///   sends these proofs to all other participants.
+/// - Finally, in the last round each participant checks the validity of the
+///   proofs from round three. If everything passes, each participant outputs
+///   the `(N, s, t)` tuples from all other parties, alongside its own secret
+///   primes `(p, q)`.
 ///
 /// [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
 /// Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
@@ -176,18 +196,18 @@ impl ProtocolParticipant for AuxInfoParticipant {
         }
 
         match message.message_type() {
+            MessageType::Auxinfo(AuxinfoMessageType::Ready) => self.handle_ready_msg(rng, message),
             MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash) => {
                 let broadcast_outcome = self.handle_broadcast(rng, message)?;
 
                 // Handle the broadcasted message if all parties have agreed on it
                 broadcast_outcome.convert(self, Self::handle_round_one_msg, rng, input)
             }
-            MessageType::Auxinfo(AuxinfoMessageType::Ready) => self.handle_ready_msg(rng, message),
             MessageType::Auxinfo(AuxinfoMessageType::R2Decommit) => {
-                self.handle_round_two_msg(rng, message, input)
+                self.handle_round_two_msg(rng, message)
             }
             MessageType::Auxinfo(AuxinfoMessageType::R3Proof) => {
-                self.handle_round_three_msg(rng, message, input)
+                self.handle_round_three_msg(message)
             }
             message_type => {
                 error!(
@@ -227,6 +247,10 @@ impl Broadcast for AuxInfoParticipant {
 }
 
 impl AuxInfoParticipant {
+    /// Handle "Ready" messages from the protocol participants.
+    ///
+    /// Once "Ready" messages have been received from all participants, this
+    /// method will trigger this participant to generate its round one message.
     #[cfg_attr(feature = "flame_it", flame("auxinfo"))]
     #[instrument(skip_all, err(Debug))]
     fn handle_ready_msg<R: RngCore + CryptoRng>(
@@ -239,20 +263,25 @@ impl AuxInfoParticipant {
         let (ready_outcome, is_ready) = self.process_ready_message::<storage::Ready>(message)?;
 
         if is_ready {
-            let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, message))?;
-
+            let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, message.id()))?;
             Ok(ready_outcome.with_messages(round_one_messages))
         } else {
             Ok(ready_outcome)
         }
     }
 
+    /// Generate the participant's round one message.
+    ///
+    /// This corresponds to the following lines in Round 1 of Figure 6:
+    /// - Line 1: Sampling safe primes `p` and `q`.
+    /// - Line 4: Generating the `𝚷[prm]` proof `\hat{ψ}_i`.
+    /// - Line 6: Producing the commitment `V_i` on the above values.
     #[cfg_attr(feature = "flame_it", flame("auxinfo"))]
     #[instrument(skip_all, err(Debug))]
     fn gen_round_one_msgs<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
-        message: &Message,
+        sid: Identifier,
     ) -> Result<Vec<Message>> {
         info!("Generating round one auxinfo messages.");
 
@@ -264,7 +293,7 @@ impl AuxInfoParticipant {
         self.local_storage
             .store::<storage::Witnesses>(self.id, auxinfo_witnesses);
 
-        let decom = AuxInfoDecommit::new(self, rng, &message.id(), auxinfo_public)?;
+        let decom = AuxInfoDecommit::new(self, rng, &sid, auxinfo_public)?;
         let com = decom.commit()?;
 
         self.local_storage
@@ -276,19 +305,24 @@ impl AuxInfoParticipant {
             rng,
             MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash),
             serialize!(&com)?,
-            message.id(),
+            sid,
             BroadcastTag::AuxinfoR1CommitHash,
         )?;
         Ok(messages)
     }
 
+    /// Handle other participants' round one message.
+    ///
+    /// This message is a broadcast message containing the other participant's
+    /// commitment to its [`AuxInfoPublic`] data. Once all such commitments have
+    /// been received, we generate a round two message.
     #[cfg_attr(feature = "flame_it", flame("auxinfo"))]
     #[instrument(skip_all, err(Debug))]
     fn handle_round_one_msg<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
         broadcast_message: &BroadcastOutput,
-        input: &(),
+        _input: &(),
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round one auxinfo message.");
 
@@ -304,20 +338,25 @@ impl AuxInfoParticipant {
         self.local_storage
             .store::<storage::Commit>(message.from(), AuxInfoCommit::from_message(message)?);
 
-        // check if we've received all the commits.
+        // Check if we've received all the commitments.
+        //
+        // Note that we only check whether we've recieved the commitments from
+        // the other participants, as there could be a case where we've handled
+        // all the other participants' round one message before we've generated
+        // _this_ participant's round one message.
         let r1_done = self
             .local_storage
             .contains_for_all_ids::<storage::Commit>(&self.other_participant_ids);
 
         if r1_done {
             // Generate messages for round two...
-            let round_one_messages = run_only_once!(self.gen_round_two_msgs(rng, message))?;
+            let round_one_messages = run_only_once!(self.gen_round_two_msgs(rng, message.id()))?;
 
             // ...and process any round two messages we may have received early.
             let round_two_outcomes = self
                 .fetch_messages(MessageType::Auxinfo(AuxinfoMessageType::R2Decommit))?
                 .iter()
-                .map(|msg| self.handle_round_two_msg(rng, msg, input))
+                .map(|msg| self.handle_round_two_msg(rng, msg))
                 .collect::<Result<Vec<_>>>()?;
 
             ProcessOutcome::collect_with_messages(round_two_outcomes, round_one_messages)
@@ -327,63 +366,77 @@ impl AuxInfoParticipant {
         }
     }
 
+    /// Generate this participant's round two message.
+    ///
+    /// This message is simply the decommitment to the commitment sent in round
+    /// one.
     #[cfg_attr(feature = "flame_it", flame("auxinfo"))]
     #[instrument(skip_all, err(Debug))]
     fn gen_round_two_msgs<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
-        message: &Message,
+        sid: Identifier,
     ) -> Result<Vec<Message>> {
         info!("Generating round two auxinfo messages.");
 
-        // check that we've generated our public info before trying to retrieve it
-        let public_keyshare_generated = self.local_storage.contains::<storage::Public>(self.id);
         let mut messages = vec![];
+        // Check that we've generated this participant's public info before trying to
+        // retrieve it.
+        let public_keyshare_generated = self.local_storage.contains::<storage::Public>(self.id);
         if !public_keyshare_generated {
-            let more_messages = run_only_once!(self.gen_round_one_msgs(rng, message))?;
+            // If not, we need to generate the round one messages, which will
+            // produce the necessary public info we were looking for above.
+            let more_messages = run_only_once!(self.gen_round_one_msgs(rng, sid))?;
             messages.extend_from_slice(&more_messages);
         }
 
-        // retrieve your decom from storage
         let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
         let decom_bytes = serialize!(&decom)?;
-        let more_messages: Vec<Message> = self
+        let messages: Vec<Message> = self
             .other_participant_ids
             .iter()
             .map(|&other_participant_id| {
                 Message::new(
                     MessageType::Auxinfo(AuxinfoMessageType::R2Decommit),
-                    message.id(),
+                    sid,
                     self.id,
                     other_participant_id,
                     &decom_bytes,
                 )
             })
             .collect();
-        messages.extend_from_slice(&more_messages);
         Ok(messages)
     }
 
+    /// Handle other participants' round two message.
+    ///
+    /// The message should correspond to a decommitment to the committed value
+    /// from round one. This method checks the validity of that decommitment.
+    /// Once (valid) decommitments from all other participants have been
+    /// received, we proceed to generating round three messages.
     #[cfg_attr(feature = "flame_it", flame("auxinfo"))]
     #[instrument(skip_all, err(Debug))]
     fn handle_round_two_msg<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
         message: &Message,
-        input: &(),
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round two auxinfo message.");
 
         // We must receive all commitments in round 1 before we start processing
-        // decommits in round 2.
-        let r1_done = self.local_storage.contains_for_all_ids::<storage::Commit>(
-            &[self.other_participant_ids.clone(), vec![self.id]].concat(),
-        );
+        // decommitments in round 2.
+        let r1_done = self
+            .local_storage
+            .contains_for_all_ids::<storage::Commit>(&self.all_participants());
         if !r1_done {
-            // store any early round2 messages
+            // store any early round 2 messages
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
+        // Convert the message into the decommitment value.
+        //
+        // Note: `AuxInfoDecommit::from_message` checks the validity of all its
+        // messages, which includes validating the `𝚷[prm]` proof.
         let decom = AuxInfoDecommit::from_message(message, &self.retrieve_context())?;
         let com = self
             .local_storage
@@ -392,19 +445,24 @@ impl AuxInfoParticipant {
         self.local_storage
             .store::<storage::Decommit>(message.from(), decom);
 
-        // check if we've received all the decommits
+        // Check if we've received all the decommitments.
+        //
+        // Note: This does _not_ check `self.all_participants()` on purpose. We
+        // could be in the setting where we've received round two messages from
+        // all other participants but haven't yet generated our own round one
+        // message.
         let r2_done = self
             .local_storage
             .contains_for_all_ids::<storage::Decommit>(&self.other_participant_ids);
         if r2_done {
             // Generate messages for round 3...
-            let round_two_messages = run_only_once!(self.gen_round_three_msgs(rng, message))?;
+            let round_two_messages = run_only_once!(self.gen_round_three_msgs(rng, message.id()))?;
 
             // ...and handle any messages that other participants have sent for round 3.
             let round_three_outcomes = self
                 .fetch_messages(MessageType::Auxinfo(AuxinfoMessageType::R3Proof))?
                 .iter()
-                .map(|msg| self.handle_round_three_msg(rng, msg, input))
+                .map(|msg| self.handle_round_three_msg(msg))
                 .collect::<Result<Vec<_>>>()?;
 
             ProcessOutcome::collect_with_messages(round_three_outcomes, round_two_messages)
@@ -413,15 +471,21 @@ impl AuxInfoParticipant {
         }
     }
 
+    /// Generate the participant's round three message.
+    ///
+    /// This corresponds to the following lines of Round 3 in Figure 6:
+    ///
+    /// - Step 2, Lines 1-2: Generate the `𝚷[mod]` and `𝚷[fac]` proofs.
     #[cfg_attr(feature = "flame_it", flame("auxinfo"))]
     #[instrument(skip_all, err(Debug))]
     fn gen_round_three_msgs<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
-        message: &Message,
+        sid: Identifier,
     ) -> Result<Vec<Message>> {
         info!("Generating round three auxinfo messages.");
 
+        // Extract all the `rid` values from all other participants.
         let rids: Vec<[u8; 32]> = self
             .other_participant_ids
             .iter()
@@ -433,10 +497,6 @@ impl AuxInfoParticipant {
             })
             .collect::<Result<Vec<[u8; 32]>>>()?;
         let my_decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
-        let my_public = self
-            .local_storage
-            .retrieve::<storage::Public>(self.id)?
-            .clone();
 
         let mut global_rid = my_decom.rid();
         // xor all the rids together. In principle, many different options for combining
@@ -450,44 +510,50 @@ impl AuxInfoParticipant {
             .store::<storage::GlobalRid>(self.id, global_rid);
 
         let witness = self.local_storage.retrieve::<storage::Witnesses>(self.id)?;
+        let product = &witness.p * &witness.q;
 
-        let proof = AuxInfoProof::prove(
-            rng,
-            &self.retrieve_context(),
-            message.id(),
-            global_rid,
-            my_public.params(),
-            &(&witness.p * &witness.q),
-            &witness.p,
-            &witness.q,
-        )?;
-        let proof_bytes = serialize!(&proof)?;
-
-        let round_three_messages: Vec<Message> = self
-            .other_participant_ids
+        self.other_participant_ids
             .iter()
-            .map(|&other_participant_id| {
-                Message::new(
+            .map(|&pid| {
+                // Grab the other participant's decommitment record from storage...
+                let verifier_decommit = self.local_storage.retrieve::<storage::Decommit>(pid)?;
+                // ... and use its setup parameters in the proof.
+                let proof = AuxInfoProof::prove(
+                    rng,
+                    &self.retrieve_context(),
+                    sid,
+                    global_rid,
+                    // XXX: Replace `into_public` with reference to
+                    // `AuxInfoPublic`? That should avoid an unnecessary clone.
+                    verifier_decommit.clone().into_public().params(),
+                    &product,
+                    &witness.p,
+                    &witness.q,
+                )?;
+                Ok(Message::new(
                     MessageType::Auxinfo(AuxinfoMessageType::R3Proof),
-                    message.id(),
+                    sid,
                     self.id,
-                    other_participant_id,
-                    &proof_bytes,
-                )
+                    pid,
+                    &serialize!(&proof)?,
+                ))
             })
-            .collect();
-        Ok(round_three_messages)
+            .collect::<Result<Vec<_>>>()
     }
 
-    /// Handle a message from round three. Since round 3 is the last round, this
-    /// method never returns additional messages.
+    /// Handle other participants' round three messages.
+    ///
+    /// This corresponds to the following lines in Output of Figure 6:
+    ///
+    /// - Step 1, Line 2: Verify the `𝚷[mod]` and `𝚷[fac]` proofs.
+    ///
+    /// - Step 2: Output the `(N, s, t)` tuple of each participant once all
+    ///   participants' proofs verify.
     #[cfg_attr(feature = "flame_it", flame("auxinfo"))]
     #[instrument(skip_all, err(Debug))]
-    fn handle_round_three_msg<R: RngCore + CryptoRng>(
+    fn handle_round_three_msg(
         &mut self,
-        _rng: &mut R,
         message: &Message,
-        _input: &(),
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round three auxinfo message.");
 
@@ -507,20 +573,23 @@ impl AuxInfoParticipant {
             .retrieve::<storage::Decommit>(message.from())?;
 
         let auxinfo_pub = decom.clone().into_public();
+        let my_public = self.local_storage.retrieve::<storage::Public>(self.id)?;
 
         let proof = AuxInfoProof::from_message(message)?;
+        // Verify the public parameters for the given participant. Note that
+        // this verification verifies _both_ the `𝚷[mod]` and `𝚷[fac]` proofs.
         proof.verify(
             &self.retrieve_context(),
             message.id(),
             *global_rid,
-            auxinfo_pub.params(),
+            my_public.params(),
             auxinfo_pub.pk().modulus(),
         )?;
 
         self.local_storage
             .store::<storage::Public>(message.from(), auxinfo_pub);
 
-        // Check if we've stored all the public auxinfo_pubs
+        // Check if we've stored all the `AuxInfoPublic`s.
         let done = self
             .local_storage
             .contains_for_all_ids::<storage::Public>(&self.all_participants());
@@ -547,6 +616,7 @@ impl AuxInfoParticipant {
             Ok(ProcessOutcome::Incomplete)
         }
     }
+
     #[cfg_attr(feature = "flame_it", flame("auxinfo"))]
     #[instrument(skip_all, err(Debug))]
     fn new_auxinfo<R: RngCore + CryptoRng>(

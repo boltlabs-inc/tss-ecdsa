@@ -19,11 +19,14 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::{error, instrument};
 
+/// The commitment produced in round one of the auxinfo protocol.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct AuxInfoCommit {
     hash: [u8; 32],
 }
+
 impl AuxInfoCommit {
+    /// Extract the [`AuxInfoCommit`] from the given [`Message`].
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         if message.message_type() != MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash) {
             error!(
@@ -38,6 +41,11 @@ impl AuxInfoCommit {
     }
 }
 
+/// Commitment scheme for the auxinfo protocol.
+///
+/// XXX: Calling this `...Decommit` is confusing I think, since this both
+/// produces commitments and decommits them. It should really be called
+/// `(AuxInfo)CommitmentScheme` I think.
 #[derive(Serialize, Deserialize, Clone)]
 ///`sid` corresponds to a unique session identifier.
 pub(crate) struct AuxInfoDecommit {
@@ -45,7 +53,7 @@ pub(crate) struct AuxInfoDecommit {
     sender: ParticipantIdentifier,
     rid: [u8; 32],
     u_i: [u8; 32],
-    public_keys: AuxInfoPublic,
+    public_key: AuxInfoPublic,
 }
 
 impl Debug for AuxInfoDecommit {
@@ -68,15 +76,15 @@ impl AuxInfoDecommit {
         auxinfo_participant: &AuxInfoParticipant,
         rng: &mut R,
         sid: &Identifier,
-        public_keys: AuxInfoPublic,
+        public_key: AuxInfoPublic,
     ) -> Result<Self> {
         let mut rid = [0u8; 32];
         let mut u_i = [0u8; 32];
         rng.fill_bytes(rid.as_mut_slice());
         rng.fill_bytes(u_i.as_mut_slice());
 
-        public_keys.verify(&auxinfo_participant.retrieve_context())?;
-        if &auxinfo_participant.id() != public_keys.participant() {
+        public_key.verify(&auxinfo_participant.retrieve_context())?;
+        if &auxinfo_participant.id() != public_key.participant() {
             error!("Created AuxInfoDecommit with different participant IDs in the sender and public_keys fields");
             return Err(InternalError::InternalInvariantFailed);
         }
@@ -86,10 +94,15 @@ impl AuxInfoDecommit {
             sender: auxinfo_participant.id(),
             rid,
             u_i,
-            public_keys,
+            public_key,
         })
     }
 
+    /// Converts a [`Message`] type into an [`AuxInfoDecommit`] type.
+    ///
+    /// This method includes validity checks for all the internal
+    /// [`AuxInfoDecommit`] values, and in particular, it validates that the
+    /// [`AuxInfoPublic`] value is valid.
     pub(crate) fn from_message(
         message: &Message,
         context: &<AuxInfoParticipant as InnerProtocolParticipant>::Context,
@@ -105,14 +118,14 @@ impl AuxInfoDecommit {
         let auxinfo_decommit: AuxInfoDecommit = deserialize!(&message.unverified_bytes)?;
 
         // Public parameters in this decommit must be consistent with each other
-        auxinfo_decommit.public_keys.verify(context)?;
+        auxinfo_decommit.public_key.verify(context)?;
 
         // Owner must be consistent across message, public keys, and decommit
-        if *auxinfo_decommit.public_keys.participant() != auxinfo_decommit.sender {
+        if *auxinfo_decommit.public_key.participant() != auxinfo_decommit.sender {
             error!(
                 "Deserialized AuxInfoDecommit has different participant IDs in the sender ({}) and public_keys ({}) fields",
                 auxinfo_decommit.sender,
-                auxinfo_decommit.public_keys.participant(),
+                auxinfo_decommit.public_key.participant(),
             );
             return Err(InternalError::ProtocolError);
         }
@@ -143,7 +156,7 @@ impl AuxInfoDecommit {
     }
 
     pub(crate) fn into_public(self) -> AuxInfoPublic {
-        self.public_keys
+        self.public_key
     }
 
     pub(crate) fn commit(&self) -> Result<AuxInfoCommit> {
@@ -154,9 +167,7 @@ impl AuxInfoDecommit {
         Ok(AuxInfoCommit { hash })
     }
 
-    /// Verify that this [`AuxInfoDecommit`] corresponds to the given
-    /// [`AuxInfoCommit`].
-    /// `sid` is a unique session identifier.
+    /// Verify that this type corresponds to the given [`AuxInfoCommit`].
     #[instrument(skip_all, err(Debug))]
     pub(crate) fn verify(
         &self,
