@@ -5,11 +5,11 @@ cargo bench bignumber_benchmark
 
 ## Bignumber Benchmarks
 
-| lib | openssl    | bigint    | gmp    | 
-| :---   | :--- | :--- | :--- |
-| prime gen | 1 s   | 52 s   | 15 s   |
-| :---   | :--- | :--- | :--- |
-| modpow | 5.46 ms    | 185 ms    | 10.5 ms    |
+| lib | prime gen | modpow |
+| :---   | :--- | :--- |
+| openssl    | 1 s   | 5.46 ms   |
+| bigint   |  52 s   | 185 ms   |
+| gmp    | 15 s   | 10.5 ms   |
 
 ## End to end benchmarks
 
