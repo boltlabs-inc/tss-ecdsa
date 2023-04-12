@@ -19,13 +19,15 @@ For running the end to end benchmarks:
 
 ## End to end benchmarks
 
+The table below measures the per party time for the different subparts of the tss-ecdsa protocol:
+
 | lock-keeper flow | tss-ecdsa protocol | 3 nodes    | 6 nodes    | 9 nodes    |
 | :---   | :--- | :--- | :--- | :--- |
-| key generation    | keygen  | 0.76 ms    | 1.7 ms    | 2.8 ms    |
-|                   | aux-info   | 6650 ms    | 6858 ms    | 7061 ms    |
-| signing    | presign   | 289 ms    | 700 ms    | 1145 ms    |
-|            | sign   | not evaluated (fast)    | not evaluated (fast)    | not evaluated (fast)    |
-[Per Party Time]
+| key generation part 1   | keygen  | 0.76 ms    | 1.7 ms    | 2.8 ms    |
+| key generation part 2   | aux-info   | 6650 ms    | 6858 ms    | 7061 ms    |
+| signing  part 1   | presign   | 289 ms    | 700 ms    | 1145 ms    |
+| signing  part 2   | sign   | not evaluated (fast)    | not evaluated (fast)    | not evaluated (fast)    |
+
 
 ### Macbook Pro
 
