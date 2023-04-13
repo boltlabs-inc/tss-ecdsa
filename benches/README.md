@@ -1,6 +1,6 @@
 ## Context
 
-The threshold ECDSA library breaks down the tss-ecdsa protocol by Canetti et. al into its constituent sub-protocols, namely keygen, auxinfo, pre-sign and sign, and bechmarks their running times for each party. 
+The threshold ECDSA library breaks down the tss-ecdsa protocol by Canetti et. al into its constituent sub-protocols, namely keygen, auxinfo, pre-sign and sign, and benchmarks their running times for each party. 
 
 ## Benchmarks
 
@@ -25,7 +25,7 @@ For running the end to end benchmarks:
 
 ## Bignumber Benchmarks
 
-The big-number crate we use is `unknown_order`, and it has a single interface that supports three different big-number backends: the pure-Rust `num_bigint` crate, `OpenSSL`, and `GMP`. We did some benchmarks on our highest-cost operations and found that GMP was the best option for us. The table below compares the two operations of `safe prime` generation and modular exponentiation for the 3 different big-number backends:
+The big-number crate we use is `unknown_order`, and it has a single interface that supports three different big-number backends: the pure-Rust `num_bigint` crate, `OpenSSL`, and `GMP`. We did some benchmarks on our highest-cost operations and found that GMP was the best option for us. The table below compares the two operations of safe prime generation and modular exponentiation for the 3 different big-number backends:
 
 | lib | prime gen | modpow |
 | :---   | :--- | :--- |
@@ -48,10 +48,4 @@ It takes < #nodes > * < reported value > seconds for all the nodes to run in ser
 
 The above benchmarks were measured on December 2022. 
 
-### Macbook Pro
 
-We also ran the tss-ecdsa protocol with 3 parties on a regular Macbook Pro with Apple M1 Pro Chip and 16 GB Memory. As of 12th April 2023, the results are as follows:
-
-| tss-ecdsa protocol | keygen   | aux-info   | presign   | sign   |
-| :---   | :--- | :--- | :--- | :--- |
-| 3 nodes    | 0.0013259 ms    | 0.0017117 ms    | 0.000032441 ms    | not evaluated (fast)    |
