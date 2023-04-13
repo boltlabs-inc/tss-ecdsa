@@ -54,4 +54,4 @@ We also ran the tss-ecdsa protocol with 3 parties on a regular Macbook Pro with 
 
 | tss-ecdsa protocol | keygen   | aux-info   | presign   | sign   |
 | :---   | :--- | :--- | :--- | :--- |
-| 3 nodes    | 1.3259 µs    | 1.7117 µs    | 32.441 ns    | not evaluated (fast)    |
+| 3 nodes    | 0.0013259 ms    | 0.0017117 ms    | 0.000032441 ms    | not evaluated (fast)    |
