@@ -9,10 +9,7 @@
 use crate::{
     auxinfo::info::{AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    errors::{
-        InternalError::{self, InternalInvariantFailed},
-        Result,
-    },
+    errors::{InternalError, Result},
     keygen::keyshare::{KeySharePrivate, KeySharePublic},
     local_storage::LocalStorage,
     messages::{Message, MessageType, PresignMessageType},
@@ -155,7 +152,11 @@ impl Input {
         keyshare_private: KeySharePrivate,
     ) -> Result<Self> {
         if all_auxinfo_public.len() != all_keyshare_public.len() {
-            error!("Number of auxinfo and keyshare public entries is not equal");
+            error!(
+                "Number of auxinfo ({:?}) and keyshare ({:?}) public entries is not equal",
+                all_auxinfo_public.len(),
+                all_keyshare_public.len()
+            );
             Err(InternalError::InternalInvariantFailed)
         } else {
             Ok(Self {
@@ -689,10 +690,13 @@ impl PresignParticipant {
             .retrieve::<storage::RoundThreePrivate>(self.id)?;
 
         // Check consistency across all Gamma values
-        for r3_pub in r3_pubs.iter() {
+        for (i, r3_pub) in r3_pubs.iter().enumerate() {
             if r3_pub.Gamma != r3_private.Gamma {
-                error!("Mismatch in Gamma values for r3_pub and r3_private");
-                return Err(InternalInvariantFailed);
+                error!(
+                    "Mismatch in Gamma values for r3_private and the r3_pub of participant: {:?}",
+                    &self.other_participant_ids[i]
+                );
+                return Err(InternalError::ProtocolError);
             }
         }
 

@@ -72,7 +72,11 @@ impl LocalStorage {
             .get(&(participant_id, TypeId::of::<T>()))
             .map(|any| {
                 any.downcast_ref::<T::Value>().ok_or_else(|| {
-                    error!("Could not downcast storage entry to <T as TypeTag>::Value");
+                    error!(
+                        "Could not downcast storage entry. T: {:?}, participant_id: {}",
+                        TypeId::of::<T>(),
+                        participant_id
+                    );
                     InternalError::InternalInvariantFailed
                 })
             })
@@ -89,7 +93,11 @@ impl LocalStorage {
             .get_mut(&(participant_id, TypeId::of::<T>()))
             .map(|any| {
                 any.downcast_mut::<T::Value>().ok_or_else(|| {
-                    error!("Could not downcast storage entry to <T as TypeTag>::Value");
+                    error!(
+                        "Could not downcast storage entry. T: {:?}, participant_id: {}",
+                        TypeId::of::<T>(),
+                        participant_id
+                    );
                     InternalError::InternalInvariantFailed
                 })
             })
