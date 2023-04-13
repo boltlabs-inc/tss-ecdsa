@@ -48,25 +48,42 @@
 //! - out-of-order messaging
 //! - protocol round execution
 //!
-//! # Requirements of the calling application
+//! # 🔒 Requirements of the calling application
 //! This library **does not** implement the complete protocol. There are several
 //! security-critical steps that must be handled by the calling application. We
 //! leave these undone intentionally, to allow increased flexibility in
 //! deploying the library, but this does mean that it requires cryptographic
 //! expertise to advise on security of the remaining components.
+//! These caller requirements are highlighted throughout the documentation with
+//! the 🔒 symbol.
 //!
 //! 1. Networking. The protocol requires point-to-point channels between
 //! individual participants, as well as a UC-secure, synchronous broadcast
 //! mechanism. This library currently supports broadcast using the
 //! echo-broadcast protocol described by Goldwasser and Lindell[^echo], so the
-//! calling application only has to implement point-to-point channels. However,
-//! this will likely change.
+//! calling application only has to implement point-to-point channels.
+//! This may change in future library versions.
 //!
 //! 2. Secure persistent storage. The protocol is composed of four subprotocols,
 //! each taking input and returning output. The calling application must persist
 //! this output and provide it at subsequent protocol executions. Some of the
 //! outputs are private values that should be stored securely. See
 //! [`Participant`] for more details.
+//!
+//! 3. Identifier creation. To create a [`Participant`], the calling
+//! application must specify a session [`Identifier`] and
+//! [`ParticipantIdentifier`]s for each party. We do not specify a protocol for
+//! creating these; depending on the trust assumptions of the deployment, the
+//! caller can select an appropriate protocol that will ensure that all parties
+//! agree on the set of identifiers. They must satisfy several properties:
+//!     1. All identifiers must be consistent across all
+//! participants in a session.
+//!     2. The session [`Identifier`] must be global and unique;
+//! in particular, it must not be reused across multiple protocol
+//! instances.
+//!     3. The [`ParticipantIdentifier`]s can be reused across multiple
+//! sessions, but we don't recommend reusing a single [`ParticipantIdentifier`]
+//! for different real-world entities.
 //!
 //! # ⚠️ Security warning
 //! The implementation in this crate has not been independently audited for
