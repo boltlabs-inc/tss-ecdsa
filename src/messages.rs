@@ -85,12 +85,6 @@ pub enum BroadcastMessageType {
 }
 
 /// A message that can be posted to (and read from) the communication channel.
-///
-/// TODO: The [`ProtocolParticipant`](crate::ProtocolParticipant)
-/// implementations assume that `Message` is validly constructed. Is there
-/// anything bad that can happen if `message_type`, `identifier`, etc are
-/// maliciously generated? In particular, what if participant A uses the
-/// `ParticipantIdentifier` of participant B?
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Message {
     /// The type of the message

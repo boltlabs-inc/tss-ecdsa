@@ -62,8 +62,6 @@ mod storage {
 }
 
 /// Protocol status for [`KeygenParticipant`].
-///
-/// XXX: Add additional statuses: `Ready`, `RoundOneDone`, `RoundTwoDone`.
 #[derive(Debug, PartialEq)]
 pub enum Status {
     /// The protocol has been initialized.
@@ -225,13 +223,9 @@ impl KeygenParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling ready keygen message.");
 
-        // XXX add a check that we haven't already completed the "Ready" phase
-        // of the protocol.
-
         let (ready_outcome, is_ready) = self.process_ready_message::<storage::Ready>(message)?;
 
         if is_ready {
-            // XXX change `Status` from `Initialized` to `Ready`
             let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, message.id()))?;
             Ok(ready_outcome.with_messages(round_one_messages))
         } else {
@@ -411,8 +405,6 @@ impl KeygenParticipant {
         info!("Handling round two keygen message.");
         // We must receive all commitments in round 1 before we start processing
         // decommits in round 2.
-        //
-        // XXX would it be less error-prone to have a `RoundOneDone` storage entry?
         let r1_done = self
             .local_storage
             .contains_for_all_ids::<storage::Commit>(&self.all_participants());
@@ -540,7 +532,6 @@ impl KeygenParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round three keygen message.");
 
-        // XXX error prone, use a `RoundTwoDone` storage entry instead.
         if self
             .local_storage
             .retrieve::<storage::GlobalRid>(self.id)
@@ -636,7 +627,6 @@ mod tests {
             quorum_size: usize,
             rng: &mut R,
         ) -> Result<Vec<Self>> {
-            // XXX Use existing `random_quorum` method to simplify this implementation.
             let mut participant_ids = vec![];
             for _ in 0..quorum_size {
                 participant_ids.push(ParticipantIdentifier::random(rng));
@@ -656,7 +646,6 @@ mod tests {
                 .collect::<Vec<KeygenParticipant>>();
             Ok(participants)
         }
-        // XXX Already exists as `Participant::initialize_message`
         pub fn initialize_keygen_message(&self, keygen_identifier: Identifier) -> Message {
             Message::new(
                 MessageType::Keygen(KeygenMessageType::Ready),
