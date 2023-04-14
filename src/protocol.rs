@@ -291,7 +291,7 @@ impl ParticipantConfig {
 ///
 /// All [`Participant`]s in a session must agree on the
 /// [`ParticipantIdentifier`]s. That is, these are not local identifiers
-/// controlled by a single `Participant`; they are global, unique, agreed-upon
+/// controlled by a single `Participant`; they are unique, agreed-upon
 /// identifiers for the `Participant`s in a session. Each entity participating
 /// in a session should have a different `ParticipantIdentifier`.
 ///
@@ -301,6 +301,9 @@ impl ParticipantConfig {
 /// those sessions. However, a single `ParticipantIdentifier` should not be used
 /// to represent different entities (even in different sessions with
 /// non-overlapping participant sets!).
+///
+/// `ParticipantIdentifier`s should be unique within a deployment, but they
+/// don't necessarily have to be globally unique.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ParticipantIdentifier(u128);
 
