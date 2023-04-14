@@ -75,15 +75,20 @@
 //! [`ParticipantIdentifier`]s for each party. We do not specify a protocol for
 //! creating these; depending on the trust assumptions of the deployment, the
 //! caller can select an appropriate protocol that will ensure that all parties
-//! agree on the set of identifiers. They must satisfy several properties:
+//! agree on the set of identifiers. See [`Identifier`] and
+//! [`ParticipantIdentifier`] for more details. They must satisfy several
+//! properties:     
 //!     1. All identifiers must be consistent across all
 //! participants in a session.
 //!     2. The session [`Identifier`] must be global and unique;
 //! in particular, it must not be reused across multiple protocol
 //! instances.
-//!     3. The [`ParticipantIdentifier`]s can be reused across multiple
-//! sessions, but we don't recommend reusing a single [`ParticipantIdentifier`]
-//! for different real-world entities.
+//!     3. The [`ParticipantIdentifier`]s must be unique within the session.
+//! A [`ParticipantIdentifier`] assigned to a specific entity can be reused
+//! across multiple session by that entity.
+//! They should not be reused for different real-world entities; we don't make
+//! any guarantees about system behavior when [`ParticipantIdentifier`]s are
+//! reused in this way.
 //!
 //! # ⚠️ Security warning
 //! The implementation in this crate has not been independently audited for
