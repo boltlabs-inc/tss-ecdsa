@@ -90,24 +90,26 @@ pub enum Status {
 ///
 /// # High-level protocol description
 /// The auxinfo protocol runs in four rounds:
-/// - In the first round, each participant generates an RSA modulus `N = pq`,
-///   alongside ring-Pedersen parameters `(s, t, λ)` such that `s = t^λ mod N`.
-///   Each participant then produces a zero-knowledge proof `𝚷[prm]` that the
-///   ring-Pedersen parameters are correct. Finally, each participant commits to
-///   the tuple `(N, s, t, 𝚷[prm])` and broadcasts this commitment.
-/// - Once all participants have received all broadcasted commitments, in the
-///   second round each participant sends its own decommitment to all other
+/// - In the first round, we generate an RSA modulus `N = pq`, alongside
+///   ring-Pedersen parameters `(s, t, λ)` such that `s = t^λ mod N`. We then
+///   produce a zero-knowledge proof `𝚷[prm]` that the ring-Pedersen parameters
+///   are correct. Finally, we commit to the tuple `(N, s, t, 𝚷[prm])` and
+///   broadcasts this commitment.
+/// - Once we have received all broadcasted commitments, in the second round we
+///   send a decommitment to the commited value in round one to all other
 ///   participants.
-/// - In the third round, each participant (1) checks the validity of all the
-///   commitments plus the validity of the committed `𝚷[prm]` proof, and (2)
-///   produces two additional proofs: the first, `𝚷[mod]`, which asserts the
-///   validity of `N`, and the second, `𝚷[fac]`, which asserts that neither
-///   factor of `N` is "too small". Each participant sends these proofs to all
-///   other participants.
-/// - Finally, in the last round each participant checks the validity of the
-///   proofs from round three. If everything passes, each participant outputs
-///   the `(N, s, t)` tuples from all parties (including itself), alongside its
-///   own secret primes `(p, q)`.
+/// - In the third round, we (1) check the validity of all the commitments plus
+///   the validity of the committed `𝚷[prm]` proof, and (2) generate the
+///   following proofs: `𝚷[mod]`, which asserts the validity of `N` as a
+///   product of two primes, and `𝚷[fac]` _for each other participant_, which
+///   asserts that neither factor of `N` is "too small". (The `𝚷[fac]` proof
+///   needs to be generated for each other participant as it relies on
+///   parameters supplied by the given participant.) We then send `𝚷[mod]`
+///   alongside the appropriate `𝚷[fac]` to each other participant.
+/// - Finally, in the last round we check the validity of the proofs from round
+///   three. If everything passes, we output the `(N, s, t)` tuples from all
+///   participants (including ourselves), alongside our own secret primes `(p,
+///   q)`.
 ///
 /// [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
 /// Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
@@ -477,6 +479,8 @@ impl AuxInfoParticipant {
     /// This corresponds to the following lines of Round 3 in Figure 6:
     ///
     /// - Step 2, Lines 1-2: Generate the `𝚷[mod]` and `𝚷[fac]` proofs.
+    ///
+    /// Note that Step 1 is handled in `handle_round_two_msg`.
     #[cfg_attr(feature = "flame_it", flame("auxinfo"))]
     #[instrument(skip_all, err(Debug))]
     fn gen_round_three_msgs<R: RngCore + CryptoRng>(
