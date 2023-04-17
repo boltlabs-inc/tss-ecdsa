@@ -351,8 +351,7 @@ impl std::fmt::Display for ParticipantIdentifier {
 /// Sample protocols (with varying trust models!) could include:
 /// - A trusted party randomly samples a unique identifier with
 ///   `Identifier::random()` and sends it to all parties;
-/// - The participants run a Byzantine agreement protocol;
-/// - The participants use a pseudorandom correlation generator.
+/// - The participants run a Byzantine agreement protocol.
 ///
 /// # Discrepancies with the paper with respect to session identifiers:
 /// The paper defines session identifiers, denoted `sid` and `ssid`, somewhat
