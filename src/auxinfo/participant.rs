@@ -100,12 +100,12 @@ pub enum Status {
 ///   participants.
 /// - In the third round, we (1) check the validity of all the commitments plus
 ///   the validity of the committed `𝚷[prm]` proof, and (2) generate the
-///   following proofs: `𝚷[mod]`, which asserts the validity of `N` as a
-///   product of two primes, and `𝚷[fac]` _for each other participant_, which
-///   asserts that neither factor of `N` is "too small". (The `𝚷[fac]` proof
-///   needs to be generated for each other participant as it relies on
-///   parameters supplied by the given participant.) We then send `𝚷[mod]`
-///   alongside the appropriate `𝚷[fac]` to each other participant.
+///   following proofs: `𝚷[mod]`, which asserts the validity of `N` as a product
+///   of two primes, and `𝚷[fac]` _for each other participant_, which asserts
+///   that neither factor of `N` is "too small". (The `𝚷[fac]` proof needs to be
+///   generated for each other participant as it relies on parameters supplied
+///   by the given participant.) We then send `𝚷[mod]` alongside the appropriate
+///   `𝚷[fac]` to each other participant.
 /// - Finally, in the last round we check the validity of the proofs from round
 ///   three. If everything passes, we output the `(N, s, t)` tuples from all
 ///   participants (including ourselves), alongside our own secret primes `(p,
