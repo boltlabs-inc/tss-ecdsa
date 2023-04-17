@@ -101,12 +101,13 @@ pub enum Status {
 /// - In the third round, each participant (1) checks the validity of all the
 ///   commitments plus the validity of the committed `𝚷[prm]` proof, and (2)
 ///   produces two additional proofs: the first, `𝚷[mod]`, which asserts the
-///   validity of `N`, and the second, `𝚷[fac]`, which ????. Each participant
-///   sends these proofs to all other participants.
+///   validity of `N`, and the second, `𝚷[fac]`, which asserts that neither
+///   factor of `N` is "too small". Each participant sends these proofs to all
+///   other participants.
 /// - Finally, in the last round each participant checks the validity of the
 ///   proofs from round three. If everything passes, each participant outputs
-///   the `(N, s, t)` tuples from all other parties, alongside its own secret
-///   primes `(p, q)`.
+///   the `(N, s, t)` tuples from all parties (including itself), alongside its
+///   own secret primes `(p, q)`.
 ///
 /// [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
 /// Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
