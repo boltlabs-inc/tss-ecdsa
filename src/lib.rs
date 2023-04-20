@@ -42,23 +42,23 @@
 //! This library **does not** implement the complete protocol. There are several
 //! security-critical steps that must be handled by the calling application. We
 //! leave these undone intentionally, to allow increased flexibility in
-//! deploying the library, but this does mean that it requires cryptographic
-//! expertise to advise on security of the remaining components.
-//! These caller requirements are highlighted throughout the documentation with
-//! the 🔒 symbol.
+//! deploying the library, but this does mean that a successful, correct
+//! deployment requires cryptographic expertise to advise on security of the
+//! remaining components.
 //!
-//! 1. Networking. The protocol requires point-to-point channels between
-//! individual participants, as well as a UC-secure, synchronous broadcast
-//! mechanism. This library currently supports broadcast using the
-//! echo-broadcast protocol described by Goldwasser and Lindell[^echo], so the
-//! calling application only has to implement point-to-point channels.
-//! This may change in future library versions.
+//! These caller requirements are highlighted throughout the documentation with
+//! the 🔒 symbol. At a high level, they include:
+//!
+//! 1. Networking. The protocol requires messages to be sent over secure
+//! channels between the [`Participant`]s. The library does not implement _any_
+//! networking; it simply produces messages to be sent out.
+//! See [Networking section](#-networking) below for details.
 //!
 //! 2. Secure persistent storage. The protocol is composed of four subprotocols,
 //! each taking input and returning output. The calling application must persist
-//! this output and provide it at subsequent protocol executions. Some of the
-//! outputs are private values that should be stored securely. See
-//! [`Participant`] for more details.
+//! outputs, provide them as input for subsequent protocol executions, and
+//! delete them at the end of their lifetimes. Some outputs are private values
+//! that must be stored securely. See [`Participant`] for more details.
 //!
 //! 3. Identifier creation. To create a [`Participant`], the calling
 //! application must specify a session [`Identifier`] and
@@ -88,6 +88,37 @@
 //! At this time, we do not recommend use for security-critical applications.
 //! Use at your own risk.
 //!
+//! # 🔒 Networking
+//!
+//! The calling application is responsible for sending messages between
+//! participants in the protocol.
+//! All communication between [`Participant`]s must take place over a secure
+//! channel that satisfies mutual entity authentication and integrity.
+//!
+//! The protocol requires a UC-secure, synchronous, authenticated broadcast
+//! channel for use by the [`Participant`]s. Currently, the library handles this
+//! automatically by implementing the echo-broadcast protocol described by
+//! Goldwasser and Lindell[^echo]. This is the approach the paper recommends,
+//! but we note that this reduces the security of the protocol to selective
+//! abort[^abort] rather than the stronger notion of identifiable abort that a
+//! perfect authenticated broadcast protocol would allow.
+//!
+//! All messages sent between participants require mutual entity authentication.
+//! In practice, this is typically instantiated using a public key
+//! infrastructure (PKI) to associate signing keys to entities.
+//! Briefly, each message is accompanied by a signature on that message, under
+//! the signing key associated with the sending entity.
+//! Since the library does not deal directly with communication channels, it
+//! cannot validate that messages are correctly associated with their sender.
+//!
+//! Instead, the calling application is responsible for maintaining a mapping
+//! between the [`ParticipantIdentifier`] and the signing key associated with
+//! each entity. [`Message`]s contain a `from: ParticipantIdentifier` field
+//! which specifies the sender of a message. On receiving a message and
+//! signature over a channel, the calling application must check that the `from`
+//! field in the message matches the signing key used to generate the signature.
+//! This ensures that the sender is not lying about its identity.
+//!
 //! # Useful features
 //!
 //! A [`Participant`] processes messages received from other [`Participant`]s
@@ -100,7 +131,7 @@
 //! retrieved and processed at the appropriate time.
 //!
 //! A sub-protocol session automatically progresses between rounds; the calling
-//! application does not have to track where within a session the protcool
+//! application does not have to track where within a session the protocol
 //! execution is at a given time.
 //!
 //! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
@@ -114,6 +145,15 @@
 //! [^echo]: Shafi Goldwasser and Yehuda Lindell. Secure Multi-Party Computation
 //! without Agreement. [Journal of Cryptology,
 //! 2005](https://link.springer.com/content/pdf/10.1007/s00145-005-0319-z.pdf).
+//!
+//! [^abort]: In a protocol that offers identifiable abort,
+//! malicious participants may cause the protocol to abort but
+//! honest participants are able to identify the malicious party (and take
+//! recovery actions). In a protocol that offers selective abort, malicious
+//! participants may cause _some_ honest participants to abort, but any
+//! non-aborting honest participants have the correct output. This is weaker
+//! because honest parties do not identify malicious parties and there is
+//! inconsistency across honest parties on whether an abort happened or not.
 
 #![allow(non_snake_case)] // FIXME: To be removed in the future
 #![warn(missing_docs)]
