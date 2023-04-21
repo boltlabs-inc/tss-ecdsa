@@ -10,7 +10,7 @@ use crate::{
     auxinfo::{info::AuxInfoPublic, participant::AuxInfoParticipant},
     errors::{InternalError, Result},
     messages::{AuxinfoMessageType, Message, MessageType},
-    participant::InnerProtocolParticipant,
+    participant::{InnerProtocolParticipant, ProtocolParticipant},
     protocol::{Identifier, ParticipantIdentifier},
 };
 use merlin::Transcript;

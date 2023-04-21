@@ -129,6 +129,14 @@ impl ProtocolParticipant for AuxInfoParticipant {
         ProtocolType::AuxInfo
     }
 
+    fn id(&self) -> ParticipantIdentifier {
+        self.id
+    }
+
+    fn other_ids(&self) -> &Vec<ParticipantIdentifier> {
+        &self.other_participant_ids
+    }
+
     #[cfg_attr(feature = "flame_it", flame("auxinfo"))]
     #[instrument(skip_all, err(Debug))]
     fn process_message<R: RngCore + CryptoRng>(
@@ -182,14 +190,6 @@ impl InnerProtocolParticipant for AuxInfoParticipant {
 
     fn local_storage_mut(&mut self) -> &mut LocalStorage {
         &mut self.local_storage
-    }
-
-    fn id(&self) -> ParticipantIdentifier {
-        self.id
-    }
-
-    fn other_ids(&self) -> &Vec<ParticipantIdentifier> {
-        &self.other_participant_ids
     }
 }
 

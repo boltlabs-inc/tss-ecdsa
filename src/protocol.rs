@@ -129,11 +129,6 @@ impl<P: ProtocolParticipant> Participant<P> {
     ) -> Result<(Option<P::Output>, Vec<Message>)> {
         info!("Processing single message.");
 
-        // Check recipient
-        if message.to() != self.id {
-            Err(CallerError::WrongMessageRecipient)?
-        }
-
         // Check SID
         if message.id() != self.sid {
             error!(
@@ -158,6 +153,20 @@ impl<P: ProtocolParticipant> Participant<P> {
                 Err(CallerError::WrongProtocol)?
             }
         };
+
+        // Check recipient
+        if message.to() != self.id {
+            Err(CallerError::WrongMessageRecipient)?
+        }
+
+        // Check that message is from a participant in this session
+        if !self
+            .participant
+            .all_participants()
+            .contains(&message.from())
+        {
+            Err(CallerError::InvalidMessageSender)?
+        }
 
         // Handle it!
         let outcome = self
@@ -288,6 +297,15 @@ impl ParticipantConfig {
                 Self { id, other_ids }
             })
             .collect()
+    }
+
+    fn random<R: RngCore + CryptoRng>(size: usize, rng: &mut R) -> ParticipantConfig {
+        assert!(size > 1);
+        let other_ids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
+            .take(size - 1)
+            .collect::<Vec<_>>();
+        let id = ParticipantIdentifier::random(rng);
+        Self { id, other_ids }
     }
 }
 
@@ -459,6 +477,139 @@ mod tests {
     use sha2::{Digest, Sha256};
     use std::collections::HashMap;
     use tracing::debug;
+
+    // Negative test checking whether the message has the correct session id
+    #[test]
+    fn participant_rejects_messages_with_wrong_session_id() {
+        let mut rng = init_testing();
+        let QUORUM_SIZE = 3;
+
+        // Set up a single valid participant
+        let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
+        let auxinfo_sid = Identifier::random(&mut rng);
+        let mut participant =
+            Participant::<AuxInfoParticipant>::from_config(&config, auxinfo_sid, ());
+
+        // Make a message with the wrong session ID
+        let message = participant.initialize_message();
+        let bad_sid = Identifier::random(&mut rng);
+        assert_ne!(bad_sid, message.id());
+        let bad_sid_message = Message::new(
+            message.message_type,
+            bad_sid,
+            message.from(),
+            message.to(),
+            &message.unverified_bytes,
+        );
+
+        // Make sure the participant rejects the message
+        let result = participant.process_single_message(&bad_sid_message, &mut rng);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            InternalError::CallingApplicationMistake(CallerError::WrongSessionId)
+        );
+    }
+
+    // Negative test checking whether the message has the correct recipient
+    // participant
+    #[test]
+    fn participant_rejects_messages_with_wrong_participant_to_field() {
+        let mut rng = init_testing();
+        let QUORUM_SIZE = 3;
+
+        // Set up a single valid participant
+        let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
+        let auxinfo_sid = Identifier::random(&mut rng);
+        let mut participant =
+            Participant::<AuxInfoParticipant>::from_config(&config, auxinfo_sid, ());
+
+        // Make a message with the wrong participant to field
+        let message = participant.initialize_message();
+        let bad_receiver_pid = ParticipantIdentifier::random(&mut rng);
+        assert_ne!(participant.id(), bad_receiver_pid);
+        let bad_receiver_pid_message = Message::new(
+            message.message_type,
+            message.id(),
+            message.from(),
+            bad_receiver_pid,
+            &message.unverified_bytes,
+        );
+
+        // Make sure the participant rejects the message
+        let result = participant.process_single_message(&bad_receiver_pid_message, &mut rng);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            InternalError::CallingApplicationMistake(CallerError::WrongMessageRecipient)
+        );
+    }
+
+    // Negative test checking whether the message has the correct protocol type
+    #[test]
+    fn participant_rejects_messages_with_wrong_protocol_type() {
+        let mut rng = init_testing();
+        let QUORUM_SIZE = 3;
+
+        // Set up a single valid participant
+        let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
+        let auxinfo_sid = Identifier::random(&mut rng);
+        let mut participant =
+            Participant::<AuxInfoParticipant>::from_config(&config, auxinfo_sid, ());
+
+        // Make a message with the wrong protocol type
+        let message = participant.initialize_message();
+        let bad_message_type =
+            MessageType::Keygen(crate::messages::KeygenMessageType::R1CommitHash);
+        let bad_protocol_type_message = Message::new(
+            bad_message_type,
+            message.id(),
+            message.from(),
+            message.to(),
+            &message.unverified_bytes,
+        );
+
+        // Make sure the participant rejects the message
+        let result = participant.process_single_message(&bad_protocol_type_message, &mut rng);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            InternalError::CallingApplicationMistake(CallerError::WrongProtocol)
+        );
+    }
+
+    // Negative test checking whether the message sender is included in the list of
+    // all participants
+    #[test]
+    fn participant_rejects_messages_with_wrong_sender_participant() {
+        let mut rng = init_testing();
+        let QUORUM_SIZE = 3;
+
+        // Set up a single valid participant
+        let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
+        let auxinfo_sid = Identifier::random(&mut rng);
+        let mut participant =
+            Participant::<AuxInfoParticipant>::from_config(&config, auxinfo_sid, ());
+
+        //message with the wrong sender participant
+        let message = participant.initialize_message();
+        let bad_sender_pid = ParticipantIdentifier::random(&mut rng);
+        let bad_sender_pid_message = Message::new(
+            message.message_type(),
+            message.id(),
+            bad_sender_pid,
+            message.to(),
+            &message.unverified_bytes,
+        );
+
+        // Make sure the participant rejects the message
+        let result = participant.process_single_message(&bad_sender_pid_message, &mut rng);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            InternalError::CallingApplicationMistake(CallerError::InvalidMessageSender)
+        );
+    }
 
     /// Delivers all messages into their respective participant's inboxes   
     fn deliver_all(

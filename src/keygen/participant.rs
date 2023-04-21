@@ -144,6 +144,14 @@ impl ProtocolParticipant for KeygenParticipant {
         ProtocolType::Keygen
     }
 
+    fn id(&self) -> ParticipantIdentifier {
+        self.id
+    }
+
+    fn other_ids(&self) -> &Vec<ParticipantIdentifier> {
+        &self.other_participant_ids
+    }
+
     #[cfg_attr(feature = "flame_it", flame("keygen"))]
     #[instrument(skip_all)]
     fn process_message<R: RngCore + CryptoRng>(
@@ -194,14 +202,6 @@ impl InnerProtocolParticipant for KeygenParticipant {
 
     fn local_storage_mut(&mut self) -> &mut LocalStorage {
         &mut self.local_storage
-    }
-
-    fn id(&self) -> ParticipantIdentifier {
-        self.id
-    }
-
-    fn other_ids(&self) -> &Vec<ParticipantIdentifier> {
-        &self.other_participant_ids
     }
 }
 
@@ -804,7 +804,10 @@ mod tests {
 
         // Check that each participant's own `PublicKeyshare` corresponds to their
         // `PrivateKeyshare`
-        for ((publics, private), pid) in outputs.iter().zip(quorum.iter().map(|p| p.id())) {
+        for ((publics, private), pid) in outputs
+            .iter()
+            .zip(quorum.iter().map(ProtocolParticipant::id))
+        {
             let public_share = publics
                 .iter()
                 .find(|public_share| public_share.participant() == pid);

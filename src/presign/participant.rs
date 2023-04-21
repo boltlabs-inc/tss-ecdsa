@@ -219,6 +219,14 @@ impl ProtocolParticipant for PresignParticipant {
         ProtocolType::Presign
     }
 
+    fn id(&self) -> ParticipantIdentifier {
+        self.id
+    }
+
+    fn other_ids(&self) -> &Vec<ParticipantIdentifier> {
+        &self.other_participant_ids
+    }
+
     /// Processes the incoming message given the storage from the protocol
     /// participant (containing auxinfo and keygen artifacts). Optionally
     /// produces a [`PresignRecord`] once presigning is complete.
@@ -280,14 +288,6 @@ impl InnerProtocolParticipant for PresignParticipant {
 
     fn local_storage_mut(&mut self) -> &mut LocalStorage {
         &mut self.local_storage
-    }
-
-    fn id(&self) -> ParticipantIdentifier {
-        self.id
-    }
-
-    fn other_ids(&self) -> &Vec<ParticipantIdentifier> {
-        &self.other_participant_ids
     }
 }
 

@@ -72,12 +72,14 @@ pub enum InternalError {
 #[derive(Clone, Eq, PartialEq, Error, Debug)]
 #[allow(missing_docs)]
 pub enum CallerError {
-    #[error("Recieved a message with the wrong recipient ID")]
+    #[error("Received a message with the wrong recipient ID")]
     WrongMessageRecipient,
-    #[error("Recieved a message with the wrong session ID")]
+    #[error("Received a message with the wrong session ID")]
     WrongSessionId,
-    #[error("Recieved a message with the wrong protocol type for this participant (malicious behavior suspected)")]
+    #[error("Received a message with the wrong protocol type for this participant (malicious behavior suspected)")]
     WrongProtocol,
+    #[error("Received a message from a sender not included in the list of participants")]
+    InvalidMessageSender,
 }
 
 macro_rules! serialize {

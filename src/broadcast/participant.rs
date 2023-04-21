@@ -99,6 +99,14 @@ impl ProtocolParticipant for BroadcastParticipant {
         }
     }
 
+    fn id(&self) -> ParticipantIdentifier {
+        self.id
+    }
+
+    fn other_ids(&self) -> &Vec<ParticipantIdentifier> {
+        &self.other_participant_ids
+    }
+
     fn ready_type() -> MessageType {
         // I'm not totally confident since broadcast takes a different shape than the
         // other protocols, but this is definitely the first message in the
@@ -160,14 +168,6 @@ impl InnerProtocolParticipant for BroadcastParticipant {
 
     fn local_storage_mut(&mut self) -> &mut LocalStorage {
         &mut self.local_storage
-    }
-
-    fn id(&self) -> ParticipantIdentifier {
-        self.id
-    }
-
-    fn other_ids(&self) -> &Vec<ParticipantIdentifier> {
-        &self.other_participant_ids
     }
 }
 

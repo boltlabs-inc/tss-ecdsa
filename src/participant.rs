@@ -186,6 +186,19 @@ pub trait ProtocolParticipant {
     /// Create a new [`ProtocolParticipant`] from the given ids.
     fn new(id: ParticipantIdentifier, other_participant_ids: Vec<ParticipantIdentifier>) -> Self;
 
+    /// Return the participant id
+    fn id(&self) -> ParticipantIdentifier;
+
+    /// Return other Participant ids apart from the current one
+    fn other_ids(&self) -> &Vec<ParticipantIdentifier>;
+
+    /// Returns a list of all participant IDs, including `self`'s.
+    fn all_participants(&self) -> Vec<ParticipantIdentifier> {
+        let mut participant = self.other_ids().clone();
+        participant.push(self.id());
+        participant
+    }
+
     /// Process an incoming message.
     ///
     /// This method should parse the message, do any immediate per-message
@@ -232,18 +245,6 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
     /// Returns a mutable reference to the [`LocalStorage`] associated with this
     /// protocol.
     fn local_storage_mut(&mut self) -> &mut LocalStorage;
-    /// Returns this participant's [`ParticipantIdentifier`].
-    fn id(&self) -> ParticipantIdentifier;
-    /// Returns the [`ParticipantIdentifier`]s of all other participants in this
-    /// protocol.
-    fn other_ids(&self) -> &Vec<ParticipantIdentifier>;
-
-    /// Returns a list of all participant IDs, including `self`'s.
-    fn all_participants(&self) -> Vec<ParticipantIdentifier> {
-        let mut participant = self.other_ids().clone();
-        participant.push(self.id());
-        participant
-    }
 
     /// Process a `ready` message: tell other participants that we're ready and
     /// see if all others have also reported that they are ready.
