@@ -8,7 +8,7 @@
 
 use crate::{
     broadcast::data::BroadcastData,
-    errors::{InternalError, Result},
+    errors::{CallerError, InternalError, Result},
     local_storage::LocalStorage,
     messages::{BroadcastMessageType, Message, MessageType},
     participant::{InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant},
@@ -132,7 +132,9 @@ impl ProtocolParticipant for BroadcastParticipant {
             // have completed a broadcast equals the total number of other
             // participants.
             if participants.len() == self.other_participant_ids.len() {
-                return Err(InternalError::ProtocolAlreadyTerminated);
+                return Err(InternalError::CallingApplicationMistake(
+                    CallerError::ProtocolAlreadyTerminated,
+                ));
             }
         }
 

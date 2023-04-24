@@ -33,16 +33,8 @@ pub enum InternalError {
     InternalInvariantFailed,
     #[error("Paillier error: `{0}`")]
     PaillierError(#[from] paillier::Error),
-    #[error("This Participant was given a message intended for somebody else")]
-    WrongMessageRecipient,
     #[error("Storage does not contain the requested item")]
     StorageItemNotFound,
-    #[error(
-        "Tried to start a new protocol instance with an Identifier used in an existing instance"
-    )]
-    IdentifierInUse,
-    #[error("Protocol has already terminated")]
-    ProtocolAlreadyTerminated,
 }
 
 /// Errors that are caused by incorrect behavior by the calling application.
@@ -62,6 +54,8 @@ pub enum CallerError {
     WrongProtocol,
     #[error("Received a message from a sender not included in the list of participants")]
     InvalidMessageSender,
+    #[error("Received a message for a Protocol which has already terminated")]
+    ProtocolAlreadyTerminated,
     #[error("The provided RNG failed to produce suitable values after a maximum number of attempts. Please check the RNG.")]
     RetryFailed,
 }

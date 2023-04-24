@@ -8,7 +8,7 @@
 
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    errors::{InternalError, Result},
+    errors::{CallerError, InternalError, Result},
     keygen::{
         keygen_commit::{KeygenCommit, KeygenDecommit},
         keyshare::{KeySharePrivate, KeySharePublic},
@@ -166,7 +166,9 @@ impl ProtocolParticipant for KeygenParticipant {
         info!("Processing keygen message.");
 
         if *self.status() == Status::TerminatedSuccessfully {
-            return Err(InternalError::ProtocolAlreadyTerminated);
+            return Err(InternalError::CallingApplicationMistake(
+                CallerError::ProtocolAlreadyTerminated,
+            ));
         }
 
         match message.message_type() {

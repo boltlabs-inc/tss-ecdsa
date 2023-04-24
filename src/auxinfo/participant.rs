@@ -13,7 +13,7 @@ use crate::{
         proof::AuxInfoProof,
     },
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    errors::{InternalError, Result},
+    errors::{CallerError, InternalError, Result},
     local_storage::LocalStorage,
     messages::{AuxinfoMessageType, Message, MessageType},
     paillier::DecryptionKey,
@@ -148,7 +148,9 @@ impl ProtocolParticipant for AuxInfoParticipant {
         info!("Processing auxinfo message.");
 
         if *self.status() == Status::TerminatedSuccessfully {
-            return Err(InternalError::ProtocolAlreadyTerminated);
+            return Err(InternalError::CallingApplicationMistake(
+                CallerError::ProtocolAlreadyTerminated,
+            ));
         }
 
         match message.message_type() {

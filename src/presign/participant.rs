@@ -9,7 +9,7 @@
 use crate::{
     auxinfo::info::{AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    errors::{InternalError, Result},
+    errors::{CallerError, InternalError, Result},
     keygen::keyshare::{KeySharePrivate, KeySharePublic},
     local_storage::LocalStorage,
     messages::{Message, MessageType, PresignMessageType},
@@ -241,7 +241,9 @@ impl ProtocolParticipant for PresignParticipant {
         info!("Processing presign message.");
 
         if *self.status() == Status::TerminatedSuccessfully {
-            return Err(InternalError::ProtocolAlreadyTerminated);
+            return Err(InternalError::CallingApplicationMistake(
+                CallerError::ProtocolAlreadyTerminated,
+            ));
         }
 
         match message.message_type() {
