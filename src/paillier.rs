@@ -6,7 +6,6 @@
 // of this source tree.
 
 use crate::{
-    errors::{CallerError, InternalError, Result},
     parameters::PRIME_BITS,
     utils::{modpow, random_bn_in_z_star, CRYPTOGRAPHIC_RETRY_MAX},
 };
@@ -20,9 +19,12 @@ use zeroize::ZeroizeOnDrop;
 #[cfg(test)]
 use crate::utils::random_positive_bn;
 
+/// The default Result type used in this crate
+pub type Result<T> = std::result::Result<T, PaillierError>;
+
 /// Paillier-specific errors.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
-pub enum Error {
+pub enum PaillierError {
     #[error("Failed to create a Paillier decryption key from inputs")]
     CouldNotCreateKey,
     #[error("The inputs to a homomorphic operation on a Paillier ciphertext were malformed")]
@@ -33,6 +35,8 @@ pub enum Error {
         "Cannot encrypt out-of-range value; x must be in the group of integers mod n. Got {x}, {n}"
     )]
     EncryptionFailed { x: BigNumber, n: BigNumber },
+    #[error("The provided RNG failed to produce suitable values after a maximum number of attempts. Please check the RNG.")]
+    RetryFailed,
 
     #[cfg(test)]
     #[error("No pre-generated primes with size {0}")]
@@ -119,7 +123,8 @@ impl EncryptionKey {
     ) -> Result<(Ciphertext, Nonce)> {
         // Note: the check that `x` is in the proper range happens in
         // `encrypt_with_nonce`.
-        let nonce = random_bn_in_z_star(rng, self.modulus())?;
+        let nonce =
+            random_bn_in_z_star(rng, self.modulus()).map_err(|_| PaillierError::RetryFailed)?;
         let c = self.encrypt_with_nonce(x, &MaskedNonce(nonce.clone()))?;
         Ok((c, Nonce(nonce)))
     }
@@ -137,7 +142,7 @@ impl EncryptionKey {
         nonce: &MaskedNonce,
     ) -> Result<Ciphertext> {
         if &self.half_n() < x || x < &-self.half_n() {
-            Err(Error::EncryptionFailed {
+            Err(PaillierError::EncryptionFailed {
                 x: x.clone(),
                 n: self.modulus().clone(),
             })?
@@ -193,7 +198,7 @@ impl EncryptionKey {
         // Instead, we do the operations directly and manually do the range
         // check.
         if &self.half_n() < a || a < &-self.half_n() {
-            Err(Error::InvalidOperation)?
+            Err(PaillierError::InvalidOperation)?
         } else {
             Ok(Ciphertext(
                 modpow(&c1.0, a, self.0.nn()).modmul(&c2.0, self.0.nn()),
@@ -226,7 +231,7 @@ impl DecryptionKey {
         let mut x = self
             .0
             .decrypt(&c.0)
-            .ok_or(Error::DecryptionFailed)
+            .ok_or(PaillierError::DecryptionFailed)
             .map(BigNumber::from_slice)?;
 
         // Switch representation into `[-N/2, N/2]`. libpaillier (and indeed,
@@ -267,7 +272,7 @@ impl DecryptionKey {
             {
                 Ok((p, q))
             } else {
-                Err(Error::CouldNotCreateKey)?
+                Err(PaillierError::CouldNotCreateKey)?
             }
         };
 
@@ -279,19 +284,18 @@ impl DecryptionKey {
             .find(|result| result.is_ok())
             // We hit the maximum number of retries without getting an acceptable pair.
             // We should never hit the second `?` unless `find` breaks.
-            .ok_or(InternalError::CallingApplicationMistake(
-                CallerError::RetryFailed,
-            ))??;
+            .ok_or(PaillierError::RetryFailed)??;
 
         let decryption_key = DecryptionKey(
-            libpaillier::DecryptionKey::with_primes(&p, &q).ok_or(Error::CouldNotCreateKey)?,
+            libpaillier::DecryptionKey::with_primes(&p, &q)
+                .ok_or(PaillierError::CouldNotCreateKey)?,
         );
 
         // Double check that the modulus is the correct size.
         if decryption_key.0.n().bit_length() == 2 * PRIME_BITS {
             Ok((decryption_key, p, q))
         } else {
-            Err(Error::CouldNotCreateKey)?
+            Err(PaillierError::CouldNotCreateKey)?
         }
     }
 
@@ -361,12 +365,12 @@ pub(crate) mod prime_gen {
         rng: &mut R,
     ) -> Result<BigNumber> {
         if POOL_OF_PRIMES.len() == 0 {
-            Err(Error::NoPregeneratedPrimes(PRIME_BITS))?;
+            Err(PaillierError::NoPregeneratedPrimes(PRIME_BITS))?;
         }
-        Ok(POOL_OF_PRIMES
+        POOL_OF_PRIMES
             .get(rng.gen_range(0..POOL_OF_PRIMES.len()))
             .cloned()
-            .ok_or(Error::NoPregeneratedPrimes(PRIME_BITS))?)
+            .ok_or(PaillierError::NoPregeneratedPrimes(PRIME_BITS))
     }
 
     /// Sample a pair of independent, non-matching safe primes from a

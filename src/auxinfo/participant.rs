@@ -533,7 +533,10 @@ impl AuxInfoParticipant {
     ) -> Result<(AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses)> {
         debug!("Creating new auxinfo.");
 
-        let (decryption_key, p, q) = DecryptionKey::new(rng)?;
+        let (decryption_key, p, q) = DecryptionKey::new(rng).map_err(|_| {
+            error!("Failed to create DecryptionKey");
+            InternalError::InternalInvariantFailed
+        })?;
         let params = VerifiedRingPedersen::extract(&decryption_key, &self.retrieve_context(), rng)?;
         let encryption_key = decryption_key.encryption_key();
 

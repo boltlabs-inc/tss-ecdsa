@@ -181,7 +181,7 @@ impl VerifiedRingPedersen {
         rng: &mut (impl RngCore + CryptoRng),
         context: &impl ProofContext,
     ) -> Result<Self> {
-        let (sk, _, _) = DecryptionKey::new(rng)?;
+        let (sk, _, _) = DecryptionKey::new(rng).unwrap();
         Self::extract(&sk, context, rng)
     }
 }

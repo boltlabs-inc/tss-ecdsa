@@ -196,7 +196,7 @@ mod tests {
     fn random_ring_pedersen_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
     ) -> Result<(RingPedersen, PiPrmProof, BigNumber, BigNumber)> {
-        let (sk, _, _) = DecryptionKey::new(rng)?;
+        let (sk, _, _) = DecryptionKey::new(rng).unwrap();
         let (scheme, lambda, totient) = RingPedersen::extract(&sk, rng)?;
         let secrets = PiPrmSecret::new(lambda.clone(), totient.clone());
         let mut transcript = Transcript::new(b"PiPrmProof");

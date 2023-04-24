@@ -141,7 +141,10 @@ impl Proof for PiEncProof {
                 .scheme()
                 .commit(&secret.plaintext, ELL, rng);
         // Encrypt the mask for the plaintext (aka `A, r`)
-        let (ciphertext_mask, nonce_mask) = input.encryption_key.encrypt(rng, &plaintext_mask)?;
+        let (ciphertext_mask, nonce_mask) = input
+            .encryption_key
+            .encrypt(rng, &plaintext_mask)
+            .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Commit to the mask for the plaintext (aka `C`)
         let (plaintext_mask_commit, gamma) =
             input
@@ -213,12 +216,12 @@ impl Proof for PiEncProof {
         let ciphertext_mask_is_well_formed = {
             let lhs = input
                 .encryption_key
-                .encrypt_with_nonce(&self.plaintext_response, &self.nonce_response)?;
-            let rhs = input.encryption_key.multiply_and_add(
-                &e,
-                &input.ciphertext,
-                &self.ciphertext_mask,
-            )?;
+                .encrypt_with_nonce(&self.plaintext_response, &self.nonce_response)
+                .map_err(|_| InternalError::ProtocolError)?;
+            let rhs = input
+                .encryption_key
+                .multiply_and_add(&e, &input.ciphertext, &self.ciphertext_mask)
+                .map_err(|_| InternalError::ProtocolError)?;
             lhs == rhs
         };
         if !ciphertext_mask_is_well_formed {
@@ -299,10 +302,10 @@ mod tests {
         rng: &mut R,
         plaintext: BigNumber,
     ) -> Result<(PiEncProof, PiEncInput)> {
-        let (decryption_key, _, _) = DecryptionKey::new(rng)?;
+        let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
         let encryption_key = decryption_key.encryption_key();
 
-        let (ciphertext, nonce) = encryption_key.encrypt(rng, &plaintext)?;
+        let (ciphertext, nonce) = encryption_key.encrypt(rng, &plaintext).unwrap();
         let setup_params = VerifiedRingPedersen::gen(rng, &())?;
 
         let input = PiEncInput {
@@ -496,12 +499,12 @@ mod tests {
         let rng = &mut init_testing();
 
         // Form common inputs
-        let (decryption_key, _, _) = DecryptionKey::new(rng)?;
+        let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
         let encryption_key = decryption_key.encryption_key();
 
         // Form secret input
         let plaintext = random_plusminus_by_size(rng, ELL);
-        let (ciphertext, nonce) = encryption_key.encrypt(rng, &plaintext)?;
+        let (ciphertext, nonce) = encryption_key.encrypt(rng, &plaintext).unwrap();
         let setup_params = VerifiedRingPedersen::extract(&decryption_key, &(), rng)?;
 
         let input = PiEncInput {
@@ -543,7 +546,7 @@ mod tests {
         assert!(proof.verify(&input, &(), &mut transcript).is_err());
 
         // Forming with the wrong nonce fails
-        let (_, wrong_nonce) = encryption_key.encrypt(rng, &plaintext)?;
+        let (_, wrong_nonce) = encryption_key.encrypt(rng, &plaintext).unwrap();
         assert_ne!(wrong_nonce, nonce);
         let mut transcript = Transcript::new(b"PiEncProof");
         let proof = PiEncProof::prove(
@@ -576,7 +579,7 @@ mod tests {
         assert!(proof.verify(&input, &(), &mut transcript).is_ok());
 
         // Verification fails with the wrong setup params
-        let (bad_decryption_key, _, _) = DecryptionKey::new(&mut rng)?;
+        let (bad_decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let bad_setup_params = VerifiedRingPedersen::extract(&bad_decryption_key, &(), &mut rng)?;
         let setup_params = input.setup_params;
         input.setup_params = bad_setup_params;
@@ -585,7 +588,7 @@ mod tests {
         input.setup_params = setup_params;
 
         // Verification fails with the wrong encryption key
-        let bad_encryption_key = DecryptionKey::new(&mut rng)?.0.encryption_key();
+        let bad_encryption_key = DecryptionKey::new(&mut rng).unwrap().0.encryption_key();
         let encryption_key = input.encryption_key;
         input.encryption_key = bad_encryption_key;
         let mut transcript = Transcript::new(b"PiEncProof");
@@ -593,7 +596,7 @@ mod tests {
         input.encryption_key = encryption_key;
 
         // Verification fails with the wrong ciphertext
-        let (bad_ciphertext, _) = input.encryption_key.encrypt(&mut rng, &plaintext)?;
+        let (bad_ciphertext, _) = input.encryption_key.encrypt(&mut rng, &plaintext).unwrap();
         let ciphertext = input.ciphertext;
         input.ciphertext = bad_ciphertext;
         let mut transcript = Transcript::new(b"PiEncProof");

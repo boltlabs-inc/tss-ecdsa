@@ -909,9 +909,17 @@ impl PresignKeyShareAndInfo {
         let gamma = random_positive_bn(rng, &order);
 
         // Sample rho <- Z_N^* and set K = enc(k; rho)
-        let (K, rho) = self.aux_info_public.pk().encrypt(rng, &k)?;
+        let (K, rho) = self
+            .aux_info_public
+            .pk()
+            .encrypt(rng, &k)
+            .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Sample nu <- Z_N^* and set G = enc(gamma; nu)
-        let (G, nu) = self.aux_info_public.pk().encrypt(rng, &gamma)?;
+        let (G, nu) = self
+            .aux_info_public
+            .pk()
+            .encrypt(rng, &gamma)
+            .map_err(|_| InternalError::InternalInvariantFailed)?;
 
         let mut r1_publics = HashMap::new();
         for aux_info_public in public_keys {
@@ -976,21 +984,41 @@ impl PresignKeyShareAndInfo {
         // values are equal. The betas are components of additive shares of
         // secret values, so it shouldn't matter where the negation happens
         // (Round 2 vs Round 3).
-        let (beta_ciphertext, s) = receiver_aux_info.pk().encrypt(rng, &beta)?;
-        let (beta_hat_ciphertext, s_hat) = receiver_aux_info.pk().encrypt(rng, &beta_hat)?;
+        let (beta_ciphertext, s) = receiver_aux_info
+            .pk()
+            .encrypt(rng, &beta)
+            .map_err(|_| InternalError::InternalInvariantFailed)?;
+        let (beta_hat_ciphertext, s_hat) = receiver_aux_info
+            .pk()
+            .encrypt(rng, &beta_hat)
+            .map_err(|_| InternalError::InternalInvariantFailed)?;
 
-        let D = receiver_aux_info.pk().multiply_and_add(
-            &sender_r1_priv.gamma,
-            &receiver_r1_pub_broadcast.K,
-            &beta_ciphertext,
-        )?;
-        let D_hat = receiver_aux_info.pk().multiply_and_add(
-            &self.keyshare_private.x,
-            &receiver_r1_pub_broadcast.K,
-            &beta_hat_ciphertext,
-        )?;
-        let (F, r) = self.aux_info_public.pk().encrypt(rng, &beta)?;
-        let (F_hat, r_hat) = self.aux_info_public.pk().encrypt(rng, &beta_hat)?;
+        let D = receiver_aux_info
+            .pk()
+            .multiply_and_add(
+                &sender_r1_priv.gamma,
+                &receiver_r1_pub_broadcast.K,
+                &beta_ciphertext,
+            )
+            .map_err(|_| InternalError::InternalInvariantFailed)?;
+        let D_hat = receiver_aux_info
+            .pk()
+            .multiply_and_add(
+                &self.keyshare_private.x,
+                &receiver_r1_pub_broadcast.K,
+                &beta_hat_ciphertext,
+            )
+            .map_err(|_| InternalError::InternalInvariantFailed)?;
+        let (F, r) = self
+            .aux_info_public
+            .pk()
+            .encrypt(rng, &beta)
+            .map_err(|_| InternalError::InternalInvariantFailed)?;
+        let (F_hat, r_hat) = self
+            .aux_info_public
+            .pk()
+            .encrypt(rng, &beta_hat)
+            .map_err(|_| InternalError::InternalInvariantFailed)?;
 
         let g = CurvePoint::GENERATOR;
         let Gamma = CurvePoint(g.0 * bn_to_scalar(&sender_r1_priv.gamma)?);
@@ -1092,11 +1120,13 @@ impl PresignKeyShareAndInfo {
             let alpha = self
                 .aux_info_private
                 .decryption_key()
-                .decrypt(&r2_pub_j.D)?;
+                .decrypt(&r2_pub_j.D)
+                .map_err(|_| InternalError::InternalInvariantFailed)?;
             let alpha_hat = self
                 .aux_info_private
                 .decryption_key()
-                .decrypt(&r2_pub_j.D_hat)?;
+                .decrypt(&r2_pub_j.D_hat)
+                .map_err(|_| InternalError::InternalInvariantFailed)?;
 
             delta = delta.modadd(&alpha.modsub(&r2_priv_j.beta, &order), &order);
             chi = chi.modadd(&alpha_hat.modsub(&r2_priv_j.beta_hat, &order), &order);

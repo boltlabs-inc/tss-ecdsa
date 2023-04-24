@@ -10,8 +10,6 @@
 use core::fmt::Debug;
 use thiserror::Error;
 
-use crate::paillier;
-
 /// The default Result type used in this crate
 pub type Result<T> = std::result::Result<T, InternalError>;
 
@@ -27,8 +25,6 @@ pub enum InternalError {
     ProtocolError,
     #[error("Represents some code assumption that was checked at runtime but failed to be true")]
     InternalInvariantFailed,
-    #[error("Paillier error: `{0}`")]
-    PaillierError(#[from] paillier::Error),
     #[error("Storage does not contain the requested item")]
     StorageItemNotFound,
 }
