@@ -105,8 +105,8 @@ impl Proof for PiModProof {
             // Compute phi(N) = (p-1) * (q-1)
             let phi_n = (&secret.p - 1) * (&secret.q - 1);
             let exp = input.N.invert(&phi_n).ok_or_else(|| {
-                error!("Could not invert a BigNumber");
-                InternalError::CouldNotGenerateProof
+                error!("Could not invert N");
+                InternalError::InternalInvariantFailed
             })?;
             let z = modpow(&y, &exp, &input.N);
 
@@ -267,7 +267,7 @@ fn square_roots_mod_prime(n: &BigNumber, p: &BigNumber) -> Result<(BigNumber, Bi
         return Ok((r, neg_r));
     }
     warn!("Could not find square roots modulo n");
-    Err(InternalError::CouldNotGenerateProof)
+    Err(InternalError::InternalInvariantFailed)
 }
 
 // Finds an (x,y) such that ax + by = 1, or returns error if gcd(a,b) != 1
@@ -277,7 +277,7 @@ fn extended_euclidean(a: &BigNumber, b: &BigNumber) -> Result<(BigNumber, BigNum
 
     if result.gcd != BigNumber::one() {
         warn!("Elements are not coprime");
-        Err(InternalError::CouldNotGenerateProof)?
+        Err(InternalError::InternalInvariantFailed)?
     }
 
     Ok((result.x, result.y))
@@ -304,7 +304,7 @@ fn chinese_remainder_theorem(
     let zero = &BigNumber::zero();
     if a1 >= p || a1 < zero || a2 >= q || a2 < zero {
         warn!("One or more of the integer inputs to the Chinese remainder theorem were outside the expected range");
-        Err(InternalError::CouldNotGenerateProof)?
+        Err(InternalError::InternalInvariantFailed)?
     }
     let (z, w) = extended_euclidean(p, q)?;
     let x = a1 * w * q + a2 * z * p;
@@ -408,7 +408,7 @@ fn y_prime_combinations(
         error!(
             "Could not find uniqueness for fourth roots combination in Paillier-Blum modulus proof"
         );
-        return Err(InternalError::CouldNotGenerateProof);
+        return Err(InternalError::InternalInvariantFailed);
     }
 
     Ok((success_a, success_b, ret))
@@ -470,7 +470,7 @@ mod tests {
                     assert_eq!(modpow(&r1, &BigNumber::from(2), &p), a);
                     assert_eq!(modpow(&r2, &BigNumber::from(2), &p), a);
                 }
-                Err(InternalError::CouldNotGenerateProof) => {
+                Err(InternalError::InternalInvariantFailed) => {
                     assert_ne!(a_p, 1);
                 }
                 Err(_) => {
@@ -575,21 +575,21 @@ mod tests {
         let a2 = BigNumber::from_rng(&q, &mut rng);
         assert_eq!(
             chinese_remainder_theorem(a1, &a2, &p, &q),
-            Err(InternalError::CouldNotGenerateProof)
+            Err(InternalError::InternalInvariantFailed)
         );
 
         // a1 > p
         let a1 = a1 + BigNumber::one();
         assert_eq!(
             chinese_remainder_theorem(&a1, &a2, &p, &q),
-            Err(InternalError::CouldNotGenerateProof)
+            Err(InternalError::InternalInvariantFailed)
         );
 
         // a1 < 0
         let a1 = -BigNumber::from_rng(&p, &mut rng);
         assert_eq!(
             chinese_remainder_theorem(&a1, &a2, &p, &q),
-            Err(InternalError::CouldNotGenerateProof)
+            Err(InternalError::InternalInvariantFailed)
         );
 
         // a2 = q
@@ -597,21 +597,21 @@ mod tests {
         let a2 = &q;
         assert_eq!(
             chinese_remainder_theorem(&a1, a2, &p, &q),
-            Err(InternalError::CouldNotGenerateProof)
+            Err(InternalError::InternalInvariantFailed)
         );
 
         // a2 > q
         let a2 = a2 + BigNumber::one();
         assert_eq!(
             chinese_remainder_theorem(&a1, &a2, &p, &q),
-            Err(InternalError::CouldNotGenerateProof)
+            Err(InternalError::InternalInvariantFailed)
         );
 
         // a2 < 0
         let a2 = -BigNumber::from_rng(&q, &mut rng);
         assert_eq!(
             chinese_remainder_theorem(&a1, &a2, &p, &q),
-            Err(InternalError::CouldNotGenerateProof)
+            Err(InternalError::InternalInvariantFailed)
         );
     }
 
@@ -632,21 +632,21 @@ mod tests {
         let bad_q = &p;
         assert_eq!(
             chinese_remainder_theorem(&a1, &a1, &p, bad_q),
-            Err(InternalError::CouldNotGenerateProof)
+            Err(InternalError::InternalInvariantFailed)
         );
 
         // p = kq for some k
         let mult_p = &q + &q;
         assert_eq!(
             chinese_remainder_theorem(&a1, &a2, &mult_p, &q),
-            Err(InternalError::CouldNotGenerateProof)
+            Err(InternalError::InternalInvariantFailed)
         );
 
         // q = kp for some k
         let mult_q = &p + &p;
         assert_eq!(
             chinese_remainder_theorem(&a1, &a2, &p, &mult_q),
-            Err(InternalError::CouldNotGenerateProof)
+            Err(InternalError::InternalInvariantFailed)
         );
 
         assert!(chinese_remainder_theorem(&a1, &a2, &p, &q).is_ok());
