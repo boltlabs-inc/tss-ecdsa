@@ -28,7 +28,10 @@ impl BroadcastData {
         if message.message_type() != MessageType::Broadcast(BroadcastMessageType::Disperse)
             && message.message_type() != MessageType::Broadcast(BroadcastMessageType::Redisperse)
         {
-            error!("Incorrect MessageType given to Broadcast Handler");
+            error!(
+                "Incorrect MessageType given to Broadcast Handler. Got: {:?}",
+                message.message_type()
+            );
             return Err(InternalError::InternalInvariantFailed);
         }
         let broadcast_data: BroadcastData = deserialize!(&message.unverified_bytes)?;

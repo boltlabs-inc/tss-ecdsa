@@ -263,7 +263,11 @@ impl SignatureShare {
             }
             (Some(prev_r), Some(new_r)) => {
                 if prev_r != new_r {
-                    error!("Failed to create signature as prev_r != new_r");
+                    error!(
+                        "Failed to chain signature shares together because 
+                        r-values were different. Got {:?}, expected {:?}.",
+                        &prev_r, new_r
+                    );
                     return Err(InternalError::InternalInvariantFailed);
                 }
                 Ok(prev_r)

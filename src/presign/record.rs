@@ -7,7 +7,10 @@
 // of this source tree.
 
 use crate::{
-    errors::{InternalError::InternalInvariantFailed, Result},
+    errors::{
+        InternalError::{InternalInvariantFailed, ProtocolError},
+        Result,
+    },
     presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
     utils::bn_to_scalar,
     CurvePoint,
@@ -67,7 +70,7 @@ impl TryFrom<RecordPair> for PresignRecord {
         let g = CurvePoint::GENERATOR;
         if CurvePoint(g.0 * delta) != Delta {
             error!("Could not create PresignRecord: mismatch between calculated private and public deltas");
-            return Err(InternalInvariantFailed);
+            return Err(ProtocolError);
         }
 
         let delta_inv = Option::<Scalar>::from(delta.invert()).ok_or_else(|| {

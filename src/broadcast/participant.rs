@@ -145,8 +145,11 @@ impl ProtocolParticipant for BroadcastParticipant {
             MessageType::Broadcast(BroadcastMessageType::Redisperse) => {
                 self.handle_round_two_msg(rng, message)
             }
-            _ => {
-                error!("Incorrect MessageType given to Broadcast handler");
+            message_type => {
+                error!(
+                    "Incorrect MessageType given to Broadcast handler. Got: {:?}",
+                    message_type
+                );
                 Err(InternalError::InternalInvariantFailed)
             }
         }
