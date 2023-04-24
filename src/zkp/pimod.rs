@@ -139,7 +139,7 @@ impl Proof for PiModProof {
                     self.elements.len(),
                     LAMBDA,
                 );
-                return Err(InternalError::FailedToVerifyProof);
+                return Err(InternalError::ProtocolError);
             }
             Ordering::Greater => {
                 warn!(
@@ -147,7 +147,7 @@ impl Proof for PiModProof {
                     self.elements.len(),
                     LAMBDA
                 );
-                return Err(InternalError::FailedToVerifyProof);
+                return Err(InternalError::ProtocolError);
             }
             Ordering::Equal => {}
         }
@@ -155,12 +155,12 @@ impl Proof for PiModProof {
         // Verify that N is an odd composite number
         if &input.N % BigNumber::from(2u64) == BigNumber::zero() {
             warn!("N is even");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         if input.N.is_prime() {
             warn!("N is not composite");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
         Self::fill_transcript(transcript, context, input, &self.w)?;
 
@@ -169,29 +169,29 @@ impl Proof for PiModProof {
             let y = positive_bn_random_from_transcript(transcript, &input.N);
             if y != elements.y {
                 warn!("y does not match Fiat-Shamir challenge");
-                return Err(InternalError::FailedToVerifyProof);
+                return Err(InternalError::ProtocolError);
             }
 
             let y_candidate = modpow(&elements.z, &input.N, &input.N);
             if elements.y != y_candidate {
                 warn!("z^N != y (mod N)");
-                return Err(InternalError::FailedToVerifyProof);
+                return Err(InternalError::ProtocolError);
             }
 
             if elements.a != 0 && elements.a != 1 {
                 warn!("a not in {{0,1}}");
-                return Err(InternalError::FailedToVerifyProof);
+                return Err(InternalError::ProtocolError);
             }
 
             if elements.b != 0 && elements.b != 1 {
                 warn!("b not in {{0,1}}");
-                return Err(InternalError::FailedToVerifyProof);
+                return Err(InternalError::ProtocolError);
             }
 
             let y_prime = y_prime_from_y(&elements.y, &self.w, elements.a, elements.b, &input.N);
             if modpow(&elements.x, &BigNumber::from(4u64), &input.N) != y_prime {
                 warn!("x^4 != y' (mod N)");
-                return Err(InternalError::FailedToVerifyProof);
+                return Err(InternalError::ProtocolError);
             }
         }
 

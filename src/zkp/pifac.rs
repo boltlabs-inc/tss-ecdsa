@@ -174,7 +174,7 @@ impl Proof for PiFacProof {
         };
         if !eq_check_1 {
             warn!("eq_check_1 failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         let eq_check_2 = {
@@ -184,7 +184,7 @@ impl Proof for PiFacProof {
         };
         if !eq_check_2 {
             warn!("eq_check_2 failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         let eq_check_3 = {
@@ -201,7 +201,7 @@ impl Proof for PiFacProof {
         };
         if !eq_check_3 {
             warn!("eq_check_3 failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         let sqrt_N0 = sqrt(&input.N0);
@@ -211,11 +211,11 @@ impl Proof for PiFacProof {
         let z_bound = &sqrt_N0 * &two_ell_eps;
         if self.z1 < -z_bound.clone() || self.z1 > z_bound {
             warn!("self.z1 > z_bound check failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
         if self.z2 < -z_bound.clone() || self.z2 > z_bound {
             warn!("self.z2 > z_bound check failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         Ok(())

@@ -283,7 +283,7 @@ impl Proof for PiLogProof {
         // ... and check that it's the correct challenge.
         if challenge != self.challenge {
             warn!("Fiat-Shamir consistency check failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         // Check that the Paillier encryption of the secret plaintext is valid.
@@ -300,7 +300,7 @@ impl Proof for PiLogProof {
         };
         if !paillier_encryption_is_valid {
             warn!("paillier encryption check (first equality check) failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
         // Check that the group exponentiation of the secret plaintext is valid.
         let group_exponentiation_is_valid = {
@@ -313,7 +313,7 @@ impl Proof for PiLogProof {
         };
         if !group_exponentiation_is_valid {
             warn!("group exponentiation check (second equality check) failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         // Check that the ring-Pedersen commitment of the secret plaintext is valid.
@@ -330,14 +330,14 @@ impl Proof for PiLogProof {
         };
         if !ring_pedersen_commitment_is_valid {
             warn!("ring Pedersen commitment check (third equality check) failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         // Do a range check on the plaintext response, which validates that the
         // plaintext falls within the same range.
         if !within_bound_by_size(&self.plaintext_response, ELL + EPSILON) {
             warn!("plaintext range check failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         Ok(())

@@ -205,7 +205,7 @@ impl Proof for PiEncProof {
         let e = plusminus_bn_random_from_transcript(transcript, &k256_order());
         if e != self.challenge {
             warn!("Fiat-Shamir didn't verify");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         // Check that the plaintext and nonce responses are well-formed (e.g. that the
@@ -223,7 +223,7 @@ impl Proof for PiEncProof {
         };
         if !ciphertext_mask_is_well_formed {
             warn!("ciphertext mask check (first equality check) failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         // Check that the plaintext and commitment randomness responses are well formed
@@ -243,14 +243,14 @@ impl Proof for PiEncProof {
         };
         if !responses_match_commitments {
             warn!("response validation check (second equality check) failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         // Make sure the ciphertext response is in range
         let bound = BigNumber::one() << (ELL + EPSILON);
         if self.plaintext_response < -bound.clone() || self.plaintext_response > bound {
             warn!("bounds check on plaintext response failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         Ok(())

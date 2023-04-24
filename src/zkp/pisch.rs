@@ -117,7 +117,7 @@ impl Proof for PiSchProof {
         let e = positive_bn_random_from_transcript(transcript, &input.q);
         if e != self.e {
             warn!("Fiat-Shamir consistency check failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         // Do equality checks
@@ -129,7 +129,7 @@ impl Proof for PiSchProof {
         };
         if !eq_check_1 {
             warn!("eq_check_1 failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         Ok(())

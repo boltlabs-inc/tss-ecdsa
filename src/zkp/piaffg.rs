@@ -204,7 +204,7 @@ impl Proof for PiAffgProof {
 
         if e != self.e {
             warn!("Fiat-Shamir consistency check failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         // Do equality checks
@@ -217,7 +217,7 @@ impl Proof for PiAffgProof {
         };
         if !eq_check_1 {
             warn!("eq_check_1 failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         let eq_check_2 = {
@@ -227,7 +227,7 @@ impl Proof for PiAffgProof {
         };
         if !eq_check_2 {
             warn!("eq_check_2 failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         let eq_check_3 = {
@@ -238,7 +238,7 @@ impl Proof for PiAffgProof {
         };
         if !eq_check_3 {
             warn!("eq_check_3 failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         let eq_check_4 = {
@@ -251,7 +251,7 @@ impl Proof for PiAffgProof {
         };
         if !eq_check_4 {
             warn!("eq_check_4 failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         let eq_check_5 = {
@@ -264,7 +264,7 @@ impl Proof for PiAffgProof {
         };
         if !eq_check_5 {
             warn!("eq_check_5 failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         // Do range check
@@ -273,11 +273,11 @@ impl Proof for PiAffgProof {
         let ell_prime_bound = BigNumber::one() << (ELL_PRIME + EPSILON);
         if self.z1 < -ell_bound.clone() || self.z1 > ell_bound {
             warn!("self.z1 > ell_bound check failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
         if self.z2 < -ell_prime_bound.clone() || self.z2 > ell_prime_bound {
             warn!("self.z2 > ell_prime_bound check failed");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
 
         Ok(())

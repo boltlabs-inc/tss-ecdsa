@@ -27,20 +27,20 @@ impl ZStarNBuilder {
     pub fn validate(&self, unverified: ZStarNUnverified) -> Result<ZStarN, InternalError> {
         if unverified.value().is_zero() {
             warn!("Elements of the multiplicative group  ZK*_N cannot be zero");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         } else if unverified.value() > self.modulus() {
             warn!(
                 "Elements of the multiplicative group ZK*_N cannot be larger than the RSA modulus"
             );
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         } else if unverified.value() < &BigNumber::zero() {
             warn!("Elements of the multiplicative group ZK*_N cannot be negative");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
         let result = unverified.value().gcd(self.modulus());
         if result != BigNumber::one() {
             warn!("Elements are not coprime");
-            return Err(InternalError::FailedToVerifyProof);
+            return Err(InternalError::ProtocolError);
         }
         Ok(ZStarN {
             value: unverified.value().to_owned(),

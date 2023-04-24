@@ -118,7 +118,7 @@ impl KeygenDecommit {
             Ok(())
         } else {
             warn!("decommitment does not match original commitment");
-            Err(InternalError::FailedToVerifyProof)
+            Err(InternalError::ProtocolError)
         }
     }
 }

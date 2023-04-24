@@ -25,8 +25,6 @@ pub enum InternalError {
     Serialization,
     #[error("Some player sent a message which does not match the protocol specification")]
     ProtocolError,
-    #[error("Failed to verify proof")]
-    FailedToVerifyProof,
     #[error("Represents some code assumption that was checked at runtime but failed to be true")]
     InternalInvariantFailed,
     #[error("Paillier error: `{0}`")]
