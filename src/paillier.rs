@@ -6,7 +6,7 @@
 // of this source tree.
 
 use crate::{
-    errors::{InternalError, Result},
+    errors::{CallerError, InternalError, Result},
     parameters::PRIME_BITS,
     utils::{modpow, random_bn_in_z_star, CRYPTOGRAPHIC_RETRY_MAX},
 };
@@ -279,7 +279,9 @@ impl DecryptionKey {
             .find(|result| result.is_ok())
             // We hit the maximum number of retries without getting an acceptable pair.
             // We should never hit the second `?` unless `find` breaks.
-            .ok_or(InternalError::RetryFailed)??;
+            .ok_or(InternalError::CallingApplicationMistake(
+                CallerError::RetryFailed,
+            ))??;
 
         let decryption_key = DecryptionKey(
             libpaillier::DecryptionKey::with_primes(&p, &q).ok_or(Error::CouldNotCreateKey)?,

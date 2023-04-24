@@ -6,10 +6,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::errors::{
-    InternalError::{self, RetryFailed},
-    Result,
-};
+use crate::errors::{CallerError, InternalError, Result};
 use generic_array::GenericArray;
 use k256::{
     elliptic_curve::{bigint::Encoding, group::ff::PrimeField, AffinePoint, Curve},
@@ -214,7 +211,9 @@ pub(crate) fn random_bn_in_z_star<R: RngCore + CryptoRng>(
     std::iter::repeat_with(|| BigNumber::from_rng(n, rng))
         .take(CRYPTOGRAPHIC_RETRY_MAX)
         .find(|result| result != &BigNumber::zero() && result.gcd(n) == BigNumber::one())
-        .ok_or(RetryFailed)
+        .ok_or(InternalError::CallingApplicationMistake(
+            CallerError::RetryFailed,
+        ))
 }
 
 // Returns x: BigNumber as a k256::Scalar mod k256_order
