@@ -90,15 +90,12 @@
 //!
 //! # Useful features
 //!
-//! The main interfaces allow a [`Participant`] to process messages from
-//! other participants, producing a set of outgoing messages and, if the
-//! protocol completed, an output.
+//! A [`Participant`] processes messages received from other [`Participant`]s and generates [`Message`] for other  [`Participant`]s to process. When the current sub-protocol finishes, output values are produced.
 //!
-//! The library includes logic to handle messages received outside the strict
-//! bounds of the round structure. When messages are received early, they are
-//! cached in memory by the library and handled at the appropriate time.
+//! Messages may arrive from the network before a [`Participant`] is ready to process them. [`Participant]'s can be given messages at any time, when messages are received early, they are
+//! stored in memory by the library and retrieved + processed at the appropriate time.
 //!
-//! The library automatically moves between rounds in a session; the calling
+//! A sub-protocol session automatically progresses between rounds; the calling
 //! application does not have to track where within a session the protcool
 //! execution is at a given time.
 //!
