@@ -90,10 +90,14 @@
 //!
 //! # Useful features
 //!
-//! A [`Participant`] processes messages received from other [`Participant`]s and generates [`Message`] for other  [`Participant`]s to process. When the current sub-protocol finishes, output values are produced.
+//! A [`Participant`] processes messages received from other [`Participant`]s
+//! and generates [`Message`] for other  [`Participant`]s to process. When the
+//! current sub-protocol finishes, output values are produced.
 //!
-//! Messages may arrive from the network before a [`Participant`] is ready to process them. [`Participant]'s can be given messages at any time, when messages are received early, they are
-//! stored in memory by the library and retrieved + processed at the appropriate time.
+//! Messages may arrive from the network before a [`Participant`] is ready to
+//! process them. [`Participant`]s can be given messages at any time; when
+//! messages are received early, they are stored in memory by the library and
+//! retrieved and processed at the appropriate time.
 //!
 //! A sub-protocol session automatically progresses between rounds; the calling
 //! application does not have to track where within a session the protcool
