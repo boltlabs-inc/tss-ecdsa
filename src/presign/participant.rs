@@ -400,7 +400,8 @@ impl PresignParticipant {
     /// Handle the protocol's round one broadcast message.
     ///
     /// This method simply stores the message and checks whether we've received
-    /// the non-broadcast message from the same participant. If so, we handle it.
+    /// the non-broadcast message from the same participant. If so, we handle
+    /// it.
     #[instrument(skip_all, err(Debug))]
     fn handle_round_one_broadcast_msg<R: RngCore + CryptoRng>(
         &mut self,
@@ -447,8 +448,9 @@ impl PresignParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Presign: Handling round one message.");
 
-        // First check that we have the round one public broadcast from this participant.
-        // If not, we cannot proceed, so stash that message and continue.
+        // First check that we have the round one public broadcast from this
+        // participant. If not, we cannot proceed, so stash that message and
+        // continue.
         if !self
             .local_storage
             .contains::<storage::RoundOnePublicBroadcast>(message.from())
@@ -610,7 +612,8 @@ impl PresignParticipant {
             info!("Presign: Round two complete. Generating round three messages.");
             // Generate messages for round three...
             let messages = run_only_once!(self.gen_round_three_msgs(rng, message.id(), input))?;
-            // ... and handle any messages that other participants have sent for round three.
+            // ... and handle any messages that other participants have sent for round
+            // three.
             let outcomes = self
                 .fetch_messages(MessageType::Presign(PresignMessageType::RoundThree))?
                 .iter()
