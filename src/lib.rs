@@ -49,10 +49,12 @@
 //! These caller requirements are highlighted throughout the documentation with
 //! the 🔒 symbol. At a high level, they include:
 //!
-//! 1. Networking. The protocol requires messages to be sent over secure
-//! channels between the [`Participant`]s. The library does not implement _any_
+//! 1. Networking. The protocol requires messages to be sent
+//! between the [`Participant`]s, but the library does not implement _any_
 //! networking; it simply produces messages to be sent out.
-//! See [Networking section](#-networking) below for details.
+//! See [Networking section](#-networking) below for details, including
+//! properties that channels must maintain and validation that the calling
+//! application must do.
 //!
 //! 2. Secure persistent storage. The protocol is composed of four subprotocols,
 //! each taking input and returning output. The calling application must persist
@@ -80,36 +82,18 @@
 //! any guarantees about system behavior when [`ParticipantIdentifier`]s are
 //! reused in this way.
 //!
-//! # ⚠️ Security warning
-//! The implementation in this crate has not been independently audited for
-//! security! We have also not released a version that we have finished
-//! internally auditing.
-//!
-//! At this time, we do not recommend use for security-critical applications.
-//! Use at your own risk.
-//!
-//! # 🔒 Networking
+//! ## 🔒 Networking
 //!
 //! The calling application is responsible for sending messages between
 //! participants in the protocol.
-//! All communication between [`Participant`]s must take place over a secure
-//! channel that satisfies mutual entity authentication and integrity.
-//!
-//! The protocol requires a UC-secure, synchronous, authenticated broadcast
-//! channel for use by the [`Participant`]s. Currently, the library handles this
-//! automatically by implementing the echo-broadcast protocol described by
-//! Goldwasser and Lindell[^echo]. This is the approach the paper recommends,
-//! but we note that this reduces the security of the protocol to selective
-//! abort[^abort] rather than the stronger notion of identifiable abort that a
-//! perfect authenticated broadcast protocol would allow.
-//!
-//! All messages sent between participants require mutual entity authentication.
+//! All communication between [`Participant`]s must take place over a
+//! channel that satisfies sender authentication and integrity.
 //! In practice, this is typically instantiated using a public key
 //! infrastructure (PKI) to associate signing keys to entities.
 //! Briefly, each message is accompanied by a signature on that message, under
 //! the signing key associated with the sending entity.
 //! Since the library does not deal directly with communication channels, it
-//! cannot validate that messages are correctly associated with their sender.
+//! does not validate that messages are correctly associated with their sender.
 //!
 //! Instead, the calling application is responsible for maintaining a mapping
 //! between the [`ParticipantIdentifier`] and the signing key associated with
@@ -118,6 +102,23 @@
 //! signature over a channel, the calling application must check that the `from`
 //! field in the message matches the signing key used to generate the signature.
 //! This ensures that the sender is not lying about its identity.
+//!
+//! The protocol requires a UC-secure, synchronous, authenticated broadcast
+//! channel for use by the [`Participant`]s. Currently, the library handles this
+//! automatically by implementing the echo-broadcast protocol described by
+//! Goldwasser and Lindell[^echo]. This is the approach the paper mentions,
+//! but we emphasize that this reduces the security of the protocol to selective
+//! abort[^abort] rather than the stronger notion of identifiable abort that is
+//! achieved with an authenticated broadcast protocol.
+//!
+//!
+//! # ⚠️ Security warning
+//! The implementation in this crate has not been independently audited for
+//! security! We have also not released a version that we have finished
+//! internally auditing.
+//!
+//! At this time, we do not recommend use for security-critical applications.
+//! Use at your own risk.
 //!
 //! # Useful features
 //!
