@@ -132,9 +132,7 @@ impl ProtocolParticipant for BroadcastParticipant {
             // have completed a broadcast equals the total number of other
             // participants.
             if participants.len() == self.other_participant_ids.len() {
-                return Err(InternalError::CallingApplicationMistake(
-                    CallerError::ProtocolAlreadyTerminated,
-                ));
+                Err(CallerError::ProtocolAlreadyTerminated)?;
             }
         }
 

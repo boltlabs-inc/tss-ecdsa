@@ -148,9 +148,7 @@ impl ProtocolParticipant for AuxInfoParticipant {
         info!("Processing auxinfo message.");
 
         if *self.status() == Status::TerminatedSuccessfully {
-            return Err(InternalError::CallingApplicationMistake(
-                CallerError::ProtocolAlreadyTerminated,
-            ));
+            Err(CallerError::ProtocolAlreadyTerminated)?;
         }
 
         match message.message_type() {

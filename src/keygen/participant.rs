@@ -166,9 +166,7 @@ impl ProtocolParticipant for KeygenParticipant {
         info!("Processing keygen message.");
 
         if *self.status() == Status::TerminatedSuccessfully {
-            return Err(InternalError::CallingApplicationMistake(
-                CallerError::ProtocolAlreadyTerminated,
-            ));
+            Err(CallerError::ProtocolAlreadyTerminated)?;
         }
 
         match message.message_type() {
