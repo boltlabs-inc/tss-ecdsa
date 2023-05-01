@@ -69,7 +69,6 @@ impl Public {
         // Verify the psi proof
         let psi_input = PiAffgInput::new(
             receiver_auxinfo_public.params().clone(),
-            g,
             receiver_auxinfo_public.pk().clone(),
             sender_auxinfo_public.pk().clone(),
             receiver_r1_private.K.clone(),
@@ -84,7 +83,6 @@ impl Public {
         // Verify the psi_hat proof
         let psi_hat_input = PiAffgInput::new(
             receiver_auxinfo_public.params().clone(),
-            g,
             receiver_auxinfo_public.pk().clone(),
             sender_auxinfo_public.pk().clone(),
             receiver_r1_private.K.clone(),

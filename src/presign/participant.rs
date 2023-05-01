@@ -1057,7 +1057,6 @@ impl PresignKeyShareAndInfo {
         let psi = PiAffgProof::prove(
             &PiAffgInput::new(
                 receiver_aux_info.params().clone(),
-                g,
                 receiver_aux_info.pk().clone(),
                 self.aux_info_public.pk().clone(),
                 receiver_r1_pub_broadcast.K.clone(),
@@ -1075,7 +1074,6 @@ impl PresignKeyShareAndInfo {
         let psi_hat = PiAffgProof::prove(
             &PiAffgInput::new(
                 receiver_aux_info.params().clone(),
-                g,
                 receiver_aux_info.pk().clone(),
                 self.aux_info_public.pk().clone(),
                 receiver_r1_pub_broadcast.K.clone(),

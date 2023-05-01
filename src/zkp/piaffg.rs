@@ -100,8 +100,6 @@ pub(crate) struct PiAffgProof {
 pub(crate) struct PiAffgInput {
     /// The verifier's commitment parameters (`(Nhat, s, t)` in the paper).
     verifier_setup_params: VerifiedRingPedersen,
-    /// Generator for group (`g` in the paper).
-    generator: CurvePoint,
     /// First Paillier encryption key (`N_0` in the paper).
     encryption_key_0: EncryptionKey,
     /// Second Paillier encryption key (`N_1` in the paper).
@@ -121,7 +119,6 @@ impl PiAffgInput {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         verifier_setup_params: VerifiedRingPedersen,
-        generator: CurvePoint,
         encryption_key_0: EncryptionKey,
         encryption_key_1: EncryptionKey,
         exponentiation: Ciphertext,
@@ -131,7 +128,6 @@ impl PiAffgInput {
     ) -> Self {
         Self {
             verifier_setup_params,
-            generator,
             encryption_key_0,
             encryption_key_1,
             input_ciphertext: exponentiation,
@@ -270,7 +266,7 @@ impl Proof for PiAffgProof {
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Compute the exponentiation of the multiplicative coefficient
         // (producing `B_x` in the paper)
-        let random_mult_coeff_exp = input.generator.multiply_by_scalar(&random_mult_coeff)?;
+        let random_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_scalar(&random_mult_coeff)?;
         // Encrypt the random additive coefficient using the 1st encryption key
         // (producing `B_y` in the paper).
         let (random_add_coeff_ciphertext_1, random_add_coeff_nonce_1) = input
@@ -412,9 +408,7 @@ impl Proof for PiAffgProof {
         }
         // Check that the masked group exponentiation is valid.
         let masked_group_exponentiation_is_valid = {
-            let lhs = input
-                .generator
-                .multiply_by_scalar(&self.masked_mult_coeff)?;
+            let lhs = CurvePoint::GENERATOR.multiply_by_scalar(&self.masked_mult_coeff)?;
             let rhs = self.random_mult_coeff_exp
                 + input
                     .multiplicative_coefficient_exponentiation
@@ -574,7 +568,7 @@ mod tests {
 
         let setup_params = VerifiedRingPedersen::gen(rng, &())?;
         let mut transcript = Transcript::new(b"random_paillier_affg_proof");
-        let input = PiAffgInput::new(setup_params, CurvePoint::GENERATOR, pk0, pk1, C, D, Y, X);
+        let input = PiAffgInput::new(setup_params, pk0, pk1, C, D, Y, X);
 
         let proof = PiAffgProof::prove(
             &input,
