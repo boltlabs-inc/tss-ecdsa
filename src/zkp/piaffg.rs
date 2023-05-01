@@ -158,10 +158,10 @@ pub(crate) struct PiAffgSecret {
 impl Debug for PiAffgSecret {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("piaffg::Secret")
-            .field("x", &"[redacted]")
-            .field("y", &"[redacted]")
-            .field("rho", &"[redacted]")
-            .field("rho_y", &"[redacted]")
+            .field("mult_coeff", &"[redacted]")
+            .field("add_coeff", &"[redacted]")
+            .field("add_coeff_nonce_0", &"[redacted]")
+            .field("add_coeff_nonce_1", &"[redacted]")
             .finish()
     }
 }
