@@ -509,11 +509,6 @@ impl PresignParticipant {
     /// public values from each other participant, its own round 1 private
     /// value, and its own round one keyshare from key generation, and produces
     /// per-participant round 2 public and private values.
-    ///
-    /// This can be run as soon as each round one message to this participant
-    /// has been published. These round two messages are returned in
-    /// response to the sender, without having to rely on any other round
-    /// one messages from other participants aside from the sender.
     #[instrument(skip_all, err(Debug))]
     fn gen_round_two_msgs<R: RngCore + CryptoRng>(
         &mut self,
