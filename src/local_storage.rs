@@ -62,8 +62,11 @@ impl LocalStorage {
             .insert((participant_id, TypeId::of::<T>()), Box::new(value));
     }
 
-    /// Retrieves a reference to a value via its [`TypeTag`]
-    /// and [`ParticipantIdentifier`].
+    /// Retrieves a reference to a value via its [`TypeTag`] and
+    /// [`ParticipantIdentifier`]. This will return an error if the item is
+    /// not in storage and should only be called after first checking with
+    /// [`contains()`](LocalStorage::contains())
+    /// or [`contains_for_all_ids()`](LocalStorage::contains_for_all_ids())
     pub(crate) fn retrieve<T: TypeTag>(
         &self,
         participant_id: ParticipantIdentifier,
@@ -80,7 +83,7 @@ impl LocalStorage {
                     InternalError::InternalInvariantFailed
                 })
             })
-            .unwrap_or(Err(InternalError::StorageItemNotFound))
+            .unwrap_or(Err(InternalError::InternalInvariantFailed))
     }
 
     /// Retrieves a mutable reference to a value via its [`TypeTag`]
@@ -88,7 +91,7 @@ impl LocalStorage {
     pub(crate) fn retrieve_mut<T: TypeTag>(
         &mut self,
         participant_id: ParticipantIdentifier,
-    ) -> Result<&mut T::Value> {
+    ) -> Result<Option<&mut T::Value>> {
         self.storage
             .get_mut(&(participant_id, TypeId::of::<T>()))
             .map(|any| {
@@ -101,7 +104,7 @@ impl LocalStorage {
                     InternalError::InternalInvariantFailed
                 })
             })
-            .unwrap_or(Err(InternalError::StorageItemNotFound))
+            .map_or(Ok(None), |v| v.map(Some))
     }
 
     /// Checks whether values exist for the given [`TypeTag`]

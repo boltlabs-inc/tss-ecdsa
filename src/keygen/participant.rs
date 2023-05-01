@@ -392,7 +392,7 @@ impl KeygenParticipant {
         // `handle_round_one_msg`, we may reach this point and not actually have
         // generated round one messages for ourselves (in particular,
         // `PublicKeyshare` and `Decommit`). This check forces that behavior.
-        // Without it we'll get a `StorageItemNotFound` error when trying to
+        // Without it we'll get a `InternalInvariantFailed` error when trying to
         // retrieve `Decommit` below.
         if !self
             .local_storage

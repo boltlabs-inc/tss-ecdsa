@@ -25,8 +25,6 @@ pub enum InternalError {
     ProtocolError,
     #[error("Represents some code assumption that was checked at runtime but failed to be true")]
     InternalInvariantFailed,
-    #[error("Storage does not contain the requested item")]
-    StorageItemNotFound,
 }
 
 /// Errors that are caused by incorrect behavior by the calling application.

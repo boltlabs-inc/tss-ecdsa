@@ -311,10 +311,12 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         T::Value: Default,
     {
         let pid = self.id();
-        if self.local_storage_mut().retrieve_mut::<T>(pid).is_err() {
+        if self.local_storage_mut().retrieve_mut::<T>(pid)?.is_none() {
             self.local_storage_mut().store::<T>(pid, Default::default());
         }
-        self.local_storage_mut().retrieve_mut::<T>(pid)
+        self.local_storage_mut()
+            .retrieve_mut::<T>(pid)?
+            .ok_or(InternalError::InternalInvariantFailed)
     }
 
     /// Store [`Message`] in the message queue.
