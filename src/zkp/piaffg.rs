@@ -13,9 +13,9 @@
 //! non-interactive zero-knowledge proof of knowledge of the following: The
 //! prover knows private values `x ∈ ±2^ℓ` and `y ∈ ±2^ℓ` such that (1) public
 //! value `X = g^x`, (2) public Paillier ciphertext `Y = Enc(pk0, y)`, and (3)
-//! public parameters `C` and `D` are such that `D = C^x Enc(pk1, y)` where `pk0`
-//! and `pk1` are public Paillier encryption keys. The proof is defined in Figure
-//! 15 of CGGMP[^cite].
+//! public parameters `C` and `D` are such that `D = C^x Enc(pk1, y)` where
+//! `pk0` and `pk1` are public Paillier encryption keys. The proof is defined in
+//! Figure 15 of CGGMP[^cite].
 //!
 //! This implementation uses a standard Fiat-Shamir transformation to make the
 //! proof non-interactive.
@@ -108,9 +108,11 @@ pub(crate) struct PiAffgInput {
     input_ciphertext: Ciphertext,
     /// Output Paillier ciphertext (`D` in the paper).
     output_ciphertext: Ciphertext,
-    /// Paillier ciphertext of the prover's additive coefficient (`Y` in the paper).
+    /// Paillier ciphertext of the prover's additive coefficient (`Y` in the
+    /// paper).
     additive_coefficient_ciphertext: Ciphertext,
-    /// Exponentiation of the prover's multiplicative coefficient (`X` in the paper).
+    /// Exponentiation of the prover's multiplicative coefficient (`X` in the
+    /// paper).
     multiplicative_coefficient_exponentiation: CurvePoint,
 }
 
@@ -245,7 +247,8 @@ impl Proof for PiAffgProof {
         // Finally, we do a range check on `x` and `y` by checking that `ɑ + e
         // x` and `β + e y` fall within the acceptable ranges.
 
-        // Sample a random multiplicative coefficient from `±2^{ℓ+ε}` (`ɑ` in the paper).
+        // Sample a random multiplicative coefficient from `±2^{ℓ+ε}` (`ɑ` in the
+        // paper).
         let random_mult_coeff = random_plusminus_by_size(rng, ELL + EPSILON);
         // Sample a random additive coefficient from `±2^{ℓ'+ε}` (`β` in the paper).
         let random_add_coeff = random_plusminus_by_size(rng, ELL_PRIME + EPSILON);
@@ -314,7 +317,8 @@ impl Proof for PiAffgProof {
         let masked_mult_coeff = &random_mult_coeff + &challenge * &secret.mult_coeff;
         // Mask the (secret) additive coefficient (`z_2` in the paper).
         let masked_add_coeff = &random_add_coeff + &challenge * &secret.add_coeff;
-        // Mask the multiplicative coefficient's commitment randomness (`z_3` in the paper).
+        // Mask the multiplicative coefficient's commitment randomness (`z_3` in the
+        // paper).
         let masked_mult_coeff_commit_randomness =
             mult_coeff_commit_randomness.mask(&random_mult_coeff_commit_randomness, &challenge);
         // Mask the additive coefficient's commitment randomness (`z_4` in the paper).
@@ -419,7 +423,8 @@ impl Proof for PiAffgProof {
             warn!("Masked group exponentiation check (second equality check) failed");
             return Err(InternalError::ProtocolError);
         }
-        // Check that the masked additive coefficient is valid using the 1st encryption key.
+        // Check that the masked additive coefficient is valid using the 1st encryption
+        // key.
         let masked_additive_coefficient_is_valid = {
             let lhs = input
                 .encryption_key_1
