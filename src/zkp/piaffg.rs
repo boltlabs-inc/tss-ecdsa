@@ -6,16 +6,15 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Implements a zero-knowledge proof of knowledge that a Paillier ciphertext
-//! was the result of an affine-like transformation.
+//! A zero-knowledge proof of knowledge that a Paillier ciphertext was the
+//! result of an affine-like transformation.
 //!
-//! In more detail, this module includes types for creating and verifying a
-//! non-interactive zero-knowledge proof of knowledge of the following: The
-//! prover knows private values `x ∈ ±2^ℓ` and `y ∈ ±2^ℓ` such that (1) public
-//! value `X = g^x`, (2) public Paillier ciphertext `Y = Enc(pk0, y)`, and (3)
-//! public parameters `C` and `D` are such that `D = C^x Enc(pk1, y)` where
-//! `pk0` and `pk1` are public Paillier encryption keys. The proof is defined in
-//! Figure 15 of CGGMP[^cite].
+//! In more detail, this module implements a non-interactive zero-knowledge
+//! proof of knowledge of the following: The prover knows private values `x ∈
+//! ±2^ℓ` and `y ∈ ±2^ℓ` such that public value `X = g^x`, public Paillier
+//! ciphertext `Y = Enc(pk1, y)`, and public Paillier ciphertexts `C` and `D`
+//! are such that `D = C^x Enc(pk0, y)` where `pk0` and `pk1` are public
+//! Paillier encryption keys. The proof is defined in Figure 15 of CGGMP[^cite].
 //!
 //! This implementation uses a standard Fiat-Shamir transformation to make the
 //! proof non-interactive.
@@ -24,7 +23,6 @@
 //! Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
 //! with Identifiable Aborts. [EPrint archive,
 //! 2021](https://eprint.iacr.org/2021/060.pdf).
-
 use crate::{
     errors::*,
     paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce},
@@ -46,14 +44,12 @@ use utils::CurvePoint;
 use zeroize::ZeroizeOnDrop;
 
 /// Proof of knowledge that a Paillier ciphertext was the result of an
-/// affine-line transformation and the plaintext falls within an appropriate
+/// affine-like transformation and the plaintext falls within an appropriate
 /// range.
+///
+/// See the [module-level documentation](crate::zkp::piaffg) for more details.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PiAffgProof {
-    /// A random multiplicative coefficient (`ɑ` in the paper).
-    random_mult_coeff: BigNumber,
-    /// A random additive coefficient (`β` in the paper).
-    random_add_coeff: BigNumber,
     /// A commitment to the multiplicative coefficient (`S` in the paper).
     mult_coeff_commit: Commitment,
     /// A commitment to the additive coefficient (`T` in the paper).
@@ -108,12 +104,12 @@ pub(crate) struct PiAffgInput {
     input_ciphertext: Ciphertext,
     /// Output Paillier ciphertext (`D` in the paper).
     output_ciphertext: Ciphertext,
-    /// Paillier ciphertext of the prover's additive coefficient (`Y` in the
-    /// paper).
-    additive_coefficient_ciphertext: Ciphertext,
+    /// Paillier ciphertext of the prover's additive coefficient under the 1st
+    /// encryption key (`Y` in the paper).
+    add_coeff_ciphertext_1: Ciphertext,
     /// Exponentiation of the prover's multiplicative coefficient (`X` in the
     /// paper).
-    multiplicative_coefficient_exponentiation: CurvePoint,
+    mult_coeff_exp: CurvePoint,
 }
 
 impl PiAffgInput {
@@ -123,19 +119,19 @@ impl PiAffgInput {
         verifier_setup_params: VerifiedRingPedersen,
         encryption_key_0: EncryptionKey,
         encryption_key_1: EncryptionKey,
-        exponentiation: Ciphertext,
-        affine_output: Ciphertext,
-        ciphertext: Ciphertext,
-        paillier_exponentiation: CurvePoint,
+        input_ciphertext: Ciphertext,
+        output_ciphertext: Ciphertext,
+        add_coeff_ciphertext_1: Ciphertext,
+        mult_coeff_exp: CurvePoint,
     ) -> Self {
         Self {
             verifier_setup_params,
             encryption_key_0,
             encryption_key_1,
-            input_ciphertext: exponentiation,
-            output_ciphertext: affine_output,
-            additive_coefficient_ciphertext: ciphertext,
-            multiplicative_coefficient_exponentiation: paillier_exponentiation,
+            input_ciphertext,
+            output_ciphertext,
+            add_coeff_ciphertext_1,
+            mult_coeff_exp,
         }
     }
 }
@@ -157,7 +153,7 @@ pub(crate) struct PiAffgSecret {
 
 impl Debug for PiAffgSecret {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("piaffg::Secret")
+        f.debug_struct("Paillier Affine Operation Proof Secret")
             .field("mult_coeff", &"[redacted]")
             .field("add_coeff", &"[redacted]")
             .field("add_coeff_nonce_0", &"[redacted]")
@@ -267,7 +263,7 @@ impl Proof for PiAffgProof {
                 &random_additive_coeff_ciphertext_0,
             )
             .map_err(|_| InternalError::InternalInvariantFailed)?;
-        // Compute the exponentiation of the multiplicative coefficient
+        // Compute the exponentiation of the random multiplicative coefficient
         // (producing `B_x` in the paper)
         let random_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_scalar(&random_mult_coeff)?;
         // Encrypt the random additive coefficient using the 1st encryption key
@@ -341,8 +337,6 @@ impl Proof for PiAffgProof {
             &challenge,
         );
         Ok(Self {
-            random_mult_coeff,
-            random_add_coeff,
             mult_coeff_commit,
             add_coeff_commit,
             random_affine_ciphertext,
@@ -368,7 +362,7 @@ impl Proof for PiAffgProof {
         transcript: &mut Transcript,
     ) -> Result<()> {
         // Generate verifier's challenge via Fiat-Shamir...
-        let challenge: BigNumber = Self::generate_challenge(
+        let challenge = Self::generate_challenge(
             transcript,
             context,
             input,
@@ -414,9 +408,7 @@ impl Proof for PiAffgProof {
         let masked_group_exponentiation_is_valid = {
             let lhs = CurvePoint::GENERATOR.multiply_by_scalar(&self.masked_mult_coeff)?;
             let rhs = self.random_mult_coeff_exp
-                + input
-                    .multiplicative_coefficient_exponentiation
-                    .multiply_by_scalar(&self.challenge)?;
+                + input.mult_coeff_exp.multiply_by_scalar(&self.challenge)?;
             lhs == rhs
         };
         if !masked_group_exponentiation_is_valid {
@@ -434,7 +426,7 @@ impl Proof for PiAffgProof {
                 .encryption_key_1
                 .multiply_and_add(
                     &self.challenge,
-                    &input.additive_coefficient_ciphertext,
+                    &input.add_coeff_ciphertext_1,
                     &self.random_add_coeff_ciphertext_1,
                 )
                 .map_err(|_| InternalError::InternalInvariantFailed)?;
@@ -556,15 +548,13 @@ mod tests {
         let (decryption_key_1, _, _) = DecryptionKey::new(rng).unwrap();
         let pk1 = decryption_key_1.encryption_key();
 
-        let generator = CurvePoint::GENERATOR;
-        let X = generator.multiply_by_scalar(x)?;
+        let X = CurvePoint::GENERATOR.multiply_by_scalar(x)?;
         let (Y, rho_y) = pk1
             .encrypt(rng, y)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
 
         let C = pk0.random_ciphertext(rng);
 
-        // Compute D = C^x * (1 + N0)^y rho^N0 (mod N0^2)
         let (D, rho) = {
             let (D_intermediate, rho) = pk0.encrypt(rng, y).unwrap();
             let D = pk0.multiply_and_add(x, &C, &D_intermediate).unwrap();
@@ -574,14 +564,9 @@ mod tests {
         let setup_params = VerifiedRingPedersen::gen(rng, &())?;
         let mut transcript = Transcript::new(b"random_paillier_affg_proof");
         let input = PiAffgInput::new(setup_params, pk0, pk1, C, D, Y, X);
+        let secret = PiAffgSecret::new(x.clone(), y.clone(), rho, rho_y);
 
-        let proof = PiAffgProof::prove(
-            &input,
-            &PiAffgSecret::new(x.clone(), y.clone(), rho, rho_y),
-            &(),
-            &mut transcript,
-            rng,
-        )?;
+        let proof = PiAffgProof::prove(&input, &secret, &(), &mut transcript, rng)?;
         let transcript = Transcript::new(b"random_paillier_affg_proof");
         Ok((proof, input, transcript))
     }
