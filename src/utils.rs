@@ -305,20 +305,36 @@ pub(crate) mod testing {
     fn init_rng() -> StdRng {
         let mut seeder = OsRng;
         let seed = seeder.gen();
+        eprintln!(
+            "Test Failed. To recreate the randomness used, use init_testing_with_seed() with the following seed:"
+        );
         eprintln!("seed: {seed:?}");
+        StdRng::from_seed(seed)
+    }
+
+    /// Returns an rng with a manually-specified seed to be used for debugging.
+    #[allow(unused)]
+    fn init_rng_with_seed(seed: [u8; 32]) -> StdRng {
         StdRng::from_seed(seed)
     }
 
     /// Initialize any test necessary for our tests. This should be called at
     /// the top of all our tests. This function is idempotent.
     pub(crate) fn init_testing() -> StdRng {
+        init_rng()
+    }
+
+    /// A seeded version of init_testing. Additionally, turns on logging by
+    /// default.
+    #[allow(unused)]
+    pub(crate) fn init_testing_with_seed(seed: [u8; 32]) -> StdRng {
         let logging_level = EnvFilter::from_default_env()
             .max_level_hint()
             .unwrap()
             .into_level()
             .unwrap();
 
-        // Only capture logging events from lock_keeper crates.
+        // Only capture logging events from tss_ecdsa crate.
         let targets = Targets::new().with_target("tss_ecdsa", logging_level);
         let stdout_layer = tracing_subscriber::fmt::layer()
             .pretty()
@@ -329,6 +345,6 @@ pub(crate) mod testing {
         let _ = tracing_subscriber::registry().with(stdout_layer).try_init();
 
         // Return RNG
-        init_rng()
+        init_rng_with_seed(seed)
     }
 }
