@@ -6,26 +6,40 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! A zero-knowledge proof of knowledge that a Paillier ciphertext was the
-//! result of an affine-like transformation.
+//! Implements a zero-knowledge proof of knowledge of a Paillier affine
+//! operation with a group commitment where the encrypted and committed values
+//! are in a given range.
 //!
-//! In more detail, this module implements a non-interactive zero-knowledge
-//! proof of knowledge of the following: The prover knows private values `x ∈
-//! ±2^ℓ` and `y ∈ ±2^ℓ` such that public value `X = g^x`, public Paillier
-//! ciphertext `Y = Enc(pk1, y)`, and public Paillier ciphertexts `C` and `D`
-//! are such that `D = C^x Enc(pk0, y)` where `pk0` and `pk1` are public
-//! Paillier encryption keys. The proof is defined in Figure 15 of CGGMP[^cite].
+//! More precisely, this module includes methods to create and verify a
+//! non-interactive zero-knowledge proof of knowledge of `(x, y, ρ, ρ_y)`,
+//! where:
+//! - `x` (the _multiplicative coefficient_) is the discrete log of a known
+//!   group element and lies in the range `I`;
+//! - `y` (the _additive coefficient_) lies in the range `J`;
+//! - `(y, ρ_y)` is the (plaintext, nonce) pair corresponding to a known
+//!   ciphertext `Y`;
+//! - `(y, ρ)` is the (plaintext, nonce) pair corresponding to an unknown
+//!   ciphertext `Y'`; and
+//! - the relation `D = C^x · Y'` holds for known ciphertexts `C` and `D`.
 //!
-//! This implementation uses a standard Fiat-Shamir transformation to make the
-//! proof non-interactive.
+//! All ciphertexts are encrypted under the verifier's Paillier encryption key
+//! except for `Y`, which is under the prover's Paillier encryption key. The
+//! acceptable range for the plaintexts are fixed according to our parameters:
+//! `I = [-2^ℓ, 2^ℓ]`, where `ℓ` is [`ELL`] and `J = [-2^ℓ', 2^ℓ']`, where `ℓ'`
+//! is [`ELL_PRIME`].
+//!
+//! The proof is defined in Figure 15 of CGGMP[^cite], and the implementation
+//! uses a standard Fiat-Shamir transformation to make the proof
+//! non-interactive.
 //!
 //! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
 //! Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
 //! with Identifiable Aborts. [EPrint archive,
 //! 2021](https://eprint.iacr.org/2021/060.pdf).
+
 use crate::{
     errors::*,
-    paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce},
+    paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce, PaillierError},
     parameters::{ELL, ELL_PRIME, EPSILON},
     ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
     utils::{
@@ -43,27 +57,29 @@ use tracing::warn;
 use utils::CurvePoint;
 use zeroize::ZeroizeOnDrop;
 
-/// Proof of knowledge that a Paillier ciphertext was the result of an
-/// affine-like transformation and the plaintext falls within an appropriate
+/// Zero-knowledge proof of knowledge of a Paillier affine operation with a
+/// group commitment where the encrypted and committed values are in a given
 /// range.
 ///
 /// See the [module-level documentation](crate::zkp::piaffg) for more details.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PiAffgProof {
-    /// A commitment to the multiplicative coefficient (`S` in the paper).
+    /// A ring-Pedersen commitment to the multiplicative coefficient (`S` in the
+    /// paper).
     mult_coeff_commit: Commitment,
-    /// A commitment to the additive coefficient (`T` in the paper).
+    /// A ring-Pedersen commitment to the additive coefficient (`T` in the
+    /// paper).
     add_coeff_commit: Commitment,
     /// A ciphertext produced by the affine-like transformation applied to the
     /// random multiplicative and random additive coefficients (`A` in the
     /// paper).
-    random_affine_ciphertext: Ciphertext,
+    random_affine_ciphertext_verifier: Ciphertext,
     /// A group exponentiation of the random multiplicative coefficient (`B_x`
     /// in the paper).
     random_mult_coeff_exp: CurvePoint,
-    /// A Paillier ciphertext, under the 1st encryption key, of the random
-    /// additive coefficient (`B_y` in the paper).
-    random_add_coeff_ciphertext_1: Ciphertext,
+    /// A Paillier ciphertext, under the prover's encryption key, of the
+    /// random additive coefficient (`B_y` in the paper).
+    random_add_coeff_ciphertext_prover: Ciphertext,
     /// A ring-Pedersen commitment to the random multiplicative coefficient (`E`
     /// in the paper).
     random_mult_coeff_commit: Commitment,
@@ -83,11 +99,11 @@ pub(crate) struct PiAffgProof {
     /// (`z_4` in the paper).
     masked_add_coeff_commit_randomness: MaskedRandomness,
     /// A mask of the Paillier ciphertext nonce of the (secret) additive
-    /// coefficient under the 0th encryption key (`w` in the paper).
-    masked_add_coeff_nonce_0: MaskedNonce,
+    /// coefficient under the verifier's encryption key (`w` in the paper).
+    masked_add_coeff_nonce_verifier: MaskedNonce,
     /// A mask of the Paillier ciphertext nonce of the (secret) additive
-    /// coefficient under the 1st encryption key (`w_y` in the paper).
-    masked_add_coeff_nonce_1: MaskedNonce,
+    /// coefficient under the prover's encryption key (`w_y` in the paper).
+    masked_add_coeff_nonce_prover: MaskedNonce,
 }
 
 /// Common input and setup parameters for [`PiAffgProof`] known to both the
@@ -96,17 +112,19 @@ pub(crate) struct PiAffgProof {
 pub(crate) struct PiAffgInput {
     /// The verifier's commitment parameters (`(Nhat, s, t)` in the paper).
     verifier_setup_params: VerifiedRingPedersen,
-    /// First Paillier encryption key (`N_0` in the paper).
-    encryption_key_0: EncryptionKey,
-    /// Second Paillier encryption key (`N_1` in the paper).
-    encryption_key_1: EncryptionKey,
-    /// Input Paillier ciphertext (`C` in the paper).
-    input_ciphertext: Ciphertext,
-    /// Output Paillier ciphertext (`D` in the paper).
-    output_ciphertext: Ciphertext,
-    /// Paillier ciphertext of the prover's additive coefficient under the 1st
-    /// encryption key (`Y` in the paper).
-    add_coeff_ciphertext_1: Ciphertext,
+    /// The verifier's Paillier encryption key (`N_0` in the paper).
+    verifier_encryption_key: EncryptionKey,
+    /// The prover's Paillier encryption key (`N_1` in the paper).
+    prover_encryption_key: EncryptionKey,
+    /// The original Paillier ciphertext encrypted under the verifier's
+    /// encryption key (`C` in the paper).
+    original_ciphertext_verifier: Ciphertext,
+    /// The transformed Paillier ciphertext encrypted under the verifier's
+    /// encryption key (`D` in the paper).
+    transformed_ciphertext_verifier: Ciphertext,
+    /// Paillier ciphertext of the prover's additive coefficient under the
+    /// prover's encryption key (`Y` in the paper).
+    add_coeff_ciphertext_prover: Ciphertext,
     /// Exponentiation of the prover's multiplicative coefficient (`X` in the
     /// paper).
     mult_coeff_exp: CurvePoint,
@@ -114,23 +132,22 @@ pub(crate) struct PiAffgInput {
 
 impl PiAffgInput {
     /// Construct a new [`PiAffgInput`] type.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         verifier_setup_params: VerifiedRingPedersen,
-        encryption_key_0: EncryptionKey,
-        encryption_key_1: EncryptionKey,
-        input_ciphertext: Ciphertext,
-        output_ciphertext: Ciphertext,
-        add_coeff_ciphertext_1: Ciphertext,
+        verifier_encryption_key: EncryptionKey,
+        prover_encryption_key: EncryptionKey,
+        original_ciphertext_verifier: Ciphertext,
+        transformed_ciphertext_verifier: Ciphertext,
+        add_coeff_ciphertext_prover: Ciphertext,
         mult_coeff_exp: CurvePoint,
     ) -> Self {
         Self {
             verifier_setup_params,
-            encryption_key_0,
-            encryption_key_1,
-            input_ciphertext,
-            output_ciphertext,
-            add_coeff_ciphertext_1,
+            verifier_encryption_key,
+            prover_encryption_key,
+            original_ciphertext_verifier,
+            transformed_ciphertext_verifier,
+            add_coeff_ciphertext_prover,
             mult_coeff_exp,
         }
     }
@@ -143,12 +160,12 @@ pub(crate) struct PiAffgSecret {
     mult_coeff: BigNumber,
     /// The additive coefficient (`y` in the paper).
     add_coeff: BigNumber,
-    /// The additive coefficient's nonce produced when encrypting using the 0th
-    /// encryption key (`ρ` in the paper).
-    add_coeff_nonce_0: Nonce,
-    /// The additive coefficient's nonce produced when encrypting using the 1st
-    /// encryption key (`ρ_y` in the paper).
-    add_coeff_nonce_1: Nonce,
+    /// The additive coefficient's nonce produced when encrypted using the
+    /// verifier's encryption key (`ρ` in the paper).
+    add_coeff_nonce_verifier_key: Nonce,
+    /// The additive coefficient's nonce produced when encrypted using the
+    /// prover's encryption key (`ρ_y` in the paper).
+    add_coeff_nonce_prover_key: Nonce,
 }
 
 impl Debug for PiAffgSecret {
@@ -156,8 +173,8 @@ impl Debug for PiAffgSecret {
         f.debug_struct("Paillier Affine Operation Proof Secret")
             .field("mult_coeff", &"[redacted]")
             .field("add_coeff", &"[redacted]")
-            .field("add_coeff_nonce_0", &"[redacted]")
-            .field("add_coeff_nonce_1", &"[redacted]")
+            .field("add_coeff_nonce_verifier", &"[redacted]")
+            .field("add_coeff_nonce_prover", &"[redacted]")
             .finish()
     }
 }
@@ -165,16 +182,16 @@ impl Debug for PiAffgSecret {
 impl PiAffgSecret {
     /// Construct a new [`PiAffgSecret`] type.
     pub(crate) fn new(
-        group_element: BigNumber,
-        plaintext: BigNumber,
-        group_element_nonce: Nonce,
-        plaintext_nonce: Nonce,
+        mult_coeff: BigNumber,
+        add_coeff: BigNumber,
+        add_coeff_nonce_verifier_key: Nonce,
+        add_coeff_nonce_prover_key: Nonce,
     ) -> Self {
         Self {
-            mult_coeff: group_element,
-            add_coeff: plaintext,
-            add_coeff_nonce_0: group_element_nonce,
-            add_coeff_nonce_1: plaintext_nonce,
+            mult_coeff,
+            add_coeff,
+            add_coeff_nonce_verifier_key,
+            add_coeff_nonce_prover_key,
         }
     }
 }
@@ -184,7 +201,6 @@ impl Proof for PiAffgProof {
     type ProverSecret = PiAffgSecret;
 
     #[cfg_attr(feature = "flame_it", flame("PiAffgProof"))]
-    #[allow(clippy::many_single_char_names)]
     fn prove<R: RngCore + CryptoRng>(
         input: &Self::CommonInput,
         secret: &Self::ProverSecret,
@@ -203,37 +219,39 @@ impl Proof for PiAffgProof {
         // - `y`, which encodes the "additive coefficient".
         //
         // The prover wants to prove that (1) operations on some public
-        // ciphertext values equates to computing `z · x + y`, where `z` is some
-        // value given as part of the public input, (2) some of these
-        // ciphertexts match ciphertexts encoded under a different key, and (3)
-        // `x` and `y` fall within acceptable ranges.
+        // ciphertext values encrypted using the verifier's public key equates
+        // to computing `z · x + y`, where `z` is some value encrypted by the
+        // verifier as part of the public input, (2) `y` matches a ciphertext
+        // encrypted under the _prover_'s encryption key, and (3) `x` and `y`
+        // fall within acceptable ranges.
         //
         // In even more detail (all variable names refer to those used in the
-        // paper), let `C_i[·]` notation denote the resulting ciphertext using
-        // the `i`th encryption key. The prover wants to prove the following
-        // three claims:
+        // paper), let `C_i[·]` denote the resulting ciphertext using either the
+        // `p`rover's or the `v`erifier's encryption key. The prover wants to
+        // prove the following three claims:
         //
-        // 1. `C_0[z] ^ x · C_0[y] = D`, where `C_0[z]` and `D` are public
-        // values.
+        // 1. `C_v[z] ^ x · C_v[y] = D`, where `C_v[z]` is a public value
+        //    provided by the verifier and `D` is a public value computed by the
+        //    prover.
         //
-        // 2. `C_1[y] = Y`, where `Y` is a public value.
+        // 2. `C_p[y] = Y`, where `Y` is a public value provided by the prover.
         //
-        // 3. `g ^ x = X`, where `X` is a public value.
+        // 3. `g ^ x = X`, where `X` is a public value provided by the prover.
         //
         // This is done as follows. First, the prover constructs such a
-        // computation on _random_ values `ɑ` and `β` by computing `A = C_0[z] ^
-        // ɑ · C_0[β]`. Likewise, it produces "encoded" version of these random
-        // values `B_x = g ^ ɑ` and `B_y = C_1[β]`. It then demonstrates
-        // equality of the following three conditions, using a challenge value
-        // `e` produced by using Fiat-Shamir:
+        // computation on _random_ values `ɑ` and `β` by computing `A = C_v[z] ^
+        // ɑ · C_v[β]`. Likewise, it produces "encoded" versions of these random
+        // values `B_x = g ^ ɑ` and `B_y = C_p[β]`. It then demonstrates the
+        // following three conditions, using a challenge value `e` produced by
+        // using Fiat-Shamir:
         //
-        // 1. C_0[z] ^ (ɑ + e x) · C_0[β + e y] = A * D ^ e (note that if `D`
+        // 1. C_v[z] ^ (ɑ + e x) · C_v[β + e y] = A * D ^ e (note that if `D`
         //    "encodes" `z x + y` this check will pass)
         //
         // 2. g ^ (ɑ + e x) = B_x · X ^ e (note that if `X = g ^ x` this check
         //    will pass)
         //
-        // 3. C_1[β + e y] = B_y · Y ^ e (note that if `Y = C_1[y]` this check
+        // 3. C_p[β + e y] = B_y · Y ^ e (note that if `Y = C_p[y]` this check
         //    will pass)
         //
         // This checks the main properties we are going for, however it doesn't
@@ -248,19 +266,19 @@ impl Proof for PiAffgProof {
         let random_mult_coeff = random_plusminus_by_size(rng, ELL + EPSILON);
         // Sample a random additive coefficient from `±2^{ℓ'+ε}` (`β` in the paper).
         let random_add_coeff = random_plusminus_by_size(rng, ELL_PRIME + EPSILON);
-        // Encrypt the random additive coefficient using the 0th encryption key.
-        let (random_additive_coeff_ciphertext_0, random_add_coeff_nonce_0) = input
-            .encryption_key_0
+        // Encrypt the random additive coefficient using the verifier's encryption key.
+        let (random_additive_coeff_ciphertext_verifier, random_add_coeff_nonce_verifier) = input
+            .verifier_encryption_key
             .encrypt(rng, &random_add_coeff)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Compute the affine-like operation on our random coefficients and the
-        // input ciphertext using the 0th encryption key (producing `A` in the paper).
-        let random_affine_ciphertext = input
-            .encryption_key_0
+        // input ciphertext using the verifier's encryption key (producing `A` in the paper).
+        let random_affine_ciphertext_verifier = input
+            .verifier_encryption_key
             .multiply_and_add(
                 &random_mult_coeff,
-                &input.input_ciphertext,
-                &random_additive_coeff_ciphertext_0,
+                &input.original_ciphertext_verifier,
+                &random_additive_coeff_ciphertext_verifier,
             )
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Compute the exponentiation of the random multiplicative coefficient
@@ -268,8 +286,8 @@ impl Proof for PiAffgProof {
         let random_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_scalar(&random_mult_coeff)?;
         // Encrypt the random additive coefficient using the 1st encryption key
         // (producing `B_y` in the paper).
-        let (random_add_coeff_ciphertext_1, random_add_coeff_nonce_1) = input
-            .encryption_key_1
+        let (random_add_coeff_ciphertext_prover, random_add_coeff_nonce_prover) = input
+            .prover_encryption_key
             .encrypt(rng, &random_add_coeff)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Compute a ring-Pedersen commitment of the random multiplicative
@@ -303,9 +321,9 @@ impl Proof for PiAffgProof {
             input,
             &mult_coeff_commit,
             &add_coeff_commit,
-            &random_affine_ciphertext,
+            &random_affine_ciphertext_verifier,
             &random_mult_coeff_exp,
-            &random_add_coeff_ciphertext_1,
+            &random_add_coeff_ciphertext_prover,
             &random_mult_coeff_commit,
             &random_add_coeff_commit,
         )?;
@@ -321,27 +339,27 @@ impl Proof for PiAffgProof {
         let masked_add_coeff_commit_randomness =
             add_coeff_commit_randomness.mask(&random_add_coeff_commit_randomness, &challenge);
         // Mask the (secret) additive coefficient's nonce using the random
-        // additive coefficient's nonce produced using the 0th encryption key
-        // (`w` in the paper).
-        let masked_add_coeff_nonce_0 = input.encryption_key_0.mask(
-            &secret.add_coeff_nonce_0,
-            &random_add_coeff_nonce_0,
+        // additive coefficient's nonce produced using the verifier's encryption
+        // key (`w` in the paper).
+        let masked_add_coeff_nonce_verifier = input.verifier_encryption_key.mask(
+            &secret.add_coeff_nonce_verifier_key,
+            &random_add_coeff_nonce_verifier,
             &challenge,
         );
         // Mask the (secret) additive coefficient's nonce using the random
-        // additive coefficient's nonce produced using the 1st encryption key
-        // (`w_y` in the paper).
-        let masked_add_coeff_nonce_1 = input.encryption_key_1.mask(
-            &secret.add_coeff_nonce_1,
-            &random_add_coeff_nonce_1,
+        // additive coefficient's nonce produced using the prover's encryption
+        // key (`w_y` in the paper).
+        let masked_add_coeff_nonce_prover = input.prover_encryption_key.mask(
+            &secret.add_coeff_nonce_prover_key,
+            &random_add_coeff_nonce_prover,
             &challenge,
         );
         Ok(Self {
             mult_coeff_commit,
             add_coeff_commit,
-            random_affine_ciphertext,
+            random_affine_ciphertext_verifier,
             random_mult_coeff_exp,
-            random_add_coeff_ciphertext_1,
+            random_add_coeff_ciphertext_prover,
             random_mult_coeff_commit,
             random_add_coeff_commit,
             challenge,
@@ -349,8 +367,8 @@ impl Proof for PiAffgProof {
             masked_add_coeff,
             masked_mult_coeff_commit_randomness,
             masked_add_coeff_commit_randomness,
-            masked_add_coeff_nonce_0,
-            masked_add_coeff_nonce_1,
+            masked_add_coeff_nonce_verifier,
+            masked_add_coeff_nonce_prover,
         })
     }
 
@@ -368,9 +386,9 @@ impl Proof for PiAffgProof {
             input,
             &self.mult_coeff_commit,
             &self.add_coeff_commit,
-            &self.random_affine_ciphertext,
+            &self.random_affine_ciphertext_verifier,
             &self.random_mult_coeff_exp,
-            &self.random_add_coeff_ciphertext_1,
+            &self.random_add_coeff_ciphertext_prover,
             &self.random_mult_coeff_commit,
             &self.random_add_coeff_commit,
         )?;
@@ -381,25 +399,24 @@ impl Proof for PiAffgProof {
         }
         // Check that the affine-like transformation holds over the masked
         // coefficients using the 0th encryption key.
-        let masked_affine_operation_is_valid = {
-            let tmp = input
-                .encryption_key_0
-                .encrypt_with_nonce(&self.masked_add_coeff, &self.masked_add_coeff_nonce_0)
-                .map_err(|_| InternalError::InternalInvariantFailed)?;
-            let lhs = input
-                .encryption_key_0
-                .multiply_and_add(&self.masked_mult_coeff, &input.input_ciphertext, &tmp)
-                .map_err(|_| InternalError::InternalInvariantFailed)?;
-            let rhs = input
-                .encryption_key_0
-                .multiply_and_add(
-                    &self.challenge,
-                    &input.output_ciphertext,
-                    &self.random_affine_ciphertext,
-                )
-                .map_err(|_| InternalError::InternalInvariantFailed)?;
-            lhs == rhs
-        };
+        let masked_affine_operation_is_valid = || -> std::result::Result<bool, PaillierError> {
+            let tmp = input.verifier_encryption_key.encrypt_with_nonce(
+                &self.masked_add_coeff,
+                &self.masked_add_coeff_nonce_verifier,
+            )?;
+            let lhs = input.verifier_encryption_key.multiply_and_add(
+                &self.masked_mult_coeff,
+                &input.original_ciphertext_verifier,
+                &tmp,
+            )?;
+            let rhs = input.verifier_encryption_key.multiply_and_add(
+                &self.challenge,
+                &input.transformed_ciphertext_verifier,
+                &self.random_affine_ciphertext_verifier,
+            )?;
+            Ok(lhs == rhs)
+        }()
+        .map_err(|_| InternalError::InternalInvariantFailed)?;
         if !masked_affine_operation_is_valid {
             warn!("Masked affine operation check (first equality check) failed");
             return Err(InternalError::ProtocolError);
@@ -417,21 +434,20 @@ impl Proof for PiAffgProof {
         }
         // Check that the masked additive coefficient is valid using the 1st encryption
         // key.
-        let masked_additive_coefficient_is_valid = {
-            let lhs = input
-                .encryption_key_1
-                .encrypt_with_nonce(&self.masked_add_coeff, &self.masked_add_coeff_nonce_1)
-                .map_err(|_| InternalError::InternalInvariantFailed)?;
-            let rhs = input
-                .encryption_key_1
-                .multiply_and_add(
+        let masked_additive_coefficient_is_valid =
+            || -> std::result::Result<bool, PaillierError> {
+                let lhs = input.prover_encryption_key.encrypt_with_nonce(
+                    &self.masked_add_coeff,
+                    &self.masked_add_coeff_nonce_prover,
+                )?;
+                let rhs = input.prover_encryption_key.multiply_and_add(
                     &self.challenge,
-                    &input.add_coeff_ciphertext_1,
-                    &self.random_add_coeff_ciphertext_1,
-                )
-                .map_err(|_| InternalError::InternalInvariantFailed)?;
-            lhs == rhs
-        };
+                    &input.add_coeff_ciphertext_prover,
+                    &self.random_add_coeff_ciphertext_prover,
+                )?;
+                Ok(lhs == rhs)
+            }()
+            .map_err(|_| InternalError::InternalInvariantFailed)?;
         if !masked_additive_coefficient_is_valid {
             warn!("Masked additive coefficient check (third equality check) failed");
             return Err(InternalError::ProtocolError);
@@ -479,7 +495,7 @@ impl Proof for PiAffgProof {
         }
         // Do a range check on the masked additive coefficient.
         if !within_bound_by_size(&self.masked_add_coeff, ELL_PRIME + EPSILON) {
-            warn!(" coefficient range check failed");
+            warn!("Additive coefficient range check failed");
             return Err(InternalError::ProtocolError);
         }
         Ok(())
@@ -496,7 +512,7 @@ impl PiAffgProof {
         add_coeff_commit: &Commitment,
         random_affine_ciphertext: &Ciphertext,
         random_mult_coeff_exp: &CurvePoint,
-        random_add_coeff_ciphertext_1: &Ciphertext,
+        random_add_coeff_ciphertext_prover: &Ciphertext,
         random_mult_coeff_commit: &Commitment,
         random_add_coeff_commit: &Commitment,
     ) -> Result<BigNumber> {
@@ -509,13 +525,13 @@ impl PiAffgProof {
             &serialize!(&input)?,
         );
         transcript.append_message(
-            b"(mult_coeff_commit, add_coeff_commit, random_affine_ciphertext, random_mult_coeff_exp, random_add_coeff_ciphertext_1, random_mult_coeff_commit, random_add_coeff_commit)",
+            b"(mult_coeff_commit, add_coeff_commit, random_affine_ciphertext, random_mult_coeff_exp, random_add_coeff_ciphertext_prover, random_mult_coeff_commit, random_add_coeff_commit)",
             &[
                 mult_coeff_commit.to_bytes(),
                 add_coeff_commit.to_bytes(),
                 random_affine_ciphertext.to_bytes(),
-                serialize!(&random_mult_coeff_exp).unwrap(),
-                random_add_coeff_ciphertext_1.to_bytes(),
+                serialize!(&random_mult_coeff_exp)?,
+                random_add_coeff_ciphertext_prover.to_bytes(),
                 random_mult_coeff_commit.to_bytes(),
                 random_add_coeff_commit.to_bytes(),
             ]
