@@ -13,20 +13,21 @@
 //! More precisely, this module includes methods to create and verify a
 //! non-interactive zero-knowledge proof of knowledge of `(x, y, ρ, ρ_y)`,
 //! where:
-//! - `x` (the _multiplicative coefficient_) is the discrete log of a known
+//! - `x` (the _multiplicative coefficient_) is the discrete log of a public
 //!   group element and lies in the range `I`;
 //! - `y` (the _additive coefficient_) lies in the range `J`;
-//! - `(y, ρ_y)` is the (plaintext, nonce) pair corresponding to a known
-//!   ciphertext `Y`;
-//! - `(y, ρ)` is the (plaintext, nonce) pair corresponding to an unknown
-//!   ciphertext `Y'`; and
-//! - the relation `D = C^x · Y'` holds for known ciphertexts `C` and `D`.
+//! - `(y, ρ_y)` is the (plaintext, nonce) pair corresponding to a public
+//!   ciphertext `Y` encrypted using the prover's encryption key;
+//! - `(y, ρ)` is the (plaintext, nonce) pair corresponding to a ciphertext `Y'`
+//!   encrypted using the verifier's encryption key; and
+//! - the relation `D = C^x · Y'` holds for public ciphertexts `C` and `D`
+//!   encrypted using the verifier's encryption key.
 //!
-//! All ciphertexts are encrypted under the verifier's Paillier encryption key
-//! except for `Y`, which is under the prover's Paillier encryption key. The
-//! acceptable range for the plaintexts are fixed according to our parameters:
-//! `I = [-2^ℓ, 2^ℓ]`, where `ℓ` is [`ELL`] and `J = [-2^ℓ', 2^ℓ']`, where `ℓ'`
-//! is [`ELL_PRIME`].
+//! Note that all ciphertexts are encrypted under the verifier's Paillier
+//! encryption key except for `Y`, which is under the prover's Paillier
+//! encryption key. The acceptable range for the plaintexts are fixed according
+//! to our parameters: `I = [-2^ℓ, 2^ℓ]`, where `ℓ` is [`ELL`] and `J = [-2^ℓ',
+//! 2^ℓ']`, where `ℓ'` is [`ELL_PRIME`].
 //!
 //! The proof is defined in Figure 15 of CGGMP[^cite], and the implementation
 //! uses a standard Fiat-Shamir transformation to make the proof
@@ -435,20 +436,21 @@ impl Proof for PiAffgProof {
         }
         // Check that the masked additive coefficient is valid using the 1st encryption
         // key.
-        let masked_additive_coefficient_is_valid =
-            || -> std::result::Result<bool, PaillierError> {
-                let lhs = input.prover_encryption_key.encrypt_with_nonce(
-                    &self.masked_add_coeff,
-                    &self.masked_add_coeff_nonce_prover,
-                )?;
-                let rhs = input.prover_encryption_key.multiply_and_add(
+        let masked_additive_coefficient_is_valid = {
+            let lhs = input
+                .prover_encryption_key
+                .encrypt_with_nonce(&self.masked_add_coeff, &self.masked_add_coeff_nonce_prover)
+                .map_err(|_| InternalError::ProtocolError)?;
+            let rhs = input
+                .prover_encryption_key
+                .multiply_and_add(
                     &self.challenge,
                     &input.add_coeff_ciphertext_prover,
                     &self.random_add_coeff_ciphertext_prover,
-                )?;
-                Ok(lhs == rhs)
-            }()
-            .map_err(|_| InternalError::InternalInvariantFailed)?;
+                )
+                .map_err(|_| InternalError::ProtocolError)?;
+            lhs == rhs
+        };
         if !masked_additive_coefficient_is_valid {
             warn!("Masked additive coefficient check (third equality check) failed");
             return Err(InternalError::ProtocolError);
