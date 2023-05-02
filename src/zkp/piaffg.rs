@@ -272,7 +272,8 @@ impl Proof for PiAffgProof {
             .encrypt(rng, &random_add_coeff)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Compute the affine-like operation on our random coefficients and the
-        // input ciphertext using the verifier's encryption key (producing `A` in the paper).
+        // input ciphertext using the verifier's encryption key (producing `A` in the
+        // paper).
         let random_affine_ciphertext_verifier = input
             .verifier_encryption_key
             .multiply_and_add(
