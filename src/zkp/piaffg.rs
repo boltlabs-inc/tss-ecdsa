@@ -400,7 +400,7 @@ impl Proof for PiAffgProof {
             return Err(InternalError::ProtocolError);
         }
         // Check that the affine-like transformation holds over the masked
-        // coefficients using the 0th encryption key.
+        // coefficients using the verifier's encryption key.
         let masked_affine_operation_is_valid = || -> std::result::Result<bool, PaillierError> {
             let tmp = input.verifier_encryption_key.encrypt_with_nonce(
                 &self.masked_add_coeff,
@@ -434,8 +434,8 @@ impl Proof for PiAffgProof {
             warn!("Masked group exponentiation check (second equality check) failed");
             return Err(InternalError::ProtocolError);
         }
-        // Check that the masked additive coefficient is valid using the 1st encryption
-        // key.
+        // Check that the masked additive coefficient is valid using the
+        // prover's encryption key.
         let masked_additive_coefficient_is_valid = {
             let lhs = input
                 .prover_encryption_key
