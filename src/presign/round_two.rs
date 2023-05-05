@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use zeroize::ZeroizeOnDrop;
 
-#[derive(Clone, Serialize, Deserialize, ZeroizeOnDrop)]
+#[derive(Clone, ZeroizeOnDrop)]
 pub(crate) struct Private {
     pub beta: BigNumber,
     pub beta_hat: BigNumber,

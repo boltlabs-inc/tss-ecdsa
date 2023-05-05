@@ -17,7 +17,7 @@ use zeroize::ZeroizeOnDrop;
 ///
 /// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
-#[derive(Clone, Serialize, Deserialize, ZeroizeOnDrop)]
+#[derive(Clone, ZeroizeOnDrop)]
 pub struct KeySharePrivate {
     pub(crate) x: BigNumber, // in the range [1, q)
 }

@@ -20,7 +20,8 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use zeroize::ZeroizeOnDrop;
 
-#[derive(Clone, Serialize, Deserialize, ZeroizeOnDrop)]
+/// Private data used in round one of the presign protocol.
+#[derive(ZeroizeOnDrop)]
 pub(crate) struct Private {
     pub k: BigNumber,
     pub rho: Nonce,
@@ -57,37 +58,44 @@ pub(crate) struct PublicBroadcast {
 }
 
 impl Public {
-    /// Verify M(vrfy, Π^enc_i, (ssid, j), (I_ε, K_j), ψ_{i,j}) = 1
-    /// setup_params should be the receiving party's setup parameters
-    /// the modulus N should be the sending party's modulus N
+    /// Verify the `𝚷[enc]` proof that the prover knows the plaintext
+    /// associated with `ct`.
     fn verify(
         &self,
         context: &impl ProofContext,
-        receiver_setup_params: &VerifiedRingPedersen,
-        sender_pk: EncryptionKey,
-        K: Ciphertext,
+        verifier_setup_params: &VerifiedRingPedersen,
+        prover_pk: EncryptionKey,
+        ct: Ciphertext,
     ) -> Result<()> {
         let mut transcript = Transcript::new(b"PiEncProof");
-        let input = crate::zkp::pienc::PiEncInput::new(receiver_setup_params.clone(), sender_pk, K);
+        let input =
+            crate::zkp::pienc::PiEncInput::new(verifier_setup_params.clone(), prover_pk, ct);
         self.proof.verify(&input, context, &mut transcript)
     }
 
-    pub(crate) fn from_message(
+    /// Validate that [`Message`] is a valid proof that the [`PublicBroadcast`]
+    /// parameters are correctly constructed.
+    ///
+    /// The `verifier_auxinfo_public` argument denotes the [`AuxInfoPublic`]
+    /// type of the party validating the message, and the
+    /// `prover_auxinfo_public` argument denotes the [`AuxInfoPublic`] type of
+    /// the party providing the proof.
+    pub(crate) fn validate_message(
         message: &Message,
         context: &impl ProofContext,
-        receiver_keygen_public: &AuxInfoPublic,
-        sender_keygen_public: &AuxInfoPublic,
+        verifier_auxinfo_public: &AuxInfoPublic,
+        prover_auxinfo_public: &AuxInfoPublic,
         broadcasted_params: &PublicBroadcast,
-    ) -> Result<Self> {
+    ) -> Result<()> {
         message.check_type(MessageType::Presign(PresignMessageType::RoundOne))?;
         let round_one_public: Self = deserialize!(&message.unverified_bytes)?;
 
         round_one_public.verify(
             context,
-            receiver_keygen_public.params(),
-            sender_keygen_public.pk().clone(),
+            verifier_auxinfo_public.params(),
+            prover_auxinfo_public.pk().clone(),
             broadcasted_params.K.clone(),
         )?;
-        Ok(round_one_public)
+        Ok(())
     }
 }

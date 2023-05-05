@@ -55,9 +55,9 @@ mod storage {
     impl TypeTag for RoundOnePrivate {
         type Value = crate::presign::round_one::Private;
     }
-    pub(super) struct RoundOnePublic;
-    impl TypeTag for RoundOnePublic {
-        type Value = crate::presign::round_one::Public;
+    pub(super) struct RoundOneComplete;
+    impl TypeTag for RoundOneComplete {
+        type Value = ();
     }
     pub(super) struct RoundOnePublicBroadcast;
     impl TypeTag for RoundOnePublicBroadcast {
@@ -86,13 +86,13 @@ mod storage {
 pub enum Status {
     /// Participant has been initialized.
     Initialized,
-    /// Participant has finished sub-protocol
+    /// Participant has finished the sub-protocol.
     TerminatedSuccessfully,
 }
 
-/// PresignContext includes shared parameters in
-/// `SharedContext` and public parameters as
-/// defined in [`AuxInfoPublic`].
+/// This type includes relevant context for transcripts produced in `presign`,
+/// and includes [`SharedContext`] and [`AuxInfoPublic`]s for all participants
+/// (including this participant).
 #[derive(Debug)]
 pub struct PresignContext {
     shared_context: SharedContext,
@@ -111,6 +111,7 @@ impl ProofContext for PresignContext {
 }
 
 impl PresignContext {
+    /// Build a [`PresignContext`] from a [`PresignParticipant`].
     pub(crate) fn collect(p: &PresignParticipant) -> Self {
         let mut auxinfo_public = p.input().all_auxinfo_public();
         auxinfo_public.sort_by(|a, b| a.participant().cmp(b.participant()));
@@ -145,6 +146,65 @@ impl PresignContext {
 /// # 🔒 Lifetime requirement
 /// The [`PresignRecord`] output must only be used once and then discarded.
 ///
+/// # High-level protocol description
+/// The goal of the presign protocol is to generate [`PresignRecord`]s for all
+/// protocol participants. The protocol proceeds in four rounds, and utilizes
+/// the [`KeySharePrivate`] (`xᵢ` in the paper) constructed during the
+/// [`keygen`](crate::keygen::participant::KeygenParticipant) protocol.
+///
+/// 1. In round one, each participant generates two values corresponding to a
+///    "key share" (`kᵢ` in the paper) and an "exponent share" (`ɣᵢ` in the
+///    paper). At the end of a successful run of the protocol, each participant
+///    constructs a value equal to `(∑ kᵢ) (∑ ɣᵢ)`, which is used to generate
+///    the [`PresignRecord`].
+///
+///    The participant then encryptions these values and constructs a
+///    zero-knowledge proof [`𝚷[enc]`](crate::zkp::pienc::PiEncProof) that the
+///    ciphertext (`Kᵢ` in the paper) corresponding to its key share `kᵢ` was
+///    encrypted correctly. This proof needs to be done on per-participant (that
+///    is, if there are `n` total participants then each participant generates
+///    `n-1` such proofs, one for each other participant).
+///
+/// 2. Once each participant has received these values and proofs from all other
+///    participants, it verifies the proofs. If those all pass, it proceeds to
+///    round two. In this round, each participant `i`, for each other
+///    participant `j`, creates the following values:
+///
+///    - An exponentiation of its exponent share: `Γᵢ = g^{ɣᵢ}`.
+///    - A "mask" of its exponent share, roughly equal to `(ɣᵢ · Kⱼ)`.
+///    - A "mask" of its [`KeySharePrivate`], roughly equal to `(xᵢ · Kⱼ)`.
+///
+///    It also attaches relevant zero-knowledge proofs (per participant) that
+///    the above computations were done correctly.
+///
+/// 3. Once each participant has received these values and proofs from all other
+///    participants, it verifies the proofs. If those all pass, it proceeds to
+///    round three. In this round, each participant creates the following
+///    values:
+///
+///    - A multiplication of all the exponentiated exponent shares: `Γ = ∏ᵢ Γᵢ =
+///      g^{∑ ɣᵢ}`.
+///    - An exponentiation of its key share by this new value: `Δᵢ = Γ^{kᵢ} =
+///      g^{kᵢ ∑ ɣᵢ}`.
+///    - An "unmasked" exponent share summation multiplied by its own key share:
+///      `δᵢ = (∑ ɣⱼ) kᵢ`.
+///    - An "unmasked" [`KeySharePrivate`] summation multiplied by its own key
+///      share: `χᵢ = (∑ xⱼ) kᵢ`.
+///
+///    It also attaches a zero-knowledge proof (per participant) that the value
+///    `Δᵢ` was computed correctly.
+///
+/// 4. Once each participant has received these values and proofs from all other
+///    participants, it verifies the proofs. If those all pass, it proceeds to
+///    round four. In this round, each participant combines the `δᵢ` values and
+///    checks that `g^{∑ δᵢ} = ∏ᵢ Δᵢ`, which essentially checks that the value
+///    `g^{ɣ k}` was computed correctly, where `ɣ = ∑ ɣᵢ` and `k = ∑ kᵢ`.
+///    (Recall that `g^{ɣ k}` was the value we were aiming to compute in the
+///    first place.)
+///
+///    If this holds, each participant can output its [`PresignRecord`] as the
+///    tuple `(Γ^{(ɣ k)^{-1}}, kᵢ, χᵢ)`.
+///
 /// [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
 /// Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
 /// with Identifiable Aborts. [EPrint archive,
@@ -173,18 +233,19 @@ pub struct PresignParticipant {
 pub struct Input {
     /// The private keyshare of this participant.
     keyshare_private: KeySharePrivate,
-    /// The public keyshares of all the participants.
+    /// The public keyshares of all the participants (including this
+    /// participant).
     all_keyshare_public: Vec<KeySharePublic>,
     /// The private auxinfo of this participant.
     auxinfo_private: AuxInfoPrivate,
-    /// The public auxinfo of all the participants.
+    /// The public auxinfo of all the participants (including this participant).
     all_auxinfo_public: Vec<AuxInfoPublic>,
 }
 
 impl Input {
-    /// Creates a new [`Input`] from the outputs of
-    /// [`crate::auxinfo::participant::AuxInfoParticipant`]
-    /// and [`crate::keygen::participant::KeygenParticipant`].
+    /// Creates a new [`Input`] from the outputs of the
+    /// [`auxinfo`](crate::auxinfo::participant::AuxInfoParticipant) and
+    /// [`keygen`](crate::keygen::participant::KeygenParticipant) protocols.
     pub fn new(
         all_auxinfo_public: Vec<AuxInfoPublic>,
         auxinfo_private: AuxInfoPrivate,
@@ -235,7 +296,7 @@ impl Input {
             .collect()
     }
     /// Returns a copy of the [`AuxInfoPublic`]s associated with all the
-    /// participants.
+    /// participants (including this participant).
     fn all_auxinfo_public(&self) -> Vec<AuxInfoPublic> {
         self.all_auxinfo_public.clone()
     }
@@ -287,9 +348,9 @@ impl ProtocolParticipant for PresignParticipant {
         &self.input
     }
 
-    /// Processes the incoming message given the storage from the protocol
-    /// participant (containing auxinfo and keygen artifacts). Optionally
-    /// produces a [`PresignRecord`] once presigning is complete.
+    /// Process the incoming message.
+    ///
+    /// This method produces a [`PresignRecord`] once presigning is complete.
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     #[instrument(skip_all, err(Debug))]
     fn process_message<R: RngCore + CryptoRng>(
@@ -321,9 +382,8 @@ impl ProtocolParticipant for PresignParticipant {
                 self.handle_round_two_msg(rng, message, input)
             }
             MessageType::Presign(PresignMessageType::RoundThree) => {
-                self.handle_round_three_msg(rng, message, input)
+                self.handle_round_three_msg(message, input)
             }
-
             message_type => {
                 error!(
                     "Incorrect MessageType given to PresignParticipant. Got: {:?}",
@@ -362,6 +422,10 @@ impl Broadcast for PresignParticipant {
 }
 
 impl PresignParticipant {
+    /// Handle "Ready" messages from the protocol participants.
+    ///
+    /// Once "Ready" messages have been received from all participants, this
+    /// method triggers this participant to generate its round one messages.
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     #[instrument(skip_all, err(Debug))]
     fn handle_ready_msg<R: RngCore + CryptoRng>(
@@ -383,14 +447,13 @@ impl PresignParticipant {
         }
     }
 
-    /// Presign: Round One
+    /// Generate this participant's round one messages.
     ///
-    /// During round one, each participant produces and stores their own secret
-    /// values, and then stores a round one secret, and publishes a unique
-    /// public component to every other participant.
-    ///
-    /// This can only be run after all participants have finished with key
-    /// generation.
+    /// In this round, each participant generates some local shares, encrypts
+    /// them using the Paillier encryption scheme generated during `auxinfo`,
+    /// and produces a proof (to each other participant) that the encryption was
+    /// done correctly. It broadcasts the encrypted local shares, and sends each
+    /// proof to its respective participant.
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     #[instrument(skip_all, err(Debug))]
     fn gen_round_one_msgs<R: RngCore + CryptoRng>(
@@ -401,19 +464,18 @@ impl PresignParticipant {
     ) -> Result<Vec<Message>> {
         info!("Generating round one presign messages.");
 
-        // Reconstruct keyshare info from external input.
-        let keyshare = get_keyshare(self.id, input)?;
+        let info = PresignKeyShareAndInfo::new(self.id, input)?;
         let other_public_auxinfo = input.all_but_one_auxinfo_public(self.id);
 
         // Run round one.
         let (private, r1_publics, r1_public_broadcast) =
-            keyshare.round_one(rng, &self.retrieve_context(), &other_public_auxinfo)?;
+            info.round_one(rng, &self.retrieve_context(), &other_public_auxinfo)?;
 
         // Store private round one value locally.
         self.local_storage
             .store::<storage::RoundOnePrivate>(self.id, private);
 
-        // Publish public round one values to all other participants on the channel.
+        // Generate round one messages for all other participants.
         let mut messages = r1_publics
             .into_iter()
             .map(|(other_id, r1_public)| {
@@ -426,6 +488,7 @@ impl PresignParticipant {
                 ))
             })
             .collect::<Result<Vec<_>>>()?;
+        // Generate the round one broadcast messages.
         let broadcast_messages = self.broadcast(
             rng,
             MessageType::Presign(PresignMessageType::RoundOneBroadcast),
@@ -437,11 +500,11 @@ impl PresignParticipant {
         Ok(messages)
     }
 
-    /// Handle the protocol's round one broadcast message.
+    /// Handle a round one broadcast message from another participant.
     ///
-    /// This method simply stores the message and checks whether we've received
-    /// the non-broadcast message from the same participant. If so, we handle
-    /// it.
+    /// This stores the broadcast message and checks if the non-broadcast
+    /// message from the given participant has been received. If so, it
+    /// handles that message.
     #[instrument(skip_all, err(Debug))]
     fn handle_round_one_broadcast_msg<R: RngCore + CryptoRng>(
         &mut self,
@@ -464,20 +527,28 @@ impl PresignParticipant {
         self.local_storage
             .store::<storage::RoundOnePublicBroadcast>(message.from(), public_broadcast);
 
-        // Check to see if we have already stored the other part of round one. If so,
-        // retrieve and process it
+        // Check to see if we have already stored the round one non-broadcast
+        // message from the given participant. If so, retrieve and process it.
         let retrieved_messages = self.fetch_messages_by_sender(
             MessageType::Presign(PresignMessageType::RoundOne),
             message.from(),
         )?;
-        let non_broadcasted_portion = match retrieved_messages.get(0) {
-            Some(message) => message,
-            None => return Ok(ProcessOutcome::Incomplete),
-        };
-        self.handle_round_one_msg(rng, non_broadcasted_portion, input)
+        // We should only have one such non-broadcast message. If we have more
+        // than one that's a problem.
+        if retrieved_messages.len() > 1 {
+            error!("Received more than one presign round one message.");
+            return Err(InternalError::ProtocolError);
+        }
+        match retrieved_messages.get(0) {
+            Some(message) => self.handle_round_one_msg(rng, message, input),
+            None => Ok(ProcessOutcome::Incomplete),
+        }
     }
 
-    /// Handle the protocol's round one non-broadcast message.
+    /// Handle a round one non-broadcast message from another participant.
+    ///
+    /// This checks if we've received the associated broadcast message from that
+    /// participant, and if so proceeds to generate round two messages.
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     #[instrument(skip_all, err(Debug))]
     fn handle_round_one_msg<R: RngCore + CryptoRng>(
@@ -489,42 +560,44 @@ impl PresignParticipant {
         info!("Presign: Handling round one message.");
 
         // First check that we have the round one public broadcast from this
-        // participant. If not, we cannot proceed, so stash that message and
-        // continue.
-        if !self
+        // participant. If not, we cannot proceed, so stash that message.
+        let r1_public_broadcast = match self
             .local_storage
-            .contains::<storage::RoundOnePublicBroadcast>(message.from())
+            .retrieve::<storage::RoundOnePublicBroadcast>(message.from())
         {
-            // Store any early round one messages.
-            info!("Presign: Stashing early round one message.");
-            self.stash_message(message)?;
-            return Ok(ProcessOutcome::Incomplete);
-        }
-        let r1_public_broadcast = self
-            .local_storage
-            .retrieve::<storage::RoundOnePublicBroadcast>(message.from())?;
+            Ok(m) => m,
+            Err(_) => {
+                // XXX This error may either be due to (1) an item not being
+                // found in storage, or (2) an internal issue with storage.
+                // Currently, this code path _assumes_ that the reason this
+                // error occurs is due to (1)!
+                info!("Presign: Stashing early round one message (no matching broadcast message).");
+                self.stash_message(message)?;
+                return Ok(ProcessOutcome::Incomplete);
+            }
+        };
 
-        let keyshare = get_keyshare(self.id, input)?;
-        let keyshare_from = input.find_auxinfo_public(message.from())?;
-        let r1_public = crate::round_one::Public::from_message(
+        let info = PresignKeyShareAndInfo::new(self.id, input)?;
+        let auxinfo_public = input.find_auxinfo_public(message.from())?;
+        crate::round_one::Public::validate_message(
             message,
             &self.retrieve_context(),
-            &keyshare.aux_info_public,
-            keyshare_from,
+            &info.aux_info_public,
+            auxinfo_public,
             r1_public_broadcast,
         )?;
-        // Store the (verified) round one public value from the given participant.
+        // Mark that we have completed round one for this participant.
+        //
+        // Since we don't need the round one message in the rest of the
+        // protocol, we don't need to store it in storage.
         self.local_storage
-            .store::<storage::RoundOnePublic>(message.from(), r1_public);
-        // Check if we're done with round one by checking whether we've received
-        // broadcast and non-broadcast messages from all other participants.
-        let r1_done = self
+            .store::<storage::RoundOneComplete>(message.from(), ());
+        // Check if we're done with round one by checking that we're done with
+        // round one for all other participants.
+        if self
             .local_storage
-            .contains_for_all_ids::<storage::RoundOnePublicBroadcast>(&self.other_participant_ids)
-            && self
-                .local_storage
-                .contains_for_all_ids::<storage::RoundOnePublic>(&self.other_participant_ids);
-        if r1_done {
+            .contains_for_all_ids::<storage::RoundOneComplete>(&self.other_participant_ids)
+        {
             info!("Presign: Round one complete. Generating round two messages.");
             // Finish round one by generating messages for round two.
             let round_two_messages =
@@ -542,13 +615,10 @@ impl PresignParticipant {
         }
     }
 
-    /// Presign: Round Two
+    /// Generate round two messages.
     ///
-    /// During round two, each participant retrieves the public keyshares for
-    /// each other participant from the key generation phase, the round 1
-    /// public values from each other participant, its own round 1 private
-    /// value, and its own round one keyshare from key generation, and produces
-    /// per-participant round 2 public and private values.
+    /// This generates the "masked" exponent share and "masked" private key
+    /// share, alongside the relevant zero-knowledge proofs.
     #[instrument(skip_all, err(Debug))]
     fn gen_round_two_msgs<R: RngCore + CryptoRng>(
         &mut self,
@@ -570,7 +640,8 @@ impl PresignParticipant {
             messages.extend_from_slice(&more_messages);
         }
 
-        let keyshare = get_keyshare(self.id, input)?;
+        let info = PresignKeyShareAndInfo::new(self.id, input)?;
+        // We need this clone as the map below uses a mutable `self`.
         let pids = self.other_participant_ids.clone();
         let more_messages: Vec<Message> = pids
             .into_iter()
@@ -578,26 +649,25 @@ impl PresignParticipant {
                 let r1_priv = self
                     .local_storage
                     .retrieve::<storage::RoundOnePrivate>(self.id)?;
-                // Get the round one message broadcasted by this sender
                 let r1_public_broadcast = self
                     .local_storage
                     .retrieve::<storage::RoundOnePublicBroadcast>(pid)?;
-                let keyshare_from = input.find_auxinfo_public(pid)?;
-                let (r2_priv_ij, r2_pub_ij) = keyshare.round_two(
+                let sender_auxinfo_public = input.find_auxinfo_public(pid)?;
+                let (r2_priv, r2_pub) = info.round_two(
                     rng,
                     &self.retrieve_context(),
-                    keyshare_from,
+                    sender_auxinfo_public,
                     r1_priv,
                     r1_public_broadcast,
                 )?;
                 self.local_storage
-                    .store::<storage::RoundTwoPrivate>(pid, r2_priv_ij);
+                    .store::<storage::RoundTwoPrivate>(pid, r2_priv);
                 Ok(Message::new(
                     MessageType::Presign(PresignMessageType::RoundTwo),
                     sid,
                     self.id,
                     pid,
-                    &serialize!(&r2_pub_ij)?,
+                    &serialize!(&r2_pub)?,
                 ))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -606,6 +676,9 @@ impl PresignParticipant {
     }
 
     /// Handle a round two message.
+    ///
+    /// This verifies that the three proofs associated with the round two
+    /// message are all valid.
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     #[instrument(skip_all, err(Debug))]
     fn handle_round_two_msg<R: RngCore + CryptoRng>(
@@ -616,27 +689,22 @@ impl PresignParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Presign: Handling round two message.");
 
-        // We must have public round one values from all participants before we
+        // We must have completed round one for all participants before we
         // can proceed to round two.
-        if !(self
+        if !self
             .local_storage
-            .contains_for_all_ids::<storage::RoundOnePublic>(&self.other_participant_ids)
-            && self
-                .local_storage
-                .contains_for_all_ids::<storage::RoundOnePublicBroadcast>(
-                    &self.other_participant_ids,
-                ))
+            .contains_for_all_ids::<storage::RoundOneComplete>(&self.other_participant_ids)
         {
             info!("Presign: Not done with round one. Stashing message.");
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
 
-        // Verify the bytes of the round two value, and store it locally.
         self.validate_and_store_round_two_public(input, message)?;
 
-        // Check if storage has all of the other participants' round 2 values (both
-        // private and public), and start generating the messages for round 3 if so
+        // Check if storage has all of the other participants' round two values
+        // (both private and public), and start generating the messages for
+        // round three if so.
         let all_privates_received = self
             .local_storage
             .contains_for_all_ids::<storage::RoundTwoPrivate>(&self.other_participant_ids);
@@ -652,7 +720,7 @@ impl PresignParticipant {
             let outcomes = self
                 .fetch_messages(MessageType::Presign(PresignMessageType::RoundThree))?
                 .iter()
-                .map(|msg| self.handle_round_three_msg(rng, msg, input))
+                .map(|msg| self.handle_round_three_msg(msg, input))
                 .collect::<Result<Vec<_>>>()?;
             ProcessOutcome::collect_with_messages(outcomes, messages)
         } else {
@@ -662,20 +730,11 @@ impl PresignParticipant {
         }
     }
 
-    /// Presign: Round Three
+    /// Generate round three messages.
     ///
-    /// During round three, to process all round 3 messages from a sender, the
-    /// participant must first wait for round 2 to be completely finished
-    /// for all participants. Then, the participant retrieves:
-    /// - all participants' public keyshares,
-    /// - its own round 1 private value,
-    /// - all round 2 per-participant private values,
-    /// - all round 2 per-participant public values,
-    ///
-    /// and produces a set of per-participant round 3 public values and one
-    /// private value.
-    ///
-    /// Each participant is only going to run round three once.
+    /// This round generates the "unmasked" combined exponent shares and
+    /// "unmasked" combined private key shares, alongside any associated
+    /// zero-knowledge proofs.
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     #[instrument(skip_all, err(Debug))]
     fn gen_round_three_msgs<R: RngCore + CryptoRng>(
@@ -686,20 +745,41 @@ impl PresignParticipant {
     ) -> Result<Vec<Message>> {
         info!("Generating round three presign messages.");
 
-        let keyshare = get_keyshare(self.id, input)?;
-        let round_three_hashmap = self.get_other_participants_round_three_values(input)?;
+        let info = PresignKeyShareAndInfo::new(self.id, input)?;
+        // Collect the other participant's values from storage needed for round
+        // three.
+        //
+        // XXX remove these hashmaps, both here and elsewhere. It'd be much more
+        // straightforward to just pass around vectors.
+        let mut hashmap = HashMap::new();
+        for pid in self.other_participant_ids.clone() {
+            let auxinfo_public = input.find_auxinfo_public(pid)?;
+            let r2_private = self
+                .local_storage
+                .retrieve::<storage::RoundTwoPrivate>(pid)?;
+            let r2_public = self
+                .local_storage
+                .retrieve::<storage::RoundTwoPublic>(pid)?;
+            let _ = hashmap.insert(
+                pid,
+                RoundThreeInput {
+                    auxinfo_public: auxinfo_public.clone(),
+                    r2_private: r2_private.clone(),
+                    r2_public: r2_public.clone(),
+                },
+            );
+        }
 
         let r1_priv = self
             .local_storage
             .retrieve::<storage::RoundOnePrivate>(self.id)?;
 
         let (r3_private, r3_publics_map) =
-            keyshare.round_three(rng, &self.retrieve_context(), r1_priv, &round_three_hashmap)?;
+            info.round_three(rng, &self.retrieve_context(), r1_priv, &hashmap)?;
 
         self.local_storage
             .store::<storage::RoundThreePrivate>(self.id, r3_private);
 
-        // Publish public r3 values to all other participants on the channel
         let messages = r3_publics_map
             .into_iter()
             .map(|(id, r3_public)| {
@@ -715,29 +795,33 @@ impl PresignParticipant {
         Ok(messages)
     }
 
+    /// Handle a round three message.
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     #[instrument(skip_all, err(Debug))]
-    fn handle_round_three_msg<R: RngCore + CryptoRng>(
+    fn handle_round_three_msg(
         &mut self,
-        _rng: &mut R,
         message: &Message,
         input: &Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round three presign message.");
 
-        // If we have not yet started round three, stash the message for later
-        let r3_started = self
+        // If we have not yet started round three, stash the message for later.
+        // We check that we've started round three by checking whether our own
+        // private round three value exists in storage.
+        if self
             .local_storage
             .retrieve::<storage::RoundThreePrivate>(self.id)
-            .is_ok();
-        if !r3_started {
+            .is_err()
+        {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
 
-        // First, verify and store the round three value locally
         self.validate_and_store_round_three_public(input, message)?;
 
+        // If we have round three public values from all other participants, we
+        // are done with the protocol! All we have left to do is create the
+        // presign record.
         if self
             .local_storage
             .contains_for_all_ids::<storage::RoundThreePublic>(&self.other_participant_ids)
@@ -750,22 +834,32 @@ impl PresignParticipant {
         }
     }
 
-    /// Presign: Finish
-    ///
-    /// In this step, the participant simply collects all r3 public values and
-    /// its r3 private value, and assembles them into a PresignRecord.
+    /// Finish the presign protocol.
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     #[instrument(skip_all, err(Debug))]
     fn do_presign_finish(&mut self) -> Result<PresignRecord> {
         info!("Doing presign finish. Creating presign record.");
-        let r3_pubs = self.get_other_participants_round_three_publics()?;
+        // Collect the other participants' round three public values from storage.
+        let r3_pubs = self
+            .other_participant_ids
+            .iter()
+            .map(|pid| {
+                Ok(self
+                    .local_storage
+                    .retrieve::<storage::RoundThreePublic>(*pid)?
+                    .clone())
+            })
+            .collect::<Result<Vec<_>>>()?;
 
-        // Get this participant's round 3 private value
         let r3_private = self
             .local_storage
             .retrieve::<storage::RoundThreePrivate>(self.id)?;
 
         // Check consistency across all Gamma values
+        //
+        // XXX Rather than store the `Gamma` value as part of
+        // `round_three::Public`, we should rather just use the `Gamma` value we
+        // have. That is what the paper does and it avoids this extra check.
         for (i, r3_pub) in r3_pubs.iter().enumerate() {
             if r3_pub.Gamma != r3_private.Gamma {
                 error!(
@@ -776,6 +870,8 @@ impl PresignParticipant {
             }
         }
 
+        // Note: This `try_into` call does the check and computation specified
+        // in Step 2 of Output in the paper's protocol specification (Figure 7).
         let presign_record: PresignRecord = RecordPair {
             private: r3_private.clone(),
             publics: r3_pubs,
@@ -816,7 +912,7 @@ impl PresignParticipant {
 
         Ok(())
     }
-    /// `auxinfo_identifier` corresponds to a unique session identifier.
+
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     fn validate_and_store_round_three_public(
         &mut self,
@@ -842,103 +938,12 @@ impl PresignParticipant {
 
         Ok(())
     }
-
-    /// Aggregate the other participants' values needed for round three from
-    /// storage. This includes:
-    /// - public keyshares
-    /// - round two private values
-    /// - round two public values
-    ///
-    /// This returns a HashMap with the key as the participant id and these
-    /// values being mapped
-    /// `auxinfo_identifier` and `identifier` correspond to unique session
-    /// identifiers.
-    fn get_other_participants_round_three_values(
-        &self,
-        input: &Input,
-    ) -> Result<HashMap<ParticipantIdentifier, RoundThreeInput>> {
-        // begin by checking Storage contents to ensure we're ready for round three
-        if !self
-            .local_storage
-            .contains_for_all_ids::<storage::RoundTwoPrivate>(&self.other_participant_ids)
-            || !self
-                .local_storage
-                .contains_for_all_ids::<storage::RoundTwoPublic>(&self.other_participant_ids)
-        {
-            return Err(InternalError::StorageItemNotFound);
-        }
-
-        let mut hm = HashMap::new();
-        for other_participant_id in self.other_participant_ids.clone() {
-            let auxinfo_public = input.find_auxinfo_public(other_participant_id)?;
-            let r2_private = self
-                .local_storage
-                .retrieve::<storage::RoundTwoPrivate>(other_participant_id)?;
-            let r2_public = self
-                .local_storage
-                .retrieve::<storage::RoundTwoPublic>(other_participant_id)?;
-            let _ = hm.insert(
-                other_participant_id,
-                RoundThreeInput {
-                    auxinfo_public: auxinfo_public.clone(),
-                    r2_private: r2_private.clone(),
-                    r2_public: r2_public.clone(),
-                },
-            );
-        }
-        Ok(hm)
-    }
-
-    /// Aggregate the other participants' round three public values from
-    /// storage. But don't remove them from storage.
-    ///
-    /// This returns a Vec with the values.
-    /// `identifier` here correspond to a unique session identifier.
-    fn get_other_participants_round_three_publics(
-        &self,
-    ) -> Result<Vec<crate::round_three::Public>> {
-        if !self
-            .local_storage
-            .contains_for_all_ids::<storage::RoundThreePublic>(&self.other_participant_ids)
-        {
-            return Err(InternalError::StorageItemNotFound);
-        }
-        let ret_vec = self
-            .other_participant_ids
-            .iter()
-            .map(|other_participant_id| {
-                let r3pub = self
-                    .local_storage
-                    .retrieve::<storage::RoundThreePublic>(*other_participant_id)?;
-                Ok(r3pub.clone())
-            })
-            .collect::<Result<Vec<crate::round_three::Public>>>()?;
-        Ok(ret_vec)
-    }
 }
-
-/// `auxinfo_identifier` and `keyshare_identifier` correspond to unique session
-/// identifiers.
-pub(crate) fn get_keyshare(
-    self_id: ParticipantIdentifier,
-    input: &Input,
-) -> Result<PresignKeyShareAndInfo> {
-    // Reconstruct keyshare from local storage
-    let keyshare_and_info = PresignKeyShareAndInfo {
-        aux_info_private: input.auxinfo_private.clone(),
-        aux_info_public: input.find_auxinfo_public(self_id)?.clone(),
-        keyshare_private: input.keyshare_private.clone(),
-        keyshare_public: input.find_keyshare_public(self_id)?.clone(),
-    };
-    Ok(keyshare_and_info)
-}
-
-/////////////////
-// Round Logic //
-/////////////////
 
 /// Convenience struct used to bundle together the parameters for
-/// the current participant
+/// the current participant.
+///
+/// XXX Combine this with `Input`. There's a lot of duplication here.
 pub(crate) struct PresignKeyShareAndInfo {
     pub(crate) keyshare_private: KeySharePrivate,
     pub(crate) keyshare_public: KeySharePublic,
@@ -947,19 +952,29 @@ pub(crate) struct PresignKeyShareAndInfo {
 }
 
 impl PresignKeyShareAndInfo {
-    /// Corresponds to pre-signing round 1 for party i
+    fn new(id: ParticipantIdentifier, input: &Input) -> Result<Self> {
+        Ok(Self {
+            aux_info_private: input.auxinfo_private.clone(),
+            aux_info_public: input.find_auxinfo_public(id)?.clone(),
+            keyshare_private: input.keyshare_private.clone(),
+            keyshare_public: input.find_keyshare_public(id)?.clone(),
+        })
+    }
+
+    /// Round one of the presign protocol.
     ///
-    /// Produces local shares k and gamma, along with their encrypted
-    /// components K = enc(k) and G = enc(gamma).
-    ///
-    /// The public_keys parameter corresponds to a KeygenPublic for
-    /// each of the other parties.
+    /// This round produces two local shares `k` and `ɣ` along with their
+    /// ciphertexts encrypted using this participant's Paillier encryption key,
+    /// alongside a zero knowledge proof that the ciphertext associated with `k`
+    /// was constructed correctly. We utilize the `other_auxinfos` argument to
+    /// construct this proof, as it has to be tailored to the particular
+    /// receiving participant.
     #[cfg_attr(feature = "flame_it", flame("presign"))]
-    pub(crate) fn round_one<R: RngCore + CryptoRng>(
+    fn round_one<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
         context: &impl ProofContext,
-        public_keys: &[&AuxInfoPublic],
+        other_auxinfos: &[&AuxInfoPublic],
     ) -> Result<(
         RoundOnePrivate,
         HashMap<ParticipantIdentifier, RoundOnePublic>,
@@ -967,27 +982,24 @@ impl PresignKeyShareAndInfo {
     )> {
         let order = k256_order();
 
-        // Sample k <- F_q
         let k = random_positive_bn(rng, &order);
-        // Sample gamma <- F_q
         let gamma = random_positive_bn(rng, &order);
 
-        // Sample rho <- Z_N^* and set K = enc(k; rho)
         let (K, rho) = self
             .aux_info_public
             .pk()
             .encrypt(rng, &k)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
-        // Sample nu <- Z_N^* and set G = enc(gamma; nu)
         let (G, nu) = self
             .aux_info_public
             .pk()
             .encrypt(rng, &gamma)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
-
         let mut r1_publics = HashMap::new();
-        for aux_info_public in public_keys {
-            // Compute psi_{j,i} for every participant j != i
+        let secret = crate::zkp::pienc::PiEncSecret::new(k.clone(), rho.clone());
+        for aux_info_public in other_auxinfos {
+            // Construct a proof that `K` is the ciphertext of `k` using
+            // parameters from the other participant.
             let mut transcript = Transcript::new(b"PiEncProof");
             let proof = PiEncProof::prove(
                 &crate::zkp::pienc::PiEncInput::new(
@@ -995,7 +1007,7 @@ impl PresignKeyShareAndInfo {
                     self.aux_info_public.pk().clone(),
                     K.clone(),
                 ),
-                &crate::zkp::pienc::PiEncSecret::new(k.clone(), rho.clone()),
+                &secret,
                 context,
                 &mut transcript,
                 rng,
@@ -1021,11 +1033,9 @@ impl PresignKeyShareAndInfo {
         Ok((r1_private, r1_publics, r1_public_broadcast))
     }
 
-    /// Needs to be run once per party j != i
-    ///
-    /// Constructs a D = gamma * K and D_hat = x * K, and Gamma = g * gamma.
+    /// Round two of the presign protocol.
     #[cfg_attr(feature = "flame_it", flame("presign"))]
-    pub(crate) fn round_two<R: RngCore + CryptoRng>(
+    fn round_two<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
         context: &impl ProofContext,
@@ -1085,11 +1095,11 @@ impl PresignKeyShareAndInfo {
             .map_err(|_| InternalError::InternalInvariantFailed)?;
 
         let g = CurvePoint::GENERATOR;
-        let Gamma = CurvePoint(g.0 * bn_to_scalar(&sender_r1_priv.gamma)?);
+        let Gamma = g.multiply_by_scalar(&sender_r1_priv.gamma)?;
 
-        // Generate three proofs
+        // Generate the proofs.
         let mut transcript = Transcript::new(b"PiAffgProof");
-
+        let secret = PiAffgSecret::new(sender_r1_priv.gamma.clone(), beta.clone(), s, r);
         let psi = PiAffgProof::prove(
             &PiAffgInput::new(
                 receiver_aux_info.params().clone(),
@@ -1100,13 +1110,18 @@ impl PresignKeyShareAndInfo {
                 F.clone(),
                 Gamma,
             ),
-            &PiAffgSecret::new(sender_r1_priv.gamma.clone(), beta.clone(), s, r),
+            &secret,
             context,
             &mut transcript,
             rng,
         )?;
         let mut transcript = Transcript::new(b"PiAffgProof");
-
+        let secret = PiAffgSecret::new(
+            self.keyshare_private.x.clone(),
+            beta_hat.clone(),
+            s_hat,
+            r_hat,
+        );
         let psi_hat = PiAffgProof::prove(
             &PiAffgInput::new(
                 receiver_aux_info.params().clone(),
@@ -1117,17 +1132,13 @@ impl PresignKeyShareAndInfo {
                 F_hat.clone(),
                 self.keyshare_public.X,
             ),
-            &PiAffgSecret::new(
-                self.keyshare_private.x.clone(),
-                beta_hat.clone(),
-                s_hat,
-                r_hat,
-            ),
+            &secret,
             context,
             &mut transcript,
             rng,
         )?;
         let mut transcript = Transcript::new(b"PiLogProof");
+        let secret = ProverSecret::new(sender_r1_priv.gamma.clone(), sender_r1_priv.nu.clone());
         let psi_prime = PiLogProof::prove(
             &CommonInput::new(
                 sender_r1_priv.G.clone(),
@@ -1136,7 +1147,7 @@ impl PresignKeyShareAndInfo {
                 self.aux_info_public.pk().clone(),
                 g,
             ),
-            &ProverSecret::new(sender_r1_priv.gamma.clone(), sender_r1_priv.nu.clone()),
+            &secret,
             context,
             &mut transcript,
             rng,
@@ -1157,13 +1168,9 @@ impl PresignKeyShareAndInfo {
         ))
     }
 
-    /// From the perspective of party i
-    /// r2_privs and r2_pubs don't include party i
-    ///
-    /// First computes alpha = dec(D), alpha_hat = dec(D_hat).
-    /// Computes a delta = gamma * k
+    /// Round three of the presign protocol.
     #[cfg_attr(feature = "flame_it", flame("presign"))]
-    pub(crate) fn round_three<R: RngCore + CryptoRng>(
+    fn round_three<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
         context: &impl ProofContext,
@@ -1174,11 +1181,11 @@ impl PresignKeyShareAndInfo {
         HashMap<ParticipantIdentifier, RoundThreePublic>,
     )> {
         let order = k256_order();
+        let g = CurvePoint::GENERATOR;
+
         let mut delta: BigNumber = sender_r1_priv.gamma.modmul(&sender_r1_priv.k, &order);
         let mut chi: BigNumber = self.keyshare_private.x.modmul(&sender_r1_priv.k, &order);
-
-        let g = CurvePoint::GENERATOR;
-        let mut Gamma = CurvePoint(g.0 * bn_to_scalar(&sender_r1_priv.gamma)?);
+        let mut Gamma = g.multiply_by_scalar(&sender_r1_priv.gamma)?;
 
         for round_three_input in other_participant_inputs.values() {
             let r2_pub_j = round_three_input.r2_public.clone();
@@ -1188,19 +1195,23 @@ impl PresignKeyShareAndInfo {
                 .aux_info_private
                 .decryption_key()
                 .decrypt(&r2_pub_j.D)
-                .map_err(|_| InternalError::InternalInvariantFailed)?;
+                .map_err(|_| InternalError::ProtocolError)?;
             let alpha_hat = self
                 .aux_info_private
                 .decryption_key()
                 .decrypt(&r2_pub_j.D_hat)
-                .map_err(|_| InternalError::InternalInvariantFailed)?;
+                .map_err(|_| InternalError::ProtocolError)?;
 
+            // Note: We do a subtraction of `beta` and `beta_hat` here because
+            // in round two we did _not_ encrypt the negation of these as
+            // specified in the protocol. See comment in `round_two` for the
+            // reasoning.
             delta = delta.modadd(&alpha.modsub(&r2_priv_j.beta, &order), &order);
             chi = chi.modadd(&alpha_hat.modsub(&r2_priv_j.beta_hat, &order), &order);
             Gamma = CurvePoint(Gamma.0 + r2_pub_j.Gamma.0);
         }
 
-        let Delta = CurvePoint(Gamma.0 * bn_to_scalar(&sender_r1_priv.k)?);
+        let Delta = Gamma.multiply_by_scalar(&sender_r1_priv.k)?;
 
         let delta_scalar = bn_to_scalar(&delta)?;
         let chi_scalar = bn_to_scalar(&chi)?;

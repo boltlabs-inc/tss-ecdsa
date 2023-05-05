@@ -306,15 +306,21 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         self.local_storage_mut().retrieve_mut::<T>(pid)
     }
 
+    /// Store [`Message`] in the message queue.
     fn stash_message(&mut self, message: &Message) -> Result<()> {
         let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
         message_storage.store(message.clone())?;
         Ok(())
     }
+    /// Fetch (and remove) all [`Message`]s matching the given [`MessageType`].
+    /// If no messages are found, return an empty [`Vec`].
     fn fetch_messages(&mut self, message_type: MessageType) -> Result<Vec<Message>> {
         let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
         Ok(message_storage.retrieve_all(message_type))
     }
+    /// Fetch (and remove) all [`Message`]s matching the given [`MessageType`]
+    /// and [`ParticipantIdentifier`]. If no messages are found, return an empty
+    /// [`Vec`].
     fn fetch_messages_by_sender(
         &mut self,
         message_type: MessageType,
@@ -323,6 +329,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
         Ok(message_storage.retrieve(message_type, sender))
     }
+
     fn write_progress(&mut self, func_name: String) -> Result<()> {
         let progress_storage = self.get_from_storage::<local_storage::ProgressStore>()?;
         let _ = progress_storage.insert(func_name);
