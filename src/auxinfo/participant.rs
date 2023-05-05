@@ -280,7 +280,7 @@ impl AuxInfoParticipant {
     /// This corresponds to the following lines in Round 1 of Figure 6:
     /// - Line 1: Sampling safe primes `p` and `q`.
     /// - Line 4: Generating the `𝚷[prm]` proof `\hat{ψ}_i`.
-    /// - Line 6: Producing the commitment `V_i` on the above values.
+    /// - Line 6: Producing the hash commitment `V_i` on the above values.
     #[cfg_attr(feature = "flame_it", flame("auxinfo"))]
     #[instrument(skip_all, err(Debug))]
     fn gen_round_one_msgs<R: RngCore + CryptoRng>(
@@ -355,7 +355,7 @@ impl AuxInfoParticipant {
 
         if r1_done {
             // Generate messages for round two...
-            let round_one_messages = run_only_once!(self.gen_round_two_msgs(rng, message.id()))?;
+            let round_two_messages = run_only_once!(self.gen_round_two_msgs(rng, message.id()))?;
 
             // ...and process any round two messages we may have received early.
             let round_two_outcomes = self
@@ -364,7 +364,7 @@ impl AuxInfoParticipant {
                 .map(|msg| self.handle_round_two_msg(rng, msg))
                 .collect::<Result<Vec<_>>>()?;
 
-            ProcessOutcome::collect_with_messages(round_two_outcomes, round_one_messages)
+            ProcessOutcome::collect_with_messages(round_two_outcomes, round_two_messages)
         } else {
             // Round 1 isn't done, so we have neither outputs nor new messages to send.
             Ok(ProcessOutcome::Incomplete)
@@ -397,19 +397,19 @@ impl AuxInfoParticipant {
 
         let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
         let decom_bytes = serialize!(&decom)?;
-        let messages: Vec<Message> = self
-            .other_participant_ids
-            .iter()
-            .map(|&other_participant_id| {
-                Message::new(
-                    MessageType::Auxinfo(AuxinfoMessageType::R2Decommit),
-                    sid,
-                    self.id,
-                    other_participant_id,
-                    &decom_bytes,
-                )
-            })
-            .collect();
+        messages.extend(
+            self.other_participant_ids
+                .iter()
+                .map(|&other_participant_id| {
+                    Message::new(
+                        MessageType::Auxinfo(AuxinfoMessageType::R2Decommit),
+                        sid,
+                        self.id,
+                        other_participant_id,
+                        &decom_bytes,
+                    )
+                }),
+        );
         Ok(messages)
     }
 
@@ -461,7 +461,7 @@ impl AuxInfoParticipant {
             .contains_for_all_ids::<storage::Decommit>(&self.other_participant_ids);
         if r2_done {
             // Generate messages for round 3...
-            let round_two_messages = run_only_once!(self.gen_round_three_msgs(rng, message.id()))?;
+            let round_three_messages = run_only_once!(self.gen_round_three_msgs(rng, message.id()))?;
 
             // ...and handle any messages that other participants have sent for round 3.
             let round_three_outcomes = self
@@ -470,7 +470,7 @@ impl AuxInfoParticipant {
                 .map(|msg| self.handle_round_three_msg(msg))
                 .collect::<Result<Vec<_>>>()?;
 
-            ProcessOutcome::collect_with_messages(round_three_outcomes, round_two_messages)
+            ProcessOutcome::collect_with_messages(round_three_outcomes, round_three_messages)
         } else {
             Ok(ProcessOutcome::Incomplete)
         }
