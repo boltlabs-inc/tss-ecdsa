@@ -531,8 +531,6 @@ impl AuxInfoParticipant {
                     &self.retrieve_context(),
                     sid,
                     global_rid,
-                    // XXX: Replace `into_public` with reference to
-                    // `AuxInfoPublic`? That should avoid an unnecessary clone.
                     verifier_decommit.clone().into_public().params(),
                     &product,
                     &witness.p,
