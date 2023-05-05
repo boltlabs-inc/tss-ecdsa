@@ -90,7 +90,7 @@ fn main() -> anyhow::Result<()> {
     // Assign a unique identifier to each participant to uniquely identify them
     // through the sub-protocols.
     let mut participants: Vec<ParticipantConfig> =
-        ParticipantConfig::random_quorum(num_workers, rng);
+        ParticipantConfig::random_quorum(num_workers, rng)?;
     info!("Spawning {num_workers} worker threads");
 
     // Spawn worker threads. Link worker to main thread with channels.
@@ -351,7 +351,7 @@ fn participant_worker(
             SubProtocol::KeyGeneration => {
                 let participant: Participant<KeygenParticipant> =
                     // Keygen requires no sub-protocol specific inputs, hence `()`.
-                    Participant::from_config(&config, sid, ());
+                    Participant::from_config(&config, sid, ())?;
                 let (public_key_shares_local, private_key_share_local) =
                     worker_handle_subprotocol(participant, &other_workers, &outgoing)?;
 
@@ -363,7 +363,7 @@ fn participant_worker(
             SubProtocol::AuxInfo => {
                 let participant: Participant<AuxInfoParticipant> =
                     // Note: Missing inputs to aux-info see issues #242 and #243.
-                    Participant::from_config(&config, sid, ());
+                    Participant::from_config(&config, sid, ())?;
 
                 let (aux_info_public_local, aux_info_private_local) =
                     worker_handle_subprotocol(participant, &other_workers, &outgoing)?;
@@ -381,7 +381,7 @@ fn participant_worker(
                     private_key_share.clone().unwrap(),
                 )?;
                 let participant: Participant<PresignParticipant> =
-                    Participant::from_config(&config, sid, input);
+                    Participant::from_config(&config, sid, input)?;
                 let presign_record_local =
                     worker_handle_subprotocol(participant, &other_workers, &outgoing)?;
                 presign_record = Some(presign_record_local);

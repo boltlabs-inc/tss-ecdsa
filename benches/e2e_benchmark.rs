@@ -98,7 +98,7 @@ fn init_new_player_set<P: ProtocolParticipant>(
     let quorum: Vec<Participant<P>> = configs
         .iter()
         .zip(inputs)
-        .map(|(config, input)| Participant::from_config(config, sid, input))
+        .map(|(config, input)| Participant::from_config(config, sid, input).unwrap())
         .collect();
 
     // Instantiate inboxes

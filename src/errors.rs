@@ -50,6 +50,8 @@ pub enum CallerError {
     ProtocolAlreadyTerminated,
     #[error("The provided RNG failed to produce suitable values after a maximum number of attempts. Please check the RNG.")]
     RetryFailed,
+    #[error("Received a message with too few parties (Participant Config should have at least 2 parties)")]
+    ParticipantConfigError,
 }
 
 macro_rules! serialize {
