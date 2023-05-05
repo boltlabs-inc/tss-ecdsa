@@ -101,13 +101,13 @@ pub enum Status {
 /// - In the third round, we (1) check the validity of all the commitments plus
 ///   the validity of the committed `𝚷[prm]` proof, and (2) generate the
 ///   following proofs about our RSA modulus `N`: `𝚷[mod]`, which asserts the
-///   validity of `N` as a product of two primes, and a version of `𝚷[fac]`
-///   _for each other participant_ which asserts that neither factor of `N` is
-///   "too small". (The security of the `𝚷[fac]` proof depens on the
-///   correctness of the commitment parameters used to create it, so each other
-///   party requires it to be created with the parameters they provided in round
-///   two.) We then send `𝚷[mod]` alongside the appropriate `𝚷[fac]` to each
-///   other participant.
+///   validity of `N` as a product of two primes, and a version of `𝚷[fac]` _for
+///   each other participant_ which asserts that neither factor of `N` is "too
+///   small". (The security of the `𝚷[fac]` proof depens on the correctness of
+///   the commitment parameters used to create it, so each other party requires
+///   it to be created with the parameters they provided in round two.) We then
+///   send `𝚷[mod]` alongside the appropriate `𝚷[fac]` to each other
+///   participant.
 /// - Finally, in the last round we check the validity of the proofs from round
 ///   three. If everything passes, we output the `(N, s, t)` tuples from all
 ///   participants (including ourselves), alongside our own secret primes `(p,
@@ -461,7 +461,8 @@ impl AuxInfoParticipant {
             .contains_for_all_ids::<storage::Decommit>(&self.other_participant_ids);
         if r2_done {
             // Generate messages for round 3...
-            let round_three_messages = run_only_once!(self.gen_round_three_msgs(rng, message.id()))?;
+            let round_three_messages =
+                run_only_once!(self.gen_round_three_msgs(rng, message.id()))?;
 
             // ...and handle any messages that other participants have sent for round 3.
             let round_three_outcomes = self
