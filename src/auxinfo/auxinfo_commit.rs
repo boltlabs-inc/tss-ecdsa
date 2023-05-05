@@ -182,7 +182,7 @@ impl CommitmentScheme {
         Ok(Commitment { hash })
     }
 
-    /// Verify that this type corresponds to the given [`AuxInfoCommit`].
+    /// Verify that this type corresponds to the given [`CommitmentScheme`].
     #[instrument(skip_all, err(Debug))]
     pub(crate) fn verify(
         &self,
