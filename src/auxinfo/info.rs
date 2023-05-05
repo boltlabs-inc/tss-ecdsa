@@ -104,9 +104,6 @@ impl AuxInfoPublic {
     }
 }
 
-// XXX this construct is duplicated in several places. Would it be better for
-// `DecryptionKey::new` to output a `DecryptionKeyWitness` type that contains
-// this info so we don't duplicate this struct in multiple places?
 #[derive(Serialize, Deserialize, ZeroizeOnDrop)]
 pub(crate) struct AuxInfoWitnesses {
     pub(crate) p: BigNumber,

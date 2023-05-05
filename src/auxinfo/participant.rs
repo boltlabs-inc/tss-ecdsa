@@ -11,7 +11,7 @@
 
 use crate::{
     auxinfo::{
-        auxinfo_commit::{AuxInfoCommit, AuxInfoDecommit},
+        auxinfo_commit::{Commitment, CommitmentScheme},
         info::{AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses},
         proof::AuxInfoProof,
     },
@@ -47,11 +47,11 @@ mod storage {
     }
     pub(super) struct Commit;
     impl TypeTag for Commit {
-        type Value = AuxInfoCommit;
+        type Value = Commitment;
     }
     pub(super) struct Decommit;
     impl TypeTag for Decommit {
-        type Value = AuxInfoDecommit;
+        type Value = CommitmentScheme;
     }
     pub(super) struct GlobalRid;
     impl TypeTag for GlobalRid {
@@ -94,18 +94,20 @@ pub enum Status {
 ///   ring-Pedersen parameters `(s, t, λ)` such that `s = t^λ mod N`. We then
 ///   produce a zero-knowledge proof `𝚷[prm]` that the ring-Pedersen parameters
 ///   are correct. Finally, we commit to the tuple `(N, s, t, 𝚷[prm])` and
-///   broadcasts this commitment.
+///   broadcast this commitment.
 /// - Once we have received all broadcasted commitments, in the second round we
 ///   send a decommitment to the commited value in round one to all other
 ///   participants.
 /// - In the third round, we (1) check the validity of all the commitments plus
 ///   the validity of the committed `𝚷[prm]` proof, and (2) generate the
-///   following proofs: `𝚷[mod]`, which asserts the validity of `N` as a product
-///   of two primes, and `𝚷[fac]` _for each other participant_, which asserts
-///   that neither factor of `N` is "too small". (The `𝚷[fac]` proof needs to be
-///   generated for each other participant as it relies on parameters supplied
-///   by the given participant.) We then send `𝚷[mod]` alongside the appropriate
-///   `𝚷[fac]` to each other participant.
+///   following proofs about our RSA modulus `N`: `𝚷[mod]`, which asserts the
+///   validity of `N` as a product of two primes, and a version of `𝚷[fac]`
+///   _for each other participant_ which asserts that neither factor of `N` is
+///   "too small". (The security of the `𝚷[fac]` proof depens on the
+///   correctness of the commitment parameters used to create it, so each other
+///   party requires it to be created with the parameters they provided in round
+///   two.) We then send `𝚷[mod]` alongside the appropriate `𝚷[fac]` to each
+///   other participant.
 /// - Finally, in the last round we check the validity of the proofs from round
 ///   three. If everything passes, we output the `(N, s, t)` tuples from all
 ///   participants (including ourselves), alongside our own secret primes `(p,
@@ -296,13 +298,13 @@ impl AuxInfoParticipant {
         self.local_storage
             .store::<storage::Witnesses>(self.id, auxinfo_witnesses);
 
-        let decom = AuxInfoDecommit::new(self, rng, &sid, auxinfo_public)?;
-        let com = decom.commit()?;
+        let scheme = CommitmentScheme::new(sid, self, auxinfo_public, rng)?;
+        let com = scheme.commit()?;
 
         self.local_storage
             .store::<storage::Commit>(self.id, com.clone());
         self.local_storage
-            .store::<storage::Decommit>(self.id, decom);
+            .store::<storage::Decommit>(self.id, scheme);
 
         let messages = self.broadcast(
             rng,
@@ -339,7 +341,7 @@ impl AuxInfoParticipant {
         }
         let message = &broadcast_message.msg;
         self.local_storage
-            .store::<storage::Commit>(message.from(), AuxInfoCommit::from_message(message)?);
+            .store::<storage::Commit>(message.from(), Commitment::from_message(message)?);
 
         // Check if we've received all the commitments.
         //
@@ -440,13 +442,13 @@ impl AuxInfoParticipant {
         //
         // Note: `AuxInfoDecommit::from_message` checks the validity of all its
         // messages, which includes validating the `𝚷[prm]` proof.
-        let decom = AuxInfoDecommit::from_message(message, &self.retrieve_context())?;
+        let scheme = CommitmentScheme::from_message(message, &self.retrieve_context())?;
         let com = self
             .local_storage
             .retrieve::<storage::Commit>(message.from())?;
-        decom.verify(&message.id(), &message.from(), com)?;
+        scheme.verify(&message.id(), &message.from(), com)?;
         self.local_storage
-            .store::<storage::Decommit>(message.from(), decom);
+            .store::<storage::Decommit>(message.from(), scheme);
 
         // Check if we've received all the decommitments.
         //
