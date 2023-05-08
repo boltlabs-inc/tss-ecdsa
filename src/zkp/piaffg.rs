@@ -540,10 +540,8 @@ impl PiAffgProof {
             ]
             .concat(),
         );
-        Ok(plusminus_bn_random_from_transcript(
-            transcript,
-            &k256_order(),
-        ))
+
+        plusminus_bn_random_from_transcript(transcript, &k256_order())
     }
 }
 

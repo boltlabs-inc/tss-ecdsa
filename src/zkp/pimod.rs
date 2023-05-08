@@ -99,7 +99,7 @@ impl Proof for PiModProof {
 
         let mut elements = vec![];
         for _ in 0..LAMBDA {
-            let y = positive_bn_random_from_transcript(transcript, &input.N);
+            let y = positive_bn_random_from_transcript(transcript, &input.N)?;
             let (a, b, x) = y_prime_combinations(&w, &y, &secret.p, &secret.q)?;
 
             // Compute phi(N) = (p-1) * (q-1)
@@ -166,7 +166,7 @@ impl Proof for PiModProof {
 
         for elements in &self.elements {
             // First, check that y came from Fiat-Shamir transcript
-            let y = positive_bn_random_from_transcript(transcript, &input.N);
+            let y = positive_bn_random_from_transcript(transcript, &input.N)?;
             if y != elements.y {
                 warn!("y does not match Fiat-Shamir challenge");
                 return Err(InternalError::ProtocolError);

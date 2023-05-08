@@ -20,6 +20,8 @@ use std::fmt::Debug;
 use tracing::error;
 use zeroize::Zeroize;
 
+//use self::testing::init_testing;
+
 pub(crate) const CRYPTOGRAPHIC_RETRY_MAX: usize = 500usize;
 
 /// Wrapper around k256::ProjectivePoint so that we can define our own
@@ -158,40 +160,44 @@ pub(crate) fn random_plusminus_by_size_with_minimum<R: RngCore + CryptoRng>(
 /// [`Transcript`].
 pub(crate) fn plusminus_bn_random_from_transcript(
     transcript: &mut Transcript,
-    n: &BigNumber,
-) -> BigNumber {
+    _n: &BigNumber,
+) -> Result<BigNumber> {
     let mut is_neg_byte = vec![0u8; 1];
     transcript.challenge_bytes(b"sampling negation bit", is_neg_byte.as_mut_slice());
     let is_neg: bool = is_neg_byte[0] & 1 == 1;
 
     // The sampling method samples from the open interval, so add 1 to sample from
     // the _closed_ interval we want here.
-    let open_interval_max = n + 1;
-    let b = positive_bn_random_from_transcript(transcript, &open_interval_max);
+    let q = k256_order();
+    let open_interval_max = &q + 1;
+    let b = positive_bn_random_from_transcript(transcript, &open_interval_max)?;
     match is_neg {
-        true => -b,
-        false => b,
+        true => Ok(-b),
+        false => Ok(b),
     }
 }
 
-/// Derive a deterministic pseduorandom value in `[0, n)` from the
-/// [`Transcript`].
 pub(crate) fn positive_bn_random_from_transcript(
     transcript: &mut Transcript,
-    n: &BigNumber,
-) -> BigNumber {
-    let len = n.to_bytes().len();
-    let mut t = vec![0u8; len];
+    _n: &BigNumber,
+) -> Result<BigNumber> {
     // To avoid sample bias, we can't take `t mod n`, because that would bias
     // smaller numbers. Instead, we re-sample a new value (different because
     // there's a new label in the transcript).
-    loop {
+    let q = k256_order();
+    let len = q.to_bytes().len();
+    let mut t = vec![0u8; len];
+    transcript.challenge_bytes(b"sampling randomness", t.as_mut_slice());
+    let b = BigNumber::from_slice(t.as_slice());
+    for _ in 0..CRYPTOGRAPHIC_RETRY_MAX - 1 {
+        let mut t = vec![0u8; len];
         transcript.challenge_bytes(b"sampling randomness", t.as_mut_slice());
         let b = BigNumber::from_slice(t.as_slice());
-        if &b < n {
-            return b;
+        if b < q {
+            break;
         }
     }
+    Ok(b)
 }
 
 /// Generate a random `BigNumber` that is in the multiplicative group of

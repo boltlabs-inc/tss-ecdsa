@@ -121,7 +121,7 @@ impl Proof for PiFacProof {
         Self::fill_transcript(transcript, context, input, &P, &Q, &A, &B, &T, &sigma)?;
 
         // Verifier samples e in +- q (where q is the group order)
-        let e = plusminus_bn_random_from_transcript(transcript, &k256_order());
+        let e = plusminus_bn_random_from_transcript(transcript, &k256_order())?;
 
         let sigma_hat = nu.mask_neg(&sigma, &secret.p);
         let z1 = &alpha + &e * &secret.p;
@@ -165,7 +165,7 @@ impl Proof for PiFacProof {
         )?;
 
         // Verifier samples e in +- q (where q is the group order)
-        let e = plusminus_bn_random_from_transcript(transcript, &k256_order());
+        let e = plusminus_bn_random_from_transcript(transcript, &k256_order())?;
 
         let eq_check_1 = {
             let lhs = input.setup_params.scheme().reconstruct(&self.z1, &self.w1);
