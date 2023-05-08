@@ -204,7 +204,8 @@ pub use presign::{
     record::PresignRecord,
 };
 pub use protocol::{
-    Identifier, Output, Participant, ParticipantConfig, ParticipantIdentifier, SignatureShare,
+    Identifier, Output, Participant, ParticipantConfig, ParticipantIdentifier, SharedContext,
+    SignatureShare,
 };
 pub use utils::CurvePoint;
 

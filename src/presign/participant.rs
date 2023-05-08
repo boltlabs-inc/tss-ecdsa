@@ -159,11 +159,11 @@ impl PresignContext {
 ///    the [`PresignRecord`].
 ///
 ///    The participant then encryptions these values and constructs a
-///    zero-knowledge proof [`𝚷[enc]`](crate::zkp::pienc::PiEncProof) that the
-///    ciphertext (`Kᵢ` in the paper) corresponding to its key share `kᵢ` was
-///    encrypted correctly. This proof needs to be done on per-participant (that
-///    is, if there are `n` total participants then each participant generates
-///    `n-1` such proofs, one for each other participant).
+///    zero-knowledge proof that the ciphertext (`Kᵢ` in the paper)
+///    corresponding to its key share `kᵢ` was encrypted correctly. This proof
+///    needs to be done on per-participant (that is, if there are `n` total
+///    participants then each participant generates `n-1` such proofs, one for
+///    each other participant).
 ///
 /// 2. Once each participant has received these values and proofs from all other
 ///    participants, it verifies the proofs. If those all pass, it proceeds to
