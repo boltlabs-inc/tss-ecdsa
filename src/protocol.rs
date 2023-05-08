@@ -318,7 +318,7 @@ impl ParticipantConfig {
     /// [`ParticipantIdentifier`]s.
     ///
     /// This method implies the existence of a trusted third party that
-    /// generates the IDs; that's why it's only available.
+    /// generates the IDs.
     pub fn random_quorum<R: RngCore + CryptoRng>(
         size: usize,
         rng: &mut R,
@@ -339,8 +339,9 @@ impl ParticipantConfig {
             .collect())
     }
 
-    /// Creating a random Participant Config
-    pub fn random<R: RngCore + CryptoRng>(size: usize, rng: &mut R) -> ParticipantConfig {
+    ///Create a random [`ParticipantConfig`].
+    #[cfg(test)]
+    fn random<R: RngCore + CryptoRng>(size: usize, rng: &mut R) -> ParticipantConfig {
         assert!(size > 1);
         let other_ids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(size - 1)
