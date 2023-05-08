@@ -339,7 +339,8 @@ impl ParticipantConfig {
             .collect())
     }
 
-    fn random<R: RngCore + CryptoRng>(size: usize, rng: &mut R) -> ParticipantConfig {
+    /// Creating a random Participant Config
+    pub fn random<R: RngCore + CryptoRng>(size: usize, rng: &mut R) -> ParticipantConfig {
         assert!(size > 1);
         let other_ids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(size - 1)
@@ -563,6 +564,7 @@ mod tests {
     use tracing::debug;
 
     // Negative test checking whether the message has the correct session id
+    #[test]
     fn participant_rejects_messages_with_wrong_session_id() {
         let mut rng = init_testing();
         let QUORUM_SIZE = 3;
@@ -571,7 +573,7 @@ mod tests {
         let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
         let auxinfo_sid = Identifier::random(&mut rng);
         let mut participant =
-            Participant::<AuxInfoParticipant>::from_config(&config, auxinfo_sid, ());
+            Participant::<AuxInfoParticipant>::from_config(&config, auxinfo_sid, ()).unwrap();
 
         // Make a message with the wrong session ID
         let message = participant.initialize_message();
@@ -605,7 +607,7 @@ mod tests {
         let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
         let auxinfo_sid = Identifier::random(&mut rng);
         let mut participant =
-            Participant::<AuxInfoParticipant>::from_config(&config, auxinfo_sid, ());
+            Participant::<AuxInfoParticipant>::from_config(&config, auxinfo_sid, ()).unwrap();
 
         // Make a message with the wrong participant to field
         let message = participant.initialize_message();
@@ -638,7 +640,7 @@ mod tests {
         let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
         let auxinfo_sid = Identifier::random(&mut rng);
         let mut participant =
-            Participant::<AuxInfoParticipant>::from_config(&config, auxinfo_sid, ());
+            Participant::<AuxInfoParticipant>::from_config(&config, auxinfo_sid, ()).unwrap();
 
         // Make a message with the wrong protocol type
         let message = participant.initialize_message();
@@ -672,7 +674,7 @@ mod tests {
         let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
         let auxinfo_sid = Identifier::random(&mut rng);
         let mut participant =
-            Participant::<AuxInfoParticipant>::from_config(&config, auxinfo_sid, ());
+            Participant::<AuxInfoParticipant>::from_config(&config, auxinfo_sid, ()).unwrap();
 
         //message with the wrong sender participant
         let message = participant.initialize_message();
