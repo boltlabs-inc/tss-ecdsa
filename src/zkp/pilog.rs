@@ -32,7 +32,7 @@ use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tracing::warn;
+use tracing::error;
 use utils::CurvePoint;
 use zeroize::ZeroizeOnDrop;
 
@@ -285,7 +285,7 @@ impl Proof for PiLogProof {
         )?;
         // ... and check that it's the correct challenge.
         if challenge != self.challenge {
-            warn!("Fiat-Shamir consistency check failed");
+            error!("Fiat-Shamir consistency check failed");
             return Err(InternalError::ProtocolError);
         }
 
@@ -302,7 +302,7 @@ impl Proof for PiLogProof {
             lhs == rhs
         };
         if !paillier_encryption_is_valid {
-            warn!("paillier encryption check (first equality check) failed");
+            error!("paillier encryption check (first equality check) failed");
             return Err(InternalError::ProtocolError);
         }
         // Check that the group exponentiation of the secret plaintext is valid.
@@ -315,7 +315,7 @@ impl Proof for PiLogProof {
             lhs == rhs
         };
         if !group_exponentiation_is_valid {
-            warn!("group exponentiation check (second equality check) failed");
+            error!("group exponentiation check (second equality check) failed");
             return Err(InternalError::ProtocolError);
         }
 
@@ -332,14 +332,14 @@ impl Proof for PiLogProof {
             lhs == rhs
         };
         if !ring_pedersen_commitment_is_valid {
-            warn!("ring Pedersen commitment check (third equality check) failed");
+            error!("ring Pedersen commitment check (third equality check) failed");
             return Err(InternalError::ProtocolError);
         }
 
         // Do a range check on the plaintext response, which validates that the
         // plaintext falls within the same range.
         if !within_bound_by_size(&self.plaintext_response, ELL + EPSILON) {
-            warn!("plaintext range check failed");
+            error!("plaintext range check failed");
             return Err(InternalError::ProtocolError);
         }
 

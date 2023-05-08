@@ -33,7 +33,7 @@ use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tracing::warn;
+use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
 // Soundness parameter.
@@ -152,13 +152,13 @@ impl Proof for PiPrmProof {
             || self.challenge_bytes.len() != SOUNDNESS
             || self.responses.len() != SOUNDNESS
         {
-            warn!("length of values provided does not match soundness parameter");
+            error!("length of values provided does not match soundness parameter");
             return Err(InternalError::ProtocolError);
         }
         let challenges = generate_challenge_bytes(input, &self.commitments, context, transcript)?;
         // Check Fiat-Shamir consistency.
         if challenges != self.challenge_bytes.as_slice() {
-            warn!("Fiat-Shamir does not verify");
+            error!("Fiat-Shamir does not verify");
             return Err(InternalError::ProtocolError);
         }
 
@@ -179,7 +179,7 @@ impl Proof for PiPrmProof {
             .all(|check| check);
 
         if !is_sound {
-            warn!("response validation check failed");
+            error!("response validation check failed");
             return Err(InternalError::ProtocolError);
         }
 

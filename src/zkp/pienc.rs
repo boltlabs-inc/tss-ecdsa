@@ -38,7 +38,7 @@ use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tracing::warn;
+use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
 /// Proof of knowledge of the plaintext value of a ciphertext, where the value
@@ -206,7 +206,7 @@ impl Proof for PiEncProof {
         // ...generate a challenge, and make sure it matches the one the prover sent.
         let e = plusminus_challenge_from_transcript(transcript)?;
         if e != self.challenge {
-            warn!("Fiat-Shamir didn't verify");
+            error!("Fiat-Shamir didn't verify");
             return Err(InternalError::ProtocolError);
         }
 
@@ -224,7 +224,7 @@ impl Proof for PiEncProof {
             lhs == rhs
         };
         if !ciphertext_mask_is_well_formed {
-            warn!("ciphertext mask check (first equality check) failed");
+            error!("ciphertext mask check (first equality check) failed");
             return Err(InternalError::ProtocolError);
         }
 
@@ -244,14 +244,14 @@ impl Proof for PiEncProof {
             lhs == rhs
         };
         if !responses_match_commitments {
-            warn!("response validation check (second equality check) failed");
+            error!("response validation check (second equality check) failed");
             return Err(InternalError::ProtocolError);
         }
 
         // Make sure the ciphertext response is in range
         let bound = BigNumber::one() << (ELL + EPSILON);
         if self.plaintext_response < -bound.clone() || self.plaintext_response > bound {
-            warn!("bounds check on plaintext response failed");
+            error!("bounds check on plaintext response failed");
             return Err(InternalError::ProtocolError);
         }
 

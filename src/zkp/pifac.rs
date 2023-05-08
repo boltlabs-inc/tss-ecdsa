@@ -21,7 +21,7 @@ use num_bigint::{BigInt, Sign};
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tracing::warn;
+use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -173,7 +173,7 @@ impl Proof for PiFacProof {
             lhs == rhs
         };
         if !eq_check_1 {
-            warn!("eq_check_1 failed");
+            error!("eq_check_1 failed");
             return Err(InternalError::ProtocolError);
         }
 
@@ -183,7 +183,7 @@ impl Proof for PiFacProof {
             lhs == rhs
         };
         if !eq_check_2 {
-            warn!("eq_check_2 failed");
+            error!("eq_check_2 failed");
             return Err(InternalError::ProtocolError);
         }
 
@@ -200,7 +200,7 @@ impl Proof for PiFacProof {
             lhs == rhs
         };
         if !eq_check_3 {
-            warn!("eq_check_3 failed");
+            error!("eq_check_3 failed");
             return Err(InternalError::ProtocolError);
         }
 
@@ -210,11 +210,11 @@ impl Proof for PiFacProof {
         // 2^{ELL + EPSILON} * sqrt(N_0)
         let z_bound = &sqrt_N0 * &two_ell_eps;
         if self.z1 < -z_bound.clone() || self.z1 > z_bound {
-            warn!("self.z1 > z_bound check failed");
+            error!("self.z1 > z_bound check failed");
             return Err(InternalError::ProtocolError);
         }
         if self.z2 < -z_bound.clone() || self.z2 > z_bound {
-            warn!("self.z2 > z_bound check failed");
+            error!("self.z2 > z_bound check failed");
             return Err(InternalError::ProtocolError);
         }
 

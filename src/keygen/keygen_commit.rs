@@ -17,7 +17,7 @@ use crate::{
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::{instrument, warn};
+use tracing::{error, instrument};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct KeygenCommit {
@@ -103,7 +103,7 @@ impl KeygenDecommit {
         if rebuilt_com == *com {
             Ok(())
         } else {
-            warn!("decommitment does not match original commitment");
+            error!("decommitment does not match original commitment");
             Err(InternalError::ProtocolError)
         }
     }

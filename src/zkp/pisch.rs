@@ -19,7 +19,7 @@ use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tracing::warn;
+use tracing::error;
 use utils::CurvePoint;
 use zeroize::ZeroizeOnDrop;
 
@@ -116,7 +116,7 @@ impl Proof for PiSchProof {
         // Verifier samples e in F_q
         let e = positive_challenge_from_transcript(transcript, &input.q)?;
         if e != self.e {
-            warn!("Fiat-Shamir consistency check failed");
+            error!("Fiat-Shamir consistency check failed");
             return Err(InternalError::ProtocolError);
         }
 
@@ -128,7 +128,7 @@ impl Proof for PiSchProof {
             lhs == rhs
         };
         if !eq_check_1 {
-            warn!("eq_check_1 failed");
+            error!("eq_check_1 failed");
             return Err(InternalError::ProtocolError);
         }
 

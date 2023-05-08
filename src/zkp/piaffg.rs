@@ -53,7 +53,7 @@ use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tracing::warn;
+use tracing::error;
 use utils::CurvePoint;
 use zeroize::ZeroizeOnDrop;
 
@@ -395,7 +395,7 @@ impl Proof for PiAffgProof {
         )?;
         // ... and check that it's the correct challenge.
         if challenge != self.challenge {
-            warn!("Fiat-Shamir consistency check failed");
+            error!("Fiat-Shamir consistency check failed");
             return Err(InternalError::ProtocolError);
         }
         // Check that the affine-like transformation holds over the masked
@@ -419,7 +419,7 @@ impl Proof for PiAffgProof {
         }()
         .map_err(|_| InternalError::InternalInvariantFailed)?;
         if !masked_affine_operation_is_valid {
-            warn!("Masked affine operation check (first equality check) failed");
+            error!("Masked affine operation check (first equality check) failed");
             return Err(InternalError::ProtocolError);
         }
         // Check that the masked group exponentiation is valid.
@@ -430,7 +430,7 @@ impl Proof for PiAffgProof {
             lhs == rhs
         };
         if !masked_group_exponentiation_is_valid {
-            warn!("Masked group exponentiation check (second equality check) failed");
+            error!("Masked group exponentiation check (second equality check) failed");
             return Err(InternalError::ProtocolError);
         }
         // Check that the masked additive coefficient is valid using the
@@ -451,7 +451,7 @@ impl Proof for PiAffgProof {
             lhs == rhs
         };
         if !masked_additive_coefficient_is_valid {
-            warn!("Masked additive coefficient check (third equality check) failed");
+            error!("Masked additive coefficient check (third equality check) failed");
             return Err(InternalError::ProtocolError);
         }
         // Check that the masked multiplicative coefficient commitment is valid.
@@ -468,7 +468,7 @@ impl Proof for PiAffgProof {
             lhs == rhs
         };
         if !masked_mult_coeff_commit_is_valid {
-            warn!(
+            error!(
                 "Masked multiplicative coefficient commitment check (fourth equality check) failed"
             );
             return Err(InternalError::ProtocolError);
@@ -487,17 +487,17 @@ impl Proof for PiAffgProof {
             lhs == rhs
         };
         if !masked_add_coeff_commit_is_valid {
-            warn!("Masked additive coefficient commitment check (fifth equality check) failed");
+            error!("Masked additive coefficient commitment check (fifth equality check) failed");
             return Err(InternalError::ProtocolError);
         }
         // Do a range check on the masked multiplicative coefficient.
         if !within_bound_by_size(&self.masked_mult_coeff, ELL + EPSILON) {
-            warn!("Multiplicative coefficient range check failed");
+            error!("Multiplicative coefficient range check failed");
             return Err(InternalError::ProtocolError);
         }
         // Do a range check on the masked additive coefficient.
         if !within_bound_by_size(&self.masked_add_coeff, ELL_PRIME + EPSILON) {
-            warn!("Additive coefficient range check failed");
+            error!("Additive coefficient range check failed");
             return Err(InternalError::ProtocolError);
         }
         Ok(())
