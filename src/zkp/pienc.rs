@@ -25,7 +25,7 @@
 //! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos Makriyannis, and Udi Peled.
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
-
+#[allow(unused_imports)]
 use crate::{
     errors::*,
     paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce},
@@ -163,7 +163,7 @@ impl Proof for PiEncProof {
         )?;
 
         // ...and generate a challenge from it (aka `e`)
-        let challenge = plusminus_bn_random_from_transcript(transcript, &k256_order())?;
+        let challenge = plusminus_bn_random_from_transcript(transcript)?;
 
         // Form proof responses. Each combines one secret value with its mask and the
         // challenge (aka `z1`, `z2`, `z3` respectively)
@@ -205,7 +205,7 @@ impl Proof for PiEncProof {
         )?;
 
         // ...generate a challenge, and make sure it matches the one the prover sent.
-        let e = plusminus_bn_random_from_transcript(transcript, &k256_order())?;
+        let e = plusminus_bn_random_from_transcript(transcript)?;
         if e != self.challenge {
             warn!("Fiat-Shamir didn't verify");
             return Err(InternalError::ProtocolError);

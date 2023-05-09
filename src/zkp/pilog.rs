@@ -158,7 +158,7 @@ fn generate_challenge(
     );
 
     // The challenge is sampled from `± q` (where `q` is the group order).
-    let challenge = plusminus_bn_random_from_transcript(transcript, &utils::k256_order())?;
+    let challenge = plusminus_bn_random_from_transcript(transcript)?;
     Ok(challenge)
 }
 

@@ -160,7 +160,6 @@ pub(crate) fn random_plusminus_by_size_with_minimum<R: RngCore + CryptoRng>(
 /// [`Transcript`].
 pub(crate) fn plusminus_bn_random_from_transcript(
     transcript: &mut Transcript,
-    _n: &BigNumber,
 ) -> Result<BigNumber> {
     let mut is_neg_byte = vec![0u8; 1];
     transcript.challenge_bytes(b"sampling negation bit", is_neg_byte.as_mut_slice());
@@ -171,10 +170,10 @@ pub(crate) fn plusminus_bn_random_from_transcript(
     let q = k256_order();
     let open_interval_max = &q + 1;
     let b = positive_bn_random_from_transcript(transcript, &open_interval_max)?;
-    match is_neg {
-        true => Ok(-b),
-        false => Ok(b),
-    }
+    Ok(match is_neg {
+        true => -b,
+        false => b,
+    })
 }
 
 pub(crate) fn positive_bn_random_from_transcript(
@@ -189,7 +188,7 @@ pub(crate) fn positive_bn_random_from_transcript(
     let mut t = vec![0u8; len];
     transcript.challenge_bytes(b"sampling randomness", t.as_mut_slice());
     let b = BigNumber::from_slice(t.as_slice());
-    for _ in 0..CRYPTOGRAPHIC_RETRY_MAX - 1 {
+    for _ in 0..CRYPTOGRAPHIC_RETRY_MAX {
         let mut t = vec![0u8; len];
         transcript.challenge_bytes(b"sampling randomness", t.as_mut_slice());
         let b = BigNumber::from_slice(t.as_slice());
