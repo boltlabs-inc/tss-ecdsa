@@ -7,6 +7,7 @@
 // of this source tree.
 
 use crate::errors::{CallerError, InternalError, Result};
+use anyhow::Ok;
 use generic_array::GenericArray;
 use k256::{
     elliptic_curve::{bigint::Encoding, group::ff::PrimeField, AffinePoint, Curve},
@@ -178,25 +179,22 @@ pub(crate) fn plusminus_bn_random_from_transcript(
 
 pub(crate) fn positive_bn_random_from_transcript(
     transcript: &mut Transcript,
-    _n: &BigNumber,
-) -> Result<BigNumber> {
+    n: &BigNumber,
+) -> Result<BigNumber, InternalError> {
     // To avoid sample bias, we can't take `t mod n`, because that would bias
     // smaller numbers. Instead, we re-sample a new value (different because
     // there's a new label in the transcript).
-    let q = k256_order();
-    let len = q.to_bytes().len();
+    let len = n.to_bytes().len();
     let mut t = vec![0u8; len];
-    transcript.challenge_bytes(b"sampling randomness", t.as_mut_slice());
-    let b = BigNumber::from_slice(t.as_slice());
+    //let b = BigNumber::from_slice(t.as_slice());
     for _ in 0..CRYPTOGRAPHIC_RETRY_MAX {
-        let mut t = vec![0u8; len];
         transcript.challenge_bytes(b"sampling randomness", t.as_mut_slice());
         let b = BigNumber::from_slice(t.as_slice());
-        if b < q {
-            break;
+        if &b < n {
+            return Ok(b);
         }
     }
-    Ok(b)
+    Err(InternalError::ProtocolError)
 }
 
 /// Generate a random `BigNumber` that is in the multiplicative group of
