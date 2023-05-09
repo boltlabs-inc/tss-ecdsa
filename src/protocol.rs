@@ -216,15 +216,28 @@ impl<P: ProtocolParticipant> Participant<P> {
     }
 }
 
-/// Simple wrapper around the signature share output
+/// A share of the ECDSA signature.
+// XXX Move this to its own module?
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct SignatureShare {
-    /// The r-scalar associated with an ECDSA signature
+    /// The x-projection of `R` from the [`PresignRecord`] (`r` in the paper).
+    // XXX The paper does _not_ include this as part of the share, and instead,
+    // each party just sends the `σᵢ` value. Instead, the paper combines the
+    // `σᵢ` values and then checks whether `(r, σ)` is a valid share before
+    // outputting the signature, which we do _not_ do here. I'd recommend
+    // following the paper approach; it should simplify the code and make sure
+    // we're not missing any steps.
     r: Option<k256::Scalar>,
-    /// The s-scalar associated with an ECDSA signature
+    /// The digest masked by components from [`PresignRecord`] (`σ` in the
+    /// paper).
     s: k256::Scalar,
 }
 
+// XXX exposing `default` is error-prone, since these are _not_ valid
+// `SignatureShare`s. It seems this is only used for chaining shares together,
+// so it might be better to expose something that hides this functionality to
+// avoid misuse. (As a side benefit, we could get rid of the `Option` in the
+// struct.)
 impl Default for SignatureShare {
     fn default() -> Self {
         Self {
@@ -262,15 +275,14 @@ impl SignatureShare {
         }?;
 
         // Keep the same r, add in the s value
-        Ok(Self {
-            r: Some(r),
-            s: self.s + share.s,
-        })
+        Ok(Self::new(Some(r), self.s + share.s))
     }
 
-    /// Converts the [`SignatureShare`] into a signature.
+    /// Convert the [`SignatureShare`] into an ECDSA signature.
+    // XXX we should check here that the signature is valid! (As is done in the
+    // paper.)
     #[instrument(skip_all err(Debug))]
-    pub fn finish(&self) -> Result<k256::ecdsa::Signature> {
+    pub fn finish(self) -> Result<k256::ecdsa::Signature> {
         info!("Converting signature share into a signature.");
         let mut s = self.s;
         if bool::from(s.is_high()) {
@@ -942,6 +954,11 @@ mod tests {
             k256::ecdsa::VerifyingKey::from_encoded_point(&vk_point.0.to_affine().into()).unwrap();
 
         // Moment of truth, does the signature verify?
+        //
+        // XXX should the verification of the signature be up to the caller, or
+        // should it be checked during signature creation? Figure 8 specifies
+        // that the signature should be verified as part of signature creation
+        // (Output, Step 2).
         assert!(verification_key.verify_digest(hasher, &signature).is_ok());
 
         #[cfg(feature = "flame_it")]

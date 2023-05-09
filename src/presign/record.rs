@@ -20,8 +20,7 @@ use k256::{
     elliptic_curve::{AffineXCoordinate, PrimeField},
     Scalar,
 };
-use libpaillier::unknown_order::BigNumber;
-use sha2::Digest;
+use sha2::{Digest, Sha256};
 use std::fmt::Debug;
 use tracing::{error, info, instrument};
 use zeroize::ZeroizeOnDrop;
@@ -38,11 +37,30 @@ pub(crate) struct RecordPair {
 ///
 /// # 🔒 Lifetime requirements
 /// This type must only be used _once_.
+///
+/// # High-level protocol description
+/// A `PresignRecord` contains the following components of the ECSDA signature
+/// algorithm[^cite] (the below notation matches the notation used in the
+/// citation):
+/// - A [`CurvePoint`] (`R` in the paper) representing the point `k^{-1} · G`,
+///   where `k` is a random integer and `G` denotes the elliptic curve base
+///   point.
+/// - A [`Scalar`] (`kᵢ` in the paper) representing a share of the random
+///   integer `k^{-1}`.
+/// - A [`Scalar`] (`χᵢ` in the paper) representing a share of `k^{-1} · d_A`,
+///   where `d_A` is the ECDSA secret key.
+///
+/// To produce a sign share of a message digest `m`, we simply compute `kᵢ m + r
+/// χᵢ`, where `r` denotes the x-axis projection of `R`. Note that by combining
+/// all of these shares, we get `(∑ kᵢ) m + r (∑ χᵢ) = k^{-1} (m + r d_A)`,
+/// which is exactly a valid (normal) ECDSA signature.
+///
+/// [^cite]: [https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm#Signature_generation_algorithm]
 #[derive(ZeroizeOnDrop)]
 pub struct PresignRecord {
     R: CurvePoint,
-    k: BigNumber,
-    chi: k256::Scalar,
+    k: Scalar,
+    chi: Scalar,
 }
 
 impl Debug for PresignRecord {
@@ -82,35 +100,39 @@ impl TryFrom<RecordPair> for PresignRecord {
 
         Ok(PresignRecord {
             R,
-            k: private.k.clone(),
+            k: bn_to_scalar(&private.k)?,
             chi: private.chi,
         })
     }
 }
 
 impl PresignRecord {
-    fn x_from_point(p: &CurvePoint) -> Result<k256::Scalar> {
-        let r = &p.0.to_affine().x();
-        Option::from(k256::Scalar::from_repr(*r)).ok_or_else(|| {
+    /// Compute the x-projection of the provided [`CurvePoint`].
+    fn x_from_point(point: CurvePoint) -> Result<Scalar> {
+        let r = &point.0.to_affine().x();
+        Option::from(Scalar::from_repr(*r)).ok_or_else(|| {
             error!("Unable to create Scalar from bytes representation");
             InternalInvariantFailed
         })
     }
 
-    /// Generate a signature share on the given `digest` with
-    /// the [`PresignRecord`].
+    /// Generate a signature share for the given [`Sha256`] instance.
+    ///
+    /// This method consumes the [`PresignRecord`] since it must only be used
+    /// for a single signature.
+    // XXX Replace `Sha256` with `Digest` to make the API clearer?
     #[instrument(skip_all, err(Debug))]
-    pub fn sign(self, d: sha2::Sha256) -> Result<SignatureShare> {
+    pub fn sign(self, sha256: Sha256) -> Result<SignatureShare> {
         info!("Issuing signature with presign record.");
-        let r = Self::x_from_point(&self.R)?;
-        let m = Option::<Scalar>::from(k256::Scalar::from_repr(d.finalize())).ok_or_else(|| {
-            error!("Unable to create Scalar from bytes representation");
-            InternalInvariantFailed
-        })?;
-        let s = bn_to_scalar(&self.k)? * m + r * self.chi;
-
-        let ret = SignatureShare::new(Some(r), s);
-
-        Ok(ret)
+        // Compute the x-projection of `R` (`r` in the paper).
+        let x_projection = Self::x_from_point(self.R)?;
+        let digest =
+            Option::<Scalar>::from(Scalar::from_repr(sha256.finalize())).ok_or_else(|| {
+                error!("Unable to create Scalar from bytes representation");
+                InternalInvariantFailed
+            })?;
+        // Produce a ECDSA signature share of the digest (`σ` in the paper).
+        let signature_share = self.k * digest + x_projection * self.chi;
+        Ok(SignatureShare::new(Some(x_projection), signature_share))
     }
 }
