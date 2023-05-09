@@ -35,6 +35,15 @@ pub(crate) struct AuxInfoProof {
 }
 
 impl AuxInfoProof {
+    /// Generate a fresh transcript to be used in [`AuxInfoProof`].
+    fn new_transcript() -> Transcript {
+        Transcript::new(b"AuxInfoProof")
+    }
+
+    /// Convert a [`Message`] into an [`AuxInfoProof`].
+    ///
+    /// Note: This conversion **does not validate** the produced
+    /// [`AuxInfoProof`]!
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         if message.message_type() != MessageType::Auxinfo(AuxinfoMessageType::R3Proof) {
             error!(
@@ -65,20 +74,21 @@ impl AuxInfoProof {
         p: &BigNumber,
         q: &BigNumber,
     ) -> Result<Self> {
-        let mut pimod_transcript = Self::pimod_transcript(context, sid, rho)?;
+        let mut transcript = Self::new_transcript();
+        Self::append_pimod_transcript(&mut transcript, context, sid, rho)?;
         let pimod = PiModProof::prove(
             &PiModInput::new(N),
             &PiModSecret::new(p, q),
             context,
-            &mut pimod_transcript,
+            &mut transcript,
             rng,
         )?;
-        let mut pifac_transcript = Self::pifac_transcript(context, sid, rho)?;
+        Self::append_pifac_transcript(&mut transcript, context, sid, rho)?;
         let pifac = PiFacProof::prove(
             &PiFacInput::new(verifier_params, N),
             &PiFacSecret::new(p, q),
             context,
-            &mut pifac_transcript,
+            &mut transcript,
             rng,
         )?;
 
@@ -99,39 +109,46 @@ impl AuxInfoProof {
         verifier_params: &VerifiedRingPedersen,
         N: &BigNumber,
     ) -> Result<()> {
-        let mut pimod_transcript = Self::pimod_transcript(context, sid, rho)?;
+        let mut transcript = Self::new_transcript();
+        Self::append_pimod_transcript(&mut transcript, context, sid, rho)?;
         self.pimod
-            .verify(&PiModInput::new(N), context, &mut pimod_transcript)?;
-        let mut pifac_transcript = Self::pifac_transcript(context, sid, rho)?;
+            .verify(&PiModInput::new(N), context, &mut transcript)?;
+        Self::append_pifac_transcript(&mut transcript, context, sid, rho)?;
         self.pifac.verify(
             &PiFacInput::new(verifier_params, N),
             context,
-            &mut pifac_transcript,
+            &mut transcript,
         )?;
         Ok(())
     }
 
-    fn pimod_transcript(
+    /// Append info relevant to the `𝚷[mod]` proof to the provided
+    /// [`Transcript`].
+    fn append_pimod_transcript(
+        transcript: &mut Transcript,
         context: &<AuxInfoParticipant as InnerProtocolParticipant>::Context,
         sid: Identifier,
         rho: [u8; 32],
-    ) -> Result<Transcript> {
-        let mut transcript = Transcript::new(b"PaillierBlumModulusProof");
+    ) -> Result<()> {
+        transcript.append_message(b"PaillierBumModulusProof", b"");
         transcript.append_message(b"PiMod ProofContext", &context.as_bytes()?);
         transcript.append_message(b"Session Id", &serialize!(&sid)?);
         transcript.append_message(b"rho", &rho);
-        Ok(transcript)
+        Ok(())
     }
 
-    fn pifac_transcript(
+    /// Append info relevant to the `𝚷[fac]` proof to the provided
+    /// [`Transcript`].
+    fn append_pifac_transcript(
+        transcript: &mut Transcript,
         context: &<AuxInfoParticipant as InnerProtocolParticipant>::Context,
         sid: Identifier,
         rho: [u8; 32],
-    ) -> Result<Transcript> {
-        let mut transcript = Transcript::new(b"PiFacProof");
+    ) -> Result<()> {
+        transcript.append_message(b"PiFacProof", b"");
         transcript.append_message(b"PiFac ProofContext", &context.as_bytes()?);
         transcript.append_message(b"Session Id", &serialize!(&sid)?);
         transcript.append_message(b"rho", &rho);
-        Ok(transcript)
+        Ok(())
     }
 }
