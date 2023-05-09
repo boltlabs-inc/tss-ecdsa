@@ -103,7 +103,7 @@ pub enum Status {
 ///   following proofs about our RSA modulus `N`: `𝚷[mod]`, which asserts the
 ///   validity of `N` as a product of two primes, and a version of `𝚷[fac]` _for
 ///   each other participant_ which asserts that neither factor of `N` is "too
-///   small". (The security of the `𝚷[fac]` proof depens on the correctness of
+///   small". (The security of the `𝚷[fac]` proof depends on the correctness of
 ///   the commitment parameters used to create it, so each other party requires
 ///   it to be created with the parameters they provided in round two.) We then
 ///   send `𝚷[mod]` alongside the appropriate `𝚷[fac]` to each other
