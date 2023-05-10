@@ -12,6 +12,7 @@ use crate::{
         Result,
     },
     presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
+    protocol::SignatureShare,
     utils::bn_to_scalar,
     CurvePoint,
 };
@@ -96,7 +97,9 @@ impl PresignRecord {
         })
     }
 
-    pub(crate) fn sign(&self, d: sha2::Sha256) -> Result<(k256::Scalar, k256::Scalar)> {
+    /// Generate a signature share on the given `digest` with
+    /// the [`PresignRecord`].
+    pub fn sign(self, d: sha2::Sha256) -> Result<SignatureShare> {
         let r = Self::x_from_point(&self.R)?;
         let m = Option::<Scalar>::from(k256::Scalar::from_repr(d.finalize())).ok_or_else(|| {
             error!("Unable to create Scalar from bytes representation");
@@ -104,6 +107,8 @@ impl PresignRecord {
         })?;
         let s = bn_to_scalar(&self.k)? * m + r * self.chi;
 
-        Ok((r, s))
+        let ret = SignatureShare::new_sig(Some(r), s);
+
+        Ok(ret)
     }
 }

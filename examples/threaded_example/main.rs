@@ -389,10 +389,7 @@ fn participant_worker(
                 outgoing.send(MessageFromWorker::SubProtocolEnded)?;
             }
             SubProtocol::Sign => {
-                let signature = Participant::<KeygenParticipant>::sign(
-                    presign_record.take().unwrap(),
-                    message_to_sign(),
-                )?;
+                let signature = presign_record.take().unwrap().sign(message_to_sign())?;
                 info!("Computed signature: {:?}", signature);
                 outgoing.send(MessageFromWorker::SubProtocolEnded)?;
             }
