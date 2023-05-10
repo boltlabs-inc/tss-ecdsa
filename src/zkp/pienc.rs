@@ -25,13 +25,12 @@
 //! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos Makriyannis, and Udi Peled.
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
-#[allow(unused_imports)]
 use crate::{
     errors::*,
     paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce},
     parameters::{ELL, EPSILON},
     ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
-    utils::{k256_order, plusminus_challenge_from_transcript, random_plusminus_by_size},
+    utils::{plusminus_challenge_from_transcript, random_plusminus_by_size},
     zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -41,6 +40,9 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::warn;
 use zeroize::ZeroizeOnDrop;
+
+//#[cfg(test)]
+//use crate::utils::k256_order;
 
 /// Proof of knowledge of the plaintext value of a ciphertext, where the value
 /// is within a desired range.
@@ -292,8 +294,8 @@ mod tests {
     use crate::{
         paillier::DecryptionKey,
         utils::{
-            random_plusminus, random_plusminus_by_size_with_minimum, random_positive_bn,
-            testing::init_testing,
+            k256_order, random_plusminus, random_plusminus_by_size_with_minimum,
+            random_positive_bn, testing::init_testing,
         },
         zkp::BadContext,
     };

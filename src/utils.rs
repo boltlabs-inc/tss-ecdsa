@@ -20,8 +20,6 @@ use std::fmt::Debug;
 use tracing::error;
 use zeroize::Zeroize;
 
-//use self::testing::init_testing;
-
 pub(crate) const CRYPTOGRAPHIC_RETRY_MAX: usize = 500usize;
 
 /// Wrapper around k256::ProjectivePoint so that we can define our own
@@ -176,6 +174,8 @@ pub(crate) fn plusminus_challenge_from_transcript(
     })
 }
 
+/// Derive a deterministic pseduorandom value in `[0, n)` from the
+/// [`Transcript`].
 pub(crate) fn positive_challenge_from_transcript(
     transcript: &mut Transcript,
     n: &BigNumber,
@@ -185,7 +185,6 @@ pub(crate) fn positive_challenge_from_transcript(
     // there's a new label in the transcript).
     let len = n.to_bytes().len();
     let mut t = vec![0u8; len];
-    //let b = BigNumber::from_slice(t.as_slice());
     for _ in 0..CRYPTOGRAPHIC_RETRY_MAX {
         transcript.challenge_bytes(b"sampling randomness", t.as_mut_slice());
         let b = BigNumber::from_slice(t.as_slice());
