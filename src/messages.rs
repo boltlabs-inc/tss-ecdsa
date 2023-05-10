@@ -9,10 +9,11 @@
 //! Contains the functions and definitions for dealing with messages that are
 //! passed between participants
 
-use crate::protocol::{Identifier, ParticipantIdentifier};
+use crate::{protocol::{Identifier, ParticipantIdentifier},
+    errors::{InternalError, Result}};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
-use tracing::{instrument, trace};
+use tracing::{instrument, error, trace};
 
 /////////////////
 // Message API //
@@ -150,5 +151,18 @@ impl Message {
     /// That participant that should receive this message
     pub fn to(&self) -> ParticipantIdentifier {
         self.to
+    }
+
+    /// Check message type
+    pub fn check_type(&self, expected_type: MessageType) -> Result<()> {
+        if self.message_type() != expected_type {
+            error!(
+                "A message was misrouted. Expected {:?}, Got {:?}",
+                expected_type,
+                self.message_type()
+            );
+            return Err(InternalError::InternalInvariantFailed);
+        }
+        Ok(())
     }
 }
