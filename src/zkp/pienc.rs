@@ -31,7 +31,7 @@ use crate::{
     paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce},
     parameters::{ELL, EPSILON},
     ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
-    utils::{k256_order, plusminus_bn_random_from_transcript, random_plusminus_by_size},
+    utils::{k256_order, plusminus_challenge_from_transcript, random_plusminus_by_size},
     zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -163,7 +163,7 @@ impl Proof for PiEncProof {
         )?;
 
         // ...and generate a challenge from it (aka `e`)
-        let challenge = plusminus_bn_random_from_transcript(transcript)?;
+        let challenge = plusminus_challenge_from_transcript(transcript)?;
 
         // Form proof responses. Each combines one secret value with its mask and the
         // challenge (aka `z1`, `z2`, `z3` respectively)
@@ -205,7 +205,7 @@ impl Proof for PiEncProof {
         )?;
 
         // ...generate a challenge, and make sure it matches the one the prover sent.
-        let e = plusminus_bn_random_from_transcript(transcript)?;
+        let e = plusminus_challenge_from_transcript(transcript)?;
         if e != self.challenge {
             warn!("Fiat-Shamir didn't verify");
             return Err(InternalError::ProtocolError);

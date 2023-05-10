@@ -23,7 +23,7 @@ use crate::{
     parameters::{ELL, EPSILON},
     ring_pedersen::{Commitment, MaskedRandomness, RingPedersen},
     utils::{
-        self, plusminus_bn_random_from_transcript, random_plusminus_by_size, within_bound_by_size,
+        self, plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size,
     },
     zkp::{Proof, ProofContext},
 };
@@ -158,7 +158,7 @@ fn generate_challenge(
     );
 
     // The challenge is sampled from `± q` (where `q` is the group order).
-    let challenge = plusminus_bn_random_from_transcript(transcript)?;
+    let challenge = plusminus_challenge_from_transcript(transcript)?;
     Ok(challenge)
 }
 

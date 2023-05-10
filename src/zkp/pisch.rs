@@ -11,7 +11,7 @@
 use crate::{
     errors::*,
     messages::{KeygenMessageType, Message, MessageType},
-    utils::{self, positive_bn_random_from_transcript},
+    utils::{self, positive_challenge_from_transcript},
     zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -95,7 +95,7 @@ impl Proof for PiSchProof {
         Self::fill_transcript(transcript, context, input, &A)?;
 
         // Verifier samples e in F_q
-        let e = positive_bn_random_from_transcript(transcript, &input.q)?;
+        let e = positive_challenge_from_transcript(transcript, &input.q)?;
 
         let z = &alpha + &e * &secret.x;
 
@@ -114,7 +114,7 @@ impl Proof for PiSchProof {
         Self::fill_transcript(transcript, context, input, &self.A)?;
 
         // Verifier samples e in F_q
-        let e = positive_bn_random_from_transcript(transcript, &input.q)?;
+        let e = positive_challenge_from_transcript(transcript, &input.q)?;
         if e != self.e {
             warn!("Fiat-Shamir consistency check failed");
             return Err(InternalError::ProtocolError);
@@ -160,7 +160,7 @@ impl PiSchProof {
         Self::fill_transcript(&mut local_transcript, context, input, &A)?;
 
         // Verifier samples e in F_q
-        let e = positive_bn_random_from_transcript(&mut local_transcript, &input.q)?;
+        let e = positive_challenge_from_transcript(&mut local_transcript, &input.q)?;
 
         let z = &com.alpha + &e * &secret.x;
 

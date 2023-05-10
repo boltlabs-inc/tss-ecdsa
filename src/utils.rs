@@ -7,7 +7,6 @@
 // of this source tree.
 
 use crate::errors::{CallerError, InternalError, Result};
-use anyhow::Ok;
 use generic_array::GenericArray;
 use k256::{
     elliptic_curve::{bigint::Encoding, group::ff::PrimeField, AffinePoint, Curve},
@@ -159,7 +158,7 @@ pub(crate) fn random_plusminus_by_size_with_minimum<R: RngCore + CryptoRng>(
 
 /// Derive a deterministic pseudorandom value in `[-n, n]` from the
 /// [`Transcript`].
-pub(crate) fn plusminus_bn_random_from_transcript(
+pub(crate) fn plusminus_challenge_from_transcript(
     transcript: &mut Transcript,
 ) -> Result<BigNumber> {
     let mut is_neg_byte = vec![0u8; 1];
@@ -170,14 +169,14 @@ pub(crate) fn plusminus_bn_random_from_transcript(
     // the _closed_ interval we want here.
     let q = k256_order();
     let open_interval_max = &q + 1;
-    let b = positive_bn_random_from_transcript(transcript, &open_interval_max)?;
-    match is_neg {
+    let b = positive_challenge_from_transcript(transcript, &open_interval_max)?;
+    Ok(match is_neg {
         true => -b,
         false => b,
-    }
+    })
 }
 
-pub(crate) fn positive_bn_random_from_transcript(
+pub(crate) fn positive_challenge_from_transcript(
     transcript: &mut Transcript,
     n: &BigNumber,
 ) -> Result<BigNumber> {
@@ -194,7 +193,7 @@ pub(crate) fn positive_bn_random_from_transcript(
             return Ok(b);
         }
     }
-    Err(InternalError::ProtocolError)
+    Err(CallerError::RetryFailed)?
 }
 
 /// Generate a random `BigNumber` that is in the multiplicative group of

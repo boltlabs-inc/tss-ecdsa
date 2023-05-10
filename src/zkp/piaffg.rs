@@ -44,7 +44,7 @@ use crate::{
     parameters::{ELL, ELL_PRIME, EPSILON},
     ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
     utils::{
-        self, plusminus_bn_random_from_transcript, random_plusminus_by_size, within_bound_by_size,
+        self, plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size,
     },
     zkp::{Proof, ProofContext},
 };
@@ -540,7 +540,7 @@ impl PiAffgProof {
             .concat(),
         );
 
-        plusminus_bn_random_from_transcript(transcript)
+        plusminus_challenge_from_transcript(transcript)
     }
 }
 
