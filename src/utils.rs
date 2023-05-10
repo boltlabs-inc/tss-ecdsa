@@ -171,16 +171,16 @@ pub(crate) fn plusminus_bn_random_from_transcript(
     let q = k256_order();
     let open_interval_max = &q + 1;
     let b = positive_bn_random_from_transcript(transcript, &open_interval_max)?;
-    Ok(match is_neg {
+    match is_neg {
         true => -b,
         false => b,
-    })
+    }
 }
 
 pub(crate) fn positive_bn_random_from_transcript(
     transcript: &mut Transcript,
     n: &BigNumber,
-) -> Result<BigNumber, InternalError> {
+) -> Result<BigNumber> {
     // To avoid sample bias, we can't take `t mod n`, because that would bias
     // smaller numbers. Instead, we re-sample a new value (different because
     // there's a new label in the transcript).
