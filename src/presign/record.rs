@@ -55,7 +55,7 @@ pub(crate) struct RecordPair {
 /// all of these shares, we get `(∑ kᵢ) m + r (∑ χᵢ) = k^{-1} (m + r d_A)`,
 /// which is exactly a valid (normal) ECDSA signature.
 ///
-/// [^cite]: [https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm#Signature_generation_algorithm]
+/// [^cite]: [Wikipedia](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm#Signature_generation_algorithm)
 #[derive(ZeroizeOnDrop)]
 pub struct PresignRecord {
     R: CurvePoint,
