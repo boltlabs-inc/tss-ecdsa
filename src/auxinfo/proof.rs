@@ -8,7 +8,7 @@
 
 use crate::{
     auxinfo::participant::AuxInfoParticipant,
-    errors::{InternalError, Result},
+    errors::{Result},
     messages::{AuxinfoMessageType, MessageType},
     participant::InnerProtocolParticipant,
     ring_pedersen::VerifiedRingPedersen,
@@ -22,8 +22,9 @@ use crate::{
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
+//use rocket::figment::error::Result;
 use serde::{Deserialize, Serialize};
-use tracing::error;
+//use tracing::error;
 
 /// Proofs used to validate correctness of the RSA modulus `N`.
 ///
@@ -45,14 +46,16 @@ impl AuxInfoProof {
     /// Note: This conversion **does not validate** the produced
     /// [`AuxInfoProof`]!
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
-        if message.message_type() != MessageType::Auxinfo(AuxinfoMessageType::R3Proof) {
+        /*if message.message_type() != MessageType::Auxinfo(AuxinfoMessageType::R3Proof) {
             error!(
                 "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
                 MessageType::Auxinfo(AuxinfoMessageType::R3Proof),
                 message.message_type()
             );
             return Err(InternalError::InternalInvariantFailed);
-        }
+        }*/
+        let result = message.check_type(MessageType::Auxinfo(AuxinfoMessageType::R3Proof));
+        assert!(result.is_ok());
         let auxinfo_proof: AuxInfoProof = deserialize!(&message.unverified_bytes)?;
         Ok(auxinfo_proof)
     }
