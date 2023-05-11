@@ -6,8 +6,6 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//use std::result;
-
 use crate::{
     broadcast::participant::BroadcastTag,
     errors::{InternalError, Result},
@@ -36,8 +34,6 @@ impl BroadcastData {
             );
             return Err(InternalError::InternalInvariantFailed);
         }
-        /*message.check_type(MessageType::Broadcast(BroadcastMessageType::Disperse))?;
-        message.check_type(MessageType::Broadcast(BroadcastMessageType::Redisperse))?;*/
         let broadcast_data: BroadcastData = deserialize!(&message.unverified_bytes)?;
         Ok(broadcast_data)
     }

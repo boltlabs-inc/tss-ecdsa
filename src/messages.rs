@@ -135,7 +135,7 @@ impl Message {
         }
     }
 
-    /// The message type associated with the message
+    /// The message type associated with the message.
     pub fn message_type(&self) -> MessageType {
         self.message_type
     }
@@ -145,18 +145,18 @@ impl Message {
         self.identifier
     }
 
-    /// The participant that sent this message
+    /// The participant that sent this message.
     pub fn from(&self) -> ParticipantIdentifier {
         self.from
     }
 
-    /// That participant that should receive this message
+    /// The participant that should receive this message.
     pub fn to(&self) -> ParticipantIdentifier {
         self.to
     }
 
-    /// Check message type
-    pub fn check_type(&self, expected_type: MessageType) -> Result<()> {
+    /// Check if the message type is correct.
+    pub(crate) fn check_type(&self, expected_type: MessageType) -> Result<()> {
         if self.message_type() != expected_type {
             error!(
                 "A message was misrouted. Expected {:?}, Got {:?}",
