@@ -9,11 +9,13 @@
 //! Contains the functions and definitions for dealing with messages that are
 //! passed between participants
 
-use crate::{protocol::{Identifier, ParticipantIdentifier},
-    errors::{InternalError, Result}};
+use crate::{
+    errors::{InternalError, Result},
+    protocol::{Identifier, ParticipantIdentifier},
+};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
-use tracing::{instrument, error, trace};
+use tracing::{error, instrument, trace};
 
 /////////////////
 // Message API //

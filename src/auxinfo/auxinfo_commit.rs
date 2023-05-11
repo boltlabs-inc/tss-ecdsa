@@ -28,16 +28,7 @@ pub(crate) struct Commitment {
 impl Commitment {
     /// Extract the [`Commitment`] from the given [`Message`].
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
-        /*if message.message_type() != MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash) {
-            error!(
-                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
-                MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash),
-                message.message_type()
-            );
-            return Err(InternalError::InternalInvariantFailed);
-        }*/
-        let result = message.check_type(MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash));
-        assert!(result.is_ok());
+        message.check_type(MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash))?;
         let com: Commitment = deserialize!(&message.unverified_bytes)?;
         Ok(com)
     }
@@ -124,16 +115,7 @@ impl CommitmentScheme {
         message: &Message,
         context: &<AuxInfoParticipant as InnerProtocolParticipant>::Context,
     ) -> Result<Self> {
-        /*if message.message_type() != MessageType::Auxinfo(AuxinfoMessageType::R2Decommit) {
-            error!(
-                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
-                MessageType::Auxinfo(AuxinfoMessageType::R2Decommit),
-                message.message_type()
-            );
-            return Err(InternalError::InternalInvariantFailed);
-        }*/
-        let result = message.check_type(MessageType::Auxinfo(AuxinfoMessageType::R2Decommit));
-        assert!(result.is_ok());
+        message.check_type(MessageType::Auxinfo(AuxinfoMessageType::R2Decommit))?;
         let scheme: CommitmentScheme = deserialize!(&message.unverified_bytes)?;
 
         // Public parameters in this decommit must be consistent with each other

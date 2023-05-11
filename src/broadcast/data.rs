@@ -10,12 +10,12 @@
 
 use crate::{
     broadcast::participant::BroadcastTag,
-    errors::{Result},
+    errors::{InternalError, Result},
     messages::{BroadcastMessageType, Message, MessageType},
     ParticipantIdentifier,
 };
 use serde::{Deserialize, Serialize};
-//use tracing::error;
+use tracing::error;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct BroadcastData {
@@ -27,7 +27,7 @@ pub(crate) struct BroadcastData {
 
 impl BroadcastData {
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
-        /*if message.message_type() != MessageType::Broadcast(BroadcastMessageType::Disperse)
+        if message.message_type() != MessageType::Broadcast(BroadcastMessageType::Disperse)
             && message.message_type() != MessageType::Broadcast(BroadcastMessageType::Redisperse)
         {
             error!(
@@ -35,11 +35,9 @@ impl BroadcastData {
                 message.message_type()
             );
             return Err(InternalError::InternalInvariantFailed);
-        }*/
-        let result = message.check_type(MessageType::Broadcast(BroadcastMessageType::Disperse));
-        assert!(result.is_ok());
-        let result1 = message.check_type(MessageType::Broadcast(BroadcastMessageType::Redisperse));
-        assert!(result1.is_ok());
+        }
+        /*message.check_type(MessageType::Broadcast(BroadcastMessageType::Disperse))?;
+        message.check_type(MessageType::Broadcast(BroadcastMessageType::Redisperse))?;*/
         let broadcast_data: BroadcastData = deserialize!(&message.unverified_bytes)?;
         Ok(broadcast_data)
     }

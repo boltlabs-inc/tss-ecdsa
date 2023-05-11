@@ -19,7 +19,7 @@ use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tracing::{error, warn};
+use tracing::warn;
 use utils::CurvePoint;
 use zeroize::ZeroizeOnDrop;
 
@@ -168,14 +168,7 @@ impl PiSchProof {
         Ok(proof)
     }
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
-        if message.message_type() != MessageType::Keygen(KeygenMessageType::R3Proof) {
-            error!(
-                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
-                MessageType::Keygen(KeygenMessageType::R3Proof),
-                message.message_type()
-            );
-            return Err(InternalError::InternalInvariantFailed);
-        }
+        message.check_type(MessageType::Keygen(KeygenMessageType::R3Proof))?;
         let keygen_decommit: PiSchProof = deserialize!(&message.unverified_bytes)?;
         Ok(keygen_decommit)
     }

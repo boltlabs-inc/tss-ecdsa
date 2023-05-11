@@ -6,8 +6,6 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//use std::result;
-
 use crate::{
     errors::{InternalError, Result},
     keygen::keyshare::KeySharePublic,
@@ -19,7 +17,7 @@ use crate::{
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::{error, instrument, warn};
+use tracing::{instrument, warn};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct KeygenCommit {
@@ -27,16 +25,7 @@ pub(crate) struct KeygenCommit {
 }
 impl KeygenCommit {
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
-        /*if message.message_type() != MessageType::Keygen(KeygenMessageType::R1CommitHash) {
-            error!(
-                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
-                MessageType::Keygen(KeygenMessageType::R1CommitHash),
-                message.message_type()
-            );
-            return Err(InternalError::InternalInvariantFailed);
-        }*/
-        let result = message.check_type(MessageType::Keygen(KeygenMessageType::R1CommitHash));
-        assert!(result.is_ok());
+        message.check_type(MessageType::Keygen(KeygenMessageType::R1CommitHash))?;
         let keygen_commit: KeygenCommit = deserialize!(&message.unverified_bytes)?;
         Ok(keygen_commit)
     }
@@ -77,16 +66,7 @@ impl KeygenDecommit {
     }
 
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
-        /*if message.message_type() != MessageType::Keygen(KeygenMessageType::R2Decommit) {
-            error!(
-                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
-                MessageType::Keygen(KeygenMessageType::R2Decommit),
-                message.message_type()
-            );
-            return Err(InternalError::InternalInvariantFailed);
-        }*/
-        let result = message.check_type(MessageType::Keygen(KeygenMessageType::R2Decommit));
-        assert!(result.is_ok());
+        message.check_type(MessageType::Keygen(KeygenMessageType::R2Decommit))?;
         let keygen_decommit: KeygenDecommit = deserialize!(&message.unverified_bytes)?;
         Ok(keygen_decommit)
     }

@@ -8,7 +8,7 @@
 
 use crate::{
     auxinfo::info::AuxInfoPublic,
-    errors::{InternalError, Result},
+    errors::Result,
     keygen::keyshare::KeySharePublic,
     messages::{Message, MessageType, PresignMessageType},
     paillier::Ciphertext,
@@ -24,7 +24,6 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
 #[derive(Clone, Serialize, Deserialize, ZeroizeOnDrop)]
@@ -118,14 +117,7 @@ impl Public {
         receiver_r1_private: &RoundOnePrivate,
         sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<Self> {
-        if message.message_type() != MessageType::Presign(PresignMessageType::RoundTwo) {
-            error!(
-                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
-                MessageType::Presign(PresignMessageType::RoundTwo),
-                message.message_type()
-            );
-            return Err(InternalError::InternalInvariantFailed);
-        }
+        message.check_type(MessageType::Presign(PresignMessageType::RoundTwo))?;
         let round_two_public: Self = deserialize!(&message.unverified_bytes)?;
 
         round_two_public.verify(

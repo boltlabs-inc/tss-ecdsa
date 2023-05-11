@@ -8,7 +8,7 @@
 
 use crate::{
     auxinfo::info::AuxInfoPublic,
-    errors::{InternalError, Result},
+    errors::Result,
     messages::{Message, MessageType, PresignMessageType},
     paillier::{Ciphertext, EncryptionKey, Nonce},
     ring_pedersen::VerifiedRingPedersen,
@@ -18,7 +18,6 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
 #[derive(Clone, Serialize, Deserialize, ZeroizeOnDrop)]
@@ -80,14 +79,7 @@ impl Public {
         sender_keygen_public: &AuxInfoPublic,
         broadcasted_params: &PublicBroadcast,
     ) -> Result<Self> {
-        if message.message_type() != MessageType::Presign(PresignMessageType::RoundOne) {
-            error!(
-                "Encountered unexpected MessageType. Expected {:?}, Got {:?}",
-                MessageType::Presign(PresignMessageType::RoundOne),
-                message.message_type()
-            );
-            return Err(InternalError::InternalInvariantFailed);
-        }
+        message.check_type(MessageType::Presign(PresignMessageType::RoundOne))?;
         let round_one_public: Self = deserialize!(&message.unverified_bytes)?;
 
         round_one_public.verify(
