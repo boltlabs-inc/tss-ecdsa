@@ -23,7 +23,7 @@ use k256::{
 use libpaillier::unknown_order::BigNumber;
 use sha2::Digest;
 use std::fmt::Debug;
-use tracing::error;
+use tracing::{error, info, instrument};
 use zeroize::ZeroizeOnDrop;
 
 pub(crate) struct RecordPair {
@@ -99,7 +99,9 @@ impl PresignRecord {
 
     /// Generate a signature share on the given `digest` with
     /// the [`PresignRecord`].
+    #[instrument(skip_all, err(Debug))]
     pub fn sign(self, d: sha2::Sha256) -> Result<SignatureShare> {
+        info!("Issuing signature with presign record.");
         let r = Self::x_from_point(&self.R)?;
         let m = Option::<Scalar>::from(k256::Scalar::from_repr(d.finalize())).ok_or_else(|| {
             error!("Unable to create Scalar from bytes representation");

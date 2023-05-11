@@ -231,8 +231,8 @@ impl SignatureShare {
         }
     }
 
-    /// Create a new [`SignatureShare`] given (r, s).
-    pub fn new_sig(r: Option<k256::Scalar>, s: k256::Scalar) -> Self {
+    /// Create a new [`SignatureShare`].
+    pub(crate) fn new_sig(r: Option<k256::Scalar>, s: k256::Scalar) -> Self {
         SignatureShare { r, s }
     }
 
