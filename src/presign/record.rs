@@ -133,6 +133,6 @@ impl PresignRecord {
             })?;
         // Produce a ECDSA signature share of the digest (`σ` in the paper).
         let signature_share = self.k * digest + x_projection * self.chi;
-        Ok(SignatureShare::new(Some(x_projection), signature_share))
+        Ok(SignatureShare::new(x_projection, signature_share))
     }
 }

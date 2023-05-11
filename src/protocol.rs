@@ -22,7 +22,7 @@ use crate::{
     zkp::ProofContext,
     Message,
 };
-use k256::elliptic_curve::{Field, IsHigh};
+use k256::elliptic_curve::IsHigh;
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -223,77 +223,69 @@ pub struct SignatureShare {
     /// The x-projection of `R` from the [`PresignRecord`] (`r` in the paper).
     // XXX The paper does _not_ include this as part of the share, and instead,
     // each party just sends the `σᵢ` value. Instead, the paper combines the
-    // `σᵢ` values and then checks whether `(r, σ)` is a valid share before
+    // `σᵢ` values and then checks whether `(r, σ)` is a valid signature before
     // outputting the signature, which we do _not_ do here. I'd recommend
     // following the paper approach; it should simplify the code and make sure
     // we're not missing any steps.
-    r: Option<k256::Scalar>,
+    r: k256::Scalar,
     /// The digest masked by components from [`PresignRecord`] (`σ` in the
     /// paper).
     s: k256::Scalar,
 }
 
-// XXX exposing `default` is error-prone, since these are _not_ valid
-// `SignatureShare`s. It seems this is only used for chaining shares together,
-// so it might be better to expose something that hides this functionality to
-// avoid misuse. (As a side benefit, we could get rid of the `Option` in the
-// struct.)
-impl Default for SignatureShare {
-    fn default() -> Self {
-        Self {
-            r: None,
-            s: k256::Scalar::zero(),
-        }
-    }
-}
-
 impl SignatureShare {
     /// Creates a new [`SignatureShare`].
-    pub(crate) fn new(r: Option<k256::Scalar>, s: k256::Scalar) -> Self {
+    pub(crate) fn new(r: k256::Scalar, s: k256::Scalar) -> Self {
         SignatureShare { r, s }
     }
 
+    /// Turn a vector of [`SignatureShare`]s into an ECDSA
+    /// [`Signature`](k256::ecdsa::Signature).
+    ///
+    /// Note: Unlike the paper, we do _not_ check that the generated signature
+    /// is valid, and leave that up to the caller.
+    pub fn into_signature(
+        shares: impl Iterator<Item = SignatureShare>,
+    ) -> Result<k256::ecdsa::Signature> {
+        shares
+            .into_iter()
+            // Currently, because `chain` returns `Result`, we need to wrap all
+            // items in `Ok` for the `reduce` call below to work. This is ugly!
+            // If we change `chain` to not be able to fail we can remove this
+            // extra `map`.
+            .map(Ok)
+            .reduce(|acc, share| acc?.chain(share?))
+            .ok_or_else(|| {
+                error!("Zero length iterator provided as input");
+                InternalError::InternalInvariantFailed
+            })??
+            .finish()
+    }
+
     /// Can be used to combine [`SignatureShare`]s.
-    pub fn chain(&self, share: Self) -> Result<Self> {
-        let r = match (self.r, share.r) {
-            (_, None) => {
-                error!("Input share was not initialized");
-                Err(InternalError::InternalInvariantFailed)
-            }
-            (Some(prev_r), Some(new_r)) => {
-                if prev_r != new_r {
-                    error!(
-                        "Failed to chain signature shares together because 
+    fn chain(&self, share: Self) -> Result<Self> {
+        if self.r != share.r {
+            error!(
+                "Failed to chain signature shares together because 
                         r-values were different. Got {:?}, expected {:?}.",
-                        &prev_r, new_r
-                    );
-                    return Err(InternalError::InternalInvariantFailed);
-                }
-                Ok(prev_r)
-            }
-            (None, Some(new_r)) => Ok(new_r),
-        }?;
+                &self.r, share.r
+            );
+            return Err(InternalError::InternalInvariantFailed);
+        }
 
         // Keep the same r, add in the s value
-        Ok(Self::new(Some(r), self.s + share.s))
+        Ok(Self::new(self.r, self.s + share.s))
     }
 
     /// Convert the [`SignatureShare`] into an ECDSA signature.
-    // XXX we should check here that the signature is valid! (As is done in the
-    // paper.)
     #[instrument(skip_all err(Debug))]
-    pub fn finish(self) -> Result<k256::ecdsa::Signature> {
+    fn finish(self) -> Result<k256::ecdsa::Signature> {
         info!("Converting signature share into a signature.");
         let mut s = self.s;
         if bool::from(s.is_high()) {
             s = s.negate();
         }
-        let r = self.r.ok_or_else(|| {
-            error!("Tried to produce a signature without including shares");
-            InternalError::InternalInvariantFailed
-        })?;
-
-        k256::ecdsa::Signature::from_scalars(r, s).map_err(|_| {
+        k256::ecdsa::Signature::from_scalars(self.r, s).map_err(|_| {
             error!("Unable to create ECDSA signature from provided r and s");
             InternalError::InternalInvariantFailed
         })
@@ -936,13 +928,11 @@ mod tests {
         let mut hasher = Sha256::new();
         hasher.update(b"some test message");
 
-        let signature = presign_outputs
+        let shares = presign_outputs
             .into_values()
             .map(|record| record.sign(hasher.clone()).unwrap())
-            .fold(SignatureShare::default(), |aggregator, share| {
-                aggregator.chain(share).unwrap()
-            })
-            .finish()?;
+            .collect::<Vec<_>>();
+        let signature = SignatureShare::into_signature(shares.into_iter())?;
 
         // Initialize all participants and get their public keyshares to construct the
         // final signature verification key
@@ -954,11 +944,6 @@ mod tests {
             k256::ecdsa::VerifyingKey::from_encoded_point(&vk_point.0.to_affine().into()).unwrap();
 
         // Moment of truth, does the signature verify?
-        //
-        // XXX should the verification of the signature be up to the caller, or
-        // should it be checked during signature creation? Figure 8 specifies
-        // that the signature should be verified as part of signature creation
-        // (Output, Step 2).
         assert!(verification_key.verify_digest(hasher, &signature).is_ok());
 
         #[cfg(feature = "flame_it")]
