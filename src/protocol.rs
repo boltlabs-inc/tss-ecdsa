@@ -219,24 +219,20 @@ pub struct SignatureShare {
 
 impl Default for SignatureShare {
     fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl SignatureShare {
-    fn new() -> Self {
         Self {
             r: None,
             s: k256::Scalar::zero(),
         }
     }
+}
 
-    /// Create a new [`SignatureShare`].
-    pub(crate) fn new_sig(r: Option<k256::Scalar>, s: k256::Scalar) -> Self {
+impl SignatureShare {
+    /// Creates a new [`SignatureShare`].
+    pub(crate) fn new(r: Option<k256::Scalar>, s: k256::Scalar) -> Self {
         SignatureShare { r, s }
     }
 
-    /// Can be used to combine [SignatureShare]s
+    /// Can be used to combine [`SignatureShare`]s.
     pub fn chain(&self, share: Self) -> Result<Self> {
         let r = match (self.r, share.r) {
             (_, None) => {
@@ -264,7 +260,7 @@ impl SignatureShare {
         })
     }
 
-    /// Converts the [SignatureShare] into a signature
+    /// Converts the [`SignatureShare`] into a signature.
     #[instrument(skip_all err(Debug))]
     pub fn finish(&self) -> Result<k256::ecdsa::Signature> {
         info!("Converting signature share into a signature.");

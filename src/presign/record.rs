@@ -109,7 +109,7 @@ impl PresignRecord {
         })?;
         let s = bn_to_scalar(&self.k)? * m + r * self.chi;
 
-        let ret = SignatureShare::new_sig(Some(r), s);
+        let ret = SignatureShare::new(Some(r), s);
 
         Ok(ret)
     }
