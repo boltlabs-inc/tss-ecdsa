@@ -564,21 +564,21 @@ impl PresignParticipant {
 
         // First check that we have the round one public broadcast from this
         // participant. If not, we cannot proceed, so stash that message.
-        let r1_public_broadcast = match self
+        if !self
             .local_storage
-            .retrieve::<storage::RoundOnePublicBroadcast>(message.from())
+            .contains::<storage::RoundOnePublicBroadcast>(message.from())
         {
-            Ok(m) => m,
-            Err(InternalError::StorageItemNotFound) => {
-                info!("Presign: Stashing early round one message (no matching broadcast message).");
-                self.stash_message(message)?;
-                return Ok(ProcessOutcome::Incomplete);
-            }
-            Err(e) => {
-                // This is an error condition that we need to pass on.
-                return Err(e);
-            }
-        };
+            info!("Presign: Stashing early round one message (no matching broadcast message).");
+            self.stash_message(message)?;
+            return Ok(ProcessOutcome::Incomplete);
+        }
+        // Now that we know local storage contains the entry we can retrieve it.
+        // Note that the reason we do _not_ use the output of `retrieve` to make
+        // this decision is that `retrieve` can either error out because an
+        // entry isn't there, _or_ because of an internal invariant failure.
+        let r1_public_broadcast = self
+            .local_storage
+            .retrieve::<storage::RoundOnePublicBroadcast>(message.from())?;
 
         let info = PresignKeyShareAndInfo::new(self.id, input)?;
         let auxinfo_public = input.find_auxinfo_public(message.from())?;
