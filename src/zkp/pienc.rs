@@ -41,9 +41,6 @@ use std::fmt::Debug;
 use tracing::warn;
 use zeroize::ZeroizeOnDrop;
 
-//#[cfg(test)]
-//use crate::utils::k256_order;
-
 /// Proof of knowledge of the plaintext value of a ciphertext, where the value
 /// is within a desired range.
 #[derive(Debug, Clone, Serialize, Deserialize)]
