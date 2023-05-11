@@ -31,7 +31,7 @@ use crate::{
     utils::{bn_to_scalar, k256_order, random_plusminus_by_size, random_positive_bn},
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof, PiAffgSecret},
-        pienc::PiEncProof,
+        pienc::{PiEncInput, PiEncProof, PiEncSecret},
         pilog::{CommonInput, PiLogProof, ProverSecret},
         Proof, ProofContext,
     },
@@ -158,10 +158,10 @@ impl PresignContext {
 ///    constructs a value equal to `(∑ kᵢ) (∑ ɣᵢ)`, which is used to generate
 ///    the [`PresignRecord`].
 ///
-///    The participant then encryptions these values and constructs a
+///    The participant then encrypts these values and constructs a
 ///    zero-knowledge proof that the ciphertext (`Kᵢ` in the paper)
 ///    corresponding to its key share `kᵢ` was encrypted correctly. This proof
-///    needs to be done on per-participant (that is, if there are `n` total
+///    needs to be done once per-participant (that is, if there are `n` total
 ///    participants then each participant generates `n-1` such proofs, one for
 ///    each other participant).
 ///
@@ -536,7 +536,10 @@ impl PresignParticipant {
         // We should only have one such non-broadcast message. If we have more
         // than one that's a problem.
         if retrieved_messages.len() > 1 {
-            error!("Received more than one presign round one message.");
+            error!(
+                "Received more than one presign round one message from sender {}.",
+                message.from()
+            );
             return Err(InternalError::ProtocolError);
         }
         match retrieved_messages.get(0) {
@@ -566,14 +569,14 @@ impl PresignParticipant {
             .retrieve::<storage::RoundOnePublicBroadcast>(message.from())
         {
             Ok(m) => m,
-            Err(_) => {
-                // XXX This error may either be due to (1) an item not being
-                // found in storage, or (2) an internal issue with storage.
-                // Currently, this code path _assumes_ that the reason this
-                // error occurs is due to (1)!
+            Err(InternalError::StorageItemNotFound) => {
                 info!("Presign: Stashing early round one message (no matching broadcast message).");
                 self.stash_message(message)?;
                 return Ok(ProcessOutcome::Incomplete);
+            }
+            Err(e) => {
+                // This is an error condition that we need to pass on.
+                return Err(e);
             }
         };
 
@@ -748,9 +751,6 @@ impl PresignParticipant {
         let info = PresignKeyShareAndInfo::new(self.id, input)?;
         // Collect the other participant's values from storage needed for round
         // three.
-        //
-        // XXX remove these hashmaps, both here and elsewhere. It'd be much more
-        // straightforward to just pass around vectors.
         let mut hashmap = HashMap::new();
         for pid in self.other_participant_ids.clone() {
             let auxinfo_public = input.find_auxinfo_public(pid)?;
@@ -808,10 +808,9 @@ impl PresignParticipant {
         // If we have not yet started round three, stash the message for later.
         // We check that we've started round three by checking whether our own
         // private round three value exists in storage.
-        if self
+        if !self
             .local_storage
-            .retrieve::<storage::RoundThreePrivate>(self.id)
-            .is_err()
+            .contains::<storage::RoundThreePrivate>(self.id)
         {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
@@ -856,10 +855,6 @@ impl PresignParticipant {
             .retrieve::<storage::RoundThreePrivate>(self.id)?;
 
         // Check consistency across all Gamma values
-        //
-        // XXX Rather than store the `Gamma` value as part of
-        // `round_three::Public`, we should rather just use the `Gamma` value we
-        // have. That is what the paper does and it avoids this extra check.
         for (i, r3_pub) in r3_pubs.iter().enumerate() {
             if r3_pub.Gamma != r3_private.Gamma {
                 error!(
@@ -943,7 +938,7 @@ impl PresignParticipant {
 /// Convenience struct used to bundle together the parameters for
 /// the current participant.
 ///
-/// XXX Combine this with `Input`. There's a lot of duplication here.
+/// TODO: Refactor as specified in #246.
 pub(crate) struct PresignKeyShareAndInfo {
     pub(crate) keyshare_private: KeySharePrivate,
     pub(crate) keyshare_public: KeySharePublic,
@@ -996,13 +991,13 @@ impl PresignKeyShareAndInfo {
             .encrypt(rng, &gamma)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         let mut r1_publics = HashMap::new();
-        let secret = crate::zkp::pienc::PiEncSecret::new(k.clone(), rho.clone());
+        let secret = PiEncSecret::new(k.clone(), rho.clone());
         for aux_info_public in other_auxinfos {
             // Construct a proof that `K` is the ciphertext of `k` using
             // parameters from the other participant.
             let mut transcript = Transcript::new(b"PiEncProof");
             let proof = PiEncProof::prove(
-                &crate::zkp::pienc::PiEncInput::new(
+                &PiEncInput::new(
                     aux_info_public.params().clone(),
                     self.aux_info_public.pk().clone(),
                     K.clone(),
@@ -1195,12 +1190,24 @@ impl PresignKeyShareAndInfo {
                 .aux_info_private
                 .decryption_key()
                 .decrypt(&r2_pub_j.D)
-                .map_err(|_| InternalError::ProtocolError)?;
+                .map_err(|_| {
+                    error!(
+                        "Decryption failed, ciphertext out of range: {:?}",
+                        r2_pub_j.D
+                    );
+                    InternalError::ProtocolError
+                })?;
             let alpha_hat = self
                 .aux_info_private
                 .decryption_key()
                 .decrypt(&r2_pub_j.D_hat)
-                .map_err(|_| InternalError::ProtocolError)?;
+                .map_err(|_| {
+                    error!(
+                        "Decryption failed, ciphertext out of range: {:?}",
+                        r2_pub_j.D_hat
+                    );
+                    InternalError::ProtocolError
+                })?;
 
             // Note: We do a subtraction of `beta` and `beta_hat` here because
             // in round two we did _not_ encrypt the negation of these as
