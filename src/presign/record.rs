@@ -107,28 +107,26 @@ impl TryFrom<RecordPair> for PresignRecord {
 }
 
 impl PresignRecord {
-    /// Compute the x-projection of the provided [`CurvePoint`].
-    fn x_from_point(point: CurvePoint) -> Result<Scalar> {
-        let r = &point.0.to_affine().x();
-        Option::from(Scalar::from_repr(*r)).ok_or_else(|| {
-            error!("Unable to create Scalar from bytes representation");
-            InternalInvariantFailed
-        })
-    }
-
     /// Generate a signature share for the given [`Sha256`] instance.
     ///
     /// This method consumes the [`PresignRecord`] since it must only be used
     /// for a single signature.
-    // XXX Replace `Sha256` with `Digest` to make the API clearer?
     #[instrument(skip_all, err(Debug))]
-    pub fn sign(self, sha256: Sha256) -> Result<SignatureShare> {
+    pub fn sign(self, hasher: Sha256) -> Result<SignatureShare> {
         info!("Issuing signature with presign record.");
         // Compute the x-projection of `R` (`r` in the paper).
-        let x_projection = Self::x_from_point(self.R)?;
+        let x_projection = self.R.0.to_affine().x();
+        let x_projection = Option::from(Scalar::from_repr(x_projection)).ok_or_else(|| {
+            error!("Unable to compute x-projection of curve point: failed to convert projection to `Scalar`");
+            InternalInvariantFailed
+        })?;
+        // Compute the digest (as a `Scalar`) of the message provided in
+        // `hasher` (`m` in the paper).
         let digest =
-            Option::<Scalar>::from(Scalar::from_repr(sha256.finalize())).ok_or_else(|| {
-                error!("Unable to create Scalar from bytes representation");
+            Option::<Scalar>::from(Scalar::from_repr(hasher.finalize())).ok_or_else(|| {
+                error!(
+                    "Unable to compute message digest: failed to convert bytestring to `Scalar`"
+                );
                 InternalInvariantFailed
             })?;
         // Produce a ECDSA signature share of the digest (`σ` in the paper).
