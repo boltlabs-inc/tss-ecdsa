@@ -408,7 +408,7 @@ impl KeygenParticipant {
         let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
         let decom_bytes = serialize!(&decom)?;
 
-        let more_messages: Vec<Message> = self
+        /*let more_messages: Vec<Message> = self
             .other_participant_ids
             .iter()
             .map(|&other_participant_id| {
@@ -420,7 +420,9 @@ impl KeygenParticipant {
                     &decom_bytes,
                 )
             })
-            .collect();
+            .collect();*/
+        let data = (sid, self.id, &decom_bytes);
+        let more_messages = self.message_for_other_participants(MessageType::Keygen(KeygenMessageType::R2Decommit), data);
         messages.extend_from_slice(&more_messages);
         Ok(messages)
     }
