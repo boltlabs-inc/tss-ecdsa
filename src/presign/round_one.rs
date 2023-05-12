@@ -7,12 +7,14 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::info::AuxInfoPublic,
-    errors::Result,
+    errors::{InternalError, Result},
     messages::{Message, MessageType, PresignMessageType},
     paillier::{Ciphertext, EncryptionKey, Nonce},
     ring_pedersen::VerifiedRingPedersen,
-    zkp::{pienc::PiEncProof, Proof, ProofContext},
+    zkp::{
+        pienc::{PiEncInput, PiEncProof},
+        Proof, ProofContext,
+    },
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -46,11 +48,19 @@ impl Debug for Private {
     }
 }
 
+/// Public information produced in round one of the presign protocol.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct Public {
-    pub proof: PiEncProof,
+    proof: PiEncProof,
 }
 
+impl Public {
+    pub(crate) fn new(proof: PiEncProof) -> Self {
+        Self { proof }
+    }
+}
+
+/// Public information broadcast in round one of the presign protocol.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PublicBroadcast {
     pub K: Ciphertext,
@@ -58,44 +68,34 @@ pub(crate) struct PublicBroadcast {
 }
 
 impl Public {
-    /// Verify the `𝚷[enc]` proof that the prover knows the plaintext
-    /// associated with `ct`.
-    fn verify(
+    /// Verify the validity of [`Public`] against the prover's [`EncryptionKey`]
+    /// and [`PublicBroadcast`] values.
+    ///
+    /// Note: The [`VerifiedRingPedersen`] value must be that of the _caller_
+    /// (i.e., the verifier).
+    pub(crate) fn verify(
         &self,
         context: &impl ProofContext,
         verifier_setup_params: &VerifiedRingPedersen,
-        prover_pk: EncryptionKey,
-        ct: Ciphertext,
+        prover_pk: &EncryptionKey,
+        prover_public_broadcast: &PublicBroadcast,
     ) -> Result<()> {
         let mut transcript = Transcript::new(b"PiEncProof");
-        let input =
-            crate::zkp::pienc::PiEncInput::new(verifier_setup_params.clone(), prover_pk, ct);
+        let input = PiEncInput::new(
+            verifier_setup_params.clone(),
+            prover_pk.clone(),
+            prover_public_broadcast.K.clone(),
+        );
         self.proof.verify(&input, context, &mut transcript)
     }
+}
 
-    /// Validate that [`Message`] is a valid proof that the [`PublicBroadcast`]
-    /// parameters are correctly constructed.
-    ///
-    /// The `verifier_auxinfo_public` argument denotes the [`AuxInfoPublic`]
-    /// type of the party validating the message, and the
-    /// `prover_auxinfo_public` argument denotes the [`AuxInfoPublic`] type of
-    /// the party providing the proof.
-    pub(crate) fn validate_message(
-        message: &Message,
-        context: &impl ProofContext,
-        verifier_auxinfo_public: &AuxInfoPublic,
-        prover_auxinfo_public: &AuxInfoPublic,
-        broadcasted_params: &PublicBroadcast,
-    ) -> Result<()> {
+impl TryFrom<&Message> for Public {
+    type Error = InternalError;
+
+    fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {
         message.check_type(MessageType::Presign(PresignMessageType::RoundOne))?;
-        let round_one_public: Self = deserialize!(&message.unverified_bytes)?;
-
-        round_one_public.verify(
-            context,
-            verifier_auxinfo_public.params(),
-            prover_auxinfo_public.pk().clone(),
-            broadcasted_params.K.clone(),
-        )?;
-        Ok(())
+        let public: Self = deserialize!(&message.unverified_bytes)?;
+        Ok(public)
     }
 }

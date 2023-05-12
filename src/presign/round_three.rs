@@ -8,7 +8,7 @@
 
 use crate::{
     auxinfo::info::AuxInfoPublic,
-    errors::Result,
+    errors::{InternalError, Result},
     messages::{Message, MessageType, PresignMessageType},
     presign::{
         round_one::PublicBroadcast as RoundOnePublicBroadcast,
@@ -53,6 +53,7 @@ impl Debug for Private {
     }
 }
 
+/// Public information produced in round three of the presign protocol.
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct Public {
     pub delta: Scalar,
@@ -63,6 +64,7 @@ pub(crate) struct Public {
 }
 
 impl Public {
+    /// Verify the validity of [`Public`].
     pub(crate) fn verify(
         &self,
         context: &impl ProofContext,
@@ -83,24 +85,15 @@ impl Public {
 
         Ok(())
     }
+}
 
-    pub(crate) fn from_message(
-        message: &Message,
-        context: &impl ProofContext,
-        receiver_auxinfo_public: &AuxInfoPublic,
-        sender_auxinfo_public: &AuxInfoPublic,
-        sender_r1_public_broadcast: &RoundOnePublicBroadcast,
-    ) -> Result<Self> {
+impl TryFrom<&Message> for Public {
+    type Error = InternalError;
+
+    fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {
         message.check_type(MessageType::Presign(PresignMessageType::RoundThree))?;
-        let round_three_public: Self = deserialize!(&message.unverified_bytes)?;
-
-        round_three_public.verify(
-            context,
-            receiver_auxinfo_public,
-            sender_auxinfo_public,
-            sender_r1_public_broadcast,
-        )?;
-        Ok(round_three_public)
+        let public: Self = deserialize!(&message.unverified_bytes)?;
+        Ok(public)
     }
 }
 

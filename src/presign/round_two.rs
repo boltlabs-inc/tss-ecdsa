@@ -8,7 +8,7 @@
 
 use crate::{
     auxinfo::info::AuxInfoPublic,
-    errors::Result,
+    errors::{InternalError, Result},
     keygen::keyshare::KeySharePublic,
     messages::{Message, MessageType, PresignMessageType},
     paillier::Ciphertext,
@@ -41,6 +41,7 @@ impl Debug for Private {
     }
 }
 
+/// Public information produced in round two of the presign protocol.
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct Public {
     pub D: Ciphertext,
@@ -54,7 +55,12 @@ pub(crate) struct Public {
 }
 
 impl Public {
-    fn verify(
+    /// Verify the validity of [`Public`] against the prover's
+    /// [`AuxInfoPublic`], [`KeySharePublic`], and
+    /// [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast) values.
+    ///
+    /// Note: The `verifier_...` values must be those of the _caller_.
+    pub(crate) fn verify(
         &self,
         context: &impl ProofContext,
         receiver_auxinfo_public: &AuxInfoPublic,
@@ -107,27 +113,14 @@ impl Public {
 
         Ok(())
     }
+}
 
-    pub(crate) fn from_message(
-        message: &Message,
-        context: &impl ProofContext,
-        receiver_auxinfo_public: &AuxInfoPublic,
-        sender_auxinfo_public: &AuxInfoPublic,
-        sender_keyshare_public: &KeySharePublic,
-        receiver_r1_private: &RoundOnePrivate,
-        sender_r1_public_broadcast: &RoundOnePublicBroadcast,
-    ) -> Result<Self> {
+impl TryFrom<&Message> for Public {
+    type Error = InternalError;
+
+    fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {
         message.check_type(MessageType::Presign(PresignMessageType::RoundTwo))?;
-        let round_two_public: Self = deserialize!(&message.unverified_bytes)?;
-
-        round_two_public.verify(
-            context,
-            receiver_auxinfo_public,
-            sender_auxinfo_public,
-            sender_keyshare_public,
-            receiver_r1_private,
-            sender_r1_public_broadcast,
-        )?;
-        Ok(round_two_public)
+        let public: Self = deserialize!(&message.unverified_bytes)?;
+        Ok(public)
     }
 }

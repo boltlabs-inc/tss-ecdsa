@@ -631,6 +631,8 @@ impl PresignParticipant {
         message: &Message,
         input: &Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
+        use crate::round_one::Public as RoundOnePublic;
+
         info!("Presign: Handling round one message.");
 
         // First check that we have the round one public broadcast from this
@@ -653,11 +655,11 @@ impl PresignParticipant {
 
         let info = PresignKeyShareAndInfo::new(self.id, input)?;
         let auxinfo_public = input.find_auxinfo_public(message.from())?;
-        crate::round_one::Public::validate_message(
-            message,
+        let round_one_public = RoundOnePublic::try_from(message)?;
+        round_one_public.verify(
             &self.retrieve_context(),
-            &info.aux_info_public,
-            auxinfo_public,
+            info.aux_info_public.params(),
+            auxinfo_public.pk(),
             r1_public_broadcast,
         )?;
         // Mark that we have completed round one for this participant.
@@ -963,8 +965,8 @@ impl PresignParticipant {
             .local_storage
             .retrieve::<storage::RoundOnePublicBroadcast>(message.from())?;
 
-        let round_two_public = crate::round_two::Public::from_message(
-            message,
+        let round_two_public = RoundTwoPublic::try_from(message)?;
+        round_two_public.verify(
             &self.retrieve_context(),
             receiver_auxinfo_public,
             sender_auxinfo_public,
@@ -990,9 +992,8 @@ impl PresignParticipant {
         let sender_r1_public_broadcast = self
             .local_storage
             .retrieve::<storage::RoundOnePublicBroadcast>(message.from())?;
-
-        let public_message = crate::round_three::Public::from_message(
-            message,
+        let public = RoundThreePublic::try_from(message)?;
+        public.verify(
             &self.retrieve_context(),
             receiver_auxinfo_public,
             sender_auxinfo_public,
@@ -1000,8 +1001,7 @@ impl PresignParticipant {
         )?;
 
         self.local_storage
-            .store::<storage::RoundThreePublic>(message.from(), public_message);
-
+            .store::<storage::RoundThreePublic>(message.from(), public);
         Ok(())
     }
 }
@@ -1078,7 +1078,7 @@ impl PresignKeyShareAndInfo {
                 &mut transcript,
                 rng,
             )?;
-            let r1_public = RoundOnePublic { proof };
+            let r1_public = RoundOnePublic::new(proof);
             let _ = r1_publics.insert(aux_info_public.participant(), r1_public);
         }
 
