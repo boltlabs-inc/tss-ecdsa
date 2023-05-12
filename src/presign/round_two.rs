@@ -55,11 +55,13 @@ pub(crate) struct Public {
 }
 
 impl Public {
-    /// Verify the validity of [`Public`] against the prover's
+    /// Verify the validity of [`Public`] against the sender's
     /// [`AuxInfoPublic`], [`KeySharePublic`], and
     /// [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast) values.
     ///
-    /// Note: The `verifier_...` values must be those of the _caller_.
+    /// Note: The `receiver_...` values must be those of the _caller_ (i.e., the
+    /// verifier), and the `sender_...` values must be those of the other party
+    /// (i.e., the prover).
     pub(crate) fn verify(
         &self,
         context: &impl ProofContext,

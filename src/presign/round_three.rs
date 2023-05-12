@@ -64,20 +64,26 @@ pub(crate) struct Public {
 }
 
 impl Public {
-    /// Verify the validity of [`Public`].
+    /// Verify the validity of [`Public`] against the sender's [`AuxInfoPublic`]
+    /// and [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast)
+    /// values.
+    ///
+    /// Note: The `receiver_...` values must be those of the _caller_ (i.e., the
+    /// verifier), and the `sender_...` values must be those of the other party
+    /// (i.e., the prover).
     pub(crate) fn verify(
         &self,
         context: &impl ProofContext,
-        receiver_keygen_public: &AuxInfoPublic,
-        sender_keygen_public: &AuxInfoPublic,
+        receiver_auxinfo_public: &AuxInfoPublic,
+        sender_auxinfo_public: &AuxInfoPublic,
         sender_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
         let mut transcript = Transcript::new(b"PiLogProof");
         let psi_double_prime_input = CommonInput::new(
             sender_r1_public_broadcast.K.clone(),
             self.Delta,
-            receiver_keygen_public.params().scheme().clone(),
-            sender_keygen_public.pk().clone(),
+            receiver_auxinfo_public.params().scheme().clone(),
+            sender_auxinfo_public.pk().clone(),
             self.Gamma,
         );
         self.psi_double_prime
