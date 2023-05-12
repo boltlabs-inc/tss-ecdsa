@@ -83,8 +83,8 @@ pub(crate) struct BroadcastIndex {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct BroadcastOutput {
-    pub(crate) tag: BroadcastTag,
-    pub(crate) msg: Message,
+    tag: BroadcastTag,
+    msg: Message,
 }
 
 impl BroadcastOutput {
