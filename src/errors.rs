@@ -27,8 +27,6 @@ pub enum InternalError {
     InternalInvariantFailed,
     #[error("Storage does not contain the requested item")]
     StorageItemNotFound,
-    #[error("Broadcast Message does not have the correct tag")]
-    IncorrectBroadcastMessageTag,
 }
 
 /// Errors that are caused by incorrect behavior by the calling application.

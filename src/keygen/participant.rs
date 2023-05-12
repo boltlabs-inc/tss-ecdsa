@@ -327,9 +327,11 @@ impl KeygenParticipant {
         // XXX should we have a check that we haven't recieved a round one
         // message _after_ round one is complete? Likewise for all other rounds.
 
-        let message = broadcast_message.extract_message(BroadcastTag::KeyGenR1CommitHash)?;
+        let message = broadcast_message
+            .clone()
+            .into_message(BroadcastTag::KeyGenR1CommitHash)?;
         self.local_storage
-            .store::<storage::Commit>(message.from(), KeygenCommit::from_message(message)?);
+            .store::<storage::Commit>(message.from(), KeygenCommit::from_message(&message)?);
 
         // Check if we've received all the commits, which signals an end to
         // round one.

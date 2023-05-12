@@ -331,10 +331,12 @@ impl AuxInfoParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round one auxinfo message.");
 
-        let message = broadcast_message.extract_message(BroadcastTag::AuxinfoR1CommitHash)?;
+        let message = broadcast_message
+            .clone()
+            .into_message(BroadcastTag::AuxinfoR1CommitHash)?;
 
         self.local_storage
-            .store::<storage::Commit>(message.from(), Commitment::from_message(message)?);
+            .store::<storage::Commit>(message.from(), Commitment::from_message(&message)?);
 
         // Check if we've received all the commitments.
         //

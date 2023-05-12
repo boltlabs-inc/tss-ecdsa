@@ -451,7 +451,9 @@ impl PresignParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Presign: Handling round one broadcast message.");
 
-        let message = broadcast_message.extract_message(BroadcastTag::PresignR1Ciphertexts)?;
+        let message = broadcast_message
+            .clone()
+            .into_message(BroadcastTag::PresignR1Ciphertexts)?;
         let public_broadcast: RoundOnePublicBroadcast = deserialize!(&message.unverified_bytes)?;
         self.local_storage
             .store::<storage::RoundOnePublicBroadcast>(message.from(), public_broadcast);
