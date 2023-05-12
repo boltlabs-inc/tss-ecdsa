@@ -451,15 +451,7 @@ impl PresignParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Presign: Handling round one broadcast message.");
 
-        if broadcast_message.tag != BroadcastTag::PresignR1Ciphertexts {
-            error!(
-                "Incorrect Broadcast Tag on received message. Expected {:?}, got {:?}",
-                BroadcastTag::PresignR1Ciphertexts,
-                broadcast_message.tag
-            );
-            return Err(InternalError::ProtocolError);
-        }
-        let message = &broadcast_message.msg;
+        let message = broadcast_message.extract_message(BroadcastTag::PresignR1Ciphertexts)?;
         let public_broadcast: RoundOnePublicBroadcast = deserialize!(&message.unverified_bytes)?;
         self.local_storage
             .store::<storage::RoundOnePublicBroadcast>(message.from(), public_broadcast);

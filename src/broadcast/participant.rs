@@ -87,6 +87,20 @@ pub(crate) struct BroadcastOutput {
     pub(crate) msg: Message,
 }
 
+impl BroadcastOutput {
+    pub(crate) fn extract_message(&self, expected_tag: BroadcastTag) -> Result<&Message> {
+        if self.tag != expected_tag {
+            error!(
+                "Incorrect Broadcast Tag on received message. Expected {:?}, got {:?}",
+                expected_tag, self.tag
+            );
+            return Err(InternalError::IncorrectBroadcastMessageTag);
+        }
+        let message = &self.msg;
+        Ok(message)
+    }
+}
+
 impl ProtocolParticipant for BroadcastParticipant {
     type Input = ();
     type Output = BroadcastOutput;
