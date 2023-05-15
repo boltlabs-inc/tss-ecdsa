@@ -562,11 +562,7 @@ impl KeygenParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round three keygen message.");
 
-        if self
-            .local_storage
-            .retrieve::<storage::GlobalRid>(self.id)
-            .is_err()
-        {
+        if !self.local_storage.contains::<storage::GlobalRid>(self.id) {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }

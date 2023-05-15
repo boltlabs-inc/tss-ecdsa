@@ -1004,6 +1004,97 @@ impl PresignParticipant {
             .store::<storage::RoundThreePublic>(message.from(), public);
         Ok(())
     }
+
+    /// Aggregate the other participants' values needed for round three from
+    /// storage. This includes:
+    /// - public keyshares
+    /// - round two private values
+    /// - round two public values
+    ///
+    /// This returns a HashMap with the key as the participant id and these
+    /// values being mapped
+    /// `auxinfo_identifier` and `identifier` correspond to unique session
+    /// identifiers.
+    fn get_other_participants_round_three_values(
+        &self,
+        input: &Input,
+    ) -> Result<HashMap<ParticipantIdentifier, RoundThreeInput>> {
+        // begin by checking Storage contents to ensure we're ready for round three
+        if !self
+            .local_storage
+            .contains_for_all_ids::<storage::RoundTwoPrivate>(&self.other_participant_ids)
+            || !self
+                .local_storage
+                .contains_for_all_ids::<storage::RoundTwoPublic>(&self.other_participant_ids)
+        {
+            error!("Not yet ready to start Presign Round Three. Missing data from other players");
+            return Err(InternalError::InternalInvariantFailed);
+        }
+
+        let mut hm = HashMap::new();
+        for other_participant_id in self.other_participant_ids.clone() {
+            let auxinfo_public = input.find_auxinfo_public(other_participant_id)?;
+            let r2_private = self
+                .local_storage
+                .retrieve::<storage::RoundTwoPrivate>(other_participant_id)?;
+            let r2_public = self
+                .local_storage
+                .retrieve::<storage::RoundTwoPublic>(other_participant_id)?;
+            let _ = hm.insert(
+                other_participant_id,
+                RoundThreeInput {
+                    auxinfo_public: auxinfo_public.clone(),
+                    r2_private: r2_private.clone(),
+                    r2_public: r2_public.clone(),
+                },
+            );
+        }
+        Ok(hm)
+    }
+
+    /// Aggregate the other participants' round three public values from
+    /// storage. But don't remove them from storage.
+    ///
+    /// This returns a Vec with the values.
+    /// `identifier` here correspond to a unique session identifier.
+    fn get_other_participants_round_three_publics(
+        &self,
+    ) -> Result<Vec<crate::round_three::Public>> {
+        if !self
+            .local_storage
+            .contains_for_all_ids::<storage::RoundThreePublic>(&self.other_participant_ids)
+        {
+            error!("Have not reveived Presign RoundThreePublic from all players");
+            return Err(InternalError::InternalInvariantFailed);
+        }
+        let ret_vec = self
+            .other_participant_ids
+            .iter()
+            .map(|other_participant_id| {
+                let r3pub = self
+                    .local_storage
+                    .retrieve::<storage::RoundThreePublic>(*other_participant_id)?;
+                Ok(r3pub.clone())
+            })
+            .collect::<Result<Vec<crate::round_three::Public>>>()?;
+        Ok(ret_vec)
+    }
+}
+
+/// `auxinfo_identifier` and `keyshare_identifier` correspond to unique session
+/// identifiers.
+pub(crate) fn get_keyshare(
+    self_id: ParticipantIdentifier,
+    input: &Input,
+) -> Result<PresignKeyShareAndInfo> {
+    // Reconstruct keyshare from local storage
+    let keyshare_and_info = PresignKeyShareAndInfo {
+        aux_info_private: input.auxinfo_private.clone(),
+        aux_info_public: input.find_auxinfo_public(self_id)?.clone(),
+        keyshare_private: input.keyshare_private.clone(),
+        keyshare_public: input.find_keyshare_public(self_id)?.clone(),
+    };
+    Ok(keyshare_and_info)
 }
 
 /// Convenience struct used to bundle together the parameters for

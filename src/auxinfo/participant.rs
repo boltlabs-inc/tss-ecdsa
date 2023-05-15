@@ -562,11 +562,7 @@ impl AuxInfoParticipant {
         info!("Handling round three auxinfo message.");
 
         // We can't handle this message unless we already calculated the global_rid
-        if self
-            .local_storage
-            .retrieve::<storage::GlobalRid>(self.id)
-            .is_err()
-        {
+        if !self.local_storage.contains::<storage::GlobalRid>(self.id) {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }

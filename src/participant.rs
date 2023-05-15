@@ -311,12 +311,18 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         T::Value: Default,
     {
         let pid = self.id();
-        if self.local_storage_mut().retrieve_mut::<T>(pid)?.is_none() {
+        if !self.local_storage_mut().contains::<T>(pid) {
             self.local_storage_mut().store::<T>(pid, Default::default());
         }
         self.local_storage_mut()
-            .retrieve_mut::<T>(pid)?
-            .ok_or(InternalError::InternalInvariantFailed)
+            .retrieve_mut::<T>(pid)
+            .ok_or_else(|| {
+                error!(
+                    "Failed to retrieve {} mutably from storage",
+                    std::any::type_name::<T::Value>()
+                );
+                InternalError::InternalInvariantFailed
+            })
     }
 
     /// Store [`Message`] in the message queue.
