@@ -242,8 +242,12 @@ impl SignatureShare {
     /// Turn a vector of [`SignatureShare`]s into an ECDSA
     /// [`Signature`](k256::ecdsa::Signature).
     ///
-    /// Note: Unlike the paper, we do _not_ check that the generated signature
-    /// is valid, and leave that up to the caller.
+    ///
+    /// Note: This method does _not_ validate the signature. This deviates from
+    /// the protocol as written, which validates the signature once is has been
+    /// created from the signature shares. By not including this step we lose
+    /// the ability to preform identifiable abort, as specified in the protocol
+    /// description.
     pub fn into_signature(
         shares: impl Iterator<Item = SignatureShare>,
     ) -> Result<k256::ecdsa::Signature> {
