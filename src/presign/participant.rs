@@ -969,9 +969,9 @@ impl PresignParticipant {
         round_two_public.verify(
             &self.retrieve_context(),
             receiver_auxinfo_public,
+            receiver_r1_private,
             sender_auxinfo_public,
             sender_keyshare_public,
-            receiver_r1_private,
             sender_r1_public_broadcast,
         )?;
 
@@ -1078,7 +1078,7 @@ impl PresignKeyShareAndInfo {
                 &mut transcript,
                 rng,
             )?;
-            let r1_public = RoundOnePublic::new(proof);
+            let r1_public = RoundOnePublic::from(proof);
             let _ = r1_publics.insert(aux_info_public.participant(), r1_public);
         }
 

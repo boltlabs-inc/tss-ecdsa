@@ -54,6 +54,11 @@ impl Debug for Private {
 }
 
 /// Public information produced in round three of the presign protocol.
+///
+/// This type implements [`TryFrom`] on [`Message`], which validates that
+/// [`Message`] is a valid serialization of `Public`, but _not_ that `Public` is
+/// necessarily valid (i.e., that all the components are valid with respect to
+/// each other); use [`Public::verify`] to check this latter condition.
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct Public {
     pub delta: Scalar,
@@ -64,26 +69,22 @@ pub(crate) struct Public {
 }
 
 impl Public {
-    /// Verify the validity of [`Public`] against the sender's [`AuxInfoPublic`]
+    /// Verify the validity of [`Public`] against the prover's [`AuxInfoPublic`]
     /// and [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast)
     /// values.
-    ///
-    /// Note: The `receiver_...` values must be those of the _caller_ (i.e., the
-    /// verifier), and the `sender_...` values must be those of the other party
-    /// (i.e., the prover).
     pub(crate) fn verify(
         &self,
         context: &impl ProofContext,
-        receiver_auxinfo_public: &AuxInfoPublic,
-        sender_auxinfo_public: &AuxInfoPublic,
-        sender_r1_public_broadcast: &RoundOnePublicBroadcast,
+        verifier_auxinfo_public: &AuxInfoPublic,
+        prover_auxinfo_public: &AuxInfoPublic,
+        prover_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
         let mut transcript = Transcript::new(b"PiLogProof");
         let psi_double_prime_input = CommonInput::new(
-            sender_r1_public_broadcast.K.clone(),
+            prover_r1_public_broadcast.K.clone(),
             self.Delta,
-            receiver_auxinfo_public.params().scheme().clone(),
-            sender_auxinfo_public.pk().clone(),
+            verifier_auxinfo_public.params().scheme().clone(),
+            prover_auxinfo_public.pk().clone(),
             self.Gamma,
         );
         self.psi_double_prime

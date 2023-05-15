@@ -58,27 +58,23 @@ impl Public {
     /// Verify the validity of [`Public`] against the sender's
     /// [`AuxInfoPublic`], [`KeySharePublic`], and
     /// [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast) values.
-    ///
-    /// Note: The `receiver_...` values must be those of the _caller_ (i.e., the
-    /// verifier), and the `sender_...` values must be those of the other party
-    /// (i.e., the prover).
     pub(crate) fn verify(
         &self,
         context: &impl ProofContext,
-        receiver_auxinfo_public: &AuxInfoPublic,
-        sender_auxinfo_public: &AuxInfoPublic,
-        sender_keyshare_public: &KeySharePublic,
-        receiver_r1_private: &RoundOnePrivate,
-        sender_r1_public_broadcast: &RoundOnePublicBroadcast,
+        verifier_auxinfo_public: &AuxInfoPublic,
+        verifier_r1_private: &RoundOnePrivate,
+        prover_auxinfo_public: &AuxInfoPublic,
+        prover_keyshare_public: &KeySharePublic,
+        prover_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
         let g = CurvePoint::GENERATOR;
 
         // Verify the psi proof
         let psi_input = PiAffgInput::new(
-            receiver_auxinfo_public.params().clone(),
-            receiver_auxinfo_public.pk().clone(),
-            sender_auxinfo_public.pk().clone(),
-            receiver_r1_private.K.clone(),
+            verifier_auxinfo_public.params().clone(),
+            verifier_auxinfo_public.pk().clone(),
+            prover_auxinfo_public.pk().clone(),
+            verifier_r1_private.K.clone(),
             self.D.clone(),
             self.F.clone(),
             self.Gamma,
@@ -89,13 +85,13 @@ impl Public {
 
         // Verify the psi_hat proof
         let psi_hat_input = PiAffgInput::new(
-            receiver_auxinfo_public.params().clone(),
-            receiver_auxinfo_public.pk().clone(),
-            sender_auxinfo_public.pk().clone(),
-            receiver_r1_private.K.clone(),
+            verifier_auxinfo_public.params().clone(),
+            verifier_auxinfo_public.pk().clone(),
+            prover_auxinfo_public.pk().clone(),
+            verifier_r1_private.K.clone(),
             self.D_hat.clone(),
             self.F_hat.clone(),
-            sender_keyshare_public.X,
+            prover_keyshare_public.X,
         );
         let mut transcript = Transcript::new(b"PiAffgProof");
         self.psi_hat
@@ -103,10 +99,10 @@ impl Public {
 
         // Verify the psi_prime proof
         let psi_prime_input = CommonInput::new(
-            sender_r1_public_broadcast.G.clone(),
+            prover_r1_public_broadcast.G.clone(),
             self.Gamma,
-            receiver_auxinfo_public.params().scheme().clone(),
-            sender_auxinfo_public.pk().clone(),
+            verifier_auxinfo_public.params().scheme().clone(),
+            prover_auxinfo_public.pk().clone(),
             g,
         );
         let mut transcript = Transcript::new(b"PiLogProof");

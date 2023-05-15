@@ -54,8 +54,8 @@ pub(crate) struct Public {
     proof: PiEncProof,
 }
 
-impl Public {
-    pub(crate) fn new(proof: PiEncProof) -> Self {
+impl From<PiEncProof> for Public {
+    fn from(proof: PiEncProof) -> Self {
         Self { proof }
     }
 }
