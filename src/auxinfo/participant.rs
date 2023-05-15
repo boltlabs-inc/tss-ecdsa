@@ -326,14 +326,12 @@ impl AuxInfoParticipant {
     fn handle_round_one_msg<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
-        broadcast_message: &BroadcastOutput,
+        broadcast_message: BroadcastOutput,
         _input: &(),
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round one auxinfo message.");
 
-        let message = broadcast_message
-            .clone()
-            .into_message(BroadcastTag::AuxinfoR1CommitHash)?;
+        let message = broadcast_message.into_message(BroadcastTag::AuxinfoR1CommitHash)?;
 
         self.local_storage
             .store::<storage::Commit>(message.from(), Commitment::from_message(&message)?);

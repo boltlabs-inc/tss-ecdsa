@@ -319,7 +319,7 @@ impl KeygenParticipant {
     fn handle_round_one_msg<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
-        broadcast_message: &BroadcastOutput,
+        broadcast_message: BroadcastOutput,
         _input: &(),
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round one keygen message.");
@@ -327,9 +327,7 @@ impl KeygenParticipant {
         // XXX should we have a check that we haven't recieved a round one
         // message _after_ round one is complete? Likewise for all other rounds.
 
-        let message = broadcast_message
-            .clone()
-            .into_message(BroadcastTag::KeyGenR1CommitHash)?;
+        let message = broadcast_message.into_message(BroadcastTag::KeyGenR1CommitHash)?;
         self.local_storage
             .store::<storage::Commit>(message.from(), KeygenCommit::from_message(&message)?);
 

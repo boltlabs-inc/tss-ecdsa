@@ -87,12 +87,12 @@ where
     ) -> Result<ProcessOutcome<P::Output>>
     where
         P: InnerProtocolParticipant,
-        F: FnMut(&mut P, &mut R, &O, &P::Input) -> Result<ProcessOutcome<P::Output>>,
+        F: FnMut(&mut P, &mut R, O, &P::Input) -> Result<ProcessOutcome<P::Output>>,
         R: CryptoRng + RngCore,
     {
         let (output, messages) = self.into_parts();
         let outcome = match output {
-            Some(o) => handle_output(participant, rng, &o, storage)?,
+            Some(o) => handle_output(participant, rng, o, storage)?,
             None => ProcessOutcome::Incomplete,
         };
         Ok(outcome.with_messages(messages))
