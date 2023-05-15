@@ -221,12 +221,12 @@ impl<P: ProtocolParticipant> Participant<P> {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct SignatureShare {
     /// The x-projection of `R` from the [`PresignRecord`] (`r` in the paper).
-    // XXX The paper does _not_ include this as part of the share, and instead,
-    // each party just sends the `σᵢ` value. Instead, the paper combines the
-    // `σᵢ` values and then checks whether `(r, σ)` is a valid signature before
-    // outputting the signature, which we do _not_ do here. I'd recommend
-    // following the paper approach; it should simplify the code and make sure
-    // we're not missing any steps.
+    ///
+    /// Note: The paper does _not_ include this as part of the share, and
+    /// instead, a signature share is just the `σ` value. We include this value
+    /// here in order to allow any party, not necessarily one of the
+    /// participants who created a share, to be able to reconstruct the
+    /// signature.
     r: k256::Scalar,
     /// The digest masked by components from [`PresignRecord`] (`σ` in the
     /// paper).
