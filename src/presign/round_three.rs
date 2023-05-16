@@ -100,6 +100,11 @@ impl TryFrom<&Message> for Public {
     fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {
         message.check_type(MessageType::Presign(PresignMessageType::RoundThree))?;
         let public: Self = deserialize!(&message.unverified_bytes)?;
+        // TODO #369: This should check the validity of `delta` (namely that it
+        // is less than `k256_order()`). However, we are currently using an
+        // older version of the `k256` library that doesn't support comparisons,
+        // making doing this check difficult. Add this check once the `k256`
+        // library has been updated.
         Ok(public)
     }
 }
