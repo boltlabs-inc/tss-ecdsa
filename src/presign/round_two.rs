@@ -42,6 +42,11 @@ impl Debug for Private {
 }
 
 /// Public information produced in round two of the presign protocol.
+///
+/// This type implements [`TryFrom`] on [`Message`], which validates that
+/// [`Message`] is a valid serialization of `Public`, but _not_ that `Public` is
+/// necessarily valid (i.e., that all the components are valid with respect to
+/// each other); use [`Public::verify`] to check this latter condition.
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct Public {
     pub D: Ciphertext,
