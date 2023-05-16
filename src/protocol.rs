@@ -217,7 +217,6 @@ impl<P: ProtocolParticipant> Participant<P> {
 }
 
 /// A share of the ECDSA signature.
-// XXX Move this to its own module?
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct SignatureShare {
     /// The x-projection of `R` from the [`PresignRecord`] (`r` in the paper).
@@ -934,9 +933,8 @@ mod tests {
 
         let shares = presign_outputs
             .into_values()
-            .map(|record| record.sign(hasher.clone()).unwrap())
-            .collect::<Vec<_>>();
-        let signature = SignatureShare::into_signature(shares.into_iter())?;
+            .map(|record| record.sign(hasher.clone()).unwrap());
+        let signature = SignatureShare::into_signature(shares)?;
 
         // Initialize all participants and get their public keyshares to construct the
         // final signature verification key

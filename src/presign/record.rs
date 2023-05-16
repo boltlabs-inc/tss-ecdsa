@@ -50,10 +50,10 @@ pub(crate) struct RecordPair {
 /// - A [`Scalar`] (`χᵢ` in the paper) representing a share of `k^{-1} · d_A`,
 ///   where `d_A` is the ECDSA secret key.
 ///
-/// To produce a sign share of a message digest `m`, we simply compute `kᵢ m + r
-/// χᵢ`, where `r` denotes the x-axis projection of `R`. Note that by combining
-/// all of these shares, we get `(∑ kᵢ) m + r (∑ χᵢ) = k^{-1} (m + r d_A)`,
-/// which is exactly a valid (normal) ECDSA signature.
+/// To produce a signature share of a message digest `m`, we simply compute `kᵢ
+/// m + r χᵢ`, where `r` denotes the x-axis projection of `R`. Note that by
+/// combining all of these shares, we get `(∑ kᵢ) m + r (∑ χᵢ) = k^{-1} (m + r
+/// d_A)`, which is exactly a valid (normal) ECDSA signature.
 ///
 /// [^cite]: [Wikipedia](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm#Signature_generation_algorithm)
 #[derive(ZeroizeOnDrop)]
