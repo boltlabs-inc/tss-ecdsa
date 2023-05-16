@@ -409,20 +409,23 @@ impl KeygenParticipant {
         let decom_bytes = serialize!(&decom)?;
 
         /*let more_messages: Vec<Message> = self
-            .other_participant_ids
-            .iter()
-            .map(|&other_participant_id| {
-                Message::new(
-                    MessageType::Keygen(KeygenMessageType::R2Decommit),
-                    sid,
-                    self.id,
-                    other_participant_id,
-                    &decom_bytes,
-                )
-            })
-            .collect();*/
+        .other_participant_ids
+        .iter()
+        .map(|&other_participant_id| {
+            Message::new(
+                MessageType::Keygen(KeygenMessageType::R2Decommit),
+                sid,
+                self.id,
+                other_participant_id,
+                &decom_bytes,
+            )
+        })
+        .collect();*/
         let data = (sid, self.id, &decom_bytes);
-        let more_messages = self.message_for_other_participants(MessageType::Keygen(KeygenMessageType::R2Decommit), data);
+        let more_messages = self.message_for_other_participants(
+            MessageType::Keygen(KeygenMessageType::R2Decommit),
+            data,
+        );
         messages.extend_from_slice(&more_messages);
         Ok(messages)
     }
@@ -537,7 +540,7 @@ impl KeygenParticipant {
         )?;
         let proof_bytes = serialize!(&proof)?;
 
-        let messages: Vec<Message> = self
+        /*let messages: Vec<Message> = self
             .other_participant_ids
             .iter()
             .map(|&other_participant_id| {
@@ -549,7 +552,12 @@ impl KeygenParticipant {
                     &proof_bytes,
                 )
             })
-            .collect();
+            .collect();*/
+        let data = (sid, self.id, &proof_bytes);
+        let messages = self.message_for_other_participants(
+            MessageType::Keygen(KeygenMessageType::R3Proof),
+            data,
+        );
         Ok(messages)
     }
 

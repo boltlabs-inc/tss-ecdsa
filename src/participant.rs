@@ -18,10 +18,9 @@ use crate::{
     Identifier,
 };
 use rand::{CryptoRng, RngCore};
-use std::fmt::Debug;
-use tracing::error;
 use serde::Serializable;
-use std::io::prelude::*;
+use std::{fmt::Debug, io::prelude::*};
+use tracing::error;
 
 /// Possible outcomes from processing one or more messages.
 ///
@@ -259,10 +258,14 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
     /// protocol.
     fn local_storage_mut(&mut self) -> &mut LocalStorage;
 
-    /// Returns a [`Vec<Message>`] which are intended for the other participants.
-    fn message_for_other_participants<T: Serializable>(self, message_type: MessageType, data: T) -> Vec<Message> {
-        self
-            .other_participant_ids
+    /// Returns a [`Vec<Message>`] which are intended for the other
+    /// participants.
+    fn message_for_other_participants<T: Serializable>(
+        self,
+        message_type: MessageType,
+        data: T,
+    ) -> Vec<Message> {
+        self.other_participant_ids
             .iter()
             .map(|&other_participant_id| {
                 Message::new(

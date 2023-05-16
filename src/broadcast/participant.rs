@@ -212,7 +212,7 @@ impl BroadcastParticipant {
             data,
         };
         let b_data_bytes = serialize!(&b_data)?;
-        let messages: Vec<Message> = self
+        /*let messages: Vec<Message> = self
             .other_participant_ids
             .iter()
             .map(|&other_participant_id| {
@@ -224,7 +224,12 @@ impl BroadcastParticipant {
                     &b_data_bytes,
                 )
             })
-            .collect();
+            .collect();*/
+        let data = (sid, self.id, &b_data_bytes);
+        let messages = self.message_for_other_participants(
+            MessageType::Broadcast(BroadcastMessageType::Disperse),
+            data,
+        );
         Ok(messages)
     }
 
@@ -329,7 +334,7 @@ impl BroadcastParticipant {
         // todo: handle this more memory-efficiently
         let mut others_minus_leader = self.other_participant_ids.clone();
         others_minus_leader.retain(|&id| id != leader);
-        let messages: Vec<Message> = others_minus_leader
+        /*let messages: Vec<Message> = others_minus_leader
             .iter()
             .map(|&other_participant_id| {
                 Message::new(
@@ -340,7 +345,12 @@ impl BroadcastParticipant {
                     &data_bytes,
                 )
             })
-            .collect();
+            .collect();*/
+        let data = (message.id(), self.id, &data_bytes);
+        let messages = self.message_for_other_participants(
+            MessageType::Broadcast(BroadcastMessageType::Redisperse),
+            data,
+        );
         Ok(messages)
     }
 
