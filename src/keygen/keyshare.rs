@@ -22,20 +22,25 @@ use zeroize::ZeroizeOnDrop;
 ///
 /// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
-#[derive(Clone, ZeroizeOnDrop, Debug)]
+#[derive(Clone, ZeroizeOnDrop)]
 pub struct KeySharePrivate {
     x: BigNumber, // in the range [1, q)
 }
-
+impl Debug for KeySharePrivate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("KeySharePrivate([redacted])")
+    }
+}
 impl KeySharePrivate {
     /// Get the private key share of the participant.
-    pub fn x(&self) -> BigNumber {
-        self.x.clone()
+    pub(crate) fn x(&self) -> &BigNumber {
+        &self.x
     }
 
     /// Set x.
-    pub fn set_x(priv_share: BigNumber) -> KeySharePrivate {
-        KeySharePrivate { x: priv_share }
+    pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
+        let random_bn = BigNumber::from_rng(&k256_order(), rng);
+        KeySharePrivate { x: random_bn }
     }
 
     /// Computes the "raw" curve point corresponding to this private key.
@@ -77,12 +82,7 @@ impl KeySharePublic {
         participant: ParticipantIdentifier,
         rng: &mut R,
     ) -> Result<(KeySharePrivate, KeySharePublic)> {
-        let order = k256_order();
-        let random_bn = BigNumber::from_rng(&order, rng);
-        let private_share = KeySharePrivate::set_x(random_bn);
-        /*let private_share = KeySharePrivate {
-            x: BigNumber::from_rng(&order, rng),
-        };*/
+        let private_share = KeySharePrivate::random(rng);
         let public_share = private_share.public_share()?;
 
         Ok((

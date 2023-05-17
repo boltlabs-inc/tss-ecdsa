@@ -1144,7 +1144,7 @@ impl PresignKeyShareAndInfo {
         let D_hat = receiver_aux_info
             .pk()
             .multiply_and_add(
-                &self.keyshare_private.x(),
+                self.keyshare_private.x(),
                 &receiver_r1_pub_broadcast.K,
                 &beta_hat_ciphertext,
             )
@@ -1182,7 +1182,12 @@ impl PresignKeyShareAndInfo {
             rng,
         )?;
         let mut transcript = Transcript::new(b"PiAffgProof");
-        let secret = PiAffgSecret::new(self.keyshare_private.x(), beta_hat.clone(), s_hat, r_hat);
+        let secret = PiAffgSecret::new(
+            self.keyshare_private.x().clone(),
+            beta_hat.clone(),
+            s_hat,
+            r_hat,
+        );
         let psi_hat = PiAffgProof::prove(
             &PiAffgInput::new(
                 receiver_aux_info.params().clone(),
@@ -1335,12 +1340,11 @@ mod test {
         errors::{CallerError, InternalError, Result},
         paillier::DecryptionKey,
         ring_pedersen::VerifiedRingPedersen,
-        utils::{k256_order, testing::init_testing},
+        utils::testing::init_testing,
         AuxInfoPrivate, AuxInfoPublic, Identifier, KeySharePrivate, KeySharePublic,
         ParticipantConfig, ParticipantIdentifier, PresignParticipant, ProtocolParticipant,
     };
     use ::rand::rngs::StdRng;
-    use libpaillier::unknown_order::BigNumber;
     //use rug::rand;
 
     // Simulate the output of a keygen run with the given participants.
@@ -1352,8 +1356,8 @@ mod test {
             .iter()
             .map(|&pid| {
                 // TODO #340: Replace with KeyShare methods once they exist.
-                let random_bn = BigNumber::from_rng(&k256_order(), rng);
-                let secret = KeySharePrivate::set_x(random_bn);
+                //let random_bn = BigNumber::from_rng(&k256_order(), rng);
+                let secret = KeySharePrivate::random(rng);
                 /*let secret = KeySharePrivate {
                     x: BigNumber::from_rng(&k256_order(), rng),
                 };*/
@@ -1516,12 +1520,7 @@ mod test {
 
         // Make private components with no relation to the public inputs.
         let fake_auxinfo_private = AuxInfoPrivate::from(DecryptionKey::new(rng).unwrap().0);
-        let random_bn = BigNumber::from_rng(&k256_order(), rng);
-        //let private_share = KeySharePrivate::new(random_bn);
-        /*let fake_keygen_private = KeySharePrivate {
-            x: BigNumber::from_rng(&k256_order(), rng),
-        };*/
-        let fake_keygen_private = KeySharePrivate::set_x(random_bn);
+        let fake_keygen_private = KeySharePrivate::random(rng);
         // Auxinfo private key must correspond to one of the public inputs.
         let result = Input::new(
             auxinfo_public.clone(),
