@@ -258,7 +258,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
     /// protocol.
     fn local_storage_mut(&mut self) -> &mut LocalStorage;
 
-    /// Returns a [`Vec<Message>`] which are intended for the other
+    /// Returns a Result[`Vec<Message>`] which are intended for the other
     /// participants.
     fn message_for_other_participants<T: Serialize>(
         &self,

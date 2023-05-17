@@ -211,25 +211,12 @@ impl BroadcastParticipant {
             message_type,
             data,
         };
-        let b_data_bytes = serialize!(&b_data)?;
-        /*let messages: Vec<Message> = self
-        .other_participant_ids
-        .iter()
-        .map(|&other_participant_id| {
-            Message::new(
-                MessageType::Broadcast(BroadcastMessageType::Disperse),
-                sid,
-                self.id,
-                other_participant_id,
-                &b_data_bytes,
-            )
-        })
-        .collect();*/
+        //let b_data_bytes = serialize!(&b_data)?;
         let messages = self.message_for_other_participants(
             MessageType::Broadcast(BroadcastMessageType::Disperse),
             sid,
             self.id,
-            b_data_bytes,
+            b_data,
         )?;
         Ok(messages)
     }
@@ -331,27 +318,15 @@ impl BroadcastParticipant {
         info!("Generating round two broadcast messages.");
 
         let data = BroadcastData::from_message(message)?;
-        let data_bytes = serialize!(&data)?;
+        //let data_bytes = serialize!(&data)?;
         // todo: handle this more memory-efficiently
         let mut others_minus_leader = self.other_participant_ids.clone();
         others_minus_leader.retain(|&id| id != leader);
-        /*let messages: Vec<Message> = others_minus_leader
-        .iter()
-        .map(|&other_participant_id| {
-            Message::new(
-                MessageType::Broadcast(BroadcastMessageType::Redisperse),
-                message.id(),
-                self.id,
-                other_participant_id,
-                &data_bytes,
-            )
-        })
-        .collect();*/
         let messages = self.message_for_other_participants(
             MessageType::Broadcast(BroadcastMessageType::Redisperse),
             message.id(),
             self.id,
-            data_bytes,
+            data,
         )?;
         Ok(messages)
     }
