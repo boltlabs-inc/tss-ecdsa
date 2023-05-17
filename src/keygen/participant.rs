@@ -421,11 +421,12 @@ impl KeygenParticipant {
             )
         })
         .collect();*/
-        let data = (sid, self.id, &decom_bytes);
         let more_messages = self.message_for_other_participants(
             MessageType::Keygen(KeygenMessageType::R2Decommit),
-            data,
-        );
+            sid,
+            self.id,
+            decom_bytes,
+        )?;
         messages.extend_from_slice(&more_messages);
         Ok(messages)
     }
@@ -553,9 +554,12 @@ impl KeygenParticipant {
             )
         })
         .collect();*/
-        let data = (sid, self.id, &proof_bytes);
-        let messages = self
-            .message_for_other_participants(MessageType::Keygen(KeygenMessageType::R3Proof), data);
+        let messages = self.message_for_other_participants(
+            MessageType::Keygen(KeygenMessageType::R3Proof),
+            sid,
+            self.id,
+            proof_bytes,
+        )?;
         Ok(messages)
     }
 

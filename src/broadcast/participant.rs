@@ -225,11 +225,12 @@ impl BroadcastParticipant {
             )
         })
         .collect();*/
-        let data = (sid, self.id, &b_data_bytes);
         let messages = self.message_for_other_participants(
             MessageType::Broadcast(BroadcastMessageType::Disperse),
-            data,
-        );
+            sid,
+            self.id,
+            b_data_bytes,
+        )?;
         Ok(messages)
     }
 
@@ -346,11 +347,12 @@ impl BroadcastParticipant {
             )
         })
         .collect();*/
-        let data = (message.id(), self.id, &data_bytes);
         let messages = self.message_for_other_participants(
             MessageType::Broadcast(BroadcastMessageType::Redisperse),
-            data,
-        );
+            message.id(),
+            self.id,
+            data_bytes,
+        )?;
         Ok(messages)
     }
 

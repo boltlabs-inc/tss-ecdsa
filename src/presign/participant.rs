@@ -14,7 +14,7 @@ use crate::{
     errors::{CallerError, InternalError, Result},
     keygen::keyshare::{KeySharePrivate, KeySharePublic},
     local_storage::LocalStorage,
-    messages::{self, Message, MessageType, PresignMessageType},
+    messages::{Message, MessageType, PresignMessageType},
     parameters::ELL_PRIME,
     participant::{Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant},
     presign::{
