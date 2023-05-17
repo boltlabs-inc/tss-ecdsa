@@ -27,7 +27,6 @@ use crate::{
     },
     CurvePoint, Identifier,
 };
-use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use tracing::{error, info, instrument};
@@ -279,7 +278,7 @@ impl KeygenParticipant {
     ) -> Result<Vec<Message>> {
         info!("Generating round one keygen messages.");
 
-        let (keyshare_private, keyshare_public) = new_keyshare(self.id(), rng)?;
+        let (keyshare_private, keyshare_public) = KeySharePublic::new_keyshare(self.id(), rng)?;
         self.local_storage
             .store::<storage::PrivateKeyshare>(self.id, keyshare_private);
         self.local_storage
@@ -287,7 +286,7 @@ impl KeygenParticipant {
 
         let q = k256_order();
         let g = CurvePoint::GENERATOR;
-        let X = keyshare_public.X;
+        let X = keyshare_public.X();
 
         let input = PiSchInput::new(&g, &q, &X);
         // This corresponds to `A_i` in the paper.
@@ -517,7 +516,7 @@ impl KeygenParticipant {
         let my_pk = self
             .local_storage
             .retrieve::<storage::PublicKeyshare>(self.id)?;
-        let input = PiSchInput::new(&g, &q, &my_pk.X);
+        let input = PiSchInput::new(&g, &q, &my_pk.X());
 
         let my_sk = self
             .local_storage
@@ -527,7 +526,7 @@ impl KeygenParticipant {
             &self.retrieve_context(),
             precom,
             &input,
-            &PiSchSecret::new(&my_sk.x),
+            &PiSchSecret::new(&my_sk.x()),
             &transcript,
         )?;
         let proof_bytes = serialize!(&proof)?;
@@ -578,7 +577,7 @@ impl KeygenParticipant {
 
         let q = k256_order();
         let g = CurvePoint::GENERATOR;
-        let input = PiSchInput::new(&g, &q, &decom.pk.X);
+        let input = PiSchInput::new(&g, &q, &decom.pk.X());
 
         let mut transcript = schnorr_proof_transcript(*global_rid)?;
         proof.verify(&input, &self.retrieve_context(), &mut transcript)?;
@@ -619,23 +618,6 @@ impl KeygenParticipant {
             Ok(ProcessOutcome::Incomplete)
         }
     }
-}
-
-/// Generate a new [`KeySharePrivate`] and [`KeySharePublic`].
-fn new_keyshare<R: RngCore + CryptoRng>(
-    participant: ParticipantIdentifier,
-    rng: &mut R,
-) -> Result<(KeySharePrivate, KeySharePublic)> {
-    let order = k256_order();
-    let private_share = KeySharePrivate {
-        x: BigNumber::from_rng(&order, rng),
-    };
-    let public_share = private_share.public_share()?;
-
-    Ok((
-        private_share,
-        KeySharePublic::new(participant, public_share),
-    ))
 }
 
 /// Generate a [`Transcript`] for [`PiSchProof`].
@@ -832,8 +814,8 @@ mod tests {
             assert!(public_share.is_some());
 
             let expected_public_share =
-                CurvePoint(CurvePoint::GENERATOR.0 * crate::utils::bn_to_scalar(&private.x)?);
-            assert_eq!(public_share.unwrap().X, expected_public_share);
+                CurvePoint(CurvePoint::GENERATOR.0 * crate::utils::bn_to_scalar(&private.x())?);
+            assert_eq!(public_share.unwrap().X(), expected_public_share);
         }
 
         Ok(())
