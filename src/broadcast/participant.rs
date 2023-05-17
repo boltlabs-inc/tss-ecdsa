@@ -213,18 +213,18 @@ impl BroadcastParticipant {
         };
         let b_data_bytes = serialize!(&b_data)?;
         /*let messages: Vec<Message> = self
-            .other_participant_ids
-            .iter()
-            .map(|&other_participant_id| {
-                Message::new(
-                    MessageType::Broadcast(BroadcastMessageType::Disperse),
-                    sid,
-                    self.id,
-                    other_participant_id,
-                    &b_data_bytes,
-                )
-            })
-            .collect();*/
+        .other_participant_ids
+        .iter()
+        .map(|&other_participant_id| {
+            Message::new(
+                MessageType::Broadcast(BroadcastMessageType::Disperse),
+                sid,
+                self.id,
+                other_participant_id,
+                &b_data_bytes,
+            )
+        })
+        .collect();*/
         let data = (sid, self.id, &b_data_bytes);
         let messages = self.message_for_other_participants(
             MessageType::Broadcast(BroadcastMessageType::Disperse),
@@ -335,17 +335,17 @@ impl BroadcastParticipant {
         let mut others_minus_leader = self.other_participant_ids.clone();
         others_minus_leader.retain(|&id| id != leader);
         /*let messages: Vec<Message> = others_minus_leader
-            .iter()
-            .map(|&other_participant_id| {
-                Message::new(
-                    MessageType::Broadcast(BroadcastMessageType::Redisperse),
-                    message.id(),
-                    self.id,
-                    other_participant_id,
-                    &data_bytes,
-                )
-            })
-            .collect();*/
+        .iter()
+        .map(|&other_participant_id| {
+            Message::new(
+                MessageType::Broadcast(BroadcastMessageType::Redisperse),
+                message.id(),
+                self.id,
+                other_participant_id,
+                &data_bytes,
+            )
+        })
+        .collect();*/
         let data = (message.id(), self.id, &data_bytes);
         let messages = self.message_for_other_participants(
             MessageType::Broadcast(BroadcastMessageType::Redisperse),

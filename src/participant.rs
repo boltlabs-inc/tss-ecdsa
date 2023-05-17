@@ -18,8 +18,8 @@ use crate::{
     Identifier,
 };
 use rand::{CryptoRng, RngCore};
-use serde::Serializable;
-use std::{fmt::Debug, io::prelude::*};
+use serde::Serialize;
+use std::fmt::Debug;
 use tracing::error;
 
 /// Possible outcomes from processing one or more messages.
@@ -260,21 +260,23 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
 
     /// Returns a [`Vec<Message>`] which are intended for the other
     /// participants.
-    fn message_for_other_participants<T: Serializable>(
-        self,
+    fn message_for_other_participants<T: Serialize>(
+        &self,
         message_type: MessageType,
+        id: Identifier,
+        from: ParticipantIdentifier,
         data: T,
-    ) -> Vec<Message> {
-        self.other_participant_ids
+    ) -> Result<Vec<Message>> {
+        self.other_ids()
             .iter()
             .map(|&other_participant_id| {
-                Message::new(
+                Ok(Message::new(
                     message_type,
-                    data[0],
-                    data[1],
+                    id,
+                    from,
                     other_participant_id,
-                    &data[2],
-                )
+                    &serialize!(&data)?,
+                ))
             })
             .collect()
     }

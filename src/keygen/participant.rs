@@ -541,23 +541,21 @@ impl KeygenParticipant {
         let proof_bytes = serialize!(&proof)?;
 
         /*let messages: Vec<Message> = self
-            .other_participant_ids
-            .iter()
-            .map(|&other_participant_id| {
-                Message::new(
-                    MessageType::Keygen(KeygenMessageType::R3Proof),
-                    sid,
-                    self.id,
-                    other_participant_id,
-                    &proof_bytes,
-                )
-            })
-            .collect();*/
+        .other_participant_ids
+        .iter()
+        .map(|&other_participant_id| {
+            Message::new(
+                MessageType::Keygen(KeygenMessageType::R3Proof),
+                sid,
+                self.id,
+                other_participant_id,
+                &proof_bytes,
+            )
+        })
+        .collect();*/
         let data = (sid, self.id, &proof_bytes);
-        let messages = self.message_for_other_participants(
-            MessageType::Keygen(KeygenMessageType::R3Proof),
-            data,
-        );
+        let messages = self
+            .message_for_other_participants(MessageType::Keygen(KeygenMessageType::R3Proof), data);
         Ok(messages)
     }
 
