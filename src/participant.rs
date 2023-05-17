@@ -195,13 +195,13 @@ pub trait ProtocolParticipant {
     fn id(&self) -> ParticipantIdentifier;
 
     /// Return other Participant ids apart from the current one
-    fn other_ids(&self) -> &Vec<ParticipantIdentifier>;
+    fn other_ids(&self) -> &[ParticipantIdentifier];
 
     /// Returns a list of all participant IDs, including `self`'s.
     fn all_participants(&self) -> Vec<ParticipantIdentifier> {
-        let mut participant = self.other_ids().clone();
+        let mut participant = self.other_ids().to_owned();
         participant.push(self.id());
-        participant
+        participant.to_vec()
     }
 
     /// Process an incoming message.
