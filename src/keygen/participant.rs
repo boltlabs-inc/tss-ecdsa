@@ -89,7 +89,8 @@ pub enum Status {
 /// - A random value, agreed on by all participants.
 ///
 /// # 🔒 Storage requirements
-/// The private key share in the output requires secure persistent storage.
+/// The [private key share](KeySharePrivate) in the output requires secure
+/// persistent storage.
 ///
 /// # High-level protocol description
 /// The key generation protocol runs in four rounds:
@@ -105,7 +106,7 @@ pub enum Status {
 /// - Finally, in the last round each participant checks the validity of all
 ///   other participants' Schnorr proofs. If that succeeds, each participant
 ///   outputs all the public key shares alongside its own private key share and
-///   a global random value, produced with contributory randonmness from all
+///   a global random value, produced with contributory randomness from all
 ///   parties.
 ///
 /// [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
@@ -142,11 +143,13 @@ pub struct Output {
 impl Output {
     /// Construct the generated public key.
     pub fn public_key(&self) -> Result<VerifyingKey> {
-        let mut vk_point = CurvePoint::IDENTITY;
-        for keyshare in &self.public_key_shares {
-            vk_point = CurvePoint(vk_point.0 + keyshare.as_ref().0);
-        }
-        VerifyingKey::from_encoded_point(&vk_point.0.to_affine().into()).map_err(|_| {
+        // Add up all the key shares
+        let public_key_point = self
+            .public_key_shares
+            .iter()
+            .fold(CurvePoint::IDENTITY, |sum, share| sum + *share.as_ref());
+
+        VerifyingKey::from_encoded_point(&public_key_point.0.to_affine().into()).map_err(|_| {
             error!("Keygen output does not produce a valid public key.");
             InternalError::InternalInvariantFailed
         })

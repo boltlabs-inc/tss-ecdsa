@@ -7,9 +7,9 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-pub(crate) mod keygen_commit;
-pub(crate) mod keyshare;
-pub mod participant;
+mod keygen_commit;
+mod keyshare;
+mod participant;
 
 pub use keyshare::{KeySharePrivate, KeySharePublic};
-pub use participant::Output;
+pub use participant::{KeygenParticipant, Output, Status};

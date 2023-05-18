@@ -374,7 +374,7 @@ impl ParticipantIdentifier {
 /// The `SharedContext` contains fixed known parameters across the entire
 /// protocol. It does not however contain the entire protocol context.
 #[derive(Debug)]
-pub struct SharedContext {
+pub(crate) struct SharedContext {
     sid: Identifier,
     participants: Vec<ParticipantIdentifier>,
     generator: CurvePoint,
@@ -525,7 +525,7 @@ impl std::fmt::Display for Identifier {
 mod tests {
     use super::*;
     use crate::{
-        auxinfo::participant::AuxInfoParticipant, keygen::participant::KeygenParticipant,
+        auxinfo::participant::AuxInfoParticipant, keygen::KeygenParticipant,
         presign::participant::Input as PresignInput, utils::testing::init_testing,
         PresignParticipant,
     };
@@ -839,7 +839,7 @@ mod tests {
         // And make sure all participants have successfully terminated.
         assert!(keygen_quorum
             .iter()
-            .all(|p| *p.status() == crate::keygen::participant::Status::TerminatedSuccessfully));
+            .all(|p| *p.status() == crate::keygen::Status::TerminatedSuccessfully));
 
         // Save the public key for later
         let saved_public_key = keygen_outputs

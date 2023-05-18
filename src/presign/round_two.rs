@@ -9,7 +9,7 @@
 use crate::{
     auxinfo::info::AuxInfoPublic,
     errors::{InternalError, Result},
-    keygen::keyshare::KeySharePublic,
+    keygen::KeySharePublic,
     messages::{Message, MessageType, PresignMessageType},
     paillier::Ciphertext,
     presign::round_one::{Private as RoundOnePrivate, PublicBroadcast as RoundOnePublicBroadcast},

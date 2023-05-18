@@ -12,10 +12,7 @@ use crate::{
     auxinfo::info::{AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::{CallerError, InternalError, Result},
-    keygen::{
-        self,
-        keyshare::{KeySharePrivate, KeySharePublic},
-    },
+    keygen::{self, KeySharePrivate, KeySharePublic},
     local_storage::LocalStorage,
     messages::{Message, MessageType, PresignMessageType},
     parameters::ELL_PRIME,
@@ -97,7 +94,7 @@ pub enum Status {
 /// and includes [`SharedContext`] and [`AuxInfoPublic`]s for all participants
 /// (including this participant).
 #[derive(Debug)]
-pub struct PresignContext {
+pub(crate) struct PresignContext {
     shared_context: SharedContext,
     auxinfo_public: Vec<AuxInfoPublic>,
 }
@@ -154,7 +151,7 @@ impl PresignContext {
 /// The goal of the presign protocol is to generate [`PresignRecord`]s for all
 /// protocol participants. The protocol proceeds in four rounds, and utilizes
 /// the [`KeySharePrivate`] (`xᵢ` in the paper) constructed during the
-/// [`keygen`](crate::keygen::participant::KeygenParticipant) protocol.
+/// [`keygen`](crate::keygen::KeygenParticipant) protocol.
 ///
 /// 1. In round one, each participant generates two values corresponding to a
 ///    "key share" (`kᵢ` in the paper) and an "exponent share" (`ɣᵢ` in the
@@ -246,7 +243,7 @@ pub struct Input {
 impl Input {
     /// Creates a new [`Input`] from the outputs of the
     /// [`auxinfo`](crate::auxinfo::participant::AuxInfoParticipant) and
-    /// [`keygen`](crate::keygen::participant::KeygenParticipant) protocols.
+    /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
     pub fn new(
         all_auxinfo_public: Vec<AuxInfoPublic>,
         auxinfo_private: AuxInfoPrivate,
