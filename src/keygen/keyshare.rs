@@ -65,11 +65,6 @@ impl KeySharePublic {
         }
     }
 
-    /// Get the public curvepoint which is the public key share.
-    pub fn as_point(&self) -> CurvePoint {
-        self.X
-    }
-
     /// Get the ID of the participant who claims to hold the private share
     /// corresponding to this public key share.
     pub fn participant(&self) -> ParticipantIdentifier {
@@ -88,5 +83,12 @@ impl KeySharePublic {
             private_share,
             KeySharePublic::new(participant, public_share),
         ))
+    }
+}
+
+impl AsRef<CurvePoint> for KeySharePublic {
+    /// Get the public curvepoint which is the public key share.
+    fn as_ref(&self) -> &CurvePoint {
+        &self.X
     }
 }

@@ -286,7 +286,7 @@ impl Input {
         let expected_public_share = keyshare_private.public_share()?;
         if !all_keyshare_public
             .iter()
-            .any(|public_share| expected_public_share == public_share.as_point())
+            .any(|public_share| expected_public_share == *public_share.as_ref())
         {
             error!("Keygen private share did not correspond to any of the provided keygen public shares.");
             Err(CallerError::BadInput)?
@@ -1196,7 +1196,7 @@ impl PresignKeyShareAndInfo {
                 receiver_r1_pub_broadcast.K.clone(),
                 D_hat.clone(),
                 F_hat.clone(),
-                self.keyshare_public.as_point(),
+                *self.keyshare_public.as_ref(),
             ),
             &secret,
             context,

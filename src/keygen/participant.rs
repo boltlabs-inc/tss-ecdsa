@@ -286,9 +286,9 @@ impl KeygenParticipant {
 
         let q = k256_order();
         let g = CurvePoint::GENERATOR;
-        let X = keyshare_public.as_point();
+        let X = keyshare_public.as_ref();
 
-        let input = PiSchInput::new(&g, &q, &X);
+        let input = PiSchInput::new(&g, &q, X);
         // This corresponds to `A_i` in the paper.
         let sch_precom = PiSchProof::precommit(rng, &input)?;
         let decom = KeygenDecommit::new(rng, &sid, &self.id, &keyshare_public, &sch_precom);
@@ -516,7 +516,7 @@ impl KeygenParticipant {
         let my_pk = self
             .local_storage
             .retrieve::<storage::PublicKeyshare>(self.id)?;
-        let input = PiSchInput::new(&g, &q, &my_pk.as_point());
+        let input = PiSchInput::new(&g, &q, my_pk.as_ref());
 
         let my_sk = self
             .local_storage
@@ -577,7 +577,7 @@ impl KeygenParticipant {
 
         let q = k256_order();
         let g = CurvePoint::GENERATOR;
-        let input = PiSchInput::new(&g, &q, &decom.pk.as_point());
+        let input = PiSchInput::new(&g, &q, decom.pk.as_ref());
 
         let mut transcript = schnorr_proof_transcript(*global_rid)?;
         proof.verify(&input, &self.retrieve_context(), &mut transcript)?;
@@ -816,7 +816,7 @@ mod tests {
             let expected_public_share = CurvePoint(
                 CurvePoint::GENERATOR.0 * crate::utils::bn_to_scalar(private.as_bignumber())?,
             );
-            assert_eq!(public_share.unwrap().as_point(), expected_public_share);
+            assert_eq!(*public_share.unwrap().as_ref(), expected_public_share);
         }
 
         Ok(())
