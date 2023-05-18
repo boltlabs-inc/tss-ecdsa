@@ -96,7 +96,7 @@ impl Public {
             verifier_r1_private.K.clone(),
             self.D_hat.clone(),
             self.F_hat.clone(),
-            prover_keyshare_public.X(),
+            prover_keyshare_public.as_point(),
         );
         let mut transcript = Transcript::new(b"PiAffgProof");
         self.psi_hat

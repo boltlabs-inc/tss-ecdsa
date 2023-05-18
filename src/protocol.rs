@@ -940,7 +940,7 @@ mod tests {
         // final signature verification key
         let mut vk_point = CurvePoint::IDENTITY;
         for keyshare in public_keyshares {
-            vk_point = CurvePoint(vk_point.0 + keyshare.X().0);
+            vk_point = CurvePoint(vk_point.0 + keyshare.as_point().0);
         }
         let verification_key =
             k256::ecdsa::VerifyingKey::from_encoded_point(&vk_point.0.to_affine().into()).unwrap();
