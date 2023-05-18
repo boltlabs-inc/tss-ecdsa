@@ -1144,7 +1144,7 @@ impl PresignKeyShareAndInfo {
         let D_hat = receiver_aux_info
             .pk()
             .multiply_and_add(
-                self.keyshare_private.as_bignumber(),
+                self.keyshare_private.as_ref(),
                 &receiver_r1_pub_broadcast.K,
                 &beta_hat_ciphertext,
             )
@@ -1183,7 +1183,7 @@ impl PresignKeyShareAndInfo {
         )?;
         let mut transcript = Transcript::new(b"PiAffgProof");
         let secret = PiAffgSecret::new(
-            self.keyshare_private.as_bignumber().clone(),
+            self.keyshare_private.as_ref().clone(),
             beta_hat.clone(),
             s_hat,
             r_hat,
@@ -1252,7 +1252,7 @@ impl PresignKeyShareAndInfo {
         let mut delta: BigNumber = sender_r1_priv.gamma.modmul(&sender_r1_priv.k, &order);
         let mut chi: BigNumber = self
             .keyshare_private
-            .as_bignumber()
+            .as_ref()
             .modmul(&sender_r1_priv.k, &order);
         let mut Gamma = g.multiply_by_scalar(&sender_r1_priv.gamma)?;
 

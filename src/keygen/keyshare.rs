@@ -32,11 +32,6 @@ impl Debug for KeySharePrivate {
     }
 }
 impl KeySharePrivate {
-    /// Get the private key share.
-    pub(crate) fn as_bignumber(&self) -> &BigNumber {
-        &self.x
-    }
-
     /// Sample a private key share uniformly at random.
     pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
         let random_bn = BigNumber::from_rng(&k256_order(), rng);
@@ -46,6 +41,13 @@ impl KeySharePrivate {
     /// Computes the "raw" curve point corresponding to this private key.
     pub(crate) fn public_share(&self) -> Result<CurvePoint> {
         CurvePoint::GENERATOR.multiply_by_scalar(&self.x)
+    }
+}
+
+impl AsRef<BigNumber> for KeySharePrivate {
+    /// Get the private key share.
+    fn as_ref(&self) -> &BigNumber {
+        &self.x
     }
 }
 

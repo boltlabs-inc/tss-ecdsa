@@ -526,7 +526,7 @@ impl KeygenParticipant {
             &self.retrieve_context(),
             precom,
             &input,
-            &PiSchSecret::new(my_sk.as_bignumber()),
+            &PiSchSecret::new(my_sk.as_ref()),
             &transcript,
         )?;
         let proof_bytes = serialize!(&proof)?;
@@ -813,9 +813,8 @@ mod tests {
                 .find(|public_share| public_share.participant() == pid);
             assert!(public_share.is_some());
 
-            let expected_public_share = CurvePoint(
-                CurvePoint::GENERATOR.0 * crate::utils::bn_to_scalar(private.as_bignumber())?,
-            );
+            let expected_public_share =
+                CurvePoint(CurvePoint::GENERATOR.0 * crate::utils::bn_to_scalar(private.as_ref())?);
             assert_eq!(*public_share.unwrap().as_ref(), expected_public_share);
         }
 
