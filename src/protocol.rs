@@ -8,16 +8,12 @@
 
 //! The primary public API for executing the threshold signing protocol.
 //!
-//! This module includes the main [`Participant`] driver and defines the set of
-//! possible [`Output`]s for each subprotocol.
+//! This module includes the main [`Participant`] driver.
 
 use crate::{
-    auxinfo::info::{AuxInfoPrivate, AuxInfoPublic},
     errors::{CallerError, InternalError, Result},
-    keygen::keyshare::{KeySharePrivate, KeySharePublic},
     messages::MessageType,
     participant::{InnerProtocolParticipant, ProtocolParticipant},
-    presign::record::PresignRecord,
     utils::{k256_order, CurvePoint},
     zkp::ProofContext,
     Message,
@@ -141,9 +137,9 @@ impl<P: ProtocolParticipant> Participant<P> {
     /// Process the first message from the participant's inbox.
     ///
     /// ## Return type
-    /// This returns an output and a set of messages:
-    /// - The [`Output`] encodes the termination status and any outputs of the
-    ///   protocol with the given session ID.
+    /// This returns a possible output and a set of messages:
+    /// - The output holds the output of the protocol with the given session ID,
+    ///   if it terminated for this participant.
     /// - The messages are a (possibly empty) list of messages to be sent out to
     ///   other participants.
     #[cfg_attr(feature = "flame_it", flame)]
@@ -219,7 +215,8 @@ impl<P: ProtocolParticipant> Participant<P> {
 /// A share of the ECDSA signature.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct SignatureShare {
-    /// The x-projection of `R` from the [`PresignRecord`] (`r` in the paper).
+    /// The x-projection of `R` from the [`PresignRecord`](crate::PresignRecord)
+    /// (`r` in the paper).
     ///
     /// Note: The paper does _not_ include this as part of the share, and
     /// instead, a signature share is just the `σ` value. We include this value
@@ -227,8 +224,8 @@ pub struct SignatureShare {
     /// participants who created a share, to be able to reconstruct the
     /// signature.
     r: k256::Scalar,
-    /// The digest masked by components from [`PresignRecord`] (`σ` in the
-    /// paper).
+    /// The digest masked by components from
+    /// [`PresignRecord`](crate::PresignRecord) (`σ` in the paper).
     s: k256::Scalar,
 }
 
@@ -374,7 +371,7 @@ impl ParticipantIdentifier {
     }
 }
 
-/// The `SharedContext` contains fixed known parameters accross the entire
+/// The `SharedContext` contains fixed known parameters across the entire
 /// protocol. It does not however contain the entire protocol context.
 #[derive(Debug)]
 pub struct SharedContext {
@@ -490,9 +487,9 @@ impl std::fmt::Display for ParticipantIdentifier {
 /// The codebase relies on the calling application to generate a new, unique
 /// `Identifier` for each new session.
 ///
-/// [^outs]: These can include public key shares and shared randomness that were returned as output from
-/// a previous run of keygen and public commitment parameters that were returned
-/// as output from a previous run of auxinfo.
+/// [^outs]: These can include public key shares and shared randomness that were
+/// returned as output from a previous run of keygen and public commitment
+/// parameters that were returned as output from a previous run of auxinfo.
 ///
 /// [^bug]: In fact, we think there is a minor bug in Figure 6 of the paper, since
 /// the definition of `ssid` includes outputs of auxinfo, and thus cannot be
@@ -524,31 +521,12 @@ impl std::fmt::Display for Identifier {
     }
 }
 
-/// Encodes the termination status and output (if any) of processing a message
-/// as part of a protocol run.
-#[derive(Debug)]
-pub enum Output {
-    /// The protocol did not complete.
-    None,
-    /// AuxInfo completed; output includes public key material for all
-    /// participants and private key material for this participant.
-    AuxInfo(Vec<AuxInfoPublic>, AuxInfoPrivate),
-    /// KeyGen completed; output includes public key shares for all participants
-    /// and a private key share for this participant.
-    KeyGen(Vec<KeySharePublic>, KeySharePrivate),
-    /// Presign completed; output includes a one-time-use presign record.
-    Presign(PresignRecord),
-    /// Local signing completed; output is this participant's share of the
-    /// signature.
-    Sign(SignatureShare),
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         auxinfo::participant::AuxInfoParticipant, keygen::participant::KeygenParticipant,
-        presign::participant::Input as PresignInput, utils::testing::init_testing, CurvePoint,
+        presign::participant::Input as PresignInput, utils::testing::init_testing,
         PresignParticipant,
     };
     use k256::ecdsa::signature::DigestVerifier;
@@ -863,12 +841,11 @@ mod tests {
             .iter()
             .all(|p| *p.status() == crate::keygen::participant::Status::TerminatedSuccessfully));
 
-        // Hideously save the list of public keys for later
-        let public_keyshares = keygen_outputs
+        // Save the public key for later
+        let saved_public_key = keygen_outputs
             .get(&configs.get(0).unwrap().id)
             .unwrap()
-            .clone()
-            .0;
+            .public_key()?;
 
         // Set up presign participants
         let presign_sid = Identifier::random(&mut rng);
@@ -882,14 +859,8 @@ mod tests {
                     keygen_outputs.get(&config.id).unwrap(),
                 )
             })
-            .map(|((aux_pub, aux_priv), (key_pub, key_priv))| {
-                PresignInput::new(
-                    aux_pub.clone(),
-                    aux_priv.clone(),
-                    key_pub.clone(),
-                    key_priv.clone(),
-                )
-                .unwrap()
+            .map(|((aux_pub, aux_priv), keygen_output)| {
+                PresignInput::new(aux_pub.clone(), aux_priv.clone(), keygen_output.clone()).unwrap()
             })
             .collect::<Vec<_>>();
 
@@ -936,17 +907,8 @@ mod tests {
             .map(|record| record.sign(hasher.clone()).unwrap());
         let signature = SignatureShare::into_signature(shares)?;
 
-        // Initialize all participants and get their public keyshares to construct the
-        // final signature verification key
-        let mut vk_point = CurvePoint::IDENTITY;
-        for keyshare in public_keyshares {
-            vk_point = CurvePoint(vk_point.0 + keyshare.as_ref().0);
-        }
-        let verification_key =
-            k256::ecdsa::VerifyingKey::from_encoded_point(&vk_point.0.to_affine().into()).unwrap();
-
         // Moment of truth, does the signature verify?
-        assert!(verification_key.verify_digest(hasher, &signature).is_ok());
+        assert!(saved_public_key.verify_digest(hasher, &signature).is_ok());
 
         #[cfg(feature = "flame_it")]
         flame::dump_html(&mut std::fs::File::create("dev/flame-graph.html").unwrap()).unwrap();

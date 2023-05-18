@@ -143,8 +143,8 @@ fn run_benchmarks_for_given_size(c: &mut Criterion, num_players: usize) {
     let presign_inputs = auxinfo_outputs
         .into_iter()
         .zip(keygen_outputs)
-        .map(|((aux_pub, aux_priv), (key_pub, key_priv))| {
-            PresignInput::new(aux_pub, aux_priv, key_pub, key_priv).unwrap()
+        .map(|((aux_pub, aux_priv), keygen_output)| {
+            PresignInput::new(aux_pub, aux_priv, keygen_output).unwrap()
         })
         .collect::<Vec<_>>();
 

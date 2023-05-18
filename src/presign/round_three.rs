@@ -14,11 +14,11 @@ use crate::{
         round_one::PublicBroadcast as RoundOnePublicBroadcast,
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
     },
+    utils::CurvePoint,
     zkp::{
         pilog::{CommonInput, PiLogProof},
         Proof, ProofContext,
     },
-    CurvePoint,
 };
 use k256::Scalar;
 use libpaillier::unknown_order::BigNumber;

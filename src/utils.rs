@@ -29,7 +29,7 @@ pub(crate) const CRYPTOGRAPHIC_RETRY_MAX: usize = 500usize;
 /// private type, `Debug` should be manually implemented with the field of this
 /// type explicitly redacted!
 #[derive(Eq, PartialEq, Debug, Clone, Copy, Zeroize)]
-pub struct CurvePoint(pub k256::ProjectivePoint);
+pub(crate) struct CurvePoint(pub k256::ProjectivePoint);
 
 impl CurvePoint {
     pub(crate) const GENERATOR: Self = CurvePoint(k256::ProjectivePoint::GENERATOR);

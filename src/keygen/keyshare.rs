@@ -51,7 +51,7 @@ impl AsRef<BigNumber> for KeySharePrivate {
     }
 }
 
-/// A [`CurvePoint`] representing a given [`Participant`](crate::Participant)'s
+/// A curve point representing a given [`Participant`](crate::Participant)'s
 /// public key.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KeySharePublic {

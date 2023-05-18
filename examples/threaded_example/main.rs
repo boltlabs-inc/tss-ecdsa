@@ -17,9 +17,9 @@ use std::{
 use tracing::{debug, info, instrument, span, trace, Level};
 use tracing_subscriber::{self, EnvFilter};
 use tss_ecdsa::{
-    AuxInfoParticipant, AuxInfoPrivate, AuxInfoPublic, Identifier, KeySharePrivate, KeySharePublic,
-    KeygenParticipant, Message, Participant, ParticipantConfig, ParticipantIdentifier,
-    PresignInput, PresignParticipant, PresignRecord, ProtocolParticipant,
+    keygen, AuxInfoParticipant, AuxInfoPrivate, AuxInfoPublic, Identifier, KeygenParticipant,
+    Message, Participant, ParticipantConfig, ParticipantIdentifier, PresignInput,
+    PresignParticipant, PresignRecord, ProtocolParticipant,
 };
 
 /// Messages from main thread to Participant worker threads.
@@ -335,8 +335,7 @@ fn participant_worker(
 
     // Outputs of our sub-protocols. These variable are set when a sub-protocol is
     // finished executing.
-    let mut public_key_shares: Option<Vec<KeySharePublic>> = None;
-    let mut private_key_share: Option<KeySharePrivate> = None;
+    let mut keygen_output: Option<keygen::Output> = None;
     let mut aux_info_public: Option<Vec<AuxInfoPublic>> = None;
     let mut aux_info_private: Option<AuxInfoPrivate> = None;
     let mut presign_record: Option<PresignRecord> = None;
@@ -352,11 +351,10 @@ fn participant_worker(
                 let participant: Participant<KeygenParticipant> =
                     // Keygen requires no sub-protocol specific inputs, hence `()`.
                     Participant::from_config(&config, sid, ())?;
-                let (public_key_shares_local, private_key_share_local) =
+                let keygen_output_local =
                     worker_handle_subprotocol(participant, &other_workers, &outgoing)?;
 
-                public_key_shares = Some(public_key_shares_local);
-                private_key_share = Some(private_key_share_local);
+                keygen_output = Some(keygen_output_local);
 
                 outgoing.send(MessageFromWorker::SubProtocolEnded)?;
             }
@@ -377,8 +375,7 @@ fn participant_worker(
                 let input: PresignInput = PresignInput::new(
                     aux_info_public.clone().unwrap(),
                     aux_info_private.clone().unwrap(),
-                    public_key_shares.clone().unwrap(),
-                    private_key_share.clone().unwrap(),
+                    keygen_output.clone().unwrap(),
                 )?;
                 let participant: Participant<PresignParticipant> =
                     Participant::from_config(&config, sid, input)?;

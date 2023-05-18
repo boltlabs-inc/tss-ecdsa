@@ -12,7 +12,10 @@ use crate::{
     auxinfo::info::{AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::{CallerError, InternalError, Result},
-    keygen::keyshare::{KeySharePrivate, KeySharePublic},
+    keygen::{
+        self,
+        keyshare::{KeySharePrivate, KeySharePublic},
+    },
     local_storage::LocalStorage,
     messages::{Message, MessageType, PresignMessageType},
     parameters::ELL_PRIME,
@@ -28,14 +31,14 @@ use crate::{
     },
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
-    utils::{bn_to_scalar, k256_order, random_plusminus_by_size, random_positive_bn},
+    utils::{bn_to_scalar, k256_order, random_plusminus_by_size, random_positive_bn, CurvePoint},
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof, PiAffgSecret},
         pienc::{PiEncInput, PiEncProof, PiEncSecret},
         pilog::{CommonInput, PiLogProof, ProverSecret},
         Proof, ProofContext,
     },
-    CurvePoint, Identifier,
+    Identifier,
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -125,11 +128,12 @@ impl PresignContext {
 /// A [`ProtocolParticipant`] that runs the presign protocol[^cite].
 ///
 /// # Protocol input
-/// The protocol takes as input the following:
-/// - A [`Vec`] of [`KeySharePublic`]s, which correspond to the public keyshares
-///   of each participant (including this participant), and
-/// - A single [`KeySharePrivate`], which corresponds to the **private**
-///   keyshare of this participant.
+/// The protocol takes an [`Input`] which includes:
+/// - The [`Output`](keygen::Output) of a [`keygen`] protocol execution
+///   - A list of public key shares, one for each participant (including this
+///     participant);
+///   - A single private key share for this participant; and
+///   - A random value, agreed on by all participants.
 /// - A [`Vec`] of [`AuxInfoPublic`]s, which correspond to the public auxiliary
 ///   information of each participant (including this participant), and
 /// - A single [`AuxInfoPrivate`], which corresponds to the **private**
@@ -231,11 +235,8 @@ pub struct PresignParticipant {
 /// Input needed for [`PresignParticipant`] to run.
 #[derive(Debug, Clone)]
 pub struct Input {
-    /// The private keyshare of this participant.
-    keyshare_private: KeySharePrivate,
-    /// The public keyshares of all the participants (including this
-    /// participant).
-    all_keyshare_public: Vec<KeySharePublic>,
+    /// The key share material for the key corresponding to the presign run.
+    keygen_output: keygen::Output,
     /// The private auxinfo of this participant.
     auxinfo_private: AuxInfoPrivate,
     /// The public auxinfo of all the participants (including this participant).
@@ -249,14 +250,13 @@ impl Input {
     pub fn new(
         all_auxinfo_public: Vec<AuxInfoPublic>,
         auxinfo_private: AuxInfoPrivate,
-        all_keyshare_public: Vec<KeySharePublic>,
-        keyshare_private: KeySharePrivate,
+        keygen_output: keygen::Output,
     ) -> Result<Self> {
-        if all_auxinfo_public.len() != all_keyshare_public.len() {
+        if all_auxinfo_public.len() != keygen_output.public_key_shares().len() {
             error!(
                 "Number of auxinfo ({:?}) and keyshare ({:?}) public entries is not equal",
                 all_auxinfo_public.len(),
-                all_keyshare_public.len()
+                keygen_output.public_key_shares().len()
             );
             Err(CallerError::BadInput)?
         }
@@ -266,7 +266,8 @@ impl Input {
             .iter()
             .map(|auxinfo| auxinfo.participant())
             .collect::<HashSet<_>>();
-        let key_sids = all_keyshare_public
+        let key_sids = keygen_output
+            .public_key_shares()
             .iter()
             .map(|keyshare| keyshare.participant())
             .collect::<HashSet<_>>();
@@ -277,14 +278,15 @@ impl Input {
 
         // There shouldn't be duplicates. Since we checked equality of the sets and the
         // lengths already, this also applies to auxinfo.
-        if key_sids.len() != all_keyshare_public.len() {
+        if key_sids.len() != keygen_output.public_key_shares().len() {
             error!("Duplicate participant IDs appeared in AuxInfo and KeyShare public input.");
             Err(CallerError::BadInput)?
         }
 
         // The private values should map to one of the public values.
-        let expected_public_share = keyshare_private.public_share()?;
-        if !all_keyshare_public
+        let expected_public_share = keygen_output.private_key_share().public_share()?;
+        if !keygen_output
+            .public_key_shares()
             .iter()
             .any(|public_share| expected_public_share == *public_share.as_ref())
         {
@@ -302,8 +304,7 @@ impl Input {
         Ok(Self {
             all_auxinfo_public,
             auxinfo_private,
-            all_keyshare_public,
-            keyshare_private,
+            keygen_output,
         })
     }
 
@@ -312,7 +313,8 @@ impl Input {
     /// By construction, this must be the same for the auxinfo and key share
     /// lists.
     fn participants(&self) -> Vec<ParticipantIdentifier> {
-        self.all_keyshare_public
+        self.keygen_output
+            .public_key_shares()
             .iter()
             .map(KeySharePublic::participant)
             .collect()
@@ -333,7 +335,8 @@ impl Input {
     /// Returns the [`KeySharePublic`] associated with the given
     /// [`ParticipantIdentifier`].
     fn find_keyshare_public(&self, pid: ParticipantIdentifier) -> Result<&KeySharePublic> {
-        self.all_keyshare_public
+        self.keygen_output
+            .public_key_shares()
             .iter()
             .find(|item| item.participant() == pid)
             .ok_or_else(|| {
@@ -1022,7 +1025,7 @@ impl PresignKeyShareAndInfo {
         Ok(Self {
             aux_info_private: input.auxinfo_private.clone(),
             aux_info_public: input.find_auxinfo_public(id)?.clone(),
-            keyshare_private: input.keyshare_private.clone(),
+            keyshare_private: input.keygen_output.private_key_share().clone(),
             keyshare_public: input.find_keyshare_public(id)?.clone(),
         })
     }
@@ -1338,35 +1341,18 @@ impl PresignKeyShareAndInfo {
 
 #[cfg(test)]
 mod test {
+    use rand::rngs::StdRng;
+
     use super::Input;
     use crate::{
         errors::{CallerError, InternalError, Result},
+        keygen,
         paillier::DecryptionKey,
         ring_pedersen::VerifiedRingPedersen,
         utils::testing::init_testing,
-        AuxInfoPrivate, AuxInfoPublic, Identifier, KeySharePrivate, KeySharePublic,
-        ParticipantConfig, ParticipantIdentifier, PresignParticipant, ProtocolParticipant,
+        AuxInfoPrivate, AuxInfoPublic, Identifier, ParticipantConfig, ParticipantIdentifier,
+        PresignParticipant, ProtocolParticipant,
     };
-    use rand::rngs::StdRng;
-
-    // Simulate the output of a keygen run with the given participants.
-    fn simulate_keygen_output(
-        pids: &[ParticipantIdentifier],
-        rng: &mut StdRng,
-    ) -> (KeySharePrivate, Vec<KeySharePublic>) {
-        let (mut keygen_private_outputs, keygen_public_outputs): (Vec<_>, Vec<_>) = pids
-            .iter()
-            .map(|&pid| {
-                // TODO #340: Replace with KeyShare methods once they exist.
-                let secret = KeySharePrivate::random(rng);
-                let public = secret.public_share().unwrap();
-                (secret, KeySharePublic::new(pid, public))
-            })
-            .unzip();
-
-        (keygen_private_outputs.pop().unwrap(), keygen_public_outputs)
-    }
-
     // Simulate the output of an auxinfo run with the given participants.
     fn simulate_auxinfo_output(
         pids: &[ParticipantIdentifier],
@@ -1402,26 +1388,23 @@ mod test {
         let pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let (keygen_private, keygen_public) = simulate_keygen_output(&pids, rng);
+        let keygen_output = keygen::Output::simulate(&pids, rng);
         let (auxinfo_private, auxinfo_public) = simulate_auxinfo_output(&pids, rng);
 
         // Same length works
         let result = Input::new(
             auxinfo_public.clone(),
             auxinfo_private.clone(),
-            keygen_public.clone(),
-            keygen_private.clone(),
+            keygen_output.clone(),
         );
         assert!(result.is_ok());
 
         // If keygen is too short, it fails.
-        let mut short_keygen = keygen_public.clone();
-        let _dropped = short_keygen.pop();
+        let short_keygen = keygen::Output::simulate(&pids[1..], rng);
         let result = Input::new(
             auxinfo_public.clone(),
             auxinfo_private.clone(),
             short_keygen,
-            keygen_private.clone(),
         );
         assert!(result.is_err());
         assert_eq!(
@@ -1432,12 +1415,7 @@ mod test {
         // If auxinfo is too short, it fails.
         let mut short_auxinfo = auxinfo_public;
         let _dropped = short_auxinfo.pop();
-        let result = Input::new(
-            short_auxinfo,
-            auxinfo_private,
-            keygen_public,
-            keygen_private,
-        );
+        let result = Input::new(short_auxinfo, auxinfo_private, keygen_output);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
@@ -1449,28 +1427,25 @@ mod test {
     fn inputs_must_not_have_duplicates() {
         let rng = &mut init_testing();
 
-        let pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
+        let mut pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let (keygen_private, mut keygen_public) = simulate_keygen_output(&pids, rng);
         let (auxinfo_private, mut auxinfo_public) = simulate_auxinfo_output(&pids, rng);
 
         // This test doesn't bother adding a duplicate in only one of the inputs because
         // that would fail the length checks tested in `inputs_must_be_same_length`
-        let keygen_dup = keygen_public.pop().unwrap();
-        keygen_public.push(keygen_dup.clone());
-        keygen_public.push(keygen_dup);
 
+        // Push a copy of one of the auxinfo publics.
         let auxinfo_dup = auxinfo_public.pop().unwrap();
         auxinfo_public.push(auxinfo_dup.clone());
         auxinfo_public.push(auxinfo_dup);
 
-        let result = Input::new(
-            auxinfo_public,
-            auxinfo_private,
-            keygen_public,
-            keygen_private,
-        );
+        // Make a keygen output with a duplicated pid (the public key material itself
+        // will be different)
+        pids.push(pids[4]); // take the last item to match the pop'd auxinfo pid.
+        let keygen_output = keygen::Output::simulate(&pids, rng);
+
+        let result = Input::new(auxinfo_public, auxinfo_private, keygen_output);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
@@ -1490,14 +1465,9 @@ mod test {
         let keygen_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let (keygen_private, keygen_public) = simulate_keygen_output(&keygen_pids, rng);
+        let keygen_output = keygen::Output::simulate(&keygen_pids, rng);
 
-        let result = Input::new(
-            auxinfo_public,
-            auxinfo_private,
-            keygen_public,
-            keygen_private,
-        );
+        let result = Input::new(auxinfo_public, auxinfo_private, keygen_output);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
@@ -1513,37 +1483,24 @@ mod test {
             .take(5)
             .collect::<Vec<_>>();
 
-        let (keygen_private, keygen_public) = simulate_keygen_output(&pids, rng);
-        let (auxinfo_private, auxinfo_public) = simulate_auxinfo_output(&pids, rng);
+        let keygen_output = keygen::Output::simulate(&pids, rng);
+        let (_, auxinfo_public) = simulate_auxinfo_output(&pids, rng);
 
-        // Make private components with no relation to the public inputs.
+        // Make a private auxinfo component with no relation to the public inputs.
         let fake_auxinfo_private = AuxInfoPrivate::from(DecryptionKey::new(rng).unwrap().0);
-        let fake_keygen_private = KeySharePrivate::random(rng);
+
         // Auxinfo private key must correspond to one of the public inputs.
-        let result = Input::new(
-            auxinfo_public.clone(),
-            fake_auxinfo_private,
-            keygen_public.clone(),
-            keygen_private,
-        );
+        let result = Input::new(auxinfo_public, fake_auxinfo_private, keygen_output);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
             InternalError::CallingApplicationMistake(CallerError::BadInput)
         );
 
-        // Keygen private share must correspond to one of the public shares.
-        let result = Input::new(
-            auxinfo_public,
-            auxinfo_private,
-            keygen_public,
-            fake_keygen_private,
-        );
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            InternalError::CallingApplicationMistake(CallerError::BadInput)
-        );
+        // Note: we can't test the same thing for keygen because the keygen
+        // output type doesn't let us muck around with its internal
+        // representation here. TODO #376: Add the equivalent test in
+        // the keygen module.
     }
 
     #[test]
@@ -1555,15 +1512,10 @@ mod test {
         let input_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(SIZE)
             .collect::<Vec<_>>();
-        let (keygen_private, keygen_public) = simulate_keygen_output(&input_pids, rng);
+        let keygen_output = keygen::Output::simulate(&input_pids, rng);
         let (auxinfo_private, auxinfo_public) = simulate_auxinfo_output(&input_pids, rng);
 
-        let input = Input::new(
-            auxinfo_public,
-            auxinfo_private,
-            keygen_public,
-            keygen_private,
-        )?;
+        let input = Input::new(auxinfo_public, auxinfo_private, keygen_output)?;
 
         // Create valid config with PIDs independent of those used to make the input set
         let config = ParticipantConfig::random(SIZE, rng);

@@ -10,3 +10,6 @@
 pub(crate) mod keygen_commit;
 pub(crate) mod keyshare;
 pub mod participant;
+
+pub use keyshare::{KeySharePrivate, KeySharePublic};
+pub use participant::Output;

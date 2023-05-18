@@ -13,8 +13,7 @@ use crate::{
     },
     presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
     protocol::SignatureShare,
-    utils::bn_to_scalar,
-    CurvePoint,
+    utils::{bn_to_scalar, CurvePoint},
 };
 use k256::{
     elliptic_curve::{AffineXCoordinate, PrimeField},
@@ -42,7 +41,7 @@ pub(crate) struct RecordPair {
 /// A `PresignRecord` contains the following components of the ECSDA signature
 /// algorithm[^cite] (the below notation matches the notation used in the
 /// citation):
-/// - A [`CurvePoint`] (`R` in the paper) representing the point `k^{-1} · G`,
+/// - A curve point (`R` in the paper) representing the point `k^{-1} · G`,
 ///   where `k` is a random integer and `G` denotes the elliptic curve base
 ///   point.
 /// - A [`Scalar`] (`kᵢ` in the paper) representing a share of the random
