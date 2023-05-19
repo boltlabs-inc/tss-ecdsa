@@ -396,11 +396,9 @@ impl AuxInfoParticipant {
         }
 
         let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
-        //let decom_bytes = serialize!(&decom)?;
         let more_messages = self.message_for_other_participants(
             MessageType::Auxinfo(AuxinfoMessageType::R2Decommit),
             sid,
-            self.id,
             decom,
         )?;
         messages.extend(more_messages);

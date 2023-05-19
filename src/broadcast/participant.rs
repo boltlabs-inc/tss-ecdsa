@@ -211,11 +211,9 @@ impl BroadcastParticipant {
             message_type,
             data,
         };
-        //let b_data_bytes = serialize!(&b_data)?;
         let messages = self.message_for_other_participants(
             MessageType::Broadcast(BroadcastMessageType::Disperse),
             sid,
-            self.id,
             b_data,
         )?;
         Ok(messages)

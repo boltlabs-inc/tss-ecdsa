@@ -264,7 +264,6 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         &self,
         message_type: MessageType,
         id: Identifier,
-        from: ParticipantIdentifier,
         data: T,
     ) -> Result<Vec<Message>> {
         self.other_ids()
@@ -273,7 +272,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
                 Ok(Message::new(
                     message_type,
                     id,
-                    from,
+                    self.id(),
                     other_participant_id,
                     &serialize!(&data)?,
                 ))
