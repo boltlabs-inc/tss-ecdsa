@@ -318,16 +318,22 @@ impl BroadcastParticipant {
         info!("Generating round two broadcast messages.");
 
         let data = BroadcastData::from_message(message)?;
-        //let data_bytes = serialize!(&data)?;
+        let data_bytes = serialize!(&data)?;
         // todo: handle this more memory-efficiently
         let mut others_minus_leader = self.other_participant_ids.clone();
         others_minus_leader.retain(|&id| id != leader);
-        let messages = self.message_for_other_participants(
-            MessageType::Broadcast(BroadcastMessageType::Redisperse),
-            message.id(),
-            self.id,
-            data,
-        )?;
+        let messages: Vec<Message> = others_minus_leader
+            .iter()
+            .map(|&other_participant_id| {
+                Message::new(
+                    MessageType::Broadcast(BroadcastMessageType::Redisperse),
+                    message.id(),
+                    self.id,
+                    other_participant_id,
+                    &data_bytes,
+                )
+            })
+            .collect();
         Ok(messages)
     }
 
