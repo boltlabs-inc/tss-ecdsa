@@ -349,8 +349,6 @@ impl Proof for PiLogProof {
 
 #[cfg(test)]
 mod tests {
-    //use anyhow::Ok;
-
     use super::*;
     use crate::{
         paillier::DecryptionKey,
@@ -396,8 +394,85 @@ mod tests {
     }
 
     #[test]
-    fn negative_tests() -> Result<()> {
-        
+    fn negative_test_swap_proof_elements() -> Result<()> {
+        let mut rng = init_testing();
+        let x = random_plusminus_by_size(&mut rng, ELL);
+
+        let (proof, input, mut transcript) = random_paillier_log_proof(&mut rng, &x).unwrap();
+        /*let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
+        let pk = decryption_key.encryption_key();
+
+        let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
+
+        let X = CurvePoint(g.0 * utils::bn_to_scalar(&x)?);
+        let mut rng1 = init_testing();
+        assert_ne!(rng, rng1);
+        let (C,_rho) = pk.encrypt(&mut rng1, &mut x).unwrap();*/
+
+        // Shorthand for input commitment parameters
+        //let scheme = _input.setup_params.scheme();
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
+
+        //let input = CommonInput::new(C, X, setup_params.scheme().clone(), pk, g);
+        //let mut transcript = Transcript::new(b"PiLogProof Test");
+
+        // Generate some random elements to use as replacements
+        let random_mask = random_plusminus_by_size(&mut rng, ELL + EPSILON);
+        let scheme = setup_params.scheme();
+        let (bad_plaintext_mask, _bad_randomness) = scheme.commit(&random_mask, ELL, &mut rng);
+        //let (bad_plaintext_mask = CommitmentScheme{ sid: val, pid: val, public_key:
+        // val, randomness: val, commit_randomness: rng };
+
+        // Swap mask_commit with a random [`Commitment`]
+        let mut bad_proof = proof.clone();
+        bad_proof.mask_commit = bad_plaintext_mask.clone();
+        assert_ne!(bad_proof.mask_commit, proof.mask_commit);
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap mask_commit with a random [`Commitment`]
+        let mut bad_proof = proof.clone();
+        bad_proof.plaintext_commit = bad_plaintext_mask;
+        assert_ne!(bad_proof.plaintext_commit, proof.plaintext_commit);
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap plaintext_response with a random [`Bignumber`]
+        let mut bad_proof = proof.clone();
+        assert_ne!(bad_proof.plaintext_response, random_mask);
+        bad_proof.plaintext_response = random_mask.clone();
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap challenge with a random [`Bignumber`]
+        let mut bad_proof = proof;
+        assert_ne!(bad_proof.challenge, random_mask);
+        bad_proof.challenge = random_mask;
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap mask_ciphertext with a random [`Ciphertext`]
+        //let random_ciphertext
+        /*let mut bad_proof = proof.clone();
+        let new_ciphertext = C.clone();
+        bad_proof.mask_ciphertext = new_ciphertext;
+        assert_ne!(bad_proof.mask_ciphertext, proof.mask_ciphertext);
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());*/
+
+        // Swap mask_dlog_commit with a random [`CurvePoint`]
+        /*let bad_proof = proof.clone();
+        assert_ne!(bad_proof.mask_dlog_commit, proof.mask_dlog_commit);
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap nonce_response with a random [`MaskedNonce`]
+        let bad_proof = proof.clone();
+        assert_ne!(bad_proof.nonce_response, proof.nonce_response);
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap plaintext_commit_response with a random [`MaskedRandomness`]
+        let bad_proof = proof.clone();
+        assert_ne!(
+            bad_proof.plaintext_commit_response,
+            proof.plaintext_commit_response
+        );
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());*/
+
         Ok(())
     }
 
