@@ -394,6 +394,36 @@ mod tests {
     }
 
     #[test]
+    fn pilog_proof_with_inconsistent_secret_inputs() -> Result<()> {
+        let mut rng = init_testing();
+        let x = random_plusminus_by_size(&mut rng, ELL);
+        let rng1 = random_plusminus_by_size(&mut rng, ELL);
+
+        let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
+        let pk = decryption_key.encryption_key();
+
+        let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
+
+        let X = CurvePoint(g.0 * utils::bn_to_scalar(&rng1)?);
+        let (C, rho) = pk.encrypt(&mut rng, &x).unwrap();
+
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
+
+        let input = CommonInput::new(C, X, setup_params.scheme().clone(), pk, g);
+        let mut transcript = Transcript::new(b"PiLogProof Test");
+
+        let bad_proof = PiLogProof::prove(
+            &input,
+            &ProverSecret::new(x.clone(), rho),
+            &(),
+            &mut transcript,
+            &mut rng,
+        )?;
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+        Ok(())
+    }
+
+    #[test]
     fn negative_test_swap_proof_elements() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
