@@ -605,6 +605,12 @@ mod tests {
     }
 
     #[test]
+    fn negative_tests_piaffg_proof() -> Result<()> {
+        
+        Ok(())
+    }
+
+    #[test]
     fn test_paillier_affg_proof() -> Result<()> {
         let mut rng = init_testing();
 
