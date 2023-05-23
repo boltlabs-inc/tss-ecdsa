@@ -416,6 +416,18 @@ mod tests {
     }*/
 
     #[test]
+    fn pilog_proof_with_different_setup_parameters() -> Result<()> {
+        let mut rng = init_testing();
+        let x = random_plusminus_by_size(&mut rng, ELL);
+        let (bad_proof, input, mut transcript) = random_paillier_log_proof(&mut rng, &x).unwrap();
+        let bad_context = BadContext {};
+        assert!(bad_proof
+            .verify(&input, &bad_context, &mut transcript)
+            .is_err());
+        Ok(())
+    }
+
+    #[test]
     fn pilog_proof_with_inconsistent_secret_inputs() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
