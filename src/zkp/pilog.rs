@@ -349,6 +349,8 @@ impl Proof for PiLogProof {
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Ok;
+
     use super::*;
     use crate::{
         paillier::DecryptionKey,
@@ -391,6 +393,12 @@ mod tests {
     ) -> Result<()> {
         let (proof, input, mut transcript) = random_paillier_log_proof(rng, x).unwrap();
         proof.verify(&input, &(), &mut transcript)
+    }
+
+    #[test]
+    fn negative_tests() -> Result<()> {
+        
+        Ok(())
     }
 
     #[test]
