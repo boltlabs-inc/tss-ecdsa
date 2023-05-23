@@ -550,7 +550,10 @@ mod tests {
     use super::*;
     use crate::{
         paillier::DecryptionKey,
-        utils::{random_plusminus_by_size_with_minimum, testing::init_testing},
+        utils::{
+            k256_order, random_plusminus, random_plusminus_by_size_with_minimum,
+            testing::init_testing,
+        },
         zkp::BadContext,
     };
 
@@ -676,12 +679,12 @@ mod tests {
         Ok(())
     }
 
-    /*#[test]
+    #[test]
     fn negative_test_random_proof_elements() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
-
-        let (proof, input, mut transcript) = random_paillier_affg_proof(&mut rng, &x).unwrap();
+        let y = random_plusminus_by_size(&mut rng, ELL);
+        let (proof, input, mut transcript) = random_paillier_affg_proof(&mut rng, &x, &y).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
         // Generate some random elements to use as replacements
@@ -689,66 +692,129 @@ mod tests {
         let scheme = setup_params.scheme();
         let (bad_plaintext_mask, bad_randomness) = scheme.commit(&random_mask, ELL, &mut rng);
 
-        // Swap mask_commit with a random [`Commitment`]
+        // Swap mult_coeff_commit with a random [`Commitment`]
         let mut bad_proof = proof.clone();
-        bad_proof.mask_commit = bad_plaintext_mask.clone();
-        assert_ne!(bad_proof.mask_commit, proof.mask_commit);
+        bad_proof.mult_coeff_commit = bad_plaintext_mask.clone();
+        assert_ne!(bad_proof.mult_coeff_commit, proof.mult_coeff_commit);
         assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
 
-        // Swap mask_commit with a random [`Commitment`]
+        // Swap add_coeff_commit with a random [`Commitment`]
         let mut bad_proof = proof.clone();
-        bad_proof.plaintext_commit = bad_plaintext_mask;
-        assert_ne!(bad_proof.plaintext_commit, proof.plaintext_commit);
+        bad_proof.add_coeff_commit = bad_plaintext_mask.clone();
+        assert_ne!(bad_proof.add_coeff_commit, proof.add_coeff_commit);
         assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
 
-        // Swap plaintext_response with a random [`Bignumber`]
+        // Swap random_mult_coeff_commit with a random [`Commitment`]
         let mut bad_proof = proof.clone();
-        assert_ne!(bad_proof.plaintext_response, random_mask);
-        bad_proof.plaintext_response = random_mask.clone();
+        bad_proof.random_mult_coeff_commit = bad_plaintext_mask.clone();
+        assert_ne!(
+            bad_proof.random_mult_coeff_commit,
+            proof.random_mult_coeff_commit
+        );
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap random_add_coeff_commit with a random [`Commitment`]
+        let mut bad_proof = proof.clone();
+        bad_proof.random_add_coeff_commit = bad_plaintext_mask;
+        assert_ne!(
+            bad_proof.random_add_coeff_commit,
+            proof.random_add_coeff_commit
+        );
         assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
 
         // Swap challenge with a random [`Bignumber`]
         let mut bad_proof = proof.clone();
-        assert_ne!(bad_proof.challenge, random_mask.clone());
-        bad_proof.challenge = random_mask;
+        bad_proof.challenge = random_plusminus(&mut rng, &k256_order());
+        assert_ne!(bad_proof.challenge, proof.challenge);
         assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
 
-        // Swap mask_ciphertext with a random [`Ciphertext`]
+        // Swap masked_mult_coeff with a random [`Bignumber`]
+        let mut bad_proof = proof.clone();
+        bad_proof.masked_mult_coeff = random_mask.clone();
+        assert_ne!(bad_proof.masked_mult_coeff, proof.masked_mult_coeff);
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap masked_add_coeff with a random [`Bignumber`]
+        let mut bad_proof = proof.clone();
+        bad_proof.masked_add_coeff = random_mask;
+        assert_ne!(bad_proof.masked_add_coeff, proof.masked_add_coeff);
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap random_affine_ciphertext_verifier with a random [`Ciphertext`]
         let mut bad_proof = proof.clone();
         let plaintext = random_plusminus_by_size(&mut rng, ELL);
         let (ciphertext, _nonce) = input
             .prover_encryption_key
             .encrypt(&mut rng, &plaintext)
             .unwrap();
-        bad_proof.mask_ciphertext = ciphertext;
-        assert_ne!(bad_proof.mask_ciphertext, proof.mask_ciphertext);
+        bad_proof.random_affine_ciphertext_verifier = ciphertext;
+        assert_ne!(
+            bad_proof.random_affine_ciphertext_verifier,
+            proof.random_affine_ciphertext_verifier
+        );
         assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
 
-        // Swap mask_dlog_commit with a random [`CurvePoint`]
+        // Swap random_affine_ciphertext_prover with a random [`Ciphertext`]
+        let mut bad_proof = proof.clone();
+        let plaintext = random_plusminus_by_size(&mut rng, ELL);
+        let (ciphertext, _nonce) = input
+            .prover_encryption_key
+            .encrypt(&mut rng, &plaintext)
+            .unwrap();
+        bad_proof.random_add_coeff_ciphertext_prover = ciphertext;
+        assert_ne!(
+            bad_proof.random_add_coeff_ciphertext_prover,
+            proof.random_add_coeff_ciphertext_prover
+        );
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap random_mult_coeff_exp with a random [`CurvePoint`]
         let mut bad_proof = proof.clone();
         let mask = random_plusminus_by_size(&mut rng, ELL);
-        bad_proof.mask_dlog_commit = input.generator.multiply_by_scalar(&mask)?;
-        assert_ne!(bad_proof.mask_dlog_commit, proof.mask_dlog_commit);
+        bad_proof.random_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_scalar(&mask)?;
+        assert_ne!(bad_proof.random_mult_coeff_exp, proof.random_mult_coeff_exp);
         assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
 
-        // Swap nonce_response with a random [`MaskedNonce`]
+        // Swap masked_add_coeff_nonce_prover with a random [`MaskedNonce`]
         let mut bad_proof = proof.clone();
-        bad_proof.nonce_response =
+        bad_proof.masked_add_coeff_nonce_prover =
             MaskedNonce::random(&mut rng, input.prover_encryption_key.modulus());
-        assert_ne!(bad_proof.nonce_response, proof.nonce_response);
+        assert_ne!(
+            bad_proof.masked_add_coeff_nonce_prover,
+            proof.masked_add_coeff_nonce_prover
+        );
         assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
 
-        // Swap plaintext_commit_response with a random [`MaskedRandomness`]
+        // Swap masked_add_coeff_nonce_prover with a random [`MaskedNonce`]
         let mut bad_proof = proof.clone();
-        bad_proof.plaintext_commit_response = bad_randomness.as_masked().to_owned();
+        bad_proof.masked_add_coeff_nonce_prover =
+            MaskedNonce::random(&mut rng, input.prover_encryption_key.modulus());
         assert_ne!(
-            bad_proof.plaintext_commit_response,
-            proof.plaintext_commit_response
+            bad_proof.masked_add_coeff_nonce_prover,
+            proof.masked_add_coeff_nonce_prover
+        );
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap masked_mult_coeff_commit_randomness with a random [`MaskedRandomness`]
+        let mut bad_proof = proof.clone();
+        bad_proof.masked_mult_coeff_commit_randomness = bad_randomness.as_masked().to_owned();
+        assert_ne!(
+            bad_proof.masked_mult_coeff_commit_randomness,
+            proof.masked_mult_coeff_commit_randomness
+        );
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap masked_add_coeff_commit_randomness with a random [`MaskedRandomness`]
+        let mut bad_proof = proof.clone();
+        bad_proof.masked_add_coeff_commit_randomness = bad_randomness.as_masked().to_owned();
+        assert_ne!(
+            bad_proof.masked_add_coeff_commit_randomness,
+            proof.masked_add_coeff_commit_randomness
         );
         assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
 
         Ok(())
-    }*/
+    }
 
     #[test]
     fn test_paillier_affg_proof() -> Result<()> {
