@@ -604,11 +604,145 @@ mod tests {
         with_random_paillier_affg_proof(rng, x, y, f)
     }
 
+    /*#[test]
+    fn pilog_proof_with_consistent_secret_inputs_out_of_range() -> Result<()> {
+        loop {
+            let mut rng = init_testing();
+            let upper_bound = BigNumber::one() << ELL;
+            let too_large =
+                random_plusminus_by_size_with_minimum(&mut rng, ELL * ELL + 2, ELL * ELL + 1)?;
+            //assert!(too_large.gt(&upper_bound));
+            let (bad_proof, input, mut transcript) =
+                random_paillier_log_proof(&mut rng, &too_large).unwrap();
+            if too_large.gt(&upper_bound) {
+                assert!(bad_proof.verify(&input, &(), &mut transcript).is_ok());
+                break;
+            }
+        }
+        let too_small = -too_large;
+        let (bad_proof, input, mut transcript) =
+            random_paillier_log_proof(&mut rng, &too_small).unwrap();
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+        Ok(())
+    }*/
+
     #[test]
-    fn negative_tests_piaffg_proof() -> Result<()> {
-        
+    fn piaffg_proof_with_different_setup_parameters() -> Result<()> {
+        let mut rng = init_testing();
+        let x = random_plusminus_by_size(&mut rng, ELL);
+        let y = random_plusminus_by_size(&mut rng, ELL);
+        let (bad_proof, input, mut transcript) =
+            random_paillier_affg_proof(&mut rng, &x, &y).unwrap();
+        let bad_context = BadContext {};
+        assert!(bad_proof
+            .verify(&input, &bad_context, &mut transcript)
+            .is_err());
         Ok(())
     }
+
+    /*#[test]
+    fn piaffg_proof_with_inconsistent_secret_inputs() -> Result<()> {
+        let mut rng = init_testing();
+        let x = random_plusminus_by_size(&mut rng, ELL);
+        let rng1 = random_plusminus_by_size(&mut rng, ELL);
+
+        let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
+        let pk = decryption_key.encryption_key();
+
+        let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
+
+        let X = CurvePoint(g.0 * utils::bn_to_scalar(&rng1)?);
+        let (C, rho) = pk.encrypt(&mut rng, &x).unwrap();
+
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
+
+        let input = CommonInput::new(C, X, setup_params.scheme().clone(), pk, g);
+        let mut transcript = Transcript::new(b"PiLogProof Test");
+
+        let bad_proof = PiAffgProof::prove(
+            &input,
+            &ProverSecret::new(x.clone(), rho),
+            &(),
+            &mut transcript,
+            &mut rng,
+        )?;
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn negative_test_random_proof_elements() -> Result<()> {
+        let mut rng = init_testing();
+        let x = random_plusminus_by_size(&mut rng, ELL);
+
+        let (proof, input, mut transcript) = random_paillier_affg_proof(&mut rng, &x).unwrap();
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
+
+        // Generate some random elements to use as replacements
+        let random_mask = random_plusminus_by_size(&mut rng, ELL + EPSILON);
+        let scheme = setup_params.scheme();
+        let (bad_plaintext_mask, bad_randomness) = scheme.commit(&random_mask, ELL, &mut rng);
+
+        // Swap mask_commit with a random [`Commitment`]
+        let mut bad_proof = proof.clone();
+        bad_proof.mask_commit = bad_plaintext_mask.clone();
+        assert_ne!(bad_proof.mask_commit, proof.mask_commit);
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap mask_commit with a random [`Commitment`]
+        let mut bad_proof = proof.clone();
+        bad_proof.plaintext_commit = bad_plaintext_mask;
+        assert_ne!(bad_proof.plaintext_commit, proof.plaintext_commit);
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap plaintext_response with a random [`Bignumber`]
+        let mut bad_proof = proof.clone();
+        assert_ne!(bad_proof.plaintext_response, random_mask);
+        bad_proof.plaintext_response = random_mask.clone();
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap challenge with a random [`Bignumber`]
+        let mut bad_proof = proof.clone();
+        assert_ne!(bad_proof.challenge, random_mask.clone());
+        bad_proof.challenge = random_mask;
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap mask_ciphertext with a random [`Ciphertext`]
+        let mut bad_proof = proof.clone();
+        let plaintext = random_plusminus_by_size(&mut rng, ELL);
+        let (ciphertext, _nonce) = input
+            .prover_encryption_key
+            .encrypt(&mut rng, &plaintext)
+            .unwrap();
+        bad_proof.mask_ciphertext = ciphertext;
+        assert_ne!(bad_proof.mask_ciphertext, proof.mask_ciphertext);
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap mask_dlog_commit with a random [`CurvePoint`]
+        let mut bad_proof = proof.clone();
+        let mask = random_plusminus_by_size(&mut rng, ELL);
+        bad_proof.mask_dlog_commit = input.generator.multiply_by_scalar(&mask)?;
+        assert_ne!(bad_proof.mask_dlog_commit, proof.mask_dlog_commit);
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap nonce_response with a random [`MaskedNonce`]
+        let mut bad_proof = proof.clone();
+        bad_proof.nonce_response =
+            MaskedNonce::random(&mut rng, input.prover_encryption_key.modulus());
+        assert_ne!(bad_proof.nonce_response, proof.nonce_response);
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        // Swap plaintext_commit_response with a random [`MaskedRandomness`]
+        let mut bad_proof = proof.clone();
+        bad_proof.plaintext_commit_response = bad_randomness.as_masked().to_owned();
+        assert_ne!(
+            bad_proof.plaintext_commit_response,
+            proof.plaintext_commit_response
+        );
+        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+
+        Ok(())
+    }*/
 
     #[test]
     fn test_paillier_affg_proof() -> Result<()> {
