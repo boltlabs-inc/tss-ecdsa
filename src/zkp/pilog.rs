@@ -349,7 +349,7 @@ impl Proof for PiLogProof {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Ok;
+    //use anyhow::Ok;
 
     use super::*;
     use crate::{
