@@ -607,30 +607,30 @@ mod tests {
         with_random_paillier_affg_proof(rng, x, y, f)
     }
 
-    /*#[test]
+    #[test]
     fn piaffg_proof_with_consistent_secret_inputs_out_of_range() -> Result<()> {
+        let mut rng = init_testing();
+        let upper_bound = BigNumber::one() << (ELL + EPSILON);
         loop {
-            let mut rng = init_testing();
-            //let x = random_plusminus_by_size(&mut rng, ELL);
-            let y = random_plusminus_by_size(&mut rng, ELL);
-
-            let upper_bound = BigNumber::one() << ELL;
-            let too_large =
-                random_plusminus_by_size_with_minimum(&mut rng, ELL * ELL + 2, ELL * ELL + 1)?;
-            //assert!(too_large.gt(&upper_bound));
+            let too_large = random_plusminus_by_size_with_minimum(
+                &mut rng,
+                ELL + EPSILON + 2,
+                ELL + EPSILON + 1,
+            )?;
+            let too_small = -too_large.clone();
             let (bad_proof, input, mut transcript) =
-                random_paillier_affg_proof(&mut rng, &too_large, &y).unwrap();
+                random_paillier_affg_proof(&mut rng, &too_large, &too_large).unwrap();
             if too_large.gt(&upper_bound) {
+                assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+                let (bad_proof, input, mut transcript) =
+                    random_paillier_affg_proof(&mut rng, &too_small, &too_small).unwrap();
                 assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
                 break;
             }
         }
-        /*let too_small = -too_large;
-        let (bad_proof, input, mut transcript) =
-            random_paillier_log_proof(&mut rng, &too_small).unwrap();
-        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());*/
+
         Ok(())
-    }*/
+    }
 
     #[test]
     fn piaffg_proof_with_different_setup_parameters() -> Result<()> {
