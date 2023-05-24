@@ -393,18 +393,21 @@ mod tests {
         proof.verify(&input, &(), &mut transcript)
     }
 
-    /*#[test]
+    #[test]
     fn pilog_proof_with_consistent_secret_inputs_out_of_range() -> Result<()> {
         loop {
             let mut rng = init_testing();
-            let upper_bound = BigNumber::one() << ELL;
-            let too_large =
-                random_plusminus_by_size_with_minimum(&mut rng, ELL * ELL + 2, ELL * ELL + 1)?;
+            let upper_bound = BigNumber::one() << (ELL + EPSILON);
+            let too_large = random_plusminus_by_size_with_minimum(
+                &mut rng,
+                ELL + EPSILON + 2,
+                ELL + EPSILON + 1,
+            )?;
             //assert!(too_large.gt(&upper_bound));
             let (bad_proof, input, mut transcript) =
                 random_paillier_log_proof(&mut rng, &too_large).unwrap();
             if too_large.gt(&upper_bound) {
-                assert!(bad_proof.verify(&input, &(), &mut transcript).is_ok());
+                assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
                 break;
             }
         }
@@ -413,7 +416,7 @@ mod tests {
             random_paillier_log_proof(&mut rng, &too_small).unwrap();
         assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());*/
         Ok(())
-    }*/
+    }
 
     #[test]
     fn pilog_proof_with_different_setup_parameters() -> Result<()> {
