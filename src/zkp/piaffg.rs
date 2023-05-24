@@ -628,7 +628,6 @@ mod tests {
                 break;
             }
         }
-
         Ok(())
     }
 
