@@ -54,6 +54,14 @@ impl Debug for Nonce {
     }
 }
 
+#[cfg(test)]
+impl Nonce {
+    /// Generate a random `Nonce` for testing only!
+    pub(crate) fn random<R: CryptoRng + RngCore>(rng: &mut R, modulus: &BigNumber) -> Self {
+        Nonce(random_positive_bn(rng, modulus))
+    }
+}
+
 /// A masked version of [`Nonce`] produced by [`EncryptionKey::mask()`].
 #[derive(Clone, Serialize, Deserialize, PartialEq, ZeroizeOnDrop)]
 pub(crate) struct MaskedNonce(BigNumber);

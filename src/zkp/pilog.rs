@@ -349,9 +349,11 @@ impl Proof for PiLogProof {
 
 #[cfg(test)]
 mod tests {
+    //use k256::elliptic_curve::bigint::Random;
+
     use super::*;
     use crate::{
-        paillier::DecryptionKey,
+        paillier::{DecryptionKey, Nonce},
         ring_pedersen::VerifiedRingPedersen,
         utils::{random_plusminus_by_size_with_minimum, testing::init_testing},
         zkp::BadContext,
@@ -499,20 +501,15 @@ mod tests {
 
         // Make a valid secret
         let x = random_plusminus_by_size(&mut rng, ELL);
-
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let pk = decryption_key.encryption_key();
-
         let g = CurvePoint::GENERATOR;
 
-        // Make a valid common input that doesn't correspond to the secret
-        let bad_x = random_plusminus_by_size(&mut rng, ELL);
-        let dlog_commit = g.multiply_by_scalar(&bad_x)?;
+        // Make a valid common input
+        let dlog_commit = g.multiply_by_scalar(&x)?;
         let (ciphertext, rho) = pk.encrypt(&mut rng, &x).unwrap();
-
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
-
-        let bad_input = CommonInput::new(
+        let input = CommonInput::new(
             ciphertext,
             dlog_commit,
             setup_params.scheme().clone(),
@@ -520,26 +517,24 @@ mod tests {
             g,
         );
         let mut transcript = Transcript::new(b"PiLogProof Test");
-        let bad_proof_C = PiLogProof::prove(
-            &bad_input,
-            &ProverSecret::new(x.clone(), rho),
+
+        // Generate a random plaintext for the secret
+        let bad_x = random_plusminus_by_size(&mut rng, ELL);
+        let bad_proof_x = PiLogProof::prove(
+            &input,
+            &ProverSecret::new(bad_x, rho),
             &(),
             &mut transcript,
             &mut rng,
         )?;
 
         // The proof should fail to verify
-        assert!(bad_proof_C
-            .verify(&bad_input, &(), &mut transcript)
-            .is_err());
+        assert!(bad_proof_x.verify(&input, &(), &mut transcript).is_err());
 
-        // Make an invalid proof using bad_rho
-        let pk = decryption_key.encryption_key();
-        let X = CurvePoint(g.0 * utils::bn_to_scalar(&x)?);
-        let (ciphertext, bad_rho) = pk.encrypt(&mut rng, &bad_x).unwrap();
-        let bad_input = CommonInput::new(ciphertext, X, setup_params.scheme().clone(), pk, g);
+        // Generate a random rho for the secret
+        let bad_rho = Nonce::random(&mut rng, input.prover_encryption_key.modulus());
         let bad_proof_rho = PiLogProof::prove(
-            &bad_input,
+            &input,
             &ProverSecret::new(x.clone(), bad_rho),
             &(),
             &mut transcript,
@@ -547,9 +542,7 @@ mod tests {
         )?;
 
         // The proof should fail to verify
-        assert!(bad_proof_rho
-            .verify(&bad_input, &(), &mut transcript)
-            .is_err());
+        assert!(bad_proof_rho.verify(&input, &(), &mut transcript).is_err());
 
         Ok(())
     }
