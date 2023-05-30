@@ -280,13 +280,13 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         self.other_ids()
             .iter()
             .map(|&other_participant_id| {
-                Ok(Message::new(
+                Message::new(
                     message_type,
                     id,
                     self.id(),
                     other_participant_id,
                     &serialize!(&data)?,
-                ))
+                )
             })
             .collect()
     }
@@ -298,6 +298,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         message: &Message,
     ) -> Result<(ProcessOutcome<Self::Output>, bool)> {
         self.local_storage_mut().store::<T>(message.from(), ());
+        let array: [u8; 0] = [];
         // If message came from self, then tell the other participants that we are ready
         let self_initiated_outcome = if message.from() == self.id() {
             let messages = self
@@ -309,10 +310,10 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
                         message.id(),
                         self.id(),
                         *other_id,
-                        &[],
+                        &array,
                     )
                 })
-                .collect();
+                .collect::<Result<Vec<Message>>>()?;
             ProcessOutcome::Processed(messages)
         } else {
             ProcessOutcome::Incomplete

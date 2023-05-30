@@ -353,7 +353,7 @@ impl Worker {
 
         let mut participant: Participant<P> =
             Participant::from_config(self.config.clone(), sid.0, inputs)?;
-        let init_message = participant.initialize_message();
+        let init_message = participant.initialize_message()?;
 
         // Output will be None.
         let (_output, messages) = participant.process_single_message(&init_message, rng)?;

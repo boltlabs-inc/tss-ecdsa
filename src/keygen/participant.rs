@@ -27,6 +27,7 @@ use crate::{
     },
     Identifier,
 };
+
 use k256::ecdsa::VerifyingKey;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
@@ -468,11 +469,20 @@ impl KeygenParticipant {
         }
 
         let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
-        let more_messages = self.message_for_other_participants(
-            MessageType::Keygen(KeygenMessageType::R2Decommit),
-            sid,
-            decom,
-        )?;
+
+        let more_messages: Vec<Message> = self
+            .other_participant_ids
+            .iter()
+            .map(|&other_participant_id| {
+                Message::new(
+                    MessageType::Keygen(KeygenMessageType::R2Decommit),
+                    sid,
+                    self.id,
+                    other_participant_id,
+                    &decom,
+                )
+            })
+            .collect::<Result<Vec<Message>>>()?;
         messages.extend_from_slice(&more_messages);
         Ok(messages)
     }
@@ -585,11 +595,20 @@ impl KeygenParticipant {
             &PiSchSecret::new(my_sk.as_ref()),
             &transcript,
         )?;
-        let messages = self.message_for_other_participants(
-            MessageType::Keygen(KeygenMessageType::R3Proof),
-            sid,
-            proof,
-        )?;
+
+        let messages: Vec<Message> = self
+            .other_participant_ids
+            .iter()
+            .map(|&other_participant_id| {
+                Message::new(
+                    MessageType::Keygen(KeygenMessageType::R3Proof),
+                    sid,
+                    self.id,
+                    other_participant_id,
+                    &proof,
+                )
+            })
+            .collect::<Result<Vec<Message>>>()?;
         Ok(messages)
     }
 
@@ -675,7 +694,10 @@ fn schnorr_proof_transcript(global_rid: &[u8; 32]) -> Result<Transcript> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::testing::init_testing, Identifier, ParticipantConfig};
+    use crate::{
+        utils::testing::{init_testing, init_testing_with_seed},
+        Identifier, ParticipantConfig,
+    };
     use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
     use tracing::debug;
@@ -691,18 +713,23 @@ mod tests {
                 .map(|config| Self::new(sid, config.id(), config.other_ids().to_vec(), ()))
                 .collect::<Result<Vec<_>>>()
         }
-        pub fn initialize_keygen_message(&self, keygen_identifier: Identifier) -> Message {
+        pub fn initialize_keygen_message(&self, keygen_identifier: Identifier) -> Result<Message> {
+            let array: [u8; 0] = [];
             Message::new(
                 MessageType::Keygen(KeygenMessageType::Ready),
                 keygen_identifier,
                 self.id,
                 self.id,
-                &[],
+                &array,
             )
         }
     }
 
     /// Delivers all messages into their respective participant's inboxes
+    /*fn deliver_all(
+        messages: &HashMap<ParticipantIdentifier, Vec<Message>>,
+        inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
+    ) -> Result<()> {*/
     fn deliver_all(
         messages: &[Message],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
@@ -760,7 +787,10 @@ mod tests {
     // This test is cheap. Try a bunch of message permutations to decrease error
     // likelihood
     fn keygen_always_produces_valid_outputs() -> Result<()> {
-        let _rng = init_testing();
+        let _rng = init_testing_with_seed([
+            241, 134, 149, 128, 168, 22, 127, 49, 88, 71, 94, 29, 102, 167, 223, 46, 28, 86, 121,
+            177, 148, 245, 172, 252, 23, 102, 57, 92, 33, 32, 185, 95,
+        ]);
 
         for _ in 0..20 {
             keygen_produces_valid_outputs()?;
@@ -786,7 +816,7 @@ mod tests {
 
         for participant in &quorum {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
-            inbox.push(participant.initialize_keygen_message(keyshare_identifier));
+            inbox.push(participant.initialize_keygen_message(keyshare_identifier)?);
         }
 
         while !is_keygen_done(&quorum) {

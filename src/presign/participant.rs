@@ -558,13 +558,13 @@ impl PresignParticipant {
         let mut messages = r1_publics
             .into_iter()
             .map(|(other_id, r1_public)| {
-                Ok(Message::new(
+                Message::new(
                     MessageType::Presign(PresignMessageType::RoundOne),
                     sid,
                     self.id,
                     other_id,
-                    &serialize!(&r1_public)?,
-                ))
+                    &r1_public,
+                )
             })
             .collect::<Result<Vec<_>>>()?;
         // Generate the round one broadcast messages.
@@ -738,13 +738,13 @@ impl PresignParticipant {
                 )?;
                 self.local_storage
                     .store::<storage::RoundTwoPrivate>(pid, r2_priv);
-                Ok(Message::new(
+                Message::new(
                     MessageType::Presign(PresignMessageType::RoundTwo),
                     sid,
                     self.id,
                     pid,
-                    &serialize!(&r2_pub)?,
-                ))
+                    &r2_pub,
+                )
             })
             .collect::<Result<Vec<_>>>()?;
         messages.extend(more_messages);
@@ -856,13 +856,13 @@ impl PresignParticipant {
         let messages = r3_publics_map
             .into_iter()
             .map(|(id, r3_public)| {
-                Ok(Message::new(
+                Message::new(
                     MessageType::Presign(PresignMessageType::RoundThree),
                     sid,
                     self.id,
                     id,
-                    &serialize!(&r3_public)?,
-                ))
+                    &r3_public,
+                )
             })
             .collect::<Result<Vec<_>>>()?;
         Ok(messages)

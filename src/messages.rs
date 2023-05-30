@@ -121,21 +121,24 @@ impl Debug for Message {
 impl Message {
     /// Creates a new instance of [`Message`].
     #[instrument(skip_all)]
-    pub(crate) fn new(
+    pub fn new<T>(
         message_type: MessageType,
         identifier: Identifier,
         from: ParticipantIdentifier,
         to: ParticipantIdentifier,
-        unverified_bytes: &[u8],
-    ) -> Self {
+        unverified_bytes: &T,
+    ) -> Result<Self>
+    where
+        T: Serialize,
+    {
         trace!("New message created.");
-        Self {
+        Ok(Self {
             message_type,
             identifier,
             from,
             to,
-            unverified_bytes: unverified_bytes.to_vec(),
-        }
+            unverified_bytes: serialize!(unverified_bytes)?,
+        })
     }
 
     /// The message type associated with the message.

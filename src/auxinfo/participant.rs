@@ -394,12 +394,20 @@ impl AuxInfoParticipant {
         }
 
         let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
-        let more_messages = self.message_for_other_participants(
-            MessageType::Auxinfo(AuxinfoMessageType::R2Decommit),
-            sid,
-            decom,
-        )?;
-        messages.extend(more_messages);
+        messages.extend(
+            self.other_participant_ids
+                .iter()
+                .map(|&other_participant_id| {
+                    Message::new(
+                        MessageType::Auxinfo(AuxinfoMessageType::R2Decommit),
+                        sid,
+                        self.id,
+                        other_participant_id,
+                        &decom,
+                    )
+                })
+                .collect::<Result<Vec<Message>>>()?,
+        );
         Ok(messages)
     }
 
@@ -526,13 +534,13 @@ impl AuxInfoParticipant {
                     &witness.p,
                     &witness.q,
                 )?;
-                Ok(Message::new(
+                Message::new(
                     MessageType::Auxinfo(AuxinfoMessageType::R3Proof),
                     sid,
                     self.id,
                     pid,
-                    &serialize!(&proof)?,
-                ))
+                    &proof,
+                )
             })
             .collect::<Result<Vec<_>>>()
     }
@@ -652,13 +660,17 @@ mod tests {
                 .collect::<Result<Vec<_>>>()
         }
 
-        pub fn initialize_auxinfo_message(&self, auxinfo_identifier: Identifier) -> Message {
+        pub fn initialize_auxinfo_message(
+            &self,
+            auxinfo_identifier: Identifier,
+        ) -> Result<Message> {
+            let array: [u8; 0] = [];
             Message::new(
                 MessageType::Auxinfo(AuxinfoMessageType::Ready),
                 auxinfo_identifier,
                 self.id,
                 self.id,
-                &[],
+                &array,
             )
         }
     }
@@ -734,6 +746,7 @@ mod tests {
         }
         Ok(())
     }
+
     #[test]
     fn test_run_auxinfo_protocol() -> Result<()> {
         let QUORUM_SIZE = 3;
@@ -752,7 +765,7 @@ mod tests {
 
         for participant in &quorum {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
-            inbox.push(participant.initialize_auxinfo_message(keyshare_identifier));
+            inbox.push(participant.initialize_auxinfo_message(keyshare_identifier)?);
         }
 
         while !is_auxinfo_done(&quorum) {

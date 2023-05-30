@@ -59,7 +59,7 @@ fn run_subprotocol<P: ProtocolParticipant>(
     let mut rng = rand::thread_rng();
     for participant in quorum.iter() {
         let inbox = inboxes.get_mut(&participant.id()).unwrap();
-        inbox.push(participant.initialize_message());
+        inbox.push(participant.initialize_message()?);
     }
 
     let mut outputs = Vec::with_capacity(quorum.len());
