@@ -435,13 +435,7 @@ mod tests {
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let mut transcript = Transcript::new(b"PiLogProof Test");
 
-        // Generate a random [`BigNumber`] to be swapped by the actual
-        let _random_setup_param = random_plusminus_by_size(&mut rng, ELL);
-        // Swap modulus with a random [`BigNumber`]
-        //let bad_setup_params = RingPedersen {modulus: random_setup_param, s:
-        // setup_params.scheme().s().clone(), t: setup_params.scheme().t().clone()};
-        // assert_ne!(bad_proof.mask_commit, proof.mask_commit);
-        //assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+        //let bad_g = CurvePoint::
 
         let input = CommonInput::new(
             ciphertext.clone(),
@@ -450,6 +444,29 @@ mod tests {
             pk.clone(),
             g,
         );
+
+        // Generate a random [`BigNumber`] to be swapped by the actual
+        //let random_setup_param = random_plusminus_by_size(&mut rng, ELL);
+        // Swap modulus with a random [`BigNumber`]
+        /*let bad_setup_params = RingPedersen {modulus: random_setup_param, s:setup_params.scheme().s().clone(), t: setup_params.scheme().t().clone()};
+        let bad_input = CommonInput::new(
+            ciphertext.clone(),
+            dlog_commit,
+            bad_setup_params.clone(),
+            pk.clone(),
+            g,
+        );
+        let proof = PiLogProof::prove(
+            &bad_input,
+            &ProverSecret::new(x.clone(), rho.clone()),
+            &(),
+            &mut transcript,
+            &mut rng,
+        )?;
+        assert_ne!(proof.mask_commit, proof.mask_commit);
+        assert!(proof.verify(&input, &(), &mut transcript).is_err());*/
+
+        
         // Swap ciphertext with a random [`Ciphertext`]
         let plaintext = random_plusminus_by_size(&mut rng, ELL);
         let (bad_ciphertext, _nonce) = input
