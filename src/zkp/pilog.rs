@@ -481,14 +481,12 @@ mod tests {
         )?;
         assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
 
-        // Generate a random [`BigNumber`] to be swapped by the actual
-        //let random_setup_param = random_plusminus_by_size(&mut rng, ELL);
-        // Swap modulus with a random [`BigNumber`]
-        /*let bad_setup_params = RingPedersen {modulus: random_setup_param, s:setup_params.scheme().s().clone(), t: setup_params.scheme().t().clone()};
+        // Generate a random setup parameter
+        let bad_setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let bad_input = CommonInput::new(
             ciphertext.clone(),
             dlog_commit,
-            bad_setup_params.clone(),
+            bad_setup_params.scheme().clone(),
             pk.clone(),
             g,
         );
@@ -499,8 +497,7 @@ mod tests {
             &mut transcript,
             &mut rng,
         )?;
-        assert_ne!(proof.mask_commit, proof.mask_commit);
-        assert!(proof.verify(&input, &(), &mut transcript).is_err());*/
+        assert!(proof.verify(&input, &(), &mut transcript).is_err());
 
         // Swap ciphertext with a random [`Ciphertext`]
         let plaintext = random_plusminus_by_size(&mut rng, ELL);
