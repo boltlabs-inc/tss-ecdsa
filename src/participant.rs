@@ -285,7 +285,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
                     id,
                     self.id(),
                     other_participant_id,
-                    &serialize!(&data)?,
+                    &data,
                 )
             })
             .collect()
