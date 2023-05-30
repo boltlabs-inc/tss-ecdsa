@@ -435,8 +435,6 @@ mod tests {
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let mut transcript = Transcript::new(b"PiLogProof Test");
 
-        //let bad_g = CurvePoint::
-
         let input = CommonInput::new(
             ciphertext.clone(),
             dlog_commit,
@@ -444,6 +442,44 @@ mod tests {
             pk.clone(),
             g,
         );
+
+        // Generate a random encryption key
+        let (bad_decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
+        let bad_pk = bad_decryption_key.encryption_key();
+        let bad_input = CommonInput::new(
+            ciphertext.clone(),
+            dlog_commit,
+            setup_params.scheme().clone(),
+            bad_pk,
+            g,
+        );
+        let proof = PiLogProof::prove(
+            &bad_input,
+            &ProverSecret::new(x.clone(), rho.clone()),
+            &(),
+            &mut transcript,
+            &mut rng,
+        )?;
+        assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
+
+        // Generate a random generator
+        let random_mask = random_plusminus_by_size(&mut rng, ELL);
+        let bad_g = input.generator.multiply_by_scalar(&random_mask)?;
+        let bad_input = CommonInput::new(
+            ciphertext.clone(),
+            dlog_commit,
+            setup_params.scheme().clone(),
+            pk.clone(),
+            bad_g,
+        );
+        let proof = PiLogProof::prove(
+            &bad_input,
+            &ProverSecret::new(x.clone(), rho.clone()),
+            &(),
+            &mut transcript,
+            &mut rng,
+        )?;
+        assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
 
         // Generate a random [`BigNumber`] to be swapped by the actual
         //let random_setup_param = random_plusminus_by_size(&mut rng, ELL);
@@ -466,7 +502,6 @@ mod tests {
         assert_ne!(proof.mask_commit, proof.mask_commit);
         assert!(proof.verify(&input, &(), &mut transcript).is_err());*/
 
-        
         // Swap ciphertext with a random [`Ciphertext`]
         let plaintext = random_plusminus_by_size(&mut rng, ELL);
         let (bad_ciphertext, _nonce) = input
