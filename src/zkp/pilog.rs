@@ -349,8 +349,6 @@ impl Proof for PiLogProof {
 
 #[cfg(test)]
 mod tests {
-    //use k256::elliptic_curve::bigint::Random;
-
     use super::*;
     use crate::{
         paillier::{DecryptionKey, Nonce},
