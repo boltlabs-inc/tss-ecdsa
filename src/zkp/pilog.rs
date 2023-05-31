@@ -521,14 +521,13 @@ mod tests {
         )?;
         assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
 
-        // Swap mask_dlog_commit with a random [`CurvePoint`]
-        let mut bad_proof = proof.clone();
+        // Swap dlog_commit with a random [`CurvePoint`]
         let mask = random_plusminus_by_size(&mut rng, ELL);
-        bad_proof.mask_dlog_commit = bad_input.generator.multiply_by_scalar(&mask)?;
-        assert_ne!(bad_proof.mask_dlog_commit, input.dlog_commit);
+        let bad_dlog_commit = input.generator.multiply_by_scalar(&mask)?;
+        assert_ne!(bad_dlog_commit, input.dlog_commit);
         let bad_input = CommonInput::new(
             ciphertext,
-            dlog_commit,
+            bad_dlog_commit,
             setup_params.scheme().clone(),
             pk.clone(),
             g,
