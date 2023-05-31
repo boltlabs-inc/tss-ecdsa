@@ -606,7 +606,7 @@ mod tests {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
 
-        let (proof, input, mut transcript) = random_paillier_log_proof(&mut rng, &x).unwrap();
+        let (proof, input, _) = random_paillier_log_proof(&mut rng, &x).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
         // Generate some random elements to use as replacements
@@ -618,25 +618,25 @@ mod tests {
         let mut bad_proof = proof.clone();
         bad_proof.mask_commit = bad_plaintext_mask.clone();
         assert_ne!(bad_proof.mask_commit, proof.mask_commit);
-        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
 
         // Swap plaintext_commit with a random [`Commitment`]
         let mut bad_proof = proof.clone();
         bad_proof.plaintext_commit = bad_plaintext_mask;
         assert_ne!(bad_proof.plaintext_commit, proof.plaintext_commit);
-        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
 
         // Swap plaintext_response with a random [`Bignumber`]
         let mut bad_proof = proof.clone();
         assert_ne!(bad_proof.plaintext_response, random_mask);
         bad_proof.plaintext_response = random_mask.clone();
-        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
 
         // Swap challenge with a random [`Bignumber`]
         let mut bad_proof = proof.clone();
         assert_ne!(bad_proof.challenge, random_mask.clone());
         bad_proof.challenge = random_mask;
-        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
 
         // Swap mask_ciphertext with a random [`Ciphertext`]
         let mut bad_proof = proof.clone();
@@ -647,21 +647,21 @@ mod tests {
             .unwrap();
         bad_proof.mask_ciphertext = ciphertext;
         assert_ne!(bad_proof.mask_ciphertext, proof.mask_ciphertext);
-        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
 
         // Swap mask_dlog_commit with a random [`CurvePoint`]
         let mut bad_proof = proof.clone();
         let mask = random_plusminus_by_size(&mut rng, ELL);
         bad_proof.mask_dlog_commit = input.generator.multiply_by_scalar(&mask)?;
         assert_ne!(bad_proof.mask_dlog_commit, proof.mask_dlog_commit);
-        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
 
         // Swap nonce_response with a random [`MaskedNonce`]
         let mut bad_proof = proof.clone();
         bad_proof.nonce_response =
             MaskedNonce::random(&mut rng, input.prover_encryption_key.modulus());
         assert_ne!(bad_proof.nonce_response, proof.nonce_response);
-        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
 
         // Swap plaintext_commit_response with a random [`MaskedRandomness`]
         let mut bad_proof = proof.clone();
@@ -670,7 +670,7 @@ mod tests {
             bad_proof.plaintext_commit_response,
             proof.plaintext_commit_response
         );
-        assert!(bad_proof.verify(&input, &(), &mut transcript).is_err());
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
 
         Ok(())
     }
