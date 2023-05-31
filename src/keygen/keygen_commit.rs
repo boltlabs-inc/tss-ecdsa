@@ -19,7 +19,7 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use tracing::{error, instrument};
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct KeygenCommit {
     hash: [u8; 32],
 }

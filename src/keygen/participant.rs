@@ -31,7 +31,7 @@ use crate::{
 use k256::ecdsa::VerifyingKey;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
-use tracing::{error, info, instrument};
+use tracing::{error, info, instrument, warn};
 
 mod storage {
     use super::*;
@@ -361,7 +361,10 @@ impl KeygenParticipant {
         let decom = KeygenDecommit::new(rng, &sid, &self.id, &keyshare_public, &sch_precom);
         // This corresponds to `V_i` in the paper.
         let com = decom.commit()?;
+
+        warn!("created commitment: {:?}", com);
         let com_bytes = serialize!(&com)?;
+        warn!("serialized commitment: {:?}", com);
 
         self.local_storage.store::<storage::Commit>(self.id, com);
         self.local_storage
@@ -399,8 +402,10 @@ impl KeygenParticipant {
         // message _after_ round one is complete? Likewise for all other rounds.
 
         let message = broadcast_message.into_message(BroadcastTag::KeyGenR1CommitHash)?;
+        let keygen_commit = KeygenCommit::from_message(&message)?;
+        warn!("operating on commit: {:?}", keygen_commit);
         self.local_storage
-            .store::<storage::Commit>(message.from(), KeygenCommit::from_message(&message)?);
+            .store::<storage::Commit>(message.from(), keygen_commit);
 
         // Check if we've received all the commits, which signals an end to
         // round one.
@@ -801,7 +806,10 @@ mod tests {
     #[test]
     fn keygen_produces_valid_outputs() -> Result<()> {
         let QUORUM_SIZE = 3;
-        let mut rng = init_testing();
+        let mut rng = init_testing_with_seed([
+            120, 10, 85, 14, 223, 40, 174, 166, 26, 111, 85, 179, 43, 233, 43, 209, 202, 17, 50,
+            128, 230, 39, 154, 68, 6, 240, 254, 54, 236, 97, 177, 28,
+        ]);
         let sid = Identifier::random(&mut rng);
         let mut quorum = KeygenParticipant::new_quorum(sid, QUORUM_SIZE, &mut rng)?;
         let mut inboxes = HashMap::new();

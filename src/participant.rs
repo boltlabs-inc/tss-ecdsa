@@ -20,7 +20,7 @@ use crate::{
 use rand::{CryptoRng, RngCore};
 use serde::Serialize;
 use std::fmt::Debug;
-use tracing::error;
+use tracing::{error, warn};
 
 /// Possible outcomes from processing one or more messages.
 ///
@@ -280,13 +280,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         self.other_ids()
             .iter()
             .map(|&other_participant_id| {
-                Message::new(
-                    message_type,
-                    id,
-                    self.id(),
-                    other_participant_id,
-                    &data,
-                )
+                Message::new(message_type, id, self.id(), other_participant_id, &data)
             })
             .collect()
     }
@@ -416,6 +410,7 @@ pub(crate) trait Broadcast {
         // need to first unwrap the broadcast message...
         let message_type = message.message_type;
         let broadcast_input: Message = deserialize!(&message.unverified_bytes)?;
+        warn!("received message: {:?}", broadcast_input);
 
         let outcome = self
             .broadcast_participant()

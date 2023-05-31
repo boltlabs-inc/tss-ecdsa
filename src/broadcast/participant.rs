@@ -19,7 +19,7 @@ use crate::{
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::{error, info, instrument};
+use tracing::{error, info, instrument, warn};
 
 // Local storage data types.
 mod storage {
@@ -226,6 +226,7 @@ impl BroadcastParticipant {
             message_type,
             data,
         };
+
         let messages: Vec<Message> = self
             .other_participant_ids
             .iter()
@@ -239,6 +240,34 @@ impl BroadcastParticipant {
                 )
             })
             .collect::<Result<Vec<Message>>>()?;
+
+        // DEBUG
+        for msg in &messages {
+            // in broadcast:
+            let unverified_bytes = serialize!(msg)?;
+            warn!("1. {:?}", unverified_bytes);
+
+            // in handle_broadcast:
+            let deser_msg: Message = deserialize!(&unverified_bytes)?;
+            warn!("2. {:?}", deser_msg);
+
+            // in ??
+            let data = BroadcastData::from_message(&deser_msg)?;
+            warn!("3. {:?}", data);
+
+            // in process_vote
+            let broadcast_output = data.data.clone();
+            warn!("4. {:?}", broadcast_output);
+            let output_msg = Message::new(
+                data.message_type,
+                sid,
+                data.leader,
+                self.id,
+                &broadcast_output,
+            )?;
+            warn!("5. {:?}", output_msg);
+        }
+
         Ok(messages)
     }
 
@@ -284,6 +313,7 @@ impl BroadcastParticipant {
         if message_votes.contains_key(&idx) {
             return Ok(ProcessOutcome::Incomplete);
         }
+        // DEBUG: this data.data.clone() has the correct value
         let _ = message_votes.insert(idx, data.data.clone());
 
         // check if we've received all the votes for this tag||leader yet
@@ -311,6 +341,7 @@ impl BroadcastParticipant {
         // output if every node voted for the same message
         for (k, v) in tally.iter() {
             if *v == self.other_participant_ids.len() {
+                // DEBUG: This `k` has an extra 8 bytes somehow.
                 let msg = Message::new(data.message_type, sid, data.leader, self.id, k)?;
                 let out = BroadcastOutput { tag: data.tag, msg };
                 match &mut self.status {

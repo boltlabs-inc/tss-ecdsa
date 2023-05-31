@@ -89,7 +89,7 @@ pub enum BroadcastMessageType {
 }
 
 /// A message that can be posted to (and read from) the communication channel.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     /// The type of the message
     pub(crate) message_type: MessageType,
@@ -104,18 +104,6 @@ pub struct Message {
     /// we require consumers to call the verify() function in
     /// order to extract bytes
     pub(crate) unverified_bytes: Vec<u8>,
-}
-
-/// Manually implement Debug instance to avoid printing unverified bytes.
-impl Debug for Message {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Message")
-            .field("message_type", &self.message_type)
-            .field("session identifier", &self.identifier)
-            .field("from", &self.from)
-            .field("to", &self.to)
-            .finish()
-    }
 }
 
 impl Message {
