@@ -395,6 +395,10 @@ mod tests {
         proof.verify(&input, &(), &mut transcript)
     }
 
+    fn transcript() -> Transcript {
+        Transcript::new(b"PiLogProof Test")
+    }
+
     #[test]
     fn pilog_proof_with_consistent_secret_inputs_out_of_range() -> Result<()> {
         let mut rng = init_testing();
@@ -433,7 +437,6 @@ mod tests {
         let dlog_commit = g.multiply_by_scalar(&x)?;
         let (ciphertext, rho) = pk.encrypt(&mut rng, &x).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
-        let mut transcript = Transcript::new(b"PiLogProof Test");
 
         let input = CommonInput::new(
             ciphertext.clone(),
@@ -457,10 +460,10 @@ mod tests {
             &bad_input,
             &ProverSecret::new(x.clone(), rho.clone()),
             &(),
-            &mut transcript,
+            &mut transcript(),
             &mut rng,
         )?;
-        assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
+        assert!(proof.verify(&bad_input, &(), &mut transcript()).is_err());
 
         // Generate a random generator
         let random_mask = random_plusminus_by_size(&mut rng, ELL);
@@ -476,10 +479,10 @@ mod tests {
             &bad_input,
             &ProverSecret::new(x.clone(), rho.clone()),
             &(),
-            &mut transcript,
+            &mut transcript(),
             &mut rng,
         )?;
-        assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
+        assert!(proof.verify(&bad_input, &(), &mut transcript()).is_err());
 
         // Generate a random setup parameter
         let bad_setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
@@ -494,10 +497,10 @@ mod tests {
             &bad_input,
             &ProverSecret::new(x.clone(), rho.clone()),
             &(),
-            &mut transcript,
+            &mut transcript(),
             &mut rng,
         )?;
-        assert!(proof.verify(&input, &(), &mut transcript).is_err());
+        assert!(proof.verify(&input, &(), &mut transcript()).is_err());
 
         // Swap ciphertext with a random [`Ciphertext`]
         let plaintext = random_plusminus_by_size(&mut rng, ELL);
@@ -516,10 +519,10 @@ mod tests {
             &bad_input,
             &ProverSecret::new(x.clone(), rho.clone()),
             &(),
-            &mut transcript,
+            &mut transcript(),
             &mut rng,
         )?;
-        assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
+        assert!(proof.verify(&bad_input, &(), &mut transcript()).is_err());
 
         // Swap dlog_commit with a random [`CurvePoint`]
         let mask = random_plusminus_by_size(&mut rng, ELL);
@@ -536,10 +539,12 @@ mod tests {
             &bad_input,
             &ProverSecret::new(x.clone(), rho),
             &(),
-            &mut transcript,
+            &mut transcript(),
             &mut rng,
         )?;
-        assert!(bad_proof.verify(&bad_input, &(), &mut transcript).is_err());
+        assert!(bad_proof
+            .verify(&bad_input, &(), &mut transcript())
+            .is_err());
         Ok(())
     }
 
@@ -564,7 +569,6 @@ mod tests {
             pk,
             g,
         );
-        let mut transcript = Transcript::new(b"PiLogProof Test");
 
         // Generate a random plaintext for the secret
         let bad_x = random_plusminus_by_size(&mut rng, ELL);
@@ -572,12 +576,12 @@ mod tests {
             &input,
             &ProverSecret::new(bad_x, rho),
             &(),
-            &mut transcript,
+            &mut transcript(),
             &mut rng,
         )?;
 
         // The proof should fail to verify
-        assert!(bad_proof_x.verify(&input, &(), &mut transcript).is_err());
+        assert!(bad_proof_x.verify(&input, &(), &mut transcript()).is_err());
 
         // Generate a random rho for the secret
         let bad_rho = Nonce::random(&mut rng, input.prover_encryption_key.modulus());
@@ -585,12 +589,14 @@ mod tests {
             &input,
             &ProverSecret::new(x.clone(), bad_rho),
             &(),
-            &mut transcript,
+            &mut transcript(),
             &mut rng,
         )?;
 
         // The proof should fail to verify
-        assert!(bad_proof_rho.verify(&input, &(), &mut transcript).is_err());
+        assert!(bad_proof_rho
+            .verify(&input, &(), &mut transcript())
+            .is_err());
 
         Ok(())
     }
