@@ -636,12 +636,120 @@ mod tests {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
         let y = random_plusminus_by_size(&mut rng, ELL);
-        let (bad_proof, input, mut transcript) =
-            random_paillier_affg_proof(&mut rng, &x, &y).unwrap();
-        let bad_context = BadContext {};
-        assert!(bad_proof
-            .verify(&input, &bad_context, &mut transcript)
-            .is_err());
+        let (proof, input, mut transcript) = random_paillier_affg_proof(&mut rng, &x, &y).unwrap();
+
+        // Swap verifier setup parameters with a random [`VerifiedRingPedersen`]
+        let bad_setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
+        assert_ne!(bad_setup_params, input.verifier_setup_params);
+        let bad_input = PiAffgInput::new(
+            bad_setup_params,
+            input.verifier_encryption_key.clone(),
+            input.prover_encryption_key.clone(),
+            input.original_ciphertext_verifier.clone(),
+            input.transformed_ciphertext_verifier.clone(),
+            input.add_coeff_ciphertext_prover.clone(),
+            input.mult_coeff_exp,
+        );
+        assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
+
+        // Swap verifier encryption key with a random [`EncryptionKey`]
+        let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
+        let bad_verifier_encryption_key = decryption_key.encryption_key();
+        assert_ne!(bad_verifier_encryption_key, input.verifier_encryption_key);
+        let bad_input = PiAffgInput::new(
+            input.verifier_setup_params.clone(),
+            bad_verifier_encryption_key,
+            input.prover_encryption_key.clone(),
+            input.original_ciphertext_verifier.clone(),
+            input.transformed_ciphertext_verifier.clone(),
+            input.add_coeff_ciphertext_prover.clone(),
+            input.mult_coeff_exp,
+        );
+        assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
+
+        // Swap prover encryption key with a random [`EncryptionKey`]
+        let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
+        let bad_prover_encryption_key = decryption_key.encryption_key();
+        assert_ne!(bad_prover_encryption_key, input.prover_encryption_key);
+        let bad_input = PiAffgInput::new(
+            input.verifier_setup_params.clone(),
+            input.verifier_encryption_key.clone(),
+            bad_prover_encryption_key,
+            input.original_ciphertext_verifier.clone(),
+            input.transformed_ciphertext_verifier.clone(),
+            input.add_coeff_ciphertext_prover.clone(),
+            input.mult_coeff_exp,
+        );
+        assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
+
+        // Swap original ciphertext verifier with a random [`Ciphertext`]
+        let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
+        let pk = decryption_key.encryption_key();
+        let bad_original_ciphertext_verifier = pk.random_ciphertext(&mut rng);
+        assert_ne!(
+            bad_original_ciphertext_verifier,
+            input.original_ciphertext_verifier
+        );
+        let bad_input = PiAffgInput::new(
+            input.verifier_setup_params.clone(),
+            input.verifier_encryption_key.clone(),
+            input.prover_encryption_key.clone(),
+            bad_original_ciphertext_verifier,
+            input.transformed_ciphertext_verifier.clone(),
+            input.add_coeff_ciphertext_prover.clone(),
+            input.mult_coeff_exp,
+        );
+        assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
+
+        // Swap transformed ciphertext verifier with a random [`Ciphertext`]
+        let bad_transformed_ciphertext_verifier = pk.random_ciphertext(&mut rng);
+        assert_ne!(
+            bad_transformed_ciphertext_verifier,
+            input.transformed_ciphertext_verifier
+        );
+        let bad_input = PiAffgInput::new(
+            input.verifier_setup_params.clone(),
+            input.verifier_encryption_key.clone(),
+            input.prover_encryption_key.clone(),
+            input.original_ciphertext_verifier.clone(),
+            bad_transformed_ciphertext_verifier,
+            input.add_coeff_ciphertext_prover.clone(),
+            input.mult_coeff_exp,
+        );
+        assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
+
+        // Swap verifier setup parameters with a random [`Ciphertext`]
+        let bad_add_coeff_ciphertext_prover = pk.random_ciphertext(&mut rng);
+        assert_ne!(
+            bad_add_coeff_ciphertext_prover,
+            input.transformed_ciphertext_verifier
+        );
+        let bad_input = PiAffgInput::new(
+            input.verifier_setup_params.clone(),
+            input.verifier_encryption_key.clone(),
+            input.prover_encryption_key.clone(),
+            input.original_ciphertext_verifier.clone(),
+            input.transformed_ciphertext_verifier.clone(),
+            bad_add_coeff_ciphertext_prover,
+            input.mult_coeff_exp,
+        );
+        assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
+
+        // Swap multi coefficient exponent with a random [`CurvePoint`]
+        let mask = random_plusminus_by_size(&mut rng, ELL);
+        let bad_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_scalar(&mask)?;
+        assert_ne!(bad_mult_coeff_exp, input.mult_coeff_exp);
+        let bad_input = PiAffgInput::new(
+            input.verifier_setup_params,
+            input.verifier_encryption_key,
+            input.prover_encryption_key,
+            input.original_ciphertext_verifier,
+            input.transformed_ciphertext_verifier,
+            input.add_coeff_ciphertext_prover,
+            bad_mult_coeff_exp,
+        );
+        assert!(proof.verify(&bad_input, &(), &mut transcript).is_err());
+
         Ok(())
     }
 
