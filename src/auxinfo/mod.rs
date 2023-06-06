@@ -16,11 +16,11 @@
 //! with Identifiable Aborts. [EPrint archive,
 //! 2021](https://eprint.iacr.org/2021/060.pdf).
 
-pub(crate) mod auxinfo_commit;
-pub(crate) mod info;
+mod auxinfo_commit;
+mod info;
 mod output;
 mod participant;
-pub(crate) mod proof;
+mod proof;
 
 pub use info::{AuxInfoPrivate, AuxInfoPublic};
 pub use output::Output;

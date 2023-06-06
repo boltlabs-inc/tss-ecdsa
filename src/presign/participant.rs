@@ -9,10 +9,7 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::{
-        self,
-        info::{AuxInfoPrivate, AuxInfoPublic},
-    },
+    auxinfo::{self, AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::{CallerError, InternalError, Result},
     keygen::{self, KeySharePrivate, KeySharePublic},
@@ -235,10 +232,9 @@ pub struct PresignParticipant {
 /// Input needed for [`PresignParticipant`] to run.
 #[derive(Debug, Clone)]
 pub struct Input {
-    /// The key share material for the key corresponding to the presign run.
+    /// The key share material for the key that will be used in the presign run.
     keygen_output: keygen::Output,
-    /// The private auxinfo of this participant.
-    /// The public auxinfo of all the participants (including this participant).
+    /// The auxiliary info for the key that will be used in the presign run.
     auxinfo_output: auxinfo::Output,
 }
 

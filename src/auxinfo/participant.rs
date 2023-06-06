@@ -596,6 +596,9 @@ impl AuxInfoParticipant {
                 .collect::<Result<Vec<_>>>()?;
             let auxinfo_private = self.local_storage.remove::<storage::Private>(self.id)?;
 
+            // The normal error type of this method is `CallerError::BadInput` because it's
+            // external-facing, but in this case we somehow borked the protocol, so throw
+            // the correct error.
             let output = Output::from_parts(auxinfo_public, auxinfo_private)
                 .map_err(|_| InternalError::InternalInvariantFailed)?;
 

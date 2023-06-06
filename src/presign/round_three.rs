@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::info::AuxInfoPublic,
+    auxinfo::AuxInfoPublic,
     errors::{InternalError, Result},
     messages::{Message, MessageType, PresignMessageType},
     presign::{
