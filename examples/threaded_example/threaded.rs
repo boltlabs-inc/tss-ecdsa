@@ -37,9 +37,10 @@ use std::{
 use tracing::{debug, info, instrument, span, trace, Level};
 use tracing_subscriber::{self, EnvFilter};
 use tss_ecdsa::{
-    keygen::Output, AuxInfoParticipant, Identifier, KeygenParticipant, Message, Participant,
-    ParticipantConfig, ParticipantIdentifier, PresignInput, PresignParticipant,
-    ProtocolParticipant,
+    auxinfo::AuxInfoParticipant,
+    keygen::{KeygenParticipant, Output},
+    Identifier, Message, Participant, ParticipantConfig, ParticipantIdentifier, PresignInput,
+    PresignParticipant, ProtocolParticipant,
 };
 use utils::{MessageFromWorker, SubProtocol};
 use uuid::Uuid;
@@ -424,13 +425,9 @@ impl Worker {
 
     fn new_presign(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
         let key_shares = self.key_gen_material.take(&key_id);
-        let (aux_info_public, aux_info_private) = self.aux_info.retrieve(&key_id);
+        let auxinfo_output = self.aux_info.take(&key_id);
 
-        let inputs: PresignInput = PresignInput::new(
-            aux_info_public.clone(),
-            aux_info_private.clone(),
-            key_shares,
-        )?;
+        let inputs: PresignInput = PresignInput::new(auxinfo_output, key_shares)?;
         self.new_sub_protocol::<PresignParticipant>(sid, inputs, key_id)
     }
 }

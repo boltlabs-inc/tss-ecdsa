@@ -138,11 +138,65 @@ pub struct AuxInfoParticipant {
     status: Status,
 }
 
+/// Output type from auxinfo, including all parties' public auxiliary info
+/// (their Paillier encryption key and ring-Pedersen parameters) and
+/// this party's private auxiliary info (the factors of their Paillier key).
+#[derive(Debug, Clone)]
+pub struct Output {
+    public_auxinfo: Vec<AuxInfoPublic>,
+    private_auxinfo: AuxInfoPrivate,
+}
+
+impl Output {
+    pub(crate) fn public_auxinfo(&self) -> &[AuxInfoPublic] {
+        &self.public_auxinfo
+    }
+
+    pub(crate) fn find_public(&self, pid: ParticipantIdentifier) -> Option<&AuxInfoPublic> {
+        self.public_auxinfo
+            .iter()
+            .find(|public_key| public_key.participant() == pid)
+    }
+
+    pub(crate) fn private_auxinfo(&self) -> &AuxInfoPrivate {
+        &self.private_auxinfo
+    }
+
+    // Simulate the output of an auxinfo run with the given participants.
+    #[cfg(test)]
+    pub(crate) fn simulate(
+        pids: &[ParticipantIdentifier],
+        rng: &mut (impl CryptoRng + RngCore),
+    ) -> Self {
+        let (mut private_auxinfo, public_auxinfo): (Vec<_>, Vec<_>) = pids
+            .iter()
+            .map(|&pid| {
+                let (key, _, _) = DecryptionKey::new(rng).unwrap();
+                (
+                    AuxInfoPrivate::from(key.clone()),
+                    AuxInfoPublic::new(
+                        &(),
+                        pid,
+                        key.encryption_key(),
+                        VerifiedRingPedersen::extract(&key, &(), rng).unwrap(),
+                    )
+                    .unwrap(),
+                )
+            })
+            .unzip();
+
+        Self {
+            private_auxinfo: private_auxinfo.pop().unwrap(),
+            public_auxinfo,
+        }
+    }
+}
+
 impl ProtocolParticipant for AuxInfoParticipant {
     type Input = ();
     // The output type includes `AuxInfoPublic` material for all participants
     // (including ourselves) and `AuxInfoPrivate` for ourselves.
-    type Output = (Vec<AuxInfoPublic>, AuxInfoPrivate);
+    type Output = Output;
     type Status = Status;
 
     fn new(
@@ -595,11 +649,12 @@ impl AuxInfoParticipant {
                 .collect::<Result<Vec<_>>>()?;
             let auxinfo_private = self.local_storage.remove::<storage::Private>(self.id)?;
 
+            let output = Output {
+                public_auxinfo: auxinfo_public,
+                private_auxinfo: auxinfo_private,
+            };
             self.status = Status::TerminatedSuccessfully;
-            Ok(ProcessOutcome::Terminated((
-                auxinfo_public,
-                auxinfo_private,
-            )))
+            Ok(ProcessOutcome::Terminated(output))
         } else {
             // Otherwise, we'll have to wait for more round three messages.
             Ok(ProcessOutcome::Incomplete)
@@ -689,12 +744,11 @@ mod tests {
     /// inbox.
     ///
     /// Returns None if there are no messages for the selected participant.
-    #[allow(clippy::type_complexity)]
     fn process_messages<R: RngCore + CryptoRng>(
         quorum: &mut Vec<AuxInfoParticipant>,
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
-    ) -> Option<(usize, ProcessOutcome<(Vec<AuxInfoPublic>, AuxInfoPrivate)>)> {
+    ) -> Option<(usize, ProcessOutcome<Output>)> {
         // Pick a random participant to process
         let index = rng.gen_range(0..quorum.len());
         let participant = quorum.get_mut(index).unwrap();
@@ -786,10 +840,8 @@ mod tests {
 
             // Collect the AuxInfoPublic associated with pid from every output
             let mut publics_for_pid = vec![];
-            for (publics, _) in &outputs {
-                let public_key = publics
-                    .iter()
-                    .find(|public_key| public_key.participant() == pid);
+            for output in &outputs {
+                let public_key = output.find_public(pid);
                 assert!(public_key.is_some());
                 // Check that it's valid while we're here.
                 assert!(public_key.unwrap().verify(&context).is_ok());
@@ -811,12 +863,13 @@ mod tests {
         }
 
         // Check that private outputs are consistent
-        for ((publics, private), pid) in outputs.iter().zip(quorum.iter().map(|p| p.id())) {
-            let public_key = publics
-                .iter()
-                .find(|public_key| public_key.participant() == pid);
+        for (output, pid) in outputs.iter().zip(quorum.iter().map(|p| p.id())) {
+            let public_key = output.find_public(pid);
             assert!(public_key.is_some());
-            assert_eq!(*public_key.unwrap().pk(), private.encryption_key());
+            assert_eq!(
+                *public_key.unwrap().pk(),
+                output.private_auxinfo().encryption_key()
+            );
         }
 
         Ok(())

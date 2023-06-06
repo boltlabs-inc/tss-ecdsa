@@ -82,8 +82,8 @@ pub enum ProtocolType {
 /// participant, and **these must be stored securely by the calling
 /// application**. Which outputs require secure storage is documented by each
 /// protocol type, under the "Storage requirements" heading:
-/// [`KeygenParticipant`](crate::KeygenParticipant),
-/// [`AuxInfoParticipant`](crate::AuxInfoParticipant), and
+/// [`KeygenParticipant`](crate::keygen::KeygenParticipant),
+/// [`AuxInfoParticipant`](crate::auxinfo::AuxInfoParticipant), and
 /// [`PresignParticipant`](crate::PresignParticipant). In addition, some outputs
 /// must only be used once and then discarded. These are documented as necessary
 /// under the "Lifetime requirements" heading in the aforementioned types.
@@ -646,8 +646,10 @@ impl std::fmt::Display for Identifier {
 mod tests {
     use super::*;
     use crate::{
-        auxinfo::participant::AuxInfoParticipant, keygen::KeygenParticipant,
-        presign::participant::Input as PresignInput, utils::testing::init_testing,
+        auxinfo::{self, AuxInfoParticipant},
+        keygen::KeygenParticipant,
+        presign::participant::Input as PresignInput,
+        utils::testing::init_testing,
         PresignParticipant,
     };
     use k256::ecdsa::signature::DigestVerifier;
@@ -893,7 +895,7 @@ mod tests {
         // And make sure all participants have successfully terminated.
         assert!(auxinfo_quorum
             .iter()
-            .all(|p| *p.status() == crate::auxinfo::participant::Status::TerminatedSuccessfully));
+            .all(|p| *p.status() == auxinfo::Status::TerminatedSuccessfully));
 
         // Set up keygen participants
         let keygen_sid = Identifier::random(&mut rng);
@@ -947,12 +949,12 @@ mod tests {
             .iter()
             .map(|config| {
                 (
-                    auxinfo_outputs.get(&config.id()).unwrap(),
-                    keygen_outputs.get(&config.id()).unwrap(),
+                    auxinfo_outputs.remove(&config.id()).unwrap(),
+                    keygen_outputs.remove(&config.id()).unwrap(),
                 )
             })
-            .map(|((aux_pub, aux_priv), keygen_output)| {
-                PresignInput::new(aux_pub.clone(), aux_priv.clone(), keygen_output.clone()).unwrap()
+            .map(|(auxinfo_output, keygen_output)| {
+                PresignInput::new(auxinfo_output, keygen_output).unwrap()
             })
             .collect::<Vec<_>>();
 

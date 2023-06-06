@@ -189,11 +189,6 @@ mod utils;
 mod zkp;
 mod zkstar;
 
-pub use auxinfo::{
-    info::{AuxInfoPrivate, AuxInfoPublic},
-    participant::AuxInfoParticipant,
-};
-pub use keygen::KeygenParticipant;
 pub use messages::Message;
 pub use participant::ProtocolParticipant;
 pub use presign::{
