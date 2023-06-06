@@ -9,7 +9,7 @@
 use crate::{
     auxinfo::participant::AuxInfoParticipant,
     errors::Result,
-    messages::{AuxinfoMessageType, MessageType},
+    messages::{AuxinfoMessageType, Message, MessageType},
     participant::InnerProtocolParticipant,
     ring_pedersen::VerifiedRingPedersen,
     zkp::{
@@ -17,7 +17,7 @@ use crate::{
         pimod::{PiModInput, PiModProof, PiModSecret},
         Proof, ProofContext,
     },
-    Identifier, Message,
+    Identifier,
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;

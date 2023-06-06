@@ -257,29 +257,32 @@ impl Input {
         }
 
         // The same set of participants must have produced the key shares and aux infos.
-        let aux_sids = auxinfo_output
+        let aux_pids = auxinfo_output
             .public_auxinfo()
             .iter()
             .map(AuxInfoPublic::participant)
             .collect::<HashSet<_>>();
-        let key_sids = keygen_output
+        let key_pids = keygen_output
             .public_key_shares()
             .iter()
             .map(KeySharePublic::participant)
             .collect::<HashSet<_>>();
-        if aux_sids != key_sids {
+        if aux_pids != key_pids {
             error!("Public auxinfo and keyshare inputs to presign weren't from the same set of parties.");
             Err(CallerError::BadInput)?
         }
 
         // There shouldn't be duplicates. Since we checked equality of the sets and the
-        // lengths already, this also applies to auxinfo.
-        if key_sids.len() != keygen_output.public_key_shares().len() {
+        // lengths already, this also applies to auxinfo (also, the `auxinfo::Output`
+        // type checks this at construction already).
+        if key_pids.len() != keygen_output.public_key_shares().len() {
             error!("Duplicate participant IDs appeared in AuxInfo and KeyShare public input.");
             Err(CallerError::BadInput)?
         }
 
         // The private key share should map to one of the public values.
+        // NB: The corresponding check for `auxinfo::Output` is handled in that type's
+        // constructor.
         let expected_public_share = keygen_output.private_key_share().public_share()?;
         if !keygen_output
             .public_key_shares()
@@ -287,17 +290,6 @@ impl Input {
             .any(|public_share| expected_public_share == *public_share.as_ref())
         {
             error!("Keygen private share did not correspond to any of the provided keygen public shares.");
-            Err(CallerError::BadInput)?
-        }
-
-        // The private aux info should map to one of the public values
-        let expected_public_key = auxinfo_output.private_auxinfo().encryption_key();
-        if !auxinfo_output
-            .public_auxinfo()
-            .iter()
-            .any(|auxinfo| &expected_public_key == auxinfo.pk())
-        {
-            error!("Auxinfo private key did not match any of the provided auxinfo public keys.");
             Err(CallerError::BadInput)?
         }
 

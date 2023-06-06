@@ -18,8 +18,10 @@
 
 pub(crate) mod auxinfo_commit;
 pub(crate) mod info;
+mod output;
 mod participant;
 pub(crate) mod proof;
 
 pub use info::{AuxInfoPrivate, AuxInfoPublic};
-pub use participant::{AuxInfoParticipant, Output, Status};
+pub use output::Output;
+pub use participant::{AuxInfoParticipant, Status};

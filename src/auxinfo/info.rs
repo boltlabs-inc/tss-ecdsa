@@ -18,7 +18,12 @@ use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::{error, instrument};
-/// The private key corresponding to a given Participant's [`AuxInfoPublic`].
+/// Private auxiliary information for a specific
+/// [`Participant`](crate::Participant).
+///
+/// This includes a Paillier decryption key; there should be a corresponding
+/// [`AuxInfoPublic`] with the encryption key and ring-Pedersen commitment
+/// parameters formed with the same modulus.
 ///
 /// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
@@ -52,7 +57,11 @@ impl Debug for AuxInfoPrivate {
     }
 }
 
-/// The public auxilary information corresponding to a given participant.
+/// The public auxilary information for a specific
+/// [`Participant`](crate::Participant).
+///
+/// This includes a Paillier encryption key and corresponding ring-Pedersen
+/// commitment parameters.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct AuxInfoPublic {
     /// The participant's identifier.

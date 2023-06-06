@@ -12,12 +12,11 @@
 
 use crate::{
     errors::{CallerError, InternalError, Result},
-    messages::MessageType,
+    messages::{Message, MessageType},
     participant::{InnerProtocolParticipant, ProtocolParticipant},
     protocol::participant_config::ParticipantConfig,
     utils::{k256_order, CurvePoint},
     zkp::ProofContext,
-    Message,
 };
 use k256::elliptic_curve::IsHigh;
 use libpaillier::unknown_order::BigNumber;

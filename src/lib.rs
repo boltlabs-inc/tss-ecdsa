@@ -97,11 +97,12 @@
 //!
 //! Instead, the calling application is responsible for maintaining a mapping
 //! between the [`ParticipantIdentifier`] and the signing key associated with
-//! each entity. [`Message`]s contain a `from: ParticipantIdentifier` field
-//! which specifies the sender of a message. On receiving a message and
-//! signature over a channel, the calling application must check that the `from`
-//! field in the message matches the signing key used to generate the signature.
-//! This ensures that the sender is not lying about its identity.
+//! each entity. [`Message`](messages::Message)s contain a `from:
+//! ParticipantIdentifier` field which specifies the sender of a message. On
+//! receiving a message and signature over a channel, the calling application
+//! must check that the `from` field in the message matches the signing key used
+//! to generate the signature. This ensures that the sender is not lying about
+//! its identity.
 //!
 //! The protocol requires a UC-secure, synchronous, authenticated broadcast
 //! channel for use by the [`Participant`]s. Currently, the library handles this
@@ -123,8 +124,8 @@
 //! # Useful features
 //!
 //! A [`Participant`] processes messages received from other [`Participant`]s
-//! and generates [`Message`] for other  [`Participant`]s to process. When the
-//! current sub-protocol finishes, output values are produced.
+//! and generates [`Message`](messages::Message) for other  [`Participant`]s to
+//! process. When the current sub-protocol finishes, output values are produced.
 //!
 //! Messages may arrive from the network before a [`Participant`] is ready to
 //! process them. [`Participant`]s can be given messages at any time; when
@@ -189,7 +190,6 @@ mod utils;
 mod zkp;
 mod zkstar;
 
-pub use messages::Message;
 pub use participant::ProtocolParticipant;
 pub use presign::{
     participant::{Input as PresignInput, PresignParticipant},

@@ -39,7 +39,8 @@ use tracing_subscriber::{self, EnvFilter};
 use tss_ecdsa::{
     auxinfo::AuxInfoParticipant,
     keygen::{KeygenParticipant, Output},
-    Identifier, Message, Participant, ParticipantConfig, ParticipantIdentifier, PresignInput,
+    messages::Message,
+    Identifier, Participant, ParticipantConfig, ParticipantIdentifier, PresignInput,
     PresignParticipant, ProtocolParticipant,
 };
 use utils::{MessageFromWorker, SubProtocol};

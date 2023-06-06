@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tss_ecdsa::Message;
+use tss_ecdsa::messages::Message;
 
 /// Sub-protocol of tss-ecdsa.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]

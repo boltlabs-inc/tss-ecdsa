@@ -3,9 +3,9 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use rand::{prelude::IteratorRandom, rngs::OsRng, CryptoRng, Rng, RngCore};
 use std::collections::HashMap;
 use tss_ecdsa::{
-    auxinfo::AuxInfoParticipant, errors::Result, keygen::KeygenParticipant, Identifier, Message,
-    Participant, ParticipantConfig, ParticipantIdentifier, PresignInput, PresignParticipant,
-    ProtocolParticipant,
+    auxinfo::AuxInfoParticipant, errors::Result, keygen::KeygenParticipant, messages::Message,
+    Identifier, Participant, ParticipantConfig, ParticipantIdentifier, PresignInput,
+    PresignParticipant, ProtocolParticipant,
 };
 
 /// Delivers all messages into their respective participant's inboxes
