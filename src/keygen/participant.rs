@@ -345,10 +345,6 @@ impl KeygenParticipant {
         info!("Generating round one keygen messages.");
 
         let (keyshare_private, keyshare_public) = KeySharePublic::new_keyshare(self.id(), rng)?;
-        self.local_storage
-            .store::<storage::PrivateKeyshare>(self.id, keyshare_private);
-        self.local_storage
-            .store::<storage::PublicKeyshare>(self.id, keyshare_public.clone());
 
         let q = k256_order();
         let g = CurvePoint::GENERATOR;
@@ -367,6 +363,11 @@ impl KeygenParticipant {
             .store::<storage::Decommit>(self.id, decom);
         self.local_storage
             .store::<storage::SchnorrPrecom>(self.id, sch_precom);
+
+        self.local_storage
+            .store::<storage::PrivateKeyshare>(self.id, keyshare_private);
+        self.local_storage
+            .store::<storage::PublicKeyshare>(self.id, keyshare_public);
 
         let messages = self.broadcast(
             rng,
@@ -640,21 +641,16 @@ impl KeygenParticipant {
             let public_key_shares = self
                 .all_participants()
                 .iter()
-                .map(|pid| {
-                    let value = self
-                        .local_storage
-                        .retrieve::<storage::PublicKeyshare>(*pid)?;
-                    Ok(value.clone())
-                })
+                .map(|pid| self.local_storage.remove::<storage::PublicKeyshare>(*pid))
                 .collect::<Result<Vec<_>>>()?;
             let private_key_share = self
                 .local_storage
-                .retrieve::<storage::PrivateKeyshare>(self.id)?;
+                .remove::<storage::PrivateKeyshare>(self.id)?;
             self.status = Status::TerminatedSuccessfully;
 
             let output = Output {
                 public_key_shares,
-                private_key_share: private_key_share.clone(),
+                private_key_share,
                 rid: global_rid,
             };
             Ok(ProcessOutcome::Terminated(output))

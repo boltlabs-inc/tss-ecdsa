@@ -591,17 +591,14 @@ impl AuxInfoParticipant {
             let auxinfo_public = self
                 .all_participants()
                 .iter()
-                .map(|pid| {
-                    let value = self.local_storage.retrieve::<storage::Public>(*pid)?;
-                    Ok(value.clone())
-                })
+                .map(|pid| self.local_storage.remove::<storage::Public>(*pid))
                 .collect::<Result<Vec<_>>>()?;
-            let auxinfo_private = self.local_storage.retrieve::<storage::Private>(self.id)?;
+            let auxinfo_private = self.local_storage.remove::<storage::Private>(self.id)?;
 
             self.status = Status::TerminatedSuccessfully;
             Ok(ProcessOutcome::Terminated((
                 auxinfo_public,
-                auxinfo_private.clone(),
+                auxinfo_private,
             )))
         } else {
             // Otherwise, we'll have to wait for more round three messages.

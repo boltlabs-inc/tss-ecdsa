@@ -93,6 +93,36 @@ impl LocalStorage {
             })
     }
 
+    /// Deletes a storage value via its [`TypeTag`] and
+    /// [`ParticipantIdentifier`]. This function returns the deleted value
+    /// if it existed and should be used instead of retrieve if the value is
+    /// being accessed for the last time.
+    pub(crate) fn remove<T: TypeTag>(
+        &mut self,
+        participant_id: ParticipantIdentifier,
+    ) -> Result<T::Value> {
+        self.storage
+            .remove(&(participant_id, TypeId::of::<T>()))
+            .ok_or_else(|| {
+                error!(
+                    "Could not locate storage entry. Type: {:?}, participant_id: {}",
+                    std::any::type_name::<T::Value>(),
+                    participant_id
+                );
+                InternalError::InternalInvariantFailed
+            })?
+            .downcast::<T::Value>()
+            .map_err(|_| {
+                error!(
+                    "Could not downcast storage entry. Type: {:?}, participant_id: {}",
+                    std::any::type_name::<T::Value>(),
+                    participant_id
+                );
+                InternalError::InternalInvariantFailed
+            })
+            .map(|any| *any)
+    }
+
     /// Retrieves a mutable reference to a value via its [`TypeTag`]
     /// and [`ParticipantIdentifier`].
     pub(crate) fn retrieve_mut<T: TypeTag>(
