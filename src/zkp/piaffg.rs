@@ -612,9 +612,9 @@ mod tests {
     fn piaffg_proof_with_consistent_secret_inputs_out_of_range() -> Result<()> {
         let mut rng = init_testing();
         let x_upper_bound = BigNumber::one() << (ELL + EPSILON);
-        let _y_upper_bound = BigNumber::one() << (2 * ELL_PRIME + EPSILON);
+        let _y_upper_bound = BigNumber::one() << (2 ^ (ELL_PRIME + EPSILON));
         let _x = random_plusminus_by_size(&mut rng, ELL);
-        let _y = random_plusminus_by_size(&mut rng, 2 * ELL_PRIME);
+        let _y = random_plusminus_by_size(&mut rng, 2 ^ ELL_PRIME);
         loop {
             let x_too_large = random_plusminus_by_size_with_minimum(
                 &mut rng,
@@ -641,7 +641,7 @@ mod tests {
     fn piaffg_proof_with_different_setup_parameters() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
-        let y = random_plusminus_by_size(&mut rng, 2*ELL_PRIME);
+        let y = random_plusminus_by_size(&mut rng, 2 ^ ELL_PRIME);
         let rng2 = &mut StdRng::from_seed(rng.gen());
 
         let f = |proof: PiAffgProof, input: PiAffgInput| {
@@ -790,7 +790,7 @@ mod tests {
     fn piaffg_proof_with_inconsistent_secret_inputs() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
-        let y = random_plusminus_by_size(&mut rng, ELL);
+        let y = random_plusminus_by_size(&mut rng, 2 ^ ELL_PRIME);
         let rng2 = &mut StdRng::from_seed(rng.gen());
         let (decryption_key_0, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let pk0 = decryption_key_0.encryption_key();
@@ -857,7 +857,7 @@ mod tests {
     fn negative_test_random_proof_elements() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
-        let y = random_plusminus_by_size(&mut rng, 2 * ELL_PRIME);
+        let y = random_plusminus_by_size(&mut rng, 2 ^ ELL_PRIME);
         let rng2 = &mut StdRng::from_seed(rng.gen());
 
         let f = |proof: PiAffgProof, input: PiAffgInput| {
@@ -1000,7 +1000,7 @@ mod tests {
         let mut rng = init_testing();
 
         let x_small = random_plusminus_by_size(&mut rng, ELL);
-        let y_small = random_plusminus_by_size(&mut rng, ELL_PRIME);
+        let y_small = random_plusminus_by_size(&mut rng, 2 ^ ELL_PRIME);
         let x_large =
             random_plusminus_by_size_with_minimum(&mut rng, ELL + EPSILON + 1, ELL + EPSILON)?;
         let y_large = random_plusminus_by_size_with_minimum(
