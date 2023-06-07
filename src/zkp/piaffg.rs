@@ -552,13 +552,11 @@ mod tests {
         paillier::DecryptionKey,
         utils::{
             k256_order, random_plusminus, random_plusminus_by_size_with_minimum,
-            testing::{init_testing},
+            testing::init_testing,
         },
         zkp::BadContext,
     };
-    use rand::rngs::StdRng;
-    use rand::SeedableRng;
-    use rand::Rng;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
 
     // Type of expected function for our code testing.
     type TestFn = fn(PiAffgProof, PiAffgInput) -> Result<()>;
@@ -628,7 +626,7 @@ mod tests {
             with_random_paillier_affg_proof(&mut rng, &x_too_large, &x_too_large, f).unwrap();
             if x_too_large.gt(&x_upper_bound) {
                 //assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
-                let f: TestFn = |bad_proof, input| { 
+                let f: TestFn = |bad_proof, input| {
                     assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
                     Ok(())
                 };
@@ -643,9 +641,9 @@ mod tests {
     fn piaffg_proof_with_different_setup_parameters() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
-        let y = random_plusminus_by_size(&mut rng, ELL);
+        let y = random_plusminus_by_size(&mut rng, 2*ELL_PRIME);
         let rng2 = &mut StdRng::from_seed(rng.gen());
-        
+
         let f = |proof: PiAffgProof, input: PiAffgInput| {
             // Swap verifier setup parameters with a random [`VerifiedRingPedersen`]
             let bad_setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
@@ -659,12 +657,18 @@ mod tests {
                 input.add_coeff_ciphertext_prover,
                 input.mult_coeff_exp,
             );
-            assert!(proof.clone().verify(bad_input, &(), &mut transcript()).is_err());
+            assert!(proof
+                .clone()
+                .verify(bad_input, &(), &mut transcript())
+                .is_err());
 
             // Swap verifier encryption key with a random [`EncryptionKey`]
             let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
             let bad_verifier_encryption_key = decryption_key.encryption_key();
-            assert_ne!(bad_verifier_encryption_key, input.verifier_encryption_key.clone());
+            assert_ne!(
+                bad_verifier_encryption_key,
+                input.verifier_encryption_key.clone()
+            );
             let bad_input = PiAffgInput::new(
                 input.verifier_setup_params,
                 &bad_verifier_encryption_key,
@@ -674,12 +678,18 @@ mod tests {
                 input.add_coeff_ciphertext_prover,
                 input.mult_coeff_exp,
             );
-            assert!(proof.clone().verify(bad_input, &(), &mut transcript()).is_err());
+            assert!(proof
+                .clone()
+                .verify(bad_input, &(), &mut transcript())
+                .is_err());
 
             // Swap prover encryption key with a random [`EncryptionKey`]
             let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
             let bad_prover_encryption_key = decryption_key.encryption_key();
-            assert_ne!(bad_prover_encryption_key, input.prover_encryption_key.clone());
+            assert_ne!(
+                bad_prover_encryption_key,
+                input.prover_encryption_key.clone()
+            );
             let bad_input = PiAffgInput::new(
                 input.verifier_setup_params,
                 input.verifier_encryption_key,
@@ -689,7 +699,10 @@ mod tests {
                 input.add_coeff_ciphertext_prover,
                 input.mult_coeff_exp,
             );
-            assert!(proof.clone().verify(bad_input, &(), &mut transcript()).is_err());
+            assert!(proof
+                .clone()
+                .verify(bad_input, &(), &mut transcript())
+                .is_err());
 
             // Swap original ciphertext verifier with a random [`Ciphertext`]
             let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
@@ -708,7 +721,10 @@ mod tests {
                 input.add_coeff_ciphertext_prover,
                 input.mult_coeff_exp,
             );
-            assert!(proof.clone().verify(bad_input, &(), &mut transcript()).is_err());
+            assert!(proof
+                .clone()
+                .verify(bad_input, &(), &mut transcript())
+                .is_err());
 
             // Swap transformed ciphertext verifier with a random [`Ciphertext`]
             let bad_transformed_ciphertext_verifier = pk.random_ciphertext(&mut rng);
@@ -725,7 +741,10 @@ mod tests {
                 input.add_coeff_ciphertext_prover,
                 input.mult_coeff_exp,
             );
-            assert!(proof.clone().verify(bad_input, &(), &mut transcript()).is_err());
+            assert!(proof
+                .clone()
+                .verify(bad_input, &(), &mut transcript())
+                .is_err());
 
             // Swap additive coefficient ciphertext prover with a random [`Ciphertext`]
             let bad_add_coeff_ciphertext_prover = pk.random_ciphertext(&mut rng);
@@ -742,7 +761,10 @@ mod tests {
                 &bad_add_coeff_ciphertext_prover,
                 input.mult_coeff_exp,
             );
-            assert!(proof.clone().verify(bad_input, &(), &mut transcript()).is_err());
+            assert!(proof
+                .clone()
+                .verify(bad_input, &(), &mut transcript())
+                .is_err());
 
             // Swap multi coefficient exponent with a random [`CurvePoint`]
             let mask = random_plusminus_by_size(&mut rng, ELL);
@@ -757,7 +779,7 @@ mod tests {
                 input.add_coeff_ciphertext_prover,
                 &bad_mult_coeff_exp,
             );
-            assert!(proof.clone().verify(bad_input, &(), &mut transcript()).is_err());
+            assert!(proof.verify(bad_input, &(), &mut transcript()).is_err());
             Ok(())
         };
         with_random_paillier_affg_proof(rng2, &x, &y, f)?;
@@ -768,7 +790,8 @@ mod tests {
     fn piaffg_proof_with_inconsistent_secret_inputs() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
-        let y = random_plusminus_by_size(&mut rng, 2 * ELL_PRIME);
+        let y = random_plusminus_by_size(&mut rng, ELL);
+        let rng2 = &mut StdRng::from_seed(rng.gen());
         let (decryption_key_0, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let pk0 = decryption_key_0.encryption_key();
 
@@ -794,37 +817,39 @@ mod tests {
 
         // Generate some random elements to use as replacements
         let random_bignumber = random_plusminus(&mut rng, &k256_order());
-        let _random_nonce = Nonce::random(&mut rng, input.prover_encryption_key.modulus());
+        let random_nonce = Nonce::random(&mut rng, input.prover_encryption_key.modulus());
 
-        // Swap multi coefficient with a random [`BigNumber`]
-        assert_ne!(secret.mult_coeff, &random_bignumber);
-        let bad_secret = PiAffgSecret::new(
-            &random_bignumber,
-            &y,
-            &rho,
-            &rho_y,
-        );
-        let bad_proof = PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
-        assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
+        let f = |_proof: PiAffgProof, input: PiAffgInput| {
+            // Swap multi coefficient with a random [`BigNumber`]
+            assert_ne!(secret.mult_coeff, &random_bignumber);
+            let bad_secret = PiAffgSecret::new(&random_bignumber, &y, &rho, &rho_y);
+            let bad_proof =
+                PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
+            assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
-        // Swap add coefficient with a random [`BigNumber`]
-       /*assert_ne!(secret.add_coeff, random_bignumber);
-        let bad_secret = PiAffgSecret::new(x.clone(), random_bignumber, rho.clone(), rho_y.clone());
-        let bad_proof = PiAffgProof::prove(&input, &bad_secret, &(), &mut transcript(), &mut rng)?;
-        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
+            // Swap add coefficient with a random [`BigNumber`]
+            assert_ne!(secret.add_coeff, &random_bignumber);
+            let bad_secret = PiAffgSecret::new(&x, &random_bignumber, &rho, &rho_y);
+            let bad_proof =
+                PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
+            assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
-        // Swap add coefficient nonce verifier key with a random [`Nonce`]
-        assert_ne!(secret.add_coeff_nonce_verifier_key, random_nonce);
-        let bad_secret = PiAffgSecret::new(x.clone(), y.clone(), random_nonce.clone(), rho_y);
-        let bad_proof = PiAffgProof::prove(&input, &bad_secret, &(), &mut transcript(), &mut rng)?;
-        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
+            // Swap add coefficient nonce verifier key with a random [`Nonce`]
+            assert_ne!(secret.add_coeff_nonce_verifier_key, &random_nonce);
+            let bad_secret = PiAffgSecret::new(&x, &y, &random_nonce, &rho_y);
+            let bad_proof =
+                PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
+            assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
-        // Swap add coefficient nonce prover key with a random [`Nonce`]
-        assert_ne!(secret.add_coeff_nonce_prover_key, random_nonce);
-        let bad_secret = PiAffgSecret::new(x, y, rho, random_nonce);
-        let bad_proof = PiAffgProof::prove(&input, &bad_secret, &(), &mut transcript(), &mut rng)?;
-        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());*/
-
+            // Swap add coefficient nonce prover key with a random [`Nonce`]
+            assert_ne!(secret.add_coeff_nonce_prover_key, &random_nonce);
+            let bad_secret = PiAffgSecret::new(&x, &y, &rho, &random_nonce);
+            let bad_proof =
+                PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
+            assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
+            Ok(())
+        };
+        with_random_paillier_affg_proof(rng2, &x, &y, f)?;
         Ok(())
     }
 
@@ -832,11 +857,10 @@ mod tests {
     fn negative_test_random_proof_elements() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
-        let y = random_plusminus_by_size(&mut rng, ELL);
+        let y = random_plusminus_by_size(&mut rng, 2 * ELL_PRIME);
         let rng2 = &mut StdRng::from_seed(rng.gen());
-        
-        let f = |proof: PiAffgProof, input: PiAffgInput| {
 
+        let f = |proof: PiAffgProof, input: PiAffgInput| {
             let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
             // Generate some random elements to use as replacements
