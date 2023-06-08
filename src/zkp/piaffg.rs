@@ -612,9 +612,9 @@ mod tests {
     fn piaffg_proof_with_consistent_secret_inputs_out_of_range() -> Result<()> {
         let mut rng = init_testing();
         let x_upper_bound = BigNumber::one() << (ELL + EPSILON);
-        let _y_upper_bound = BigNumber::one() << (2 ^ (ELL_PRIME + EPSILON));
-        let _x = random_plusminus_by_size(&mut rng, ELL);
-        let y = random_plusminus_by_size(&mut rng, 2^ELL_PRIME);
+        let y_upper_bound = BigNumber::one() << (2 ^ (ELL_PRIME + EPSILON));
+        let x = random_plusminus_by_size(&mut rng, ELL);
+        let y = random_plusminus_by_size(&mut rng, 2 ^ ELL_PRIME);
         loop {
             let x_too_large = random_plusminus_by_size_with_minimum(
                 &mut rng,
@@ -629,6 +629,23 @@ mod tests {
                 };
                 with_random_paillier_affg_proof(&mut rng, &x_too_large, &y, f)?;
                 with_random_paillier_affg_proof(&mut rng, &x_too_small, &y, f)?;
+                break;
+            }
+        }
+        loop {
+            let y_too_large = random_plusminus_by_size_with_minimum(
+                &mut rng,
+                (2 ^ ELL_PRIME) + EPSILON + 2,
+                (2 ^ ELL_PRIME) + EPSILON + 1,
+            )?;
+            if y_too_large.gt(&y_upper_bound) {
+                let y_too_small = -y_too_large.clone();
+                let f: TestFn = |bad_proof, input| {
+                    assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
+                    Ok(())
+                };
+                with_random_paillier_affg_proof(&mut rng, &x, &y_too_large, f)?;
+                with_random_paillier_affg_proof(&mut rng, &x, &y_too_small, f)?;
                 break;
             }
         }
