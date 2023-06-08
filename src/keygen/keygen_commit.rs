@@ -61,7 +61,7 @@ impl KeygenDecommit {
             rid,
             u_i,
             pk: pk.clone(),
-            A: sch_precom.A,
+            A: sch_precom.precommitment,
         }
     }
 

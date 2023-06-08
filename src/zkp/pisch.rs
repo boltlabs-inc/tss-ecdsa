@@ -30,7 +30,7 @@ pub(crate) struct PiSchProof {
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct PiSchPrecommit {
-    pub(crate) A: CurvePoint,
+    pub(crate) precommitment: CurvePoint,
     alpha: BigNumber,
 }
 
@@ -116,8 +116,8 @@ impl Proof2 for PiSchProof {
         Self::fill_transcript(transcript, context, &input, &self.commitment)?;
 
         // Verifier samples e in F_q
-        let e = positive_challenge_from_transcript(transcript, input.q)?;
-        if e != self.challenge {
+        let random_challenge = positive_challenge_from_transcript(transcript, input.q)?;
+        if random_challenge != self.challenge {
             error!("Fiat-Shamir consistency check failed");
             return Err(InternalError::ProtocolError);
         }
@@ -146,8 +146,11 @@ impl PiSchProof {
     ) -> Result<PiSchPrecommit> {
         // Sample alpha from F_q
         let alpha = crate::utils::random_positive_bn(rng, input.q);
-        let A = CurvePoint(input.g.0 * utils::bn_to_scalar(&alpha)?);
-        Ok(PiSchPrecommit { A, alpha })
+        let precommitment = CurvePoint(input.g.0 * utils::bn_to_scalar(&alpha)?);
+        Ok(PiSchPrecommit {
+            precommitment,
+            alpha,
+        })
     }
 
     pub fn prove_from_precommit(
@@ -157,7 +160,7 @@ impl PiSchProof {
         secret: &PiSchSecret,
         transcript: &Transcript,
     ) -> Result<Self> {
-        let commitment = com.A;
+        let commitment = com.precommitment;
         let mut local_transcript = transcript.clone();
 
         Self::fill_transcript(&mut local_transcript, context, input, &commitment)?;
