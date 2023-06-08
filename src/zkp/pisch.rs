@@ -63,7 +63,7 @@ impl<'a> PiSchInput<'a> {
 
 impl AsRef<CurvePoint> for PiSchInput<'_> {
     fn as_ref(&self) -> &CurvePoint {
-        &self.X
+        self.X
     }
 }
 
@@ -87,7 +87,7 @@ impl<'a> PiSchSecret<'a> {
 
 impl AsRef<BigNumber> for PiSchSecret<'_> {
     fn as_ref(&self) -> &BigNumber {
-        &self.x
+        self.x
     }
 }
 
@@ -95,7 +95,7 @@ impl<'a> Deref for PiSchSecret<'a> {
     type Target = BigNumber;
 
     fn deref(&self) -> &Self::Target {
-        &self.x
+        self.x
     }
 }
 // pub(crate) struct PiSchInputBuilder {

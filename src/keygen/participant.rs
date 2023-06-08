@@ -20,7 +20,7 @@ use crate::{
     participant::{Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant},
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
-    utils::{k256_order, CurvePoint},
+    utils::CurvePoint,
     zkp::{
         pisch::{PiSchInput, PiSchPrecommit, PiSchProof, PiSchSecret},
         Proof2,
