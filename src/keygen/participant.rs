@@ -350,11 +350,10 @@ impl KeygenParticipant {
         self.local_storage
             .store::<storage::PublicKeyshare>(self.id, keyshare_public.clone());
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
         let X = keyshare_public.as_ref();
 
-        let input = PiSchInput::new(&g, &q, X);
+        //let input = PiSchInput{X: *X};
+        let input = PiSchInput::new(X);
         // This corresponds to `A_i` in the paper.
         let sch_precom = PiSchProof::precommit(rng, &input)?;
         let decom = KeygenDecommit::new(rng, &sid, &self.id, &keyshare_public, &sch_precom);
@@ -567,12 +566,13 @@ impl KeygenParticipant {
             .local_storage
             .retrieve::<storage::SchnorrPrecom>(self.id)?;
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        //let q = k256_order();
+        //let g = CurvePoint::GENERATOR;
         let my_pk = self
             .local_storage
             .retrieve::<storage::PublicKeyshare>(self.id)?;
-        let input = PiSchInput::new(&g, &q, my_pk.as_ref());
+        //let input = PiSchInput{X: *my_pk.as_ref()};
+        let input = PiSchInput::new(my_pk.as_ref());
 
         let my_sk = self
             .local_storage
@@ -617,9 +617,13 @@ impl KeygenParticipant {
             .local_storage
             .retrieve::<storage::Decommit>(message.from())?;
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
-        let input = PiSchInput::new(&g, &q, decom.pk.as_ref());
+        //let q = k256_order();
+        //let g = CurvePoint::GENERATOR;
+        //let input = PiSchInput{X: *decom.pk.clone().as_ref()};
+        //let mut input = PiSchInput{X: Default::default()};
+        //input.X = decom.pk.clone().as_ref().clone();
+        //input.X = decom.pk.clone().as_ref().clone();
+        let input = PiSchInput::new(decom.pk.as_ref());
 
         let mut transcript = schnorr_proof_transcript(&global_rid)?;
         proof.verify(input, &self.retrieve_context(), &mut transcript)?;

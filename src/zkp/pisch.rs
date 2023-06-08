@@ -11,14 +11,14 @@
 use crate::{
     errors::*,
     messages::{KeygenMessageType, Message, MessageType},
-    utils::{self, positive_challenge_from_transcript},
+    utils::{self, k256_order, positive_challenge_from_transcript},
     zkp::{Proof2, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::Deref};
 use tracing::error;
 use utils::CurvePoint;
 
@@ -36,12 +36,12 @@ pub(crate) struct PiSchPrecommit {
 
 /// Common input and setup parameters known to both the prover and verifier.
 ///
-/// Copying/Cloning references is harmless and sometimes necessary. So we
+/// TODO: Copying/Cloning references is harmless and sometimes necessary. So we
 /// implement Clone and Copy for this type.
-#[derive(Serialize, Copy, Clone)]
+#[derive(Serialize, Clone)]
 pub(crate) struct PiSchInput<'a> {
-    g: &'a CurvePoint,
-    q: &'a BigNumber,
+    g: CurvePoint,
+    q: BigNumber,
     X: &'a CurvePoint,
 }
 
@@ -52,8 +52,18 @@ pub(crate) struct PiSchPublicParams {
 }
 
 impl<'a> PiSchInput<'a> {
-    pub(crate) fn new(g: &'a CurvePoint, q: &'a BigNumber, X: &'a CurvePoint) -> PiSchInput<'a> {
-        Self { g, q, X }
+    pub(crate) fn new(X: &'a CurvePoint) -> PiSchInput<'a> {
+        Self {
+            g: CurvePoint(k256::ProjectivePoint::GENERATOR),
+            q: k256_order(),
+            X,
+        }
+    }
+}
+
+impl AsRef<CurvePoint> for PiSchInput<'_> {
+    fn as_ref(&self) -> &CurvePoint {
+        &self.X
     }
 }
 
@@ -75,6 +85,33 @@ impl<'a> PiSchSecret<'a> {
     }
 }
 
+impl AsRef<BigNumber> for PiSchSecret<'_> {
+    fn as_ref(&self) -> &BigNumber {
+        &self.x
+    }
+}
+
+impl<'a> Deref for PiSchSecret<'a> {
+    type Target = BigNumber;
+
+    fn deref(&self) -> &Self::Target {
+        &self.x
+    }
+}
+// pub(crate) struct PiSchInputBuilder {
+//     X: CurvePoint,
+// }
+//
+// impl PiSchInputBuilder {
+//     pub(crate) fn new(X: CurvePoint) -> Self {
+//         PiSchInputBuilder { X }
+//     }
+//
+//     pub(crate) fn build(self) -> PiSchInput {
+//         PiSchInput { X: self.X }
+//     }
+// }
+
 impl Proof2 for PiSchProof {
     type CommonInput<'a> = PiSchInput<'a>;
     type ProverSecret<'a> = PiSchSecret<'a>;
@@ -87,13 +124,13 @@ impl Proof2 for PiSchProof {
         rng: &mut R,
     ) -> Result<Self> {
         // Sample alpha from F_q
-        let alpha = crate::utils::random_positive_bn(rng, input.q);
-        let A = CurvePoint(input.g.0 * utils::bn_to_scalar(&alpha)?);
+        let alpha = crate::utils::random_positive_bn(rng, &k256_order());
+        let A = CurvePoint(CurvePoint::GENERATOR.0 * utils::bn_to_scalar(&alpha)?);
 
         Self::fill_transcript(transcript, context, &input, &A)?;
 
         // Verifier samples e in F_q
-        let e = positive_challenge_from_transcript(transcript, input.q)?;
+        let e = positive_challenge_from_transcript(transcript, &k256_order())?;
 
         let z = &alpha + &e * secret.x;
 
@@ -112,7 +149,7 @@ impl Proof2 for PiSchProof {
         Self::fill_transcript(transcript, context, &input, &self.A)?;
 
         // Verifier samples e in F_q
-        let e = positive_challenge_from_transcript(transcript, input.q)?;
+        let e = positive_challenge_from_transcript(transcript, &k256_order())?;
         if e != self.e {
             error!("Fiat-Shamir consistency check failed");
             return Err(InternalError::ProtocolError);
@@ -121,7 +158,7 @@ impl Proof2 for PiSchProof {
         // Do equality checks
 
         let eq_check_1 = {
-            let lhs = CurvePoint(input.g.0 * utils::bn_to_scalar(&self.z)?);
+            let lhs = CurvePoint(CurvePoint::GENERATOR.0 * utils::bn_to_scalar(&self.z)?);
             let rhs = CurvePoint(self.A.0 + input.X.0 * utils::bn_to_scalar(&self.e)?);
             lhs == rhs
         };
@@ -137,11 +174,11 @@ impl Proof2 for PiSchProof {
 impl PiSchProof {
     pub fn precommit<R: RngCore + CryptoRng>(
         rng: &mut R,
-        input: &PiSchInput,
+        _input: &PiSchInput,
     ) -> Result<PiSchPrecommit> {
         // Sample alpha from F_q
-        let alpha = crate::utils::random_positive_bn(rng, input.q);
-        let A = CurvePoint(input.g.0 * utils::bn_to_scalar(&alpha)?);
+        let alpha = crate::utils::random_positive_bn(rng, &k256_order());
+        let A = CurvePoint(CurvePoint::GENERATOR.0 * utils::bn_to_scalar(&alpha)?);
         Ok(PiSchPrecommit { A, alpha })
     }
 
@@ -158,7 +195,7 @@ impl PiSchProof {
         Self::fill_transcript(&mut local_transcript, context, input, &A)?;
 
         // Verifier samples e in F_q
-        let e = positive_challenge_from_transcript(&mut local_transcript, input.q)?;
+        let e = positive_challenge_from_transcript(&mut local_transcript, &k256_order())?;
 
         let z = &com.alpha + &e * secret.x;
 
@@ -207,8 +244,14 @@ mod tests {
             x += crate::utils::random_positive_bn(rng, &q);
         }
 
-        let input = PiSchInput::new(&g, &q, &X);
-        let proof = PiSchProof::prove(input, PiSchSecret::new(&x), &(), &mut transcript(), rng)?;
+        let input = PiSchInput::new(&X);
+        let proof = PiSchProof::prove(
+            input.clone(),
+            PiSchSecret::new(&x),
+            &(),
+            &mut transcript(),
+            rng,
+        )?;
 
         test_code(proof, input)?;
         Ok(())
@@ -257,7 +300,7 @@ mod tests {
         let x = crate::utils::random_positive_bn(&mut rng, &q);
         let X = CurvePoint(g.0 * utils::bn_to_scalar(&x).unwrap());
 
-        let input = PiSchInput::new(&g, &q, &X);
+        let input = PiSchInput::new(&X);
         let com = PiSchProof::precommit(&mut rng, &input)?;
         let mut transcript = Transcript::new(b"some external proof stuff");
         let proof = PiSchProof::prove_from_precommit(
@@ -267,12 +310,12 @@ mod tests {
             &PiSchSecret::new(&x),
             &transcript,
         )?;
-        proof.verify(input, &(), &mut transcript)?;
+        proof.verify(input.clone(), &(), &mut transcript)?;
 
         //test public param mismatch
-        let lambda = crate::utils::random_positive_bn(&mut rng, &q);
-        let h = CurvePoint(g.0 * utils::bn_to_scalar(&lambda).unwrap());
-        let input2 = PiSchInput::new(&h, &q, &X);
+        // let lambda = crate::utils::random_positive_bn(&mut rng, &q);
+        // let h = CurvePoint(g.0 * utils::bn_to_scalar(&lambda).unwrap());
+        let input2 = PiSchInput::new(&X);
         let proof2 = PiSchProof::prove_from_precommit(
             &(),
             &com,
@@ -280,7 +323,7 @@ mod tests {
             &PiSchSecret::new(&x),
             &transcript,
         )?;
-        assert!(proof2.verify(input, &(), &mut transcript).is_err());
+        assert!(proof2.verify(input.clone(), &(), &mut transcript).is_err());
 
         //test transcript mismatch
         let transcript2 = Transcript::new(b"some other external proof stuff");
