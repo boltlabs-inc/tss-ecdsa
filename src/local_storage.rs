@@ -94,9 +94,10 @@ impl LocalStorage {
     }
 
     /// Deletes a storage value via its [`TypeTag`] and
-    /// [`ParticipantIdentifier`]. This function returns the deleted value
-    /// if it existed and should be used instead of retrieve if the value is
-    /// being accessed for the last time.
+    /// [`ParticipantIdentifier`]. This function returns the deleted value if it
+    /// existed and should be used instead of
+    /// [`retrieve()`](LocalStorage::retrieve()) if the value is being
+    /// accessed for the last time.
     pub(crate) fn remove<T: TypeTag>(
         &mut self,
         participant_id: ParticipantIdentifier,
