@@ -24,8 +24,11 @@ use utils::CurvePoint;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct PiSchProof {
+    /// Commitment to the secret (`A` in the paper).
     pub(crate) commitment: CurvePoint,
+    /// Fiat-Shamir challenge (`e` in the paper).
     challenge: BigNumber,
+    /// Response binding the commitment randomness used in the commitment (`z` in the paper).
     response: BigNumber,
 }
 #[derive(Debug, Serialize, Deserialize)]
