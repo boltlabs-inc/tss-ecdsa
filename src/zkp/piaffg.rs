@@ -619,51 +619,24 @@ mod tests {
             assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
             Ok(())
         };
-        loop {
-            let x_too_large = random_plusminus_by_size_with_minimum(
-                &mut rng,
-                ELL + EPSILON + 2,
-                ELL + EPSILON + 1,
-            )?;
-            if x_too_large > x_upper_bound {
-                let x_too_small = -x_too_large.clone();
-                with_random_paillier_affg_proof(&mut rng, &x_too_large, &y, f)?;
-                with_random_paillier_affg_proof(&mut rng, &x_too_small, &y, f)?;
-                break;
-            }
-        }
-        loop {
-            let y_too_large = random_plusminus_by_size_with_minimum(
-                &mut rng,
-                (2 ^ ELL_PRIME) + EPSILON + 2,
-                (2 ^ ELL_PRIME) + EPSILON + 1,
-            )?;
-            if y_too_large > y_upper_bound {
-                let y_too_small = -y_too_large.clone();
-                with_random_paillier_affg_proof(&mut rng, &x, &y_too_large, f)?;
-                with_random_paillier_affg_proof(&mut rng, &x, &y_too_small, f)?;
-                break;
-            }
-        }
-        loop {
-            let x_too_large = random_plusminus_by_size_with_minimum(
-                &mut rng,
-                ELL + EPSILON + 2,
-                ELL + EPSILON + 1,
-            )?;
-            let y_too_large = random_plusminus_by_size_with_minimum(
-                &mut rng,
-                (2 ^ ELL_PRIME) + EPSILON + 2,
-                (2 ^ ELL_PRIME) + EPSILON + 1,
-            )?;
-            if x_too_large > x_upper_bound && y_too_large > y_upper_bound {
-                let x_too_small = -x_too_large.clone();
-                let y_too_small = -y_too_large.clone();
-                with_random_paillier_affg_proof(&mut rng, &x_too_large, &y_too_large, f)?;
-                with_random_paillier_affg_proof(&mut rng, &x_too_small, &y_too_small, f)?;
-                break;
-            }
-        }
+        let x_too_large =
+            random_plusminus_by_size_with_minimum(&mut rng, ELL + EPSILON + 2, ELL + EPSILON + 1)?;
+        assert!(x_too_large > x_upper_bound);
+        let x_too_small = -x_too_large.clone();
+        with_random_paillier_affg_proof(&mut rng, &x_too_large, &y, f)?;
+        with_random_paillier_affg_proof(&mut rng, &x_too_small, &y, f)?;
+        let y_too_large = random_plusminus_by_size_with_minimum(
+            &mut rng,
+            ELL_PRIME + EPSILON + 2,
+            ELL_PRIME + EPSILON + 1,
+        )?;
+        assert!(y_too_large > y_upper_bound);
+        let y_too_small = -y_too_large.clone();
+        with_random_paillier_affg_proof(&mut rng, &x, &y_too_large, f)?;
+        with_random_paillier_affg_proof(&mut rng, &x, &y_too_small, f)?;
+        assert!(x_too_large > x_upper_bound && y_too_large > y_upper_bound);
+        with_random_paillier_affg_proof(&mut rng, &x_too_large, &y_too_large, f)?;
+        with_random_paillier_affg_proof(&mut rng, &x_too_small, &y_too_small, f)?;
         Ok(())
     }
 
