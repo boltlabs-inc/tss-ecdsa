@@ -612,21 +612,21 @@ mod tests {
     fn piaffg_proof_with_consistent_secret_inputs_out_of_range() -> Result<()> {
         let mut rng = init_testing();
         let x_upper_bound = BigNumber::one() << (ELL + EPSILON);
-        let y_upper_bound = BigNumber::one() << (2 ^ (ELL_PRIME + EPSILON));
+        let y_upper_bound = BigNumber::one() << (ELL_PRIME + EPSILON);
         let x = random_plusminus_by_size(&mut rng, ELL);
-        let y = random_plusminus_by_size(&mut rng, 2 ^ ELL_PRIME);
+        let y = random_plusminus_by_size(&mut rng, ELL_PRIME);
+        let f: TestFn = |bad_proof, input| {
+            assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
+            Ok(())
+        };
         loop {
             let x_too_large = random_plusminus_by_size_with_minimum(
                 &mut rng,
                 ELL + EPSILON + 2,
                 ELL + EPSILON + 1,
             )?;
-            if x_too_large.gt(&x_upper_bound) {
+            if x_too_large > x_upper_bound {
                 let x_too_small = -x_too_large.clone();
-                let f: TestFn = |bad_proof, input| {
-                    assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
-                    Ok(())
-                };
                 with_random_paillier_affg_proof(&mut rng, &x_too_large, &y, f)?;
                 with_random_paillier_affg_proof(&mut rng, &x_too_small, &y, f)?;
                 break;
@@ -638,12 +638,8 @@ mod tests {
                 (2 ^ ELL_PRIME) + EPSILON + 2,
                 (2 ^ ELL_PRIME) + EPSILON + 1,
             )?;
-            if y_too_large.gt(&y_upper_bound) {
+            if y_too_large > y_upper_bound {
                 let y_too_small = -y_too_large.clone();
-                let f: TestFn = |bad_proof, input| {
-                    assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
-                    Ok(())
-                };
                 with_random_paillier_affg_proof(&mut rng, &x, &y_too_large, f)?;
                 with_random_paillier_affg_proof(&mut rng, &x, &y_too_small, f)?;
                 break;
@@ -660,13 +656,9 @@ mod tests {
                 (2 ^ ELL_PRIME) + EPSILON + 2,
                 (2 ^ ELL_PRIME) + EPSILON + 1,
             )?;
-            if x_too_large.gt(&x_upper_bound) && y_too_large.gt(&y_upper_bound) {
+            if x_too_large > x_upper_bound && y_too_large > y_upper_bound {
                 let x_too_small = -x_too_large.clone();
                 let y_too_small = -y_too_large.clone();
-                let f: TestFn = |bad_proof, input| {
-                    assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
-                    Ok(())
-                };
                 with_random_paillier_affg_proof(&mut rng, &x_too_large, &y_too_large, f)?;
                 with_random_paillier_affg_proof(&mut rng, &x_too_small, &y_too_small, f)?;
                 break;
@@ -679,7 +671,7 @@ mod tests {
     fn piaffg_proof_with_different_setup_parameters() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
-        let y = random_plusminus_by_size(&mut rng, 2 ^ ELL_PRIME);
+        let y = random_plusminus_by_size(&mut rng, ELL_PRIME);
         let rng2 = &mut StdRng::from_seed(rng.gen());
 
         let f = |proof: PiAffgProof, input: PiAffgInput| {
@@ -828,8 +820,8 @@ mod tests {
     fn piaffg_proof_with_inconsistent_secret_inputs() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
-        let y = random_plusminus_by_size(&mut rng, 2 ^ ELL_PRIME);
-        let rng2 = &mut StdRng::from_seed(rng.gen());
+        let y = random_plusminus_by_size(&mut rng, ELL_PRIME);
+        //let rng2 = &mut StdRng::from_seed(rng.gen());
         let (decryption_key_0, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let pk0 = decryption_key_0.encryption_key();
 
@@ -857,37 +849,29 @@ mod tests {
         let random_bignumber = random_plusminus(&mut rng, &k256_order());
         let random_nonce = Nonce::random(&mut rng, input.prover_encryption_key.modulus());
 
-        let f = |_proof: PiAffgProof, input: PiAffgInput| {
-            // Swap multi coefficient with a random [`BigNumber`]
-            assert_ne!(secret.mult_coeff, &random_bignumber);
-            let bad_secret = PiAffgSecret::new(&random_bignumber, &y, &rho, &rho_y);
-            let bad_proof =
-                PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
-            assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
+        // Swap multi coefficient with a random [`BigNumber`]
+        assert_ne!(secret.mult_coeff, &random_bignumber);
+        let bad_secret = PiAffgSecret::new(&random_bignumber, &y, &rho, &rho_y);
+        let bad_proof = PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
+        assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
-            // Swap add coefficient with a random [`BigNumber`]
-            assert_ne!(secret.add_coeff, &random_bignumber);
-            let bad_secret = PiAffgSecret::new(&x, &random_bignumber, &rho, &rho_y);
-            let bad_proof =
-                PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
-            assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
+        // Swap add coefficient with a random [`BigNumber`]
+        assert_ne!(secret.add_coeff, &random_bignumber);
+        let bad_secret = PiAffgSecret::new(&x, &random_bignumber, &rho, &rho_y);
+        let bad_proof = PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
+        assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
-            // Swap add coefficient nonce verifier key with a random [`Nonce`]
-            assert_ne!(secret.add_coeff_nonce_verifier_key, &random_nonce);
-            let bad_secret = PiAffgSecret::new(&x, &y, &random_nonce, &rho_y);
-            let bad_proof =
-                PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
-            assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
+        // Swap add coefficient nonce verifier key with a random [`Nonce`]
+        assert_ne!(secret.add_coeff_nonce_verifier_key, &random_nonce);
+        let bad_secret = PiAffgSecret::new(&x, &y, &random_nonce, &rho_y);
+        let bad_proof = PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
+        assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
-            // Swap add coefficient nonce prover key with a random [`Nonce`]
-            assert_ne!(secret.add_coeff_nonce_prover_key, &random_nonce);
-            let bad_secret = PiAffgSecret::new(&x, &y, &rho, &random_nonce);
-            let bad_proof =
-                PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
-            assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
-            Ok(())
-        };
-        with_random_paillier_affg_proof(rng2, &x, &y, f)?;
+        // Swap add coefficient nonce prover key with a random [`Nonce`]
+        assert_ne!(secret.add_coeff_nonce_prover_key, &random_nonce);
+        let bad_secret = PiAffgSecret::new(&x, &y, &rho, &random_nonce);
+        let bad_proof = PiAffgProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng)?;
+        assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
         Ok(())
     }
 
@@ -895,7 +879,7 @@ mod tests {
     fn negative_test_random_proof_elements() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
-        let y = random_plusminus_by_size(&mut rng, 2 ^ ELL_PRIME);
+        let y = random_plusminus_by_size(&mut rng, ELL_PRIME);
         let rng2 = &mut StdRng::from_seed(rng.gen());
 
         let f = |proof: PiAffgProof, input: PiAffgInput| {
@@ -1038,7 +1022,7 @@ mod tests {
         let mut rng = init_testing();
 
         let x_small = random_plusminus_by_size(&mut rng, ELL);
-        let y_small = random_plusminus_by_size(&mut rng, 2 ^ ELL_PRIME);
+        let y_small = random_plusminus_by_size(&mut rng, ELL_PRIME);
         let x_large =
             random_plusminus_by_size_with_minimum(&mut rng, ELL + EPSILON + 1, ELL + EPSILON)?;
         let y_large = random_plusminus_by_size_with_minimum(
