@@ -577,21 +577,35 @@ mod tests {
         let (decryption_key_1, _, _) = DecryptionKey::new(rng).unwrap();
         let pk1 = decryption_key_1.encryption_key();
 
-        let X = CurvePoint::GENERATOR.multiply_by_scalar(x)?;
-        let (Y, rho_y) = pk1
+        let mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_scalar(x)?;
+        let (add_coeff_ciphertext_prover, rho_y) = pk1
             .encrypt(rng, y)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
 
-        let C = pk0.random_ciphertext(rng);
+        let original_ciphertext_verifier = pk0.random_ciphertext(rng);
 
-        let (D, rho) = {
-            let (D_intermediate, rho) = pk0.encrypt(rng, y).unwrap();
-            let D = pk0.multiply_and_add(x, &C, &D_intermediate).unwrap();
-            (D, rho)
+        let (transformed_ciphertext_verifier, rho) = {
+            let (transformed_ciphertext_verifier_intermediate, rho) = pk0.encrypt(rng, y).unwrap();
+            let transformed_ciphertext_verifier = pk0
+                .multiply_and_add(
+                    x,
+                    &original_ciphertext_verifier,
+                    &transformed_ciphertext_verifier_intermediate,
+                )
+                .unwrap();
+            (transformed_ciphertext_verifier, rho)
         };
 
         let setup_params = VerifiedRingPedersen::gen(rng, &())?;
-        let input = PiAffgInput::new(&setup_params, &pk0, &pk1, &C, &D, &Y, &X);
+        let input = PiAffgInput::new(
+            &setup_params,
+            &pk0,
+            &pk1,
+            &original_ciphertext_verifier,
+            &transformed_ciphertext_verifier,
+            &add_coeff_ciphertext_prover,
+            &mult_coeff_exp,
+        );
         let secret = PiAffgSecret::new(x, y, &rho, &rho_y);
 
         let proof = PiAffgProof::prove(input, secret, &(), &mut transcript(), rng)?;
@@ -800,21 +814,36 @@ mod tests {
         let (decryption_key_1, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let pk1 = decryption_key_1.encryption_key();
 
-        let X = CurvePoint::GENERATOR.multiply_by_scalar(&x)?;
-        let (Y, rho_y) = pk1
+        let mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_scalar(&x)?;
+        let (add_coeff_ciphertext_prover, rho_y) = pk1
             .encrypt(&mut rng, &y)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
 
-        let C = pk0.random_ciphertext(&mut rng);
+        let original_ciphertext_verifier = pk0.random_ciphertext(&mut rng);
 
-        let (D, rho) = {
-            let (D_intermediate, rho) = pk0.encrypt(&mut rng, &y).unwrap();
-            let D = pk0.multiply_and_add(&x, &C, &D_intermediate).unwrap();
-            (D, rho)
+        let (transformed_ciphertext_verifier, rho) = {
+            let (transformed_ciphertext_verifier_intermediate, rho) =
+                pk0.encrypt(&mut rng, &y).unwrap();
+            let transformed_ciphertext_verifier = pk0
+                .multiply_and_add(
+                    &x,
+                    &original_ciphertext_verifier,
+                    &transformed_ciphertext_verifier_intermediate,
+                )
+                .unwrap();
+            (transformed_ciphertext_verifier, rho)
         };
 
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
-        let input = PiAffgInput::new(&setup_params, &pk0, &pk1, &C, &D, &Y, &X);
+        let input = PiAffgInput::new(
+            &setup_params,
+            &pk0,
+            &pk1,
+            &original_ciphertext_verifier,
+            &transformed_ciphertext_verifier,
+            &add_coeff_ciphertext_prover,
+            &mult_coeff_exp,
+        );
         let secret = PiAffgSecret::new(&x, &y, &rho, &rho_y);
 
         // Generate some random elements to use as replacements
