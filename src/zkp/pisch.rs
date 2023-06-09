@@ -28,13 +28,16 @@ pub(crate) struct PiSchProof {
     pub(crate) commitment: CurvePoint,
     /// Fiat-Shamir challenge (`e` in the paper).
     challenge: BigNumber,
-    /// Response binding the commitment randomness used in the commitment (`z` in the paper).
+    /// Response binding the commitment randomness used in the commitment (`z`
+    /// in the paper).
     response: BigNumber,
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct PiSchPrecommit {
+    /// Precommitment value (`A` in the paper).
     pub(crate) precommitment: CurvePoint,
-    alpha: BigNumber,
+    /// Randomness mask for commitment (`alpha` in the paper).
+    randomness_for_commitment: BigNumber,
 }
 
 /// Common input and setup parameters known to both the prover and verifier.
@@ -119,21 +122,21 @@ impl Proof2 for PiSchProof {
         Self::fill_transcript(transcript, context, &input, &self.commitment)?;
 
         // Verifier samples e in F_q
-        let random_challenge = positive_challenge_from_transcript(transcript, input.q)?;
-        if random_challenge != self.challenge {
+        let challenge = positive_challenge_from_transcript(transcript, input.q)?;
+        if challenge != self.challenge {
             error!("Fiat-Shamir consistency check failed");
             return Err(InternalError::ProtocolError);
         }
 
         // Do equality checks
 
-        let eq_check_1 = {
+        let response_matches_commitment = {
             let lhs = CurvePoint(input.g.0 * utils::bn_to_scalar(&self.response)?);
             let rhs =
                 CurvePoint(self.commitment.0 + input.X.0 * utils::bn_to_scalar(&self.challenge)?);
             lhs == rhs
         };
-        if !eq_check_1 {
+        if !response_matches_commitment {
             error!("eq_check_1 failed");
             return Err(InternalError::ProtocolError);
         }
@@ -148,11 +151,12 @@ impl PiSchProof {
         input: &PiSchInput,
     ) -> Result<PiSchPrecommit> {
         // Sample alpha from F_q
-        let alpha = crate::utils::random_positive_bn(rng, input.q);
-        let precommitment = CurvePoint(input.g.0 * utils::bn_to_scalar(&alpha)?);
+        let randomness_for_commitment = crate::utils::random_positive_bn(rng, input.q);
+        let precommitment =
+            CurvePoint(input.g.0 * utils::bn_to_scalar(&randomness_for_commitment)?);
         Ok(PiSchPrecommit {
             precommitment,
-            alpha,
+            randomness_for_commitment,
         })
     }
 
@@ -171,7 +175,7 @@ impl PiSchProof {
         // Verifier samples e in F_q
         let challenge = positive_challenge_from_transcript(&mut local_transcript, input.q)?;
 
-        let response = &com.alpha + &challenge * secret.x;
+        let response = &com.randomness_for_commitment + &challenge * secret.x;
 
         let proof = Self {
             commitment,
