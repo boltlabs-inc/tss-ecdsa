@@ -144,6 +144,7 @@ impl PiSchProof {
     ) -> Result<PiSchPrecommit> {
         // Sample alpha from F_q
         let randomness_for_commitment = crate::utils::random_positive_bn(rng, input.q);
+        // Create a commitment using the randomness sampled in the previous step
         let precommitment = CurvePoint::GENERATOR.multiply_by_scalar(&randomness_for_commitment)?;
         Ok(PiSchPrecommit {
             precommitment,
@@ -166,8 +167,11 @@ impl PiSchProof {
         // Verifier samples e in F_q
         let challenge = positive_challenge_from_transcript(&mut local_transcript, input.q)?;
 
+        // Prover creates a response by adding the randomness generated in the first
+        // step to the challenge multiplied by the secret
         let response = &com.randomness_for_commitment + &challenge * secret.x;
 
+        // Proof consists of all 3 messages in the 3 rounds
         let proof = Self {
             commitment,
             challenge,
@@ -218,6 +222,8 @@ mod tests {
         }
 
         let input = CommonInput::new(&g, &q, &X);
+
+        // Proving knowledge of the random secret x
         let proof = PiSchProof::prove(input, ProverSecret::new(&x), &(), &mut transcript(), rng)?;
 
         test_code(proof, input)?;
