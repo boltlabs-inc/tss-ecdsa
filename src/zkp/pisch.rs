@@ -98,22 +98,8 @@ impl Proof2 for PiSchProof {
         transcript: &mut Transcript,
         rng: &mut R,
     ) -> Result<Self> {
-        // Sample alpha from F_q
-        let alpha = crate::utils::random_positive_bn(rng, input.q);
-        let commitment = CurvePoint::GENERATOR.multiply_by_scalar(&alpha)?;
-
-        Self::fill_transcript(transcript, context, &input, &commitment)?;
-
-        // Verifier samples e in F_q
-        let challenge = positive_challenge_from_transcript(transcript, input.q)?;
-
-        let response = &alpha + &challenge * secret.x;
-
-        let proof = Self {
-            commitment,
-            challenge,
-            response,
-        };
+        let com = PiSchProof::precommit(rng, &input)?;
+        let proof = PiSchProof::prove_from_precommit(context, &com, &input, &secret, transcript)?;
         Ok(proof)
     }
 
