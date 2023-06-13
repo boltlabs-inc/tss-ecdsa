@@ -100,7 +100,7 @@ impl Proof2 for PiSchProof {
     ) -> Result<Self> {
         // Sample alpha from F_q
         let alpha = crate::utils::random_positive_bn(rng, input.q);
-        let commitment = CurvePoint(input.g.0 * utils::bn_to_scalar(&alpha)?);
+        let commitment = CurvePoint::GENERATOR.multiply_by_scalar(&alpha)?;
 
         Self::fill_transcript(transcript, context, &input, &commitment)?;
 
@@ -137,7 +137,7 @@ impl Proof2 for PiSchProof {
         // Do equality checks
 
         let response_matches_commitment = {
-            let lhs = CurvePoint(input.g.0 * utils::bn_to_scalar(&self.response)?);
+            let lhs = CurvePoint::GENERATOR.multiply_by_scalar(&self.response)?;
             let rhs =
                 CurvePoint(self.commitment.0 + input.X.0 * utils::bn_to_scalar(&self.challenge)?);
             lhs == rhs
@@ -158,8 +158,7 @@ impl PiSchProof {
     ) -> Result<PiSchPrecommit> {
         // Sample alpha from F_q
         let randomness_for_commitment = crate::utils::random_positive_bn(rng, input.q);
-        let precommitment =
-            CurvePoint(input.g.0 * utils::bn_to_scalar(&randomness_for_commitment)?);
+        let precommitment = CurvePoint::GENERATOR.multiply_by_scalar(&randomness_for_commitment)?;
         Ok(PiSchPrecommit {
             precommitment,
             randomness_for_commitment,
@@ -224,10 +223,10 @@ mod tests {
         test_code: impl Fn(PiSchProof, CommonInput) -> Result<()>,
     ) -> Result<()> {
         let q = crate::utils::k256_order();
-        let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
+        let g = CurvePoint::GENERATOR;
 
         let mut x = crate::utils::random_positive_bn(rng, &q);
-        let X = CurvePoint(g.0 * utils::bn_to_scalar(&x).unwrap());
+        let X = g.multiply_by_scalar(&x)?;
         if additive {
             x += crate::utils::random_positive_bn(rng, &q);
         }
@@ -277,10 +276,10 @@ mod tests {
         let mut rng = init_testing();
 
         let q = crate::utils::k256_order();
-        let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
+        let g = CurvePoint::GENERATOR;
 
         let x = crate::utils::random_positive_bn(&mut rng, &q);
-        let X = CurvePoint(g.0 * utils::bn_to_scalar(&x).unwrap());
+        let X = g.multiply_by_scalar(&x)?;
 
         let input = CommonInput::new(&g, &q, &X);
         let com = PiSchProof::precommit(&mut rng, &input)?;
@@ -296,7 +295,7 @@ mod tests {
 
         //test public param mismatch
         let lambda = crate::utils::random_positive_bn(&mut rng, &q);
-        let h = CurvePoint(g.0 * utils::bn_to_scalar(&lambda).unwrap());
+        let h = g.multiply_by_scalar(&lambda)?;
         let input2 = CommonInput::new(&h, &q, &X);
         let proof2 = PiSchProof::prove_from_precommit(
             &(),
