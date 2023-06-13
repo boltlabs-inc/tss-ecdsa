@@ -35,7 +35,7 @@ pub(crate) struct PiSchProof {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct PiSchPrecommit {
     /// Precommitment value (`A` in the paper).
-    pub(crate) precommitment: CurvePoint,
+    precommitment: CurvePoint,
     /// Randomness mask for commitment (`alpha` in the paper).
     randomness_for_commitment: BigNumber,
 }
@@ -55,6 +55,12 @@ pub(crate) struct PiSchInput<'a> {
 pub(crate) struct PiSchPublicParams {
     g: CurvePoint,
     q: BigNumber,
+}
+
+impl PiSchPrecommit {
+    pub(crate) fn precommitment(&self) -> &CurvePoint {
+        &self.precommitment
+    }
 }
 
 impl<'a> PiSchInput<'a> {
