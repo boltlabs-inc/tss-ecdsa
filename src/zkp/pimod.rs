@@ -111,27 +111,30 @@ impl Proof for PiModProof {
 
         Self::fill_transcript(transcript, context, input, &w)?;
 
-        let mut elements = vec![];
-        for _ in 0..LAMBDA {
-            let y = positive_challenge_from_transcript(transcript, &input.N)?;
-            let (a, b, x) = y_prime_combinations(&w, &y, &secret.p, &secret.q)?;
+        let elements: Result<Vec<PiModProofElements>> = (0..LAMBDA)
+            .map(|_| {
+                positive_challenge_from_transcript(transcript, &input.N).and_then(|y| {
+                    let (a, b, x) = y_prime_combinations(&w, &y, &secret.p, &secret.q)?;
 
-            // Compute phi(N) = (p-1) * (q-1)
-            let phi_n = (&secret.p - 1) * (&secret.q - 1);
-            let exp = input.N.invert(&phi_n).ok_or_else(|| {
-                error!("Could not invert N");
-                InternalError::InternalInvariantFailed
-            })?;
-            let z = modpow(&y, &exp, &input.N);
+                    let phi_n = (&secret.p - 1) * (&secret.q - 1);
+                    let exp = input.N.invert(&phi_n).ok_or_else(|| {
+                        error!("Could not invert N");
+                        InternalError::InternalInvariantFailed
+                    })?;
+                    let z = modpow(&y, &exp, &input.N);
 
-            elements.push(PiModProofElements {
-                x: x.get(0).unwrap().clone(),
-                a,
-                b,
-                z,
-                y,
-            });
-        }
+                    Ok(PiModProofElements {
+                        x: x.get(0).unwrap().clone(),
+                        a,
+                        b,
+                        z,
+                        y,
+                    })
+                })
+            })
+            .collect();
+
+        let elements = elements?;
 
         let proof = Self { w, elements };
 
