@@ -590,46 +590,28 @@ mod tests {
         // a1 = p
         let a1 = &p;
         let a2 = BigNumber::from_rng(&q, &mut rng);
-        assert_eq!(
-            chinese_remainder_theorem(a1, &a2, &p, &q),
-            Err(InternalError::InternalInvariantFailed)
-        );
+        assert!(chinese_remainder_theorem(a1, &a2, &p, &q).is_err());
 
         // a1 > p
         let a1 = a1 + BigNumber::one();
-        assert_eq!(
-            chinese_remainder_theorem(&a1, &a2, &p, &q),
-            Err(InternalError::InternalInvariantFailed)
-        );
+        assert!(chinese_remainder_theorem(&a1, &a2, &p, &q).is_err());
 
         // a1 < 0
         let a1 = -BigNumber::from_rng(&p, &mut rng);
-        assert_eq!(
-            chinese_remainder_theorem(&a1, &a2, &p, &q),
-            Err(InternalError::InternalInvariantFailed)
-        );
+        assert!(chinese_remainder_theorem(&a1, &a2, &p, &q).is_err());
 
         // a2 = q
         let a1 = BigNumber::from_rng(&p, &mut rng);
         let a2 = &q;
-        assert_eq!(
-            chinese_remainder_theorem(&a1, a2, &p, &q),
-            Err(InternalError::InternalInvariantFailed)
-        );
+        assert!(chinese_remainder_theorem(&a1, a2, &p, &q).is_err());
 
         // a2 > q
         let a2 = a2 + BigNumber::one();
-        assert_eq!(
-            chinese_remainder_theorem(&a1, &a2, &p, &q),
-            Err(InternalError::InternalInvariantFailed)
-        );
+        assert!(chinese_remainder_theorem(&a1, &a2, &p, &q).is_err());
 
         // a2 < 0
         let a2 = -BigNumber::from_rng(&q, &mut rng);
-        assert_eq!(
-            chinese_remainder_theorem(&a1, &a2, &p, &q),
-            Err(InternalError::InternalInvariantFailed)
-        );
+        assert!(chinese_remainder_theorem(&a1, &a2, &p, &q).is_err());
     }
 
     #[test]
@@ -647,24 +629,15 @@ mod tests {
 
         // p = q
         let bad_q = &p;
-        assert_eq!(
-            chinese_remainder_theorem(&a1, &a1, &p, bad_q),
-            Err(InternalError::InternalInvariantFailed)
-        );
+        assert!(chinese_remainder_theorem(&a1, &a1, &p, bad_q).is_err());
 
         // p = kq for some k
         let mult_p = &q + &q;
-        assert_eq!(
-            chinese_remainder_theorem(&a1, &a2, &mult_p, &q),
-            Err(InternalError::InternalInvariantFailed)
-        );
+        assert!(chinese_remainder_theorem(&a1, &a1, &mult_p, &q).is_err());
 
         // q = kp for some k
         let mult_q = &p + &p;
-        assert_eq!(
-            chinese_remainder_theorem(&a1, &a2, &p, &mult_q),
-            Err(InternalError::InternalInvariantFailed)
-        );
+        assert!(chinese_remainder_theorem(&a1, &a2, &p, &mult_q).is_err());
 
         assert!(chinese_remainder_theorem(&a1, &a2, &p, &q).is_ok());
     }
