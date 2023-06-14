@@ -6,7 +6,15 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Implements the ZKP from Figure 28 of <https://eprint.iacr.org/2021/060.pdf>
+//! Implements a zero-knowledge proof that the modulus N can be factored into
+//! two numbers greater than 2^ell for a parameter ell.
+//!
+//! The proof is defined in Figure 28 of CGGMP[^cite], and uses a standard
+//! Fiat-Shamir transformation to make the proof non-interactive.
+//!
+//! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos Makriyannis, and Udi Peled.
+//! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
+//! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 
 use crate::{
     errors::*,
@@ -24,6 +32,8 @@ use std::fmt::Debug;
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
+/// Proof that the modulus N can be factored into two numbers greater than 2^ell
+/// for a parameter ell.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct PiFacProof {
     P: Commitment,
@@ -39,6 +49,7 @@ pub(crate) struct PiFacProof {
     v: MaskedRandomness,
 }
 
+/// Common input and setup parameters known to both the prover and verifier.
 #[derive(Serialize)]
 pub(crate) struct PiFacInput {
     setup_params: VerifiedRingPedersen,
@@ -46,6 +57,7 @@ pub(crate) struct PiFacInput {
 }
 
 impl PiFacInput {
+    /// Generate public input for proving and verifying [`PiFacProof`] about N.
     pub(crate) fn new(setup_params: &VerifiedRingPedersen, N0: &BigNumber) -> Self {
         Self {
             setup_params: setup_params.clone(),
@@ -54,6 +66,8 @@ impl PiFacInput {
     }
 }
 
+/// The prover's secret knowledge: the factors p and q of the modulus N where N
+/// = pq.
 #[derive(ZeroizeOnDrop)]
 pub(crate) struct PiFacSecret {
     p: BigNumber,
