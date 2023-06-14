@@ -13,7 +13,7 @@ use crate::{
     participant::InnerProtocolParticipant,
     ring_pedersen::VerifiedRingPedersen,
     zkp::{
-        pifac::{PiFacInput, PiFacProof, PiFacSecret},
+        pifac::{CommonInput, PiFacProof, ProverSecret},
         pimod::{PiModInput, PiModProof, PiModSecret},
         Proof, ProofContext,
     },
@@ -77,8 +77,8 @@ impl AuxInfoProof {
         )?;
         Self::append_pifac_transcript(&mut transcript, context, sid, rho)?;
         let pifac = PiFacProof::prove(
-            &PiFacInput::new(verifier_params, N),
-            &PiFacSecret::new(p, q),
+            &CommonInput::new(verifier_params, N),
+            &ProverSecret::new(p, q),
             context,
             &mut transcript,
             rng,
@@ -107,7 +107,7 @@ impl AuxInfoProof {
             .verify(&PiModInput::new(N), context, &mut transcript)?;
         Self::append_pifac_transcript(&mut transcript, context, sid, rho)?;
         self.pifac.verify(
-            &PiFacInput::new(verifier_params, N),
+            &CommonInput::new(verifier_params, N),
             context,
             &mut transcript,
         )?;
