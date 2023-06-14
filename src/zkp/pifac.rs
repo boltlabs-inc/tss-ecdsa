@@ -36,16 +36,26 @@ use zeroize::ZeroizeOnDrop;
 /// for a parameter ell.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct PiFacProof {
-    P: Commitment,
-    Q: Commitment,
-    A: Commitment,
-    B: Commitment,
-    T: Commitment,
+    /// Commitment to the factor p using randomness meu.
+    commitment_p: Commitment,
+    /// Commitment to the factor q using randomness neu. 
+    commitment_q: Commitment,
+    /// Commitment to randomness alpha and x.
+    commitment_alpha: Commitment,
+    /// Commitment to randomness beta and y.
+    commitment_beta: Commitment,
+    /// Combination of commitment to Q using ring Pedersen parameter r.
+    commitment_combine_Q_r: Commitment,
+    /// Randomness for commitment.
     sigma: CommitmentRandomness,
-    z1: BigNumber,
-    z2: BigNumber,
-    w1: MaskedRandomness,
-    w2: MaskedRandomness,
+    /// Mask p with randomness alpha.
+    mask_alpha_p: BigNumber,
+    /// Mask q with randomness beta.
+    mask_beta_q: BigNumber,
+    /// Mask meu with randomness x.
+    maskedrandomness_meu: MaskedRandomness,
+    /// Mask neu with randomness y.
+    maskedrandomness_neu: MaskedRandomness,
     v: MaskedRandomness,
 }
 
@@ -145,16 +155,16 @@ impl Proof for PiFacProof {
         let v = sigma_hat.remask(&r, &e);
 
         let proof = Self {
-            P,
-            Q,
-            A,
-            B,
-            T,
+            commitment_p: P,
+            commitment_q: Q,
+            commitment_alpha: A,
+            commitment_beta: B,
+            commitment_combine_Q_r: T,
             sigma,
-            z1,
-            z2,
-            w1,
-            w2,
+            mask_alpha_p: z1,
+            mask_beta_q: z2,
+            maskedrandomness_meu: w1,
+            maskedrandomness_neu: w2,
             v,
         };
         Ok(proof)
@@ -170,11 +180,11 @@ impl Proof for PiFacProof {
             transcript,
             context,
             input,
-            &self.P,
-            &self.Q,
-            &self.A,
-            &self.B,
-            &self.T,
+            &self.commitment_p,
+            &self.commitment_q,
+            &self.commitment_alpha,
+            &self.commitment_beta,
+            &self.commitment_combine_Q_r,
             &self.sigma,
         )?;
 
@@ -182,8 +192,8 @@ impl Proof for PiFacProof {
         let e = plusminus_challenge_from_transcript(transcript)?;
 
         let eq_check_1 = {
-            let lhs = input.setup_params.scheme().reconstruct(&self.z1, &self.w1);
-            let rhs = input.setup_params.scheme().combine(&self.A, &self.P, &e);
+            let lhs = input.setup_params.scheme().reconstruct(&self.mask_alpha_p, &self.maskedrandomness_meu);
+            let rhs = input.setup_params.scheme().combine(&self.commitment_alpha, &self.commitment_p, &e);
             lhs == rhs
         };
         if !eq_check_1 {
@@ -192,8 +202,8 @@ impl Proof for PiFacProof {
         }
 
         let eq_check_2 = {
-            let lhs = input.setup_params.scheme().reconstruct(&self.z2, &self.w2);
-            let rhs = input.setup_params.scheme().combine(&self.B, &self.Q, &e);
+            let lhs = input.setup_params.scheme().reconstruct(&self.mask_beta_q, &self.maskedrandomness_neu);
+            let rhs = input.setup_params.scheme().combine(&self.commitment_beta, &self.commitment_q, &e);
             lhs == rhs
         };
         if !eq_check_2 {
@@ -209,8 +219,8 @@ impl Proof for PiFacProof {
             let lhs = input
                 .setup_params
                 .scheme()
-                .reconstruct_with_commitment(&self.Q, &self.z1, &self.v);
-            let rhs = input.setup_params.scheme().combine(&self.T, &R, &e);
+                .reconstruct_with_commitment(&self.commitment_q, &self.mask_alpha_p, &self.v);
+            let rhs = input.setup_params.scheme().combine(&self.commitment_combine_Q_r, &R, &e);
             lhs == rhs
         };
         if !eq_check_3 {
@@ -223,11 +233,11 @@ impl Proof for PiFacProof {
         let two_ell_eps = BigNumber::one() << (ELL + EPSILON);
         // 2^{ELL + EPSILON} * sqrt(N_0)
         let z_bound = &sqrt_N0 * &two_ell_eps;
-        if self.z1 < -z_bound.clone() || self.z1 > z_bound {
+        if self.mask_alpha_p < -z_bound.clone() || self.mask_alpha_p > z_bound {
             error!("self.z1 > z_bound check failed");
             return Err(InternalError::ProtocolError);
         }
-        if self.z2 < -z_bound.clone() || self.z2 > z_bound {
+        if self.mask_beta_q < -z_bound.clone() || self.mask_beta_q > z_bound {
             error!("self.z2 > z_bound check failed");
             return Err(InternalError::ProtocolError);
         }
