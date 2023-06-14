@@ -6,7 +6,20 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Implements the ZKP from Figure 16 of <https://eprint.iacr.org/2021/060.pdf>
+//! Implements a zero-knowledge proof that the modulus N is a Paillier-Blum modulus 
+//! meaning that the gcd (N, phi(N)) = 1 
+//! and N = pq where p,q is congruent to 3 mod 4.
+//! 
+//! The protocol is a combination (and simplification) of van de Graaf and Peralta and Goldberg et al.
+//! 
+//! The proof is defined in Figure 16 of CGGMP[^cite].
+//!
+//! This implementation uses a standard Fiat-Shamir transformation to make the
+//! proof non-interactive.
+//!
+//! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos Makriyannis, and Udi Peled.
+//! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
+//! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 
 use crate::{
     errors::*,
