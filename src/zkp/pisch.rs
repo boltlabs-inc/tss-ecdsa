@@ -9,13 +9,19 @@
 //! Implements a zero-knowledge proof of knowledge of discrete logarithm.
 //!
 //! More precisely, this module includes methods to create and verify a
-//! non-interactive zero-knowledge proof of knowledge of discrete logarithm of a
-//! group element.
+//! non-interactive zero-knowledge proof of knowledge of the discrete logarithm
+//! x of a group element X - x such that X = g^x for a known generator g. This
+//! is known as Schnorr's identification protocol.
 //!
 //! This implementation uses a standard Fiat-Shamir transformation to make the
-//! proof non-interactive.
-//!
-//! The proof is defined in Figure 22 of CGGMP[^cite].
+//! proof non-interactive. We only implement it for the group defined by the
+//! elliptic curve secp256k1. Although, this proof is a little different from
+//! the rest of the proofs in this library as it is not completely
+//! non-interactive. It is not a full-on interactive sigma proof because the
+//! commitment is not supplied by the verifier, so we do use Fiat-Shamir. But it
+//! allows the caller to do the commitment phase without forming the whole proof
+//! and send it to the verifier in advance. The proof is defined in Figure 22 of
+//! CGGMP[^cite].
 //!
 //! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos Makriyannis, and Udi Peled.
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
@@ -47,8 +53,11 @@ pub(crate) struct PiSchProof {
     response: BigNumber,
 }
 
-/// Creating a commitment to the secret value which we later prove the knowledge
-/// of.
+/// Commitment to the mask selected in the commitment phase of the proof.
+///
+/// Implementation note: this type includes the mask itself. This is for
+/// convenience; the mask must not be sent to the verifier at any point as this
+/// breaks the security of the proof.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct PiSchPrecommit {
     /// Precommitment value (`A` in the paper).
@@ -155,13 +164,14 @@ impl Proof2 for PiSchProof {
 }
 
 impl PiSchProof {
+    /// "Commitment" phase of the PiSch proof.
     pub fn precommit<R: RngCore + CryptoRng>(
         rng: &mut R,
         input: &CommonInput,
     ) -> Result<PiSchPrecommit> {
         // Sample alpha from F_q
         let randomness_for_commitment = crate::utils::random_positive_bn(rng, input.q);
-        // Create a commitment using the randomness sampled in the previous step
+        // Form a commitment to the mask
         let precommitment = CurvePoint::GENERATOR.multiply_by_scalar(&randomness_for_commitment)?;
         Ok(PiSchPrecommit {
             precommitment,
@@ -169,6 +179,7 @@ impl PiSchProof {
         })
     }
 
+    /// "Challenge" phase of the PiSch proof.
     pub fn prove_from_precommit(
         context: &impl ProofContext,
         com: &PiSchPrecommit,
@@ -184,8 +195,7 @@ impl PiSchProof {
         // Verifier samples e in F_q
         let challenge = positive_challenge_from_transcript(&mut local_transcript, input.q)?;
 
-        // Prover creates a response by adding the randomness generated in the first
-        // step to the challenge multiplied by the secret
+        // Create a response by masking the secret with the challenge and mask
         let response = &com.randomness_for_commitment + &challenge * secret.x;
 
         // Proof consists of all 3 messages in the 3 rounds
