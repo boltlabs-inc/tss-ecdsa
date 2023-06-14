@@ -38,7 +38,7 @@ use zeroize::ZeroizeOnDrop;
 pub(crate) struct PiFacProof {
     /// Commitment to the factor p using randomness meu.
     commitment_p: Commitment,
-    /// Commitment to the factor q using randomness neu. 
+    /// Commitment to the factor q using randomness neu.
     commitment_q: Commitment,
     /// Commitment to randomness alpha and x.
     commitment_alpha: Commitment,
@@ -192,8 +192,15 @@ impl Proof for PiFacProof {
         let e = plusminus_challenge_from_transcript(transcript)?;
 
         let eq_check_1 = {
-            let lhs = input.setup_params.scheme().reconstruct(&self.mask_alpha_p, &self.maskedrandomness_meu);
-            let rhs = input.setup_params.scheme().combine(&self.commitment_alpha, &self.commitment_p, &e);
+            let lhs = input
+                .setup_params
+                .scheme()
+                .reconstruct(&self.mask_alpha_p, &self.maskedrandomness_meu);
+            let rhs =
+                input
+                    .setup_params
+                    .scheme()
+                    .combine(&self.commitment_alpha, &self.commitment_p, &e);
             lhs == rhs
         };
         if !eq_check_1 {
@@ -202,8 +209,15 @@ impl Proof for PiFacProof {
         }
 
         let eq_check_2 = {
-            let lhs = input.setup_params.scheme().reconstruct(&self.mask_beta_q, &self.maskedrandomness_neu);
-            let rhs = input.setup_params.scheme().combine(&self.commitment_beta, &self.commitment_q, &e);
+            let lhs = input
+                .setup_params
+                .scheme()
+                .reconstruct(&self.mask_beta_q, &self.maskedrandomness_neu);
+            let rhs =
+                input
+                    .setup_params
+                    .scheme()
+                    .combine(&self.commitment_beta, &self.commitment_q, &e);
             lhs == rhs
         };
         if !eq_check_2 {
@@ -216,11 +230,15 @@ impl Proof for PiFacProof {
                 .setup_params
                 .scheme()
                 .reconstruct(&input.N0, self.sigma.as_masked());
-            let lhs = input
+            let lhs = input.setup_params.scheme().reconstruct_with_commitment(
+                &self.commitment_q,
+                &self.mask_alpha_p,
+                &self.v,
+            );
+            let rhs = input
                 .setup_params
                 .scheme()
-                .reconstruct_with_commitment(&self.commitment_q, &self.mask_alpha_p, &self.v);
-            let rhs = input.setup_params.scheme().combine(&self.commitment_combine_Q_r, &R, &e);
+                .combine(&self.commitment_combine_Q_r, &R, &e);
             lhs == rhs
         };
         if !eq_check_3 {
