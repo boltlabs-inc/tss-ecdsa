@@ -125,7 +125,7 @@ impl Proof for PiModProof {
             let z = modpow(&y, &exp, &input.N);
 
             elements.push(PiModProofElements {
-                x: x[0].clone(),
+                x: x.get(0).unwrap().clone(),
                 a,
                 b,
                 z,
