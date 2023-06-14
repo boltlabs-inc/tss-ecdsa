@@ -40,18 +40,18 @@ static LAMBDA: usize = crate::parameters::SOUNDNESS_PARAMETER;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PiModProof {
-    w: BigNumber,
+    random_jacobi_one: BigNumber,
     // (x, a, b, z),
     elements: Vec<PiModProofElements>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PiModProofElements {
-    x: BigNumber,
-    a: usize,
-    b: usize,
-    z: BigNumber,
-    y: BigNumber,
+    fourth_root_y: BigNumber,
+    first_param_satisfy_x: usize,
+    second_param_satisfy_x: usize,
+    y_totient_variable: BigNumber,
+    combine_a_b: BigNumber,
 }
 
 #[derive(Serialize)]
@@ -124,11 +124,11 @@ impl Proof for PiModProof {
                     let z = modpow(&y, &exp, &input.N);
 
                     Ok(PiModProofElements {
-                        x: x.get(0).unwrap().clone(),
-                        a,
-                        b,
-                        z,
-                        y,
+                        fourth_root_y: x.get(0).unwrap().clone(),
+                        first_param_satisfy_x: a,
+                        second_param_satisfy_x: b,
+                        y_totient_variable: z,
+                        combine_a_b: y,
                     })
                 })
             })
@@ -136,7 +136,10 @@ impl Proof for PiModProof {
 
         let elements = elements?;
 
-        let proof = Self { w, elements };
+        let proof = Self {
+            random_jacobi_one: w,
+            elements,
+        };
 
         Ok(proof)
     }
@@ -179,34 +182,40 @@ impl Proof for PiModProof {
             error!("N is not composite");
             return Err(InternalError::ProtocolError);
         }
-        Self::fill_transcript(transcript, context, input, &self.w)?;
+        Self::fill_transcript(transcript, context, input, &self.random_jacobi_one)?;
 
         for elements in &self.elements {
             // First, check that y came from Fiat-Shamir transcript
             let y = positive_challenge_from_transcript(transcript, &input.N)?;
-            if y != elements.y {
+            if y != elements.combine_a_b {
                 error!("y does not match Fiat-Shamir challenge");
                 return Err(InternalError::ProtocolError);
             }
 
-            let y_candidate = modpow(&elements.z, &input.N, &input.N);
-            if elements.y != y_candidate {
+            let y_candidate = modpow(&elements.y_totient_variable, &input.N, &input.N);
+            if elements.combine_a_b != y_candidate {
                 error!("z^N != y (mod N)");
                 return Err(InternalError::ProtocolError);
             }
 
-            if elements.a != 0 && elements.a != 1 {
+            if elements.first_param_satisfy_x != 0 && elements.first_param_satisfy_x != 1 {
                 error!("a not in {{0,1}}");
                 return Err(InternalError::ProtocolError);
             }
 
-            if elements.b != 0 && elements.b != 1 {
+            if elements.second_param_satisfy_x != 0 && elements.second_param_satisfy_x != 1 {
                 error!("b not in {{0,1}}");
                 return Err(InternalError::ProtocolError);
             }
 
-            let y_prime = y_prime_from_y(&elements.y, &self.w, elements.a, elements.b, &input.N);
-            if modpow(&elements.x, &BigNumber::from(4u64), &input.N) != y_prime {
+            let y_prime = y_prime_from_y(
+                &elements.combine_a_b,
+                &self.random_jacobi_one,
+                elements.first_param_satisfy_x,
+                elements.second_param_satisfy_x,
+                &input.N,
+            );
+            if modpow(&elements.fourth_root_y, &BigNumber::from(4u64), &input.N) != y_prime {
                 error!("x^4 != y' (mod N)");
                 return Err(InternalError::ProtocolError);
             }
@@ -390,7 +399,8 @@ fn y_prime_from_y(y: &BigNumber, w: &BigNumber, a: usize, b: usize, N: &BigNumbe
 /// Finds unique a,b in {0,1} such that, for y' = (-1)^a * w^b * y, there is an
 /// x such that x^4 = y (mod pq)
 /// In practice, it is sufficient to use only the first element of the
-/// [`Vec<BigNumber>`] as the third output since it is the only part that goes into the proof.
+/// [`Vec<BigNumber>`] as the third output since it is the only part that goes
+/// into the proof.
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
 fn y_prime_combinations(
     w: &BigNumber,
@@ -660,11 +670,11 @@ mod tests {
         let b = rng.next_u64() as u16;
 
         PiModProofElements {
-            x,
-            a: a as usize,
-            b: b as usize,
-            y,
-            z,
+            fourth_root_y: x,
+            first_param_satisfy_x: a as usize,
+            second_param_satisfy_x: b as usize,
+            combine_a_b: y,
+            y_totient_variable: z,
         }
     }
 
@@ -687,7 +697,10 @@ mod tests {
             .map(|_| random_pbmpe(&mut rng))
             .collect::<Vec<PiModProofElements>>();
 
-        let pbmp = PiModProof { w, elements };
+        let pbmp = PiModProof {
+            random_jacobi_one: w,
+            elements,
+        };
         let buf = bincode::serialize(&pbmp).unwrap();
         let roundtrip_pbmp: PiModProof = bincode::deserialize(&buf).unwrap();
         assert_eq!(buf, bincode::serialize(&roundtrip_pbmp).unwrap());
@@ -734,14 +747,14 @@ mod tests {
         let transform = |proof: &PiModProof| {
             // Remove iterations from the proof
             let short_proof = PiModProof {
-                w: proof.w.clone(),
+                random_jacobi_one: proof.random_jacobi_one.clone(),
                 elements: proof.elements[..SOUNDNESS_PARAMETER - 1].into(),
             };
 
             // Add elements to the proof. Not sure if this is actually a problem, but we'll
             // stick to the spec for now.
             let long_proof = PiModProof {
-                w: proof.w.clone(),
+                random_jacobi_one: proof.random_jacobi_one.clone(),
                 elements: proof
                     .elements
                     .clone()
