@@ -389,6 +389,8 @@ fn y_prime_from_y(y: &BigNumber, w: &BigNumber, a: usize, b: usize, N: &BigNumbe
 
 /// Finds unique a,b in {0,1} such that, for y' = (-1)^a * w^b * y, there is an
 /// x such that x^4 = y (mod pq)
+/// In practice, it is sufficient to use only the first element of the
+/// [`Vec<BigNumber>`] as the third output since it is the only part that goes into the proof.
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
 fn y_prime_combinations(
     w: &BigNumber,
