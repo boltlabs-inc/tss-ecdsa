@@ -13,8 +13,8 @@ use crate::{
     participant::InnerProtocolParticipant,
     ring_pedersen::VerifiedRingPedersen,
     zkp::{
-        pifac::{CommonInput, PiFacProof, ProverSecret},
-        pimod::{PiModInput, PiModProof, PiModSecret},
+        pifac::{CommonInput as PiFacCommonInput, PiFacProof, ProverSecret as PiFacProverSecret},
+        pimod::{CommonInput as PiModCommonInput, PiModProof, ProverSecret as PiModProverSecret},
         Proof, ProofContext,
     },
     Identifier,
@@ -69,16 +69,16 @@ impl AuxInfoProof {
         let mut transcript = Self::new_transcript();
         Self::append_pimod_transcript(&mut transcript, context, sid, rho)?;
         let pimod = PiModProof::prove(
-            &PiModInput::new(N),
-            &PiModSecret::new(p, q),
+            &PiModCommonInput::new(N),
+            &PiModProverSecret::new(p, q),
             context,
             &mut transcript,
             rng,
         )?;
         Self::append_pifac_transcript(&mut transcript, context, sid, rho)?;
         let pifac = PiFacProof::prove(
-            &CommonInput::new(verifier_params, N),
-            &ProverSecret::new(p, q),
+            &PiFacCommonInput::new(verifier_params, N),
+            &PiFacProverSecret::new(p, q),
             context,
             &mut transcript,
             rng,
@@ -104,10 +104,10 @@ impl AuxInfoProof {
         let mut transcript = Self::new_transcript();
         Self::append_pimod_transcript(&mut transcript, context, sid, rho)?;
         self.pimod
-            .verify(&PiModInput::new(N), context, &mut transcript)?;
+            .verify(&PiModCommonInput::new(N), context, &mut transcript)?;
         Self::append_pifac_transcript(&mut transcript, context, sid, rho)?;
         self.pifac.verify(
-            &CommonInput::new(verifier_params, N),
+            &PiFacCommonInput::new(verifier_params, N),
             context,
             &mut transcript,
         )?;
