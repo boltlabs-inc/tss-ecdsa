@@ -6,8 +6,20 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Implements the ZKP from Figure 22 of <https://eprint.iacr.org/2021/060.pdf>
-
+//! Implements a zero-knowledge proof of knowledge of discrete logarithm.
+//!
+//! More precisely, this module includes methods to create and verify a
+//! non-interactive zero-knowledge proof of knowledge of discrete logarithm of a
+//! group element.
+//!
+//! This implementation uses a standard Fiat-Shamir transformation to make the
+//! proof non-interactive.
+//!
+//! The proof is defined in Figure 22 of CGGMP[^cite].
+//!
+//! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos Makriyannis, and Udi Peled.
+//! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
+//! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 use crate::{
     errors::*,
     messages::{KeygenMessageType, Message, MessageType},
@@ -22,6 +34,8 @@ use std::fmt::Debug;
 use tracing::error;
 use utils::CurvePoint;
 
+/// Proof of knowledge of discrete logarithm of a group element which is the
+/// commitment to the secret.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct PiSchProof {
     /// Commitment to the secret (`A` in the paper).
@@ -32,6 +46,9 @@ pub(crate) struct PiSchProof {
     /// in the paper).
     response: BigNumber,
 }
+
+/// Creating a commitment to the secret value which we later prove the knowledge
+/// of.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct PiSchPrecommit {
     /// Precommitment value (`A` in the paper).
