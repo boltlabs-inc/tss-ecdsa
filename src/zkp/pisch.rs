@@ -88,8 +88,11 @@ impl PiSchPrecommit {
 }
 
 impl<'a> CommonInput<'a> {
-    pub(crate) fn new(X: &'a CurvePoint) -> CommonInput<'a> {
-        Self { X }
+    pub(crate) fn new<X>(X: &'a X) -> CommonInput<'a>
+    where
+        X: AsRef<CurvePoint> + 'a,
+    {
+        Self { X: X.as_ref() }
     }
 }
 
@@ -106,10 +109,15 @@ impl<'a> Debug for ProverSecret<'a> {
 }
 
 impl<'a> ProverSecret<'a> {
-    pub(crate) fn new(x: &'a BigNumber) -> ProverSecret<'a> {
-        Self { x }
+    pub(crate) fn new<X>(x:&'a X) -> ProverSecret<'a>
+    where
+        X: AsRef<BigNumber> + 'a,
+    {
+        Self { x: x.as_ref() }
     }
 }
+
+
 
 impl Proof2 for PiSchProof {
     type CommonInput<'a> = CommonInput<'a>;
@@ -225,7 +233,10 @@ impl PiSchProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::testing::init_testing, zkp::BadContext};
+    use crate::{
+        utils::testing::{init_testing, init_testing_with_seed},
+        zkp::BadContext,
+    };
     fn transcript() -> Transcript {
         Transcript::new(b"PiSchProof Test")
     }
@@ -290,7 +301,10 @@ mod tests {
 
     #[test]
     fn test_precommit_proof() -> Result<()> {
-        let mut rng = init_testing();
+        let mut rng = init_testing_with_seed([
+            230, 208, 20, 185, 242, 203, 71, 127, 173, 17, 62, 66, 46, 21, 50, 98, 12, 245, 207,
+            82, 103, 116, 239, 213, 33, 36, 101, 140, 100, 210, 19, 31,
+        ]);
 
         let q = crate::utils::k256_order();
         let g = CurvePoint::GENERATOR;
