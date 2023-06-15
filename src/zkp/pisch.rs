@@ -10,12 +10,12 @@
 //!
 //! More precisely, this module includes methods to create and verify a
 //! non-interactive zero-knowledge proof of knowledge of the discrete logarithm
-//! x of a group element X - x such that X = g^x for a known generator g. This
-//! is known as Schnorr's identification protocol.
+//! `x` of a group element `X` - `x` such that `X = g^x` for a known generator
+//! `g`. This is known as Schnorr's identification protocol.
 //!
 //! This implementation uses a standard Fiat-Shamir transformation to make the
 //! proof non-interactive. We only implement it for the group defined by the
-//! elliptic curve secp256k1. Although, this proof is a little different from
+//! elliptic curve [secp256k1](https://en.bitcoin.it/wiki/Secp256k1). Although, this proof is a little different from
 //! the rest of the proofs in this library as it is not completely
 //! non-interactive. It is not a full-on interactive sigma proof because the
 //! commitment is not supplied by the verifier, so we do use Fiat-Shamir. But it
@@ -179,7 +179,7 @@ impl PiSchProof {
         })
     }
 
-    /// "Challenge" phase of the PiSch proof.
+    /// "Challenge" and "Response" phases of the PiSch proof.
     pub fn prove_from_precommit(
         context: &impl ProofContext,
         com: &PiSchPrecommit,
