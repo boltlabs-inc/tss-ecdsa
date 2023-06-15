@@ -19,7 +19,7 @@ use crate::{
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::{error, info, instrument, warn};
+use tracing::{error, info, instrument};
 
 // Local storage data types.
 mod storage {
@@ -241,31 +241,18 @@ impl BroadcastParticipant {
             })
             .collect::<Result<Vec<Message>>>()?;
 
-        // DEBUG
         for msg in &messages {
-            // in broadcast:
             let unverified_bytes = serialize!(msg)?;
-            warn!("1. {:?}", unverified_bytes);
-
-            // in handle_broadcast:
             let deser_msg: Message = deserialize!(&unverified_bytes)?;
-            warn!("2. {:?}", deser_msg);
-
-            // in ??
             let data = BroadcastData::from_message(&deser_msg)?;
-            warn!("3. {:?}", data);
-
-            // in process_vote
             let broadcast_output = data.data.clone();
-            warn!("4. {:?}", broadcast_output);
-            let output_msg = Message::new(
+            let _output_msg = Message::new(
                 data.message_type,
                 sid,
                 data.leader,
                 self.id,
                 &broadcast_output,
             )?;
-            warn!("5. {:?}", output_msg);
         }
 
         Ok(messages)
@@ -313,7 +300,6 @@ impl BroadcastParticipant {
         if message_votes.contains_key(&idx) {
             return Ok(ProcessOutcome::Incomplete);
         }
-        // DEBUG: this data.data.clone() has the correct value
         let _ = message_votes.insert(idx, data.data.clone());
 
         // check if we've received all the votes for this tag||leader yet
@@ -389,7 +375,7 @@ impl BroadcastParticipant {
                     &data,
                 )
             })
-            .collect::<Result<Vec<Message>>>()?;
+            .collect::<Result<Vec<_>>>()?;
         Ok(messages)
     }
 

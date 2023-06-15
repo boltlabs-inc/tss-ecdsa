@@ -716,13 +716,13 @@ mod tests {
                 .collect::<Result<Vec<_>>>()
         }
         pub fn initialize_keygen_message(&self, keygen_identifier: Identifier) -> Result<Message> {
-            let array: [u8; 0] = [];
+            let empty: [u8; 0] = [];
             Message::new(
                 MessageType::Keygen(KeygenMessageType::Ready),
                 keygen_identifier,
                 self.id,
                 self.id,
-                &array,
+                &empty,
             )
         }
     }

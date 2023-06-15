@@ -203,8 +203,8 @@ impl<P: ProtocolParticipant> Participant<P> {
     #[instrument(skip_all)]
     pub fn initialize_message(&self) -> Result<Message> {
         info!("Initializing subprotocol.");
-        let array: [u8; 0] = [];
-        Message::new(P::ready_type(), self.sid(), self.id, self.id, &array)
+        let empty: [u8; 0] = [];
+        Message::new(P::ready_type(), self.sid(), self.id, self.id, &empty)
     }
 
     /// Return the protocol status.

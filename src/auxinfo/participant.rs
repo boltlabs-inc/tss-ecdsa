@@ -664,13 +664,13 @@ mod tests {
             &self,
             auxinfo_identifier: Identifier,
         ) -> Result<Message> {
-            let array: [u8; 0] = [];
+            let empty: [u8; 0] = [];
             Message::new(
                 MessageType::Auxinfo(AuxinfoMessageType::Ready),
                 auxinfo_identifier,
                 self.id,
                 self.id,
-                &array,
+                &empty,
             )
         }
     }
