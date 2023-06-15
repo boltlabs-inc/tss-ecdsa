@@ -20,7 +20,7 @@ use crate::{
     participant::{Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant},
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
-    utils::{k256_order, CurvePoint},
+    utils::CurvePoint,
     zkp::{
         pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
         Proof2,
@@ -346,11 +346,9 @@ impl KeygenParticipant {
 
         let (keyshare_private, keyshare_public) = KeySharePublic::new_keyshare(self.id(), rng)?;
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
         let X = keyshare_public.as_ref();
 
-        let input = CommonInput::new(&g, &q, X);
+        let input = CommonInput::new(X);
         // This corresponds to `A_i` in the paper.
         let sch_precom = PiSchProof::precommit(rng, &input)?;
         let decom = KeygenDecommit::new(rng, &sid, &self.id, &keyshare_public, &sch_precom);
@@ -568,12 +566,10 @@ impl KeygenParticipant {
             .local_storage
             .retrieve::<storage::SchnorrPrecom>(self.id)?;
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
         let my_pk = self
             .local_storage
             .retrieve::<storage::PublicKeyshare>(self.id)?;
-        let input = CommonInput::new(&g, &q, my_pk.as_ref());
+        let input = CommonInput::new(my_pk.as_ref());
 
         let my_sk = self
             .local_storage
@@ -618,9 +614,7 @@ impl KeygenParticipant {
             .local_storage
             .retrieve::<storage::Decommit>(message.from())?;
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
-        let input = CommonInput::new(&g, &q, decom.pk.as_ref());
+        let input = CommonInput::new(decom.pk.as_ref());
 
         let mut transcript = schnorr_proof_transcript(&global_rid)?;
         proof.verify(input, &self.retrieve_context(), &mut transcript)?;

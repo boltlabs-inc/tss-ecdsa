@@ -29,7 +29,7 @@
 use crate::{
     errors::*,
     messages::{KeygenMessageType, Message, MessageType},
-    utils::{self, positive_challenge_from_transcript},
+    utils::{self, k256_order, positive_challenge_from_transcript},
     zkp::{Proof2, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -72,8 +72,6 @@ pub(crate) struct PiSchPrecommit {
 /// implement Clone and Copy for this type.
 #[derive(Serialize, Copy, Clone)]
 pub(crate) struct CommonInput<'a> {
-    g: &'a CurvePoint,
-    q: &'a BigNumber,
     X: &'a CurvePoint,
 }
 
@@ -90,8 +88,8 @@ impl PiSchPrecommit {
 }
 
 impl<'a> CommonInput<'a> {
-    pub(crate) fn new(g: &'a CurvePoint, q: &'a BigNumber, X: &'a CurvePoint) -> CommonInput<'a> {
-        Self { g, q, X }
+    pub(crate) fn new(X: &'a CurvePoint) -> CommonInput<'a> {
+        Self { X }
     }
 }
 
@@ -140,7 +138,7 @@ impl Proof2 for PiSchProof {
         Self::fill_transcript(transcript, context, &input, &self.commitment)?;
 
         // Verifier samples e in F_q
-        let challenge = positive_challenge_from_transcript(transcript, input.q)?;
+        let challenge = positive_challenge_from_transcript(transcript, &k256_order())?;
         if challenge != self.challenge {
             error!("Fiat-Shamir consistency check failed");
             return Err(InternalError::ProtocolError);
@@ -167,10 +165,10 @@ impl PiSchProof {
     /// "Commitment" phase of the PiSch proof.
     pub fn precommit<R: RngCore + CryptoRng>(
         rng: &mut R,
-        input: &CommonInput,
+        _input: &CommonInput,
     ) -> Result<PiSchPrecommit> {
         // Sample alpha from F_q
-        let randomness_for_commitment = crate::utils::random_positive_bn(rng, input.q);
+        let randomness_for_commitment = crate::utils::random_positive_bn(rng, &k256_order());
         // Form a commitment to the mask
         let precommitment = CurvePoint::GENERATOR.multiply_by_scalar(&randomness_for_commitment)?;
         Ok(PiSchPrecommit {
@@ -193,7 +191,7 @@ impl PiSchProof {
         Self::fill_transcript(&mut local_transcript, context, input, &commitment)?;
 
         // Verifier samples e in F_q
-        let challenge = positive_challenge_from_transcript(&mut local_transcript, input.q)?;
+        let challenge = positive_challenge_from_transcript(&mut local_transcript, &k256_order())?;
 
         // Create a response by masking the secret with the challenge and mask
         let response = &com.randomness_for_commitment + &challenge * secret.x;
@@ -248,7 +246,7 @@ mod tests {
             x += crate::utils::random_positive_bn(rng, &q);
         }
 
-        let input = CommonInput::new(&g, &q, &X);
+        let input = CommonInput::new(&X);
 
         // Proving knowledge of the random secret x
         let proof = PiSchProof::prove(input, ProverSecret::new(&x), &(), &mut transcript(), rng)?;
@@ -300,7 +298,7 @@ mod tests {
         let x = crate::utils::random_positive_bn(&mut rng, &q);
         let X = g.multiply_by_scalar(&x)?;
 
-        let input = CommonInput::new(&g, &q, &X);
+        let input = CommonInput::new(&X);
         let com = PiSchProof::precommit(&mut rng, &input)?;
         let mut transcript = Transcript::new(b"some external proof stuff");
         let proof = PiSchProof::prove_from_precommit(
@@ -313,9 +311,7 @@ mod tests {
         proof.verify(input, &(), &mut transcript)?;
 
         //test public param mismatch
-        let lambda = crate::utils::random_positive_bn(&mut rng, &q);
-        let h = g.multiply_by_scalar(&lambda)?;
-        let input2 = CommonInput::new(&h, &q, &X);
+        let input2 = CommonInput::new(&X);
         let proof2 = PiSchProof::prove_from_precommit(
             &(),
             &com,
