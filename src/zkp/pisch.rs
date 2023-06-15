@@ -223,7 +223,10 @@ impl PiSchProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::testing::init_testing, zkp::BadContext};
+    use crate::{
+        utils::testing::{init_testing, init_testing_with_seed},
+        zkp::BadContext,
+    };
     fn transcript() -> Transcript {
         Transcript::new(b"PiSchProof Test")
     }
@@ -292,7 +295,11 @@ mod tests {
 
     #[test]
     fn test_precommit_proof() -> Result<()> {
-        let mut rng = init_testing();
+        //let mut rng = init_testing();
+        let mut rng = init_testing_with_seed([
+            23, 244, 23, 22, 136, 19, 135, 187, 130, 199, 176, 60, 66, 7, 98, 43, 170, 7, 195, 6,
+            5, 190, 157, 65, 89, 248, 242, 198, 13, 73, 107, 17,
+        ]);
 
         let q = crate::utils::k256_order();
         let g = CurvePoint(k256::ProjectivePoint::GENERATOR);
