@@ -20,7 +20,7 @@ use crate::{
 use rand::{CryptoRng, RngCore};
 use serde::Serialize;
 use std::fmt::Debug;
-use tracing::{error, warn};
+use tracing::error;
 
 /// Possible outcomes from processing one or more messages.
 ///
@@ -410,7 +410,6 @@ pub(crate) trait Broadcast {
         // need to first unwrap the broadcast message...
         let message_type = message.message_type;
         let broadcast_input: Message = deserialize!(&message.unverified_bytes)?;
-        warn!("received message: {:?}", broadcast_input);
 
         let outcome = self
             .broadcast_participant()

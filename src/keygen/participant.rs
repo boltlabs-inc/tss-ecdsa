@@ -400,7 +400,6 @@ impl KeygenParticipant {
 
         let message = broadcast_message.into_message(BroadcastTag::KeyGenR1CommitHash)?;
         let keygen_commit = KeygenCommit::from_message(&message)?;
-        warn!("operating on commit: {:?}", keygen_commit);
         self.local_storage
             .store::<storage::Commit>(message.from(), keygen_commit);
 
@@ -706,11 +705,7 @@ mod tests {
         }
     }
 
-    /// Delivers all messages into their respective participant's inboxes
-    /*fn deliver_all(
-        messages: &HashMap<ParticipantIdentifier, Vec<Message>>,
-        inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
-    ) -> Result<()> {*/
+    /// Delivers all messages into their respective participant's inboxes.
     fn deliver_all(
         messages: &[Message],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
