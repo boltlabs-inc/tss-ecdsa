@@ -130,9 +130,9 @@ impl Message {
     }
 
     /// Creates a new instance of [`Message`] from serialized data.
-    /// This was created in order to quickly resolve the bug of extra 8 bytes while 
-    /// serializing message in broadcast/participant.rs. It is recommended to do away 
-    /// with this function in future.
+    /// This was created in order to quickly resolve the bug of extra 8 bytes
+    /// while serializing message in broadcast:participant file. It is
+    /// recommended to do away with this function in future.
     pub fn new_from_serialized_data(
         message_type: MessageType,
         identifier: Identifier,
