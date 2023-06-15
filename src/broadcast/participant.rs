@@ -341,8 +341,13 @@ impl BroadcastParticipant {
         // output if every node voted for the same message
         for (k, v) in tally.iter() {
             if *v == self.other_participant_ids.len() {
-                // DEBUG: This `k` has an extra 8 bytes somehow.
-                let msg = Message::new_from_serialized_data(data.message_type, sid, data.leader, self.id, k)?;
+                let msg = Message::new_from_serialized_data(
+                    data.message_type,
+                    sid,
+                    data.leader,
+                    self.id,
+                    k.clone(),
+                )?;
                 let out = BroadcastOutput { tag: data.tag, msg };
                 match &mut self.status {
                     Status::Initialized => {

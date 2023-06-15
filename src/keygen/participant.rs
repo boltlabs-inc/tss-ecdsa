@@ -699,10 +699,7 @@ fn schnorr_proof_transcript(global_rid: &[u8; 32]) -> Result<Transcript> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        utils::testing::{init_testing, init_testing_with_seed},
-        Identifier, ParticipantConfig,
-    };
+    use crate::{utils::testing::init_testing, Identifier, ParticipantConfig};
     use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
     use tracing::debug;
@@ -792,10 +789,7 @@ mod tests {
     // This test is cheap. Try a bunch of message permutations to decrease error
     // likelihood
     fn keygen_always_produces_valid_outputs() -> Result<()> {
-        let _rng = init_testing_with_seed([
-            241, 134, 149, 128, 168, 22, 127, 49, 88, 71, 94, 29, 102, 167, 223, 46, 28, 86, 121,
-            177, 148, 245, 172, 252, 23, 102, 57, 92, 33, 32, 185, 95,
-        ]);
+        let _rng = init_testing();
 
         for _ in 0..20 {
             keygen_produces_valid_outputs()?;
@@ -806,10 +800,7 @@ mod tests {
     #[test]
     fn keygen_produces_valid_outputs() -> Result<()> {
         let QUORUM_SIZE = 3;
-        let mut rng = init_testing_with_seed([
-            120, 10, 85, 14, 223, 40, 174, 166, 26, 111, 85, 179, 43, 233, 43, 209, 202, 17, 50,
-            128, 230, 39, 154, 68, 6, 240, 254, 54, 236, 97, 177, 28,
-        ]);
+        let mut rng = init_testing();
         let sid = Identifier::random(&mut rng);
         let mut quorum = KeygenParticipant::new_quorum(sid, QUORUM_SIZE, &mut rng)?;
         let mut inboxes = HashMap::new();

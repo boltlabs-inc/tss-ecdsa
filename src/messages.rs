@@ -16,7 +16,7 @@ use crate::{
     protocol::{Identifier, ParticipantIdentifier},
 };
 use serde::{Deserialize, Serialize};
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use tracing::{error, instrument, trace};
 
 /////////////////
@@ -126,6 +126,24 @@ impl Message {
             from,
             to,
             unverified_bytes: serialize!(unverified_bytes)?,
+        })
+    }
+
+    /// Creates a new instance of [`Message`] from serialized data.
+    pub fn new_from_serialized_data(
+        message_type: MessageType,
+        identifier: Identifier,
+        from: ParticipantIdentifier,
+        to: ParticipantIdentifier,
+        unverified_bytes: Vec<u8>,
+    ) -> Result<Self> {
+        trace!("New message created.");
+        Ok(Self {
+            message_type,
+            identifier,
+            from,
+            to,
+            unverified_bytes,
         })
     }
 
