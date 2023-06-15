@@ -361,10 +361,7 @@ impl KeygenParticipant {
         let decom = KeygenDecommit::new(rng, &sid, &self.id, &keyshare_public, &sch_precom);
         // This corresponds to `V_i` in the paper.
         let com = decom.commit()?;
-
-        warn!("created commitment: {:?}", com);
         let com_bytes = serialize!(&com)?;
-        warn!("serialized commitment: {:?}", com);
 
         self.local_storage.store::<storage::Commit>(self.id, com);
         self.local_storage
@@ -474,20 +471,11 @@ impl KeygenParticipant {
         }
 
         let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
-
-        let more_messages: Vec<Message> = self
-            .other_participant_ids
-            .iter()
-            .map(|&other_participant_id| {
-                Message::new(
-                    MessageType::Keygen(KeygenMessageType::R2Decommit),
-                    sid,
-                    self.id,
-                    other_participant_id,
-                    &decom,
-                )
-            })
-            .collect::<Result<Vec<Message>>>()?;
+        let more_messages = self.message_for_other_participants(
+            MessageType::Keygen(KeygenMessageType::R2Decommit),
+            sid,
+            decom,
+        )?;
         messages.extend_from_slice(&more_messages);
         Ok(messages)
     }
@@ -600,20 +588,11 @@ impl KeygenParticipant {
             &PiSchSecret::new(my_sk.as_ref()),
             &transcript,
         )?;
-
-        let messages: Vec<Message> = self
-            .other_participant_ids
-            .iter()
-            .map(|&other_participant_id| {
-                Message::new(
-                    MessageType::Keygen(KeygenMessageType::R3Proof),
-                    sid,
-                    self.id,
-                    other_participant_id,
-                    &proof,
-                )
-            })
-            .collect::<Result<Vec<Message>>>()?;
+        let messages = self.message_for_other_participants(
+            MessageType::Keygen(KeygenMessageType::R3Proof),
+            sid,
+            proof,
+        )?;
         Ok(messages)
     }
 

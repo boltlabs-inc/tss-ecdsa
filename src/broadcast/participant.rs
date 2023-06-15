@@ -226,35 +226,11 @@ impl BroadcastParticipant {
             message_type,
             data,
         };
-
-        let messages: Vec<Message> = self
-            .other_participant_ids
-            .iter()
-            .map(|&other_participant_id| {
-                Message::new(
-                    MessageType::Broadcast(BroadcastMessageType::Disperse),
-                    sid,
-                    self.id,
-                    other_participant_id,
-                    &b_data,
-                )
-            })
-            .collect::<Result<Vec<Message>>>()?;
-
-        for msg in &messages {
-            let unverified_bytes = serialize!(msg)?;
-            let deser_msg: Message = deserialize!(&unverified_bytes)?;
-            let data = BroadcastData::from_message(&deser_msg)?;
-            let broadcast_output = data.data.clone();
-            let _output_msg = Message::new(
-                data.message_type,
-                sid,
-                data.leader,
-                self.id,
-                &broadcast_output,
-            )?;
-        }
-
+        let messages = self.message_for_other_participants(
+            MessageType::Broadcast(BroadcastMessageType::Disperse),
+            sid,
+            b_data,
+        )?;
         Ok(messages)
     }
 
