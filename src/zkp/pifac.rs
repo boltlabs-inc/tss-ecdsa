@@ -37,27 +37,29 @@ use zeroize::ZeroizeOnDrop;
 /// for a parameter ell.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct PiFacProof {
-    /// Commitment to the factor p using randomness meu.
-    commitment_p: Commitment,
+    /// Commitment to the factor `p` (`P` in the paper)
+    p_commitment: Commitment,
     /// Commitment to the factor q using randomness neu.
-    commitment_q: Commitment,
+    q_commitment: Commitment,
     /// Commitment to randomness alpha and x.
-    commitment_alpha: Commitment,
+    p_mask_commitment: Commitment,
     /// Commitment to randomness beta and y.
-    commitment_beta: Commitment,
+    q_mask_commitment: Commitment,
     /// Combination of commitment to Q using ring Pedersen parameter r.
-    commitment_combine_Q_r: Commitment,
+    // Commitment to q + p's commitment randomness
+    q_link_commitment: Commitment,
     /// Randomness for commitment.
     sigma: CommitmentRandomness,
     /// Mask p with randomness alpha.
-    mask_alpha_p: BigNumber,
+    p_masked: BigNumber,
     /// Mask q with randomness beta.
-    mask_beta_q: BigNumber,
+    q_masked: BigNumber,
     /// Mask meu with randomness x.
-    maskedrandomness_meu: MaskedRandomness,
+    masked_p_commitment_randomness: MaskedRandomness,
     /// Mask neu with randomness y.
-    maskedrandomness_neu: MaskedRandomness,
-    v: MaskedRandomness,
+    masked_q_commitment_randomness: MaskedRandomness,
+    // Masked (p + q's commitment randomness)
+    masked_p_link: MaskedRandomness,
 }
 
 /// Common input and setup parameters known to both the prover and verifier.
@@ -156,17 +158,17 @@ impl Proof for PiFacProof {
         let v = sigma_hat.remask(&r, &e);
 
         let proof = Self {
-            commitment_p: P,
-            commitment_q: Q,
-            commitment_alpha: A,
-            commitment_beta: B,
-            commitment_combine_Q_r: T,
+            p_commitment: P,
+            q_commitment: Q,
+            p_mask_commitment: A,
+            q_mask_commitment: B,
+            q_link_commitment: T,
             sigma,
-            mask_alpha_p: z1,
-            mask_beta_q: z2,
-            maskedrandomness_meu: w1,
-            maskedrandomness_neu: w2,
-            v,
+            p_masked: z1,
+            q_masked: z2,
+            masked_p_commitment_randomness: w1,
+            masked_q_commitment_randomness: w2,
+            masked_p_link: v,
         };
         Ok(proof)
     }
@@ -181,68 +183,68 @@ impl Proof for PiFacProof {
             transcript,
             context,
             input,
-            &self.commitment_p,
-            &self.commitment_q,
-            &self.commitment_alpha,
-            &self.commitment_beta,
-            &self.commitment_combine_Q_r,
+            &self.p_commitment,
+            &self.q_commitment,
+            &self.p_mask_commitment,
+            &self.q_mask_commitment,
+            &self.q_link_commitment,
             &self.sigma,
         )?;
 
         // Verifier samples e in +- q (where q is the group order)
         let e = plusminus_challenge_from_transcript(transcript)?;
 
-        let eq_check_1 = {
+        let masked_p_commitment_is_valid = {
             let lhs = input
                 .setup_params
                 .scheme()
-                .reconstruct(&self.mask_alpha_p, &self.maskedrandomness_meu);
+                .reconstruct(&self.p_masked, &self.masked_p_commitment_randomness);
             let rhs =
                 input
                     .setup_params
                     .scheme()
-                    .combine(&self.commitment_alpha, &self.commitment_p, &e);
+                    .combine(&self.p_mask_commitment, &self.p_commitment, &e);
             lhs == rhs
         };
-        if !eq_check_1 {
+        if !masked_p_commitment_is_valid {
             error!("eq_check_1 failed");
             return Err(InternalError::ProtocolError);
         }
 
-        let eq_check_2 = {
+        let masked_q_commitment_is_valid = {
             let lhs = input
                 .setup_params
                 .scheme()
-                .reconstruct(&self.mask_beta_q, &self.maskedrandomness_neu);
+                .reconstruct(&self.q_masked, &self.masked_q_commitment_randomness);
             let rhs =
                 input
                     .setup_params
                     .scheme()
-                    .combine(&self.commitment_beta, &self.commitment_q, &e);
+                    .combine(&self.q_mask_commitment, &self.q_commitment, &e);
             lhs == rhs
         };
-        if !eq_check_2 {
+        if !masked_q_commitment_is_valid {
             error!("eq_check_2 failed");
             return Err(InternalError::ProtocolError);
         }
 
-        let eq_check_3 = {
+        let modulus_links_provided_factors = {
             let R = input
                 .setup_params
                 .scheme()
                 .reconstruct(&input.modulus, self.sigma.as_masked());
             let lhs = input.setup_params.scheme().reconstruct_with_commitment(
-                &self.commitment_q,
-                &self.mask_alpha_p,
-                &self.v,
+                &self.q_commitment,
+                &self.p_masked,
+                &self.masked_p_link,
             );
             let rhs = input
                 .setup_params
                 .scheme()
-                .combine(&self.commitment_combine_Q_r, &R, &e);
+                .combine(&self.q_link_commitment, &R, &e);
             lhs == rhs
         };
-        if !eq_check_3 {
+        if !modulus_links_provided_factors {
             error!("eq_check_3 failed");
             return Err(InternalError::ProtocolError);
         }
@@ -252,11 +254,11 @@ impl Proof for PiFacProof {
         let two_ell_eps = BigNumber::one() << (ELL + EPSILON);
         // 2^{ELL + EPSILON} * sqrt(N_0)
         let z_bound = &sqrt_N0 * &two_ell_eps;
-        if self.mask_alpha_p < -z_bound.clone() || self.mask_alpha_p > z_bound {
+        if self.p_masked < -z_bound.clone() || self.p_masked > z_bound {
             error!("self.z1 > z_bound check failed");
             return Err(InternalError::ProtocolError);
         }
-        if self.mask_beta_q < -z_bound.clone() || self.mask_beta_q > z_bound {
+        if self.q_masked < -z_bound.clone() || self.q_masked > z_bound {
             error!("self.z2 > z_bound check failed");
             return Err(InternalError::ProtocolError);
         }
