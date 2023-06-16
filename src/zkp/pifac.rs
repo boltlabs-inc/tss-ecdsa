@@ -7,7 +7,8 @@
 // of this source tree.
 
 //! Implements a zero-knowledge proof that the modulus N can be factored into
-//! two numbers greater than 2^ell for a parameter ell.
+//! two numbers greater than `2^ℓ` for a parameter ell where `ℓ` is
+//! [`parameters::ELL`](crate::parameters::ELL).
 //!
 //! The proof is defined in Figure 28 of CGGMP[^cite], and uses a standard
 //! Fiat-Shamir transformation to make the proof non-interactive.
@@ -63,7 +64,7 @@ pub(crate) struct PiFacProof {
 #[derive(Serialize)]
 pub(crate) struct CommonInput {
     setup_params: VerifiedRingPedersen,
-    N0: BigNumber,
+    modulus: BigNumber,
 }
 
 impl CommonInput {
@@ -71,13 +72,13 @@ impl CommonInput {
     pub(crate) fn new(setup_params: &VerifiedRingPedersen, N0: &BigNumber) -> Self {
         Self {
             setup_params: setup_params.clone(),
-            N0: N0.clone(),
+            modulus: N0.clone(),
         }
     }
 }
 
-/// The prover's secret knowledge: the factors p and q of the modulus N where N
-/// = pq.
+/// The prover's secret knowledge: the factors `p` and `q` of the modulus `N`
+/// where `N = pq`.
 #[derive(ZeroizeOnDrop)]
 pub(crate) struct ProverSecret {
     p: BigNumber,
@@ -114,7 +115,7 @@ impl Proof for PiFacProof {
         rng: &mut R,
     ) -> Result<Self> {
         // Small names for scaling factors in our ranges
-        let sqrt_N0 = &sqrt(&input.N0);
+        let sqrt_N0 = &sqrt(&input.modulus);
 
         let alpha = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
         let beta = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
@@ -122,7 +123,7 @@ impl Proof for PiFacProof {
         let sigma = input
             .setup_params
             .scheme()
-            .commitment_randomness(ELL, &input.N0, rng);
+            .commitment_randomness(ELL, &input.modulus, rng);
 
         let (P, mu) = input.setup_params.scheme().commit(&secret.p, ELL, rng);
         let (Q, nu) = input.setup_params.scheme().commit(&secret.q, ELL, rng);
@@ -138,7 +139,7 @@ impl Proof for PiFacProof {
             &Q,
             &alpha,
             ELL + EPSILON,
-            &input.N0,
+            &input.modulus,
             rng,
         );
 
@@ -229,7 +230,7 @@ impl Proof for PiFacProof {
             let R = input
                 .setup_params
                 .scheme()
-                .reconstruct(&input.N0, self.sigma.as_masked());
+                .reconstruct(&input.modulus, self.sigma.as_masked());
             let lhs = input.setup_params.scheme().reconstruct_with_commitment(
                 &self.commitment_q,
                 &self.mask_alpha_p,
@@ -246,7 +247,7 @@ impl Proof for PiFacProof {
             return Err(InternalError::ProtocolError);
         }
 
-        let sqrt_N0 = sqrt(&input.N0);
+        let sqrt_N0 = sqrt(&input.modulus);
         // 2^{ELL + EPSILON}
         let two_ell_eps = BigNumber::one() << (ELL + EPSILON);
         // 2^{ELL + EPSILON} * sqrt(N_0)
@@ -365,7 +366,7 @@ mod tests {
         }
         {
             let incorrect_startup_params =
-                CommonInput::new(&VerifiedRingPedersen::gen(&mut rng, &())?, &input.N0);
+                CommonInput::new(&VerifiedRingPedersen::gen(&mut rng, &())?, &input.modulus);
             let mut transcript = Transcript::new(b"PiFac Test");
             assert!(proof
                 .verify(&incorrect_startup_params, &(), &mut transcript)
