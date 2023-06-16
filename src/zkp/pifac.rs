@@ -37,28 +37,29 @@ use zeroize::ZeroizeOnDrop;
 /// for a parameter ell.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct PiFacProof {
-    /// Commitment to the factor `p` (`P` in the paper)
+    /// Commitment to the factor `p` (`P` in the paper).
     p_commitment: Commitment,
-    /// Commitment to the factor q using randomness neu.
+    /// Commitment to the factor `q` (`Q` in the paper).
     q_commitment: Commitment,
-    /// Commitment to randomness alpha and x.
+    /// Commitment to randomness alpha and `x` (`A` in the paper).
     p_mask_commitment: Commitment,
-    /// Commitment to randomness beta and y.
+    /// Commitment to randomness beta and `y` (`B` in the paper).
     q_mask_commitment: Commitment,
-    /// Combination of commitment to Q using ring Pedersen parameter r.
+    /// Combination of commitment to `Q` using ring Pedersen parameter `r` (`T`
+    /// in the paper).
     // Commitment to q + p's commitment randomness
     q_link_commitment: Commitment,
     /// Randomness for commitment.
     sigma: CommitmentRandomness,
-    /// Mask p with randomness alpha.
+    /// Mask p with randomness `alpha` (`z1` in the paper`).
     p_masked: BigNumber,
-    /// Mask q with randomness beta.
+    /// Mask q with randomness `beta` (`z2` in the paper).
     q_masked: BigNumber,
-    /// Mask meu with randomness x.
+    /// Mask meu with randomness `x` (`w1` in the paper).
     masked_p_commitment_randomness: MaskedRandomness,
-    /// Mask neu with randomness y.
+    /// Mask neu with randomness y (`w2` in the paper).
     masked_q_commitment_randomness: MaskedRandomness,
-    // Masked (p + q's commitment randomness)
+    /// Masked (p + q's commitment randomness): (`v` in the paper).
     masked_p_link: MaskedRandomness,
 }
 
@@ -119,56 +120,68 @@ impl Proof for PiFacProof {
         // Small names for scaling factors in our ranges
         let sqrt_N0 = &sqrt(&input.modulus);
 
-        let alpha = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
-        let beta = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
+        let p_mask = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
+        let q_mask = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
 
         let sigma = input
             .setup_params
             .scheme()
             .commitment_randomness(ELL, &input.modulus, rng);
 
-        let (P, mu) = input.setup_params.scheme().commit(&secret.p, ELL, rng);
-        let (Q, nu) = input.setup_params.scheme().commit(&secret.q, ELL, rng);
-        let (A, x) = input
-            .setup_params
-            .scheme()
-            .commit(&alpha, ELL + EPSILON, rng);
-        let (B, y) = input
-            .setup_params
-            .scheme()
-            .commit(&beta, ELL + EPSILON, rng);
-        let (T, r) = input.setup_params.scheme().commit_with_commitment(
-            &Q,
-            &alpha,
+        let (p_commitment, mu) = input.setup_params.scheme().commit(&secret.p, ELL, rng);
+        let (q_commitment, nu) = input.setup_params.scheme().commit(&secret.q, ELL, rng);
+        let (p_mask_commitment, x) =
+            input
+                .setup_params
+                .scheme()
+                .commit(&p_mask, ELL + EPSILON, rng);
+        let (q_mask_commitment, y) =
+            input
+                .setup_params
+                .scheme()
+                .commit(&q_mask, ELL + EPSILON, rng);
+        let (q_link_commitment, r) = input.setup_params.scheme().commit_with_commitment(
+            &q_commitment,
+            &p_mask,
             ELL + EPSILON,
             &input.modulus,
             rng,
         );
 
-        Self::fill_transcript(transcript, context, input, &P, &Q, &A, &B, &T, &sigma)?;
+        Self::fill_transcript(
+            transcript,
+            context,
+            input,
+            &p_commitment,
+            &q_commitment,
+            &p_mask_commitment,
+            &q_mask_commitment,
+            &q_link_commitment,
+            &sigma,
+        )?;
 
         // Verifier samples e in +- q (where q is the group order)
         let e = plusminus_challenge_from_transcript(transcript)?;
 
         let sigma_hat = nu.mask_neg(&sigma, &secret.p);
-        let z1 = &alpha + &e * &secret.p;
-        let z2 = &beta + &e * &secret.q;
-        let w1 = mu.mask(&x, &e);
-        let w2 = nu.mask(&y, &e);
-        let v = sigma_hat.remask(&r, &e);
+        let p_masked = &p_mask + &e * &secret.p;
+        let q_masked = &q_mask + &e * &secret.q;
+        let masked_p_commitment_randomness = mu.mask(&x, &e);
+        let masked_q_commitment_randomness = nu.mask(&y, &e);
+        let masked_p_link = sigma_hat.remask(&r, &e);
 
         let proof = Self {
-            p_commitment: P,
-            q_commitment: Q,
-            p_mask_commitment: A,
-            q_mask_commitment: B,
-            q_link_commitment: T,
+            p_commitment,
+            q_commitment,
+            p_mask_commitment,
+            q_mask_commitment,
+            q_link_commitment,
             sigma,
-            p_masked: z1,
-            q_masked: z2,
-            masked_p_commitment_randomness: w1,
-            masked_q_commitment_randomness: w2,
-            masked_p_link: v,
+            p_masked,
+            q_masked,
+            masked_p_commitment_randomness,
+            masked_q_commitment_randomness,
+            masked_p_link,
         };
         Ok(proof)
     }
@@ -199,11 +212,11 @@ impl Proof for PiFacProof {
                 .setup_params
                 .scheme()
                 .reconstruct(&self.p_masked, &self.masked_p_commitment_randomness);
-            let rhs =
-                input
-                    .setup_params
-                    .scheme()
-                    .combine(&self.p_mask_commitment, &self.p_commitment, &e);
+            let rhs = input.setup_params.scheme().combine(
+                &self.p_mask_commitment,
+                &self.p_commitment,
+                &e,
+            );
             lhs == rhs
         };
         if !masked_p_commitment_is_valid {
@@ -216,11 +229,11 @@ impl Proof for PiFacProof {
                 .setup_params
                 .scheme()
                 .reconstruct(&self.q_masked, &self.masked_q_commitment_randomness);
-            let rhs =
-                input
-                    .setup_params
-                    .scheme()
-                    .combine(&self.q_mask_commitment, &self.q_commitment, &e);
+            let rhs = input.setup_params.scheme().combine(
+                &self.q_mask_commitment,
+                &self.q_commitment,
+                &e,
+            );
             lhs == rhs
         };
         if !masked_q_commitment_is_valid {
