@@ -6,9 +6,9 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Implements a zero-knowledge proof that the modulus N can be factored into
-//! two numbers greater than `2^ℓ` for a parameter ell where `ℓ` is
-//! [`parameters::ELL`](crate::parameters::ELL).
+//! Implements a zero-knowledge proof that the modulus `N` can be factored into
+//! ...two numbers greater than `2^ℓ`, where `ℓ` is a fixed parameter defined by
+//! parameters::ELL.
 //!
 //! The proof is defined in Figure 28 of CGGMP[^cite], and uses a standard
 //! Fiat-Shamir transformation to make the proof non-interactive.
@@ -33,33 +33,33 @@ use std::fmt::Debug;
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
-/// Proof that the modulus N can be factored into two numbers greater than 2^ell
-/// for a parameter ell.
+/// Proof that the modulus `N` can be factored into two numbers greater than
+/// `2^ℓ` for a parameter `ℓ`.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct PiFacProof {
     /// Commitment to the factor `p` (`P` in the paper).
     p_commitment: Commitment,
     /// Commitment to the factor `q` (`Q` in the paper).
     q_commitment: Commitment,
-    /// Commitment to randomness alpha and `x` (`A` in the paper).
+    /// Commitment to randomness `alpha` and `x` (`A` in the paper).
     p_mask_commitment: Commitment,
-    /// Commitment to randomness beta and `y` (`B` in the paper).
+    /// Commitment to randomness `beta` and `y` (`B` in the paper).
     q_mask_commitment: Commitment,
-    /// Combination of commitment to `Q` using ring Pedersen parameter `r` (`T`
-    /// in the paper).
-    // Commitment to q + p's commitment randomness
+    /// Commitment linking `q` to the commitment randomness used in
+    /// `p_commitment`.
     q_link_commitment: Commitment,
     /// Randomness for commitment.
-    sigma: CommitmentRandomness,
-    /// Mask p with randomness `alpha` (`z1` in the paper`).
+    link_randomness: CommitmentRandomness,
+    /// Mask `p` with randomness `alpha` (`z1` in the paper`).
     p_masked: BigNumber,
-    /// Mask q with randomness `beta` (`z2` in the paper).
+    /// Mask `q` with randomness `beta` (`z2` in the paper).
     q_masked: BigNumber,
     /// Mask meu with randomness `x` (`w1` in the paper).
     masked_p_commitment_randomness: MaskedRandomness,
     /// Mask neu with randomness y (`w2` in the paper).
     masked_q_commitment_randomness: MaskedRandomness,
-    /// Masked (p + q's commitment randomness): (`v` in the paper).
+    /// Masked commitment randomness linking `p` to the commitment randomness
+    /// used in `q_commitment` (`v` in the paper).
     masked_p_link: MaskedRandomness,
 }
 
@@ -71,7 +71,8 @@ pub(crate) struct CommonInput {
 }
 
 impl CommonInput {
-    /// Generate public input for proving and verifying [`PiFacProof`] about N.
+    /// Generate public input for proving and verifying [`PiFacProof`] about
+    /// `N`.
     pub(crate) fn new(setup_params: &VerifiedRingPedersen, N0: &BigNumber) -> Self {
         Self {
             setup_params: setup_params.clone(),
@@ -123,10 +124,11 @@ impl Proof for PiFacProof {
         let p_mask = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
         let q_mask = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
 
-        let sigma = input
-            .setup_params
-            .scheme()
-            .commitment_randomness(ELL, &input.modulus, rng);
+        let link_randomness =
+            input
+                .setup_params
+                .scheme()
+                .commitment_randomness(ELL, &input.modulus, rng);
 
         let (p_commitment, mu) = input.setup_params.scheme().commit(&secret.p, ELL, rng);
         let (q_commitment, nu) = input.setup_params.scheme().commit(&secret.q, ELL, rng);
@@ -157,13 +159,13 @@ impl Proof for PiFacProof {
             &p_mask_commitment,
             &q_mask_commitment,
             &q_link_commitment,
-            &sigma,
+            &link_randomness,
         )?;
 
         // Verifier samples e in +- q (where q is the group order)
         let e = plusminus_challenge_from_transcript(transcript)?;
 
-        let sigma_hat = nu.mask_neg(&sigma, &secret.p);
+        let sigma_hat = nu.mask_neg(&link_randomness, &secret.p);
         let p_masked = &p_mask + &e * &secret.p;
         let q_masked = &q_mask + &e * &secret.q;
         let masked_p_commitment_randomness = mu.mask(&x, &e);
@@ -176,7 +178,7 @@ impl Proof for PiFacProof {
             p_mask_commitment,
             q_mask_commitment,
             q_link_commitment,
-            sigma,
+            link_randomness,
             p_masked,
             q_masked,
             masked_p_commitment_randomness,
@@ -201,7 +203,7 @@ impl Proof for PiFacProof {
             &self.p_mask_commitment,
             &self.q_mask_commitment,
             &self.q_link_commitment,
-            &self.sigma,
+            &self.link_randomness,
         )?;
 
         // Verifier samples e in +- q (where q is the group order)
@@ -245,7 +247,7 @@ impl Proof for PiFacProof {
             let R = input
                 .setup_params
                 .scheme()
-                .reconstruct(&input.modulus, self.sigma.as_masked());
+                .reconstruct(&input.modulus, self.link_randomness.as_masked());
             let lhs = input.setup_params.scheme().reconstruct_with_commitment(
                 &self.q_commitment,
                 &self.p_masked,
