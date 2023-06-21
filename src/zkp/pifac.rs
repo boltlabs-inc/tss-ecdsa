@@ -41,22 +41,22 @@ pub(crate) struct PiFacProof {
     p_commitment: Commitment,
     /// Commitment to the factor `q` (`Q` in the paper).
     q_commitment: Commitment,
-    /// Commitment to randomness `alpha` and `x` (`A` in the paper).
+    /// `A` in the paper.
     p_mask_commitment: Commitment,
-    /// Commitment to randomness `beta` and `y` (`B` in the paper).
+    /// `B` in the paper.
     q_mask_commitment: Commitment,
     /// Commitment linking `q` to the commitment randomness used in
     /// `p_commitment`.
     q_link_commitment: Commitment,
     /// Randomness for commitment.
     link_randomness: CommitmentRandomness,
-    /// Mask `p` with randomness `alpha` (`z1` in the paper`).
+    /// Mask `p` (`z1` in the paper`).
     p_masked: BigNumber,
-    /// Mask `q` with randomness `beta` (`z2` in the paper).
+    /// Mask `q` (`z2` in the paper).
     q_masked: BigNumber,
-    /// Mask meu with randomness `x` (`w1` in the paper).
+    /// `w1` in the paper.
     masked_p_commitment_randomness: MaskedRandomness,
-    /// Mask neu with randomness y (`w2` in the paper).
+    /// `w2` in the paper.
     masked_q_commitment_randomness: MaskedRandomness,
     /// Masked commitment randomness linking `p` to the commitment randomness
     /// used in `q_commitment` (`v` in the paper).
@@ -73,10 +73,13 @@ pub(crate) struct CommonInput {
 impl CommonInput {
     /// Generate public input for proving and verifying [`PiFacProof`] about
     /// `N`.
-    pub(crate) fn new(setup_params: &VerifiedRingPedersen, N0: &BigNumber) -> Self {
+    pub(crate) fn new(
+        verifier_commitment_params: &VerifiedRingPedersen,
+        prover_modulus: &BigNumber,
+    ) -> Self {
         Self {
-            setup_params: setup_params.clone(),
-            modulus: N0.clone(),
+            setup_params: verifier_commitment_params.clone(),
+            modulus: prover_modulus.clone(),
         }
     }
 }
@@ -222,7 +225,7 @@ impl Proof for PiFacProof {
             lhs == rhs
         };
         if !masked_p_commitment_is_valid {
-            error!("eq_check_1 failed");
+            error!("masked_p_commitment_is_valid failed");
             return Err(InternalError::ProtocolError);
         }
 
@@ -239,12 +242,12 @@ impl Proof for PiFacProof {
             lhs == rhs
         };
         if !masked_q_commitment_is_valid {
-            error!("eq_check_2 failed");
+            error!("masked_q_commitment_is_valid failed");
             return Err(InternalError::ProtocolError);
         }
 
         let modulus_links_provided_factors = {
-            let R = input
+            let reconstructed_commitment = input
                 .setup_params
                 .scheme()
                 .reconstruct(&input.modulus, self.link_randomness.as_masked());
@@ -253,27 +256,23 @@ impl Proof for PiFacProof {
                 &self.p_masked,
                 &self.masked_p_link,
             );
-            let rhs = input
-                .setup_params
-                .scheme()
-                .combine(&self.q_link_commitment, &R, &e);
+            let rhs = input.setup_params.scheme().combine(
+                &self.q_link_commitment,
+                &reconstructed_commitment,
+                &e,
+            );
             lhs == rhs
         };
         if !modulus_links_provided_factors {
-            error!("eq_check_3 failed");
+            error!("modulus_links_provided_factors failed");
             return Err(InternalError::ProtocolError);
         }
 
-        let sqrt_N0 = sqrt(&input.modulus);
-        // 2^{ELL + EPSILON}
-        let two_ell_eps = BigNumber::one() << (ELL + EPSILON);
-        // 2^{ELL + EPSILON} * sqrt(N_0)
-        let z_bound = &sqrt_N0 * &two_ell_eps;
-        if self.p_masked < -z_bound.clone() || self.p_masked > z_bound {
+        if crate::utils::within_bound_by_size(&self.p_masked, ELL + EPSILON) {
             error!("self.z1 > z_bound check failed");
             return Err(InternalError::ProtocolError);
         }
-        if self.q_masked < -z_bound.clone() || self.q_masked > z_bound {
+        if crate::utils::within_bound_by_size(&self.q_masked, ELL + EPSILON) {
             error!("self.z2 > z_bound check failed");
             return Err(InternalError::ProtocolError);
         }
