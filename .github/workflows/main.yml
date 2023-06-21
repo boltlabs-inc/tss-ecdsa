@@ -17,17 +17,17 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install stable toolchain
-        run: rustup toolchain install 1.70 --profile minimal
+        run: rustup toolchain install 1.70
 
-      - name: Install nightly toolchain for fmt
-        run: rustup toolchain install nightly --component rustfmt --profile minimal
+      - name: Install nightly toolchain (for rustfmt)
+        run: rustup toolchain install nightly --profile minimal --component rustfmt
 
-      - name: Install cargo-make
-        run: cargo install cargo-make
+      - name: Install cargo-make (fast!)
+        uses: davidB/rust-cargo-make@v1
 
       # Caching for Rust files. Must be called after installing Rust toolchain.
       # See https://github.com/Swatinem/rust-cache for more information.
-      - name: Set Up Cache
+      - name: Cache Rust files
         uses: Swatinem/rust-cache@v2
 
       - name: Run full CI (fmt, clippy, build, test, doctest, docs)
