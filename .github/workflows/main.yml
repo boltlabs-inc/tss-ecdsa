@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install stable toolchain
-        run: rustup update 1.70 --component clippy
+        run: rustup toolchain install 1.70 --component clippy
 
       - name: Install nightly toolchain (for rustfmt only)
         run: rustup toolchain install nightly --profile minimal --component rustfmt
