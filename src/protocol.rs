@@ -641,6 +641,7 @@ impl std::fmt::Display for Identifier {
 }
 
 #[cfg(test)]
+#[allow(unknown_lints)]
 mod tests {
     use super::*;
     use crate::{
