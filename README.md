@@ -15,7 +15,7 @@ This project relies on the `libpaillier` Rust crate using the GMP backend. GMP s
 
 ### Rust Dependencies and Versions
 
-The minimum supported stable Rust version is cargo 1.68.
+The minimum supported stable Rust version is 1.68 (the library has been tested up to version 1.70).
 
 This library has been tested with GMP version 6.2.1.
 
