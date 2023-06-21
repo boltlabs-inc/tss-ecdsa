@@ -231,9 +231,8 @@ impl Proof2 for PiAffgProof {
         // `p`rover's or the `v`erifier's encryption key. The prover wants to
         // prove the following three claims:
         //
-        // 1. `C_v[z] ^ x · C_v[y] = D`, where `C_v[z]` is a public value
-        //    provided by the verifier and `D` is a public value computed by the
-        //    prover.
+        // 1. `C_v[z] ^ x · C_v[y] = D`, where `C_v[z]` is a public value provided by
+        //    the verifier and `D` is a public value computed by the prover.
         //
         // 2. `C_p[y] = Y`, where `Y` is a public value provided by the prover.
         //
@@ -246,14 +245,14 @@ impl Proof2 for PiAffgProof {
         // following three conditions, using a challenge value `e` produced by
         // using Fiat-Shamir:
         //
-        // 1. C_v[z] ^ (ɑ + e x) · C_v[β + e y] = A * D ^ e (note that if `D`
-        //    "encodes" `z x + y` this check will pass)
+        // 1. C_v[z] ^ (ɑ + e x) · C_v[β + e y] = A * D ^ e (note that if `D` "encodes"
+        //    `z x + y` this check will pass)
         //
-        // 2. g ^ (ɑ + e x) = B_x · X ^ e (note that if `X = g ^ x` this check
-        //    will pass)
+        // 2. g ^ (ɑ + e x) = B_x · X ^ e (note that if `X = g ^ x` this check will
+        //    pass)
         //
-        // 3. C_p[β + e y] = B_y · Y ^ e (note that if `Y = C_p[y]` this check
-        //    will pass)
+        // 3. C_p[β + e y] = B_y · Y ^ e (note that if `Y = C_p[y]` this check will
+        //    pass)
         //
         // This checks the main properties we are going for, however it doesn't
         // enforce yet that `ɑ + e x`, `β + e y`, etc. were computed correctly.
