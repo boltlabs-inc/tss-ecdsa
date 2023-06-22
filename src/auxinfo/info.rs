@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    errors::{InternalError, Result},
+    errors::{CallerError, InternalError, Result},
     paillier::{DecryptionKey, EncryptionKey},
     ring_pedersen::VerifiedRingPedersen,
     zkp::ProofContext,
@@ -33,6 +33,8 @@ pub struct AuxInfoPrivate {
     decryption_key: DecryptionKey,
 }
 
+const AUXINFO_TAG: &[u8] = b"AuxInfoPrivate";
+
 impl AuxInfoPrivate {
     pub(crate) fn encryption_key(&self) -> EncryptionKey {
         self.decryption_key.encryption_key()
@@ -40,6 +42,51 @@ impl AuxInfoPrivate {
 
     pub(crate) fn decryption_key(&self) -> &DecryptionKey {
         &self.decryption_key
+    }
+
+    /// Convert private material into bytes.
+    ///
+    /// 🔒 This is intended for use by the calling application for secure
+    /// storage. The output of this function should be handled with care.
+    pub fn into_bytes(self) -> Vec<u8> {
+        // Format:
+        // AUXINFO_TAG | key_len in bytes | key
+        //             | ---8 bytes------ | --key_len bytes---
+
+        let key = self.decryption_key.into_bytes();
+        let key_len = key.len().to_le_bytes();
+
+        [AUXINFO_TAG, &key_len, &key].concat()
+    }
+
+    /// Convert bytes into private material.
+    ///
+    /// 🔒 This is intended for use by the calling application for secure
+    /// storage. Do not use this method to create arbitrary instances of
+    /// [`AuxInfoPrivate`].
+    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
+        // Expected format:
+        // AUXINFO_TAG | key_len in bytes | key
+        //             | ---8 bytes------ | --key_len bytes---
+
+        // Check the tag.
+        // TODO: do the split parsing instead of just taking the front here.
+        let actual_tag = bytes.iter().take(AUXINFO_TAG.len()).collect::<Vec<_>>();
+        let tag_len_is_correct = actual_tag.len() == AUXINFO_TAG.len();
+        let tag_content_is_correct = actual_tag
+            .into_iter()
+            .zip(AUXINFO_TAG)
+            .all(|(actual_byte, expected_byte)| actual_byte == expected_byte);
+        if !(tag_len_is_correct && tag_content_is_correct) {
+            error!("Failed to deserialize `AuxInfoPrivate` due to invalid tag");
+            Err(CallerError::DeserializationFailed)?
+        }
+
+        // Check the key len
+
+        // Check the key
+
+        todo!()
     }
 }
 

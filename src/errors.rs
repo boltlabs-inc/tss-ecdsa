@@ -50,7 +50,7 @@ pub enum CallerError {
     RetryFailed,
     #[error("Tried to create an invalid `ParticipantConfig` (the protocol requires at least 2 uniquely identified parties)")]
     ParticipantConfigError,
-    #[error("The provided input did not satisfy the requirements on the input type. See logs for details.")]
+    #[error("The provided input did not satisfy the requirements on the input type; see logs for details")]
     BadInput,
     #[error("Failed to deserialize bytes into the expected type")]
     DeserializationFailed,

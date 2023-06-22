@@ -307,6 +307,21 @@ impl DecryptionKey {
         }
     }
 
+    pub(crate) fn into_bytes(&self) -> Vec<u8> {
+        // Note: the libpaillier crate just serializes the four fields; it doesn't
+        // do any length prepending or other misuse-resistant things.
+        self.0.to_bytes()
+    }
+
+    pub(crate) fn from_bytes(bytes: Vec<u8>) -> Self {
+        libpaillier::DecryptionKey::from_bytes(bytes);
+
+        // Validate: make sure the total length is correct.
+        // Can we check the factor length to make sure they're both large?
+
+        todo!()
+    }
+
     /// Retrieve the public [`EncryptionKey`] corresponding to this secret
     /// [`DecryptionKey`].
     pub(crate) fn encryption_key(&self) -> EncryptionKey {
