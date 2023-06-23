@@ -27,13 +27,18 @@ use tracing::{error, instrument};
 ///
 /// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
-#[derive(Clone, ZeroizeOnDrop)]
+///
+/// Note: this doesn't implement [`ZeroizeOnDrop`] but all of its internal types
+/// do.
+#[derive(Clone)]
 pub struct AuxInfoPrivate {
     /// The participant's Paillier private key.
     decryption_key: DecryptionKey,
 }
 
 const AUXINFO_TAG: &[u8] = b"AuxInfoPrivate";
+// Length of the length field for auxinfo serialization.
+const AUXINFO_LEN: usize = 8;
 
 impl AuxInfoPrivate {
     pub(crate) fn encryption_key(&self) -> EncryptionKey {
@@ -70,23 +75,39 @@ impl AuxInfoPrivate {
         //             | ---8 bytes------ | --key_len bytes---
 
         // Check the tag.
-        // TODO: do the split parsing instead of just taking the front here.
-        let actual_tag = bytes.iter().take(AUXINFO_TAG.len()).collect::<Vec<_>>();
-        let tag_len_is_correct = actual_tag.len() == AUXINFO_TAG.len();
-        let tag_content_is_correct = actual_tag
-            .into_iter()
-            .zip(AUXINFO_TAG)
-            .all(|(actual_byte, expected_byte)| actual_byte == expected_byte);
-        if !(tag_len_is_correct && tag_content_is_correct) {
+        if bytes.len() < AUXINFO_TAG.len() {
+            error!("Failed to deserialize `AuxInfoPrivate` due to invalid tag");
+            Err(CallerError::DeserializationFailed)?
+        }
+        // This panics if the parameter is larger than the length, but we check above so
+        // it's okay.
+        let (actual_tag, bytes) = bytes.split_at(AUXINFO_TAG.len());
+        let tag_content_is_correct = actual_tag == AUXINFO_TAG;
+        if !tag_content_is_correct {
             error!("Failed to deserialize `AuxInfoPrivate` due to invalid tag");
             Err(CallerError::DeserializationFailed)?
         }
 
         // Check the key len
+        if bytes.len() < AUXINFO_LEN {
+            error!("Failed to deserialize `AuxInfoPrivate` due to invalid length field");
+            Err(CallerError::DeserializationFailed)?
+        }
+        let (key_len, key_bytes) = bytes.split_at(AUXINFO_LEN);
+        let fixed_size_len: [u8; 8] = key_len.try_into().map_err(|_| {
+            error!("Failed to convert byte array (should always work because we defined it to be exactly 8 bytes)");
+            InternalError::InternalInvariantFailed
+        })?;
+        if usize::from_le_bytes(fixed_size_len) != key_bytes.len() {
+            error!("Failed to deserialize `AuxInfoPrivate` due to invalid length field");
+            Err(CallerError::DeserializationFailed)?
+        }
 
         // Check the key
+        let decryption_key = DecryptionKey::try_from_bytes(key_bytes.to_vec())
+            .map_err(|_| CallerError::DeserializationFailed)?;
 
-        todo!()
+        Ok(Self { decryption_key })
     }
 }
 

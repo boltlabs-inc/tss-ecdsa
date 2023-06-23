@@ -14,6 +14,7 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use thiserror::Error;
+use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
 #[cfg(test)]
@@ -307,19 +308,39 @@ impl DecryptionKey {
         }
     }
 
-    pub(crate) fn into_bytes(&self) -> Vec<u8> {
+    pub(crate) fn into_bytes(self) -> Vec<u8> {
         // Note: the libpaillier crate just serializes the four fields; it doesn't
         // do any length prepending or other misuse-resistant things.
         self.0.to_bytes()
     }
 
-    pub(crate) fn from_bytes(bytes: Vec<u8>) -> Self {
-        libpaillier::DecryptionKey::from_bytes(bytes);
+    pub(crate) fn try_from_bytes(bytes: Vec<u8>) -> Result<Self> {
+        // Convert bytes to libpaillier::DecryptionKey
+        // It's not clear that this method actually validates the key for consistency
+        // (e.g. is `gcd(N, phi(N)) = 1`?)
+        let decryption_key = libpaillier::DecryptionKey::from_bytes(bytes).map_err(|err| {
+            error!("Failed to deserialize decryption key: {}", err);
+            PaillierError::CouldNotCreateKey
+        })?;
 
-        // Validate: make sure the total length is correct.
-        // Can we check the factor length to make sure they're both large?
+        // Validate key itself (ideally, this would be checked by the above `from_bytes`
+        // method)
+        if decryption_key.n().gcd(decryption_key.totient()) != BigNumber::one() {
+            error!("Failed to deserialize decryption key: key bytes are not consistent");
+            Err(PaillierError::CouldNotCreateKey)?
+        }
 
-        todo!()
+        // Validate for this application: make sure the length is correct
+        if decryption_key.n().bit_length() != 2 * PRIME_BITS {
+            error!(
+                "Deserialized key is not the correct length; expected {}, got {}",
+                2 * PRIME_BITS,
+                decryption_key.n().bit_length()
+            );
+            Err(PaillierError::CouldNotCreateKey)?
+        }
+
+        Ok(Self(decryption_key))
     }
 
     /// Retrieve the public [`EncryptionKey`] corresponding to this secret
