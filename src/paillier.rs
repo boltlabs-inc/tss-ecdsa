@@ -228,9 +228,9 @@ impl Debug for DecryptionKey {
 impl PartialEq for DecryptionKey {
     fn eq(&self, other: &Self) -> bool {
         self.0.n() == other.0.n()
-          && self.0.totient() == other.0.totient()
-          && self.0.lambda() == other.0.lambda()
-          && self.0.u() == other.0.u()
+            && self.0.totient() == other.0.totient()
+            && self.0.lambda() == other.0.lambda()
+            && self.0.u() == other.0.u()
     }
 }
 impl Eq for DecryptionKey {}
@@ -326,8 +326,7 @@ impl DecryptionKey {
 
     pub(crate) fn try_from_bytes(bytes: Vec<u8>) -> Result<Self> {
         // Convert bytes to libpaillier::DecryptionKey
-        // It's not clear that this method actually validates the key for consistency
-        // (e.g. is `gcd(N, phi(N)) = 1`?)
+        // This method does not validate the key for consistency
         let decryption_key = libpaillier::DecryptionKey::from_bytes(bytes).map_err(|err| {
             error!("Failed to deserialize decryption key: {}", err);
             PaillierError::CouldNotCreateKey
@@ -335,10 +334,18 @@ impl DecryptionKey {
 
         // Validate key itself (ideally, this would be checked by the above `from_bytes`
         // method)
+        // Note: this isn't tested because we can't form a bad decryption key without
+        // access to the libpaillier internals.
         if decryption_key.n().gcd(decryption_key.totient()) != BigNumber::one() {
             error!("Failed to deserialize decryption key: key bytes are not consistent");
             Err(PaillierError::CouldNotCreateKey)?
         }
+
+        // Note: This method doesn't check anything about the `u` or `lambda` fields
+        // of the libpaillier::DecryptionKey. At time of writing, we never use those
+        // fields explicitly, but they are used in the libpaillier `decrypt` method.
+        // This function doesn't ensure that they're correct, so it may produce
+        // decryption keys for which decryption will fail.
 
         // Validate for this application: make sure the length is correct
         if decryption_key.n().bit_length() != 2 * PRIME_BITS {
@@ -643,5 +650,42 @@ mod test {
         let encryption_key = decryption_key.encryption_key();
 
         assert_eq!(encryption_key.half_n(), decryption_key.half_n());
+    }
+
+    #[test]
+    fn decryption_key_to_from_bytes_works() {
+        let rng = &mut init_testing();
+        let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
+
+        let bytes = decryption_key.clone().into_bytes();
+        let reconstructed = DecryptionKey::try_from_bytes(bytes);
+
+        assert!(reconstructed.is_ok());
+        assert_eq!(reconstructed.unwrap(), decryption_key);
+    }
+
+    #[test]
+    fn deserialized_decryption_key_must_be_2048_bits() {
+        let rng = &mut init_testing();
+
+        // Generate too-small primes
+        let p = BigNumber::safe_prime_from_rng(PRIME_BITS / 2, rng);
+        let q = BigNumber::safe_prime_from_rng(PRIME_BITS / 2, rng);
+
+        // Manually create small DK
+        let small_decryption_key =
+            DecryptionKey(libpaillier::DecryptionKey::with_primes(&p, &q).unwrap());
+
+        let bytes = small_decryption_key.into_bytes();
+        assert!(DecryptionKey::try_from_bytes(bytes).is_err());
+
+        // Generate too-large primes (this is sometimes slow)
+        let p = BigNumber::safe_prime_from_rng(PRIME_BITS + 1, rng);
+        let q = BigNumber::safe_prime_from_rng(PRIME_BITS + 1, rng);
+        let large_decryption_key =
+            DecryptionKey(libpaillier::DecryptionKey::with_primes(&p, &q).unwrap());
+        assert!(large_decryption_key.modulus().bit_length() > 2 * PRIME_BITS);
+        let bytes = large_decryption_key.into_bytes();
+        assert!(DecryptionKey::try_from_bytes(bytes).is_err());
     }
 }
