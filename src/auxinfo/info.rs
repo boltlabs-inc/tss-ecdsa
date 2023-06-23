@@ -30,7 +30,7 @@ use tracing::{error, instrument};
 ///
 /// Note: this doesn't implement [`ZeroizeOnDrop`] but all of its internal types
 /// do.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct AuxInfoPrivate {
     /// The participant's Paillier private key.
     decryption_key: DecryptionKey,

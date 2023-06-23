@@ -225,6 +225,16 @@ impl Debug for DecryptionKey {
     }
 }
 
+impl PartialEq for DecryptionKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.n() == other.0.n()
+          && self.0.totient() == other.0.totient()
+          && self.0.lambda() == other.0.lambda()
+          && self.0.u() == other.0.u()
+    }
+}
+impl Eq for DecryptionKey {}
+
 impl DecryptionKey {
     /// Compute the floor of `n/2` for the modulus `n`.
     ///
