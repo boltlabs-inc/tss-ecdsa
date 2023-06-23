@@ -52,6 +52,8 @@ pub enum CallerError {
     ParticipantConfigError,
     #[error("The provided input did not satisfy the requirements on the input type. See logs for details.")]
     BadInput,
+    #[error("Failed to deserialize bytes into the expected type")]
+    DeserializationFailed,
 }
 
 macro_rules! serialize {
