@@ -25,11 +25,11 @@ use tracing::{error, instrument};
 /// [`AuxInfoPublic`] with the encryption key and ring-Pedersen commitment
 /// parameters formed with the same modulus.
 ///
+/// Note: this doesn't implement [`ZeroizeOnDrop`](https://docs.rs/zeroize/latest/zeroize/)
+/// but all of its internal types do.
+///
 /// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
-///
-/// Note: this doesn't implement [`ZeroizeOnDrop`] but all of its internal types
-/// do.
 #[derive(Clone, PartialEq, Eq)]
 pub struct AuxInfoPrivate {
     /// The participant's Paillier private key.
@@ -69,7 +69,7 @@ impl AuxInfoPrivate {
     /// 🔒 This is intended for use by the calling application for secure
     /// storage. Do not use this method to create arbitrary instances of
     /// [`AuxInfoPrivate`].
-    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
+    pub fn try_from_bytes(bytes: Vec<u8>) -> Result<Self> {
         // Expected format:
         // AUXINFO_TAG | key_len in bytes | key
         //             | ---8 bytes------ | --key_len bytes---
@@ -209,14 +209,14 @@ mod tests {
         let private_aux_info = AuxInfoPrivate { decryption_key };
 
         let bytes = private_aux_info.clone().into_bytes();
-        let reconstructed = AuxInfoPrivate::from_bytes(bytes);
+        let reconstructed = AuxInfoPrivate::try_from_bytes(bytes);
 
         assert!(reconstructed.is_ok());
         assert_eq!(reconstructed.unwrap(), private_aux_info);
     }
 
     #[test]
-    fn auxinfo_private_tag_must_be_correct() {
+    fn deserialized_auxinfo_private_tag_must_be_correct() {
         let rng = &mut init_testing();
         let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
         let private_aux_info = AuxInfoPrivate { decryption_key };
@@ -226,48 +226,63 @@ mod tests {
         // Tag must have correct content
         let wrong_content_tag = b"TotallyFakeAux";
         let bad_bytes = [wrong_content_tag.as_slice(), &bytes[AUXINFO_TAG.len()..]].concat();
-        assert!(AuxInfoPrivate::from_bytes(bad_bytes).is_err());
+        assert!(AuxInfoPrivate::try_from_bytes(bad_bytes).is_err());
 
         // Tag must be correct length
         let short_tag = &AUXINFO_TAG[..5];
         let bad_bytes = [short_tag, &bytes[AUXINFO_TAG.len()..]].concat();
-        assert!(AuxInfoPrivate::from_bytes(bad_bytes).is_err());
+        assert!(AuxInfoPrivate::try_from_bytes(bad_bytes).is_err());
 
         let bad_bytes = [AUXINFO_TAG, b"NICE_TAG!", &bytes[AUXINFO_TAG.len()..]].concat();
-        assert!(AuxInfoPrivate::from_bytes(bad_bytes).is_err());
+        assert!(AuxInfoPrivate::try_from_bytes(bad_bytes).is_err());
 
         // Normal serialization works
         let bytes = [AUXINFO_TAG, &bytes[AUXINFO_TAG.len()..]].concat();
-        assert!(AuxInfoPrivate::from_bytes(bytes).is_ok());
+        assert!(AuxInfoPrivate::try_from_bytes(bytes).is_ok());
     }
 
     #[test]
-    fn auxinfo_length_must_be_correct() {
+    fn deserialized_auxinfo_length_field_must_be_correct() {
         let rng = &mut init_testing();
         let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
         let key_bytes = decryption_key.into_bytes();
 
         // Must specify the length.
         let no_len_bytes = [AUXINFO_TAG, &key_bytes].concat();
-        assert!(AuxInfoPrivate::from_bytes(no_len_bytes).is_err());
+        assert!(AuxInfoPrivate::try_from_bytes(no_len_bytes).is_err());
 
         // Length must be little endian
         let key_len = key_bytes.len().to_be_bytes();
         let be_bytes = [AUXINFO_TAG, &key_len, &key_bytes].concat();
-        assert!(AuxInfoPrivate::from_bytes(be_bytes).is_err());
+        assert!(AuxInfoPrivate::try_from_bytes(be_bytes).is_err());
 
         // Length must be correct (not too long, not too short)
         let too_short = (key_bytes.len() - 5).to_le_bytes();
         let bad_bytes = [AUXINFO_TAG, &too_short, &key_bytes].concat();
-        assert!(AuxInfoPrivate::from_bytes(bad_bytes).is_err());
+        assert!(AuxInfoPrivate::try_from_bytes(bad_bytes).is_err());
 
         let too_long = (key_bytes.len() + 5).to_le_bytes();
         let bad_bytes = [AUXINFO_TAG, &too_long, &key_bytes].concat();
-        assert!(AuxInfoPrivate::from_bytes(bad_bytes).is_err());
+        assert!(AuxInfoPrivate::try_from_bytes(bad_bytes).is_err());
 
         // Correct length works :)
         let key_len = key_bytes.len().to_le_bytes();
         let bytes = [AUXINFO_TAG, &key_len, &key_bytes].concat();
-        assert!(AuxInfoPrivate::from_bytes(bytes).is_ok());
+        assert!(AuxInfoPrivate::try_from_bytes(bytes).is_ok());
+    }
+
+    #[test]
+    fn deserialized_auxinfo_requires_all_fields() {
+        let bytes = b"AUX";
+        assert!(AuxInfoPrivate::try_from_bytes(bytes.to_vec()).is_err());
+        assert!(AuxInfoPrivate::try_from_bytes(AUXINFO_TAG.to_vec()).is_err());
+
+        let key_len: usize = 2048;
+        let bytes = [AUXINFO_TAG, &key_len.to_le_bytes()].concat();
+        assert!(AuxInfoPrivate::try_from_bytes(bytes.to_vec()).is_err());
+
+        let key_len: usize = 0;
+        let bytes = [AUXINFO_TAG, &key_len.to_le_bytes()].concat();
+        assert!(AuxInfoPrivate::try_from_bytes(bytes.to_vec()).is_err());
     }
 }
