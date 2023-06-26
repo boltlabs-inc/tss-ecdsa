@@ -8,7 +8,7 @@
 
 //! Implements a zero-knowledge proof that the modulus N is a Paillier-Blum
 //! modulus meaning that the gcd (N, phi(N)) = 1 where phi is the Euler's
-//! totient function and N = pq where p,q is congruent to 3 mod 4.
+//! totient function and `N = pq` where `p`, `q` is congruent to `3 mod 4`.
 //!
 //! The protocol is a combination (and simplification) of van de Graaf and
 //! Peralta and Goldberg et al.
@@ -47,11 +47,17 @@ pub(crate) struct PiModProof {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PiModProofElements {
-    fourth_root_y: BigNumber,
-    first_param_satisfy_x: usize,
-    second_param_satisfy_x: usize,
-    y_totient_variable: BigNumber,
-    combine_a_b: BigNumber,
+    /// Fourth root of the constraint linking the `random_jacobi_one` request
+    /// with the challenge (`x_i` in the paper).
+    fourth_root: BigNumber,
+    /// Determining the sign of the root (`a_i` in the paper).
+    sign_exponent: usize,
+    /// Satifies the jacobi symbol (`b_i` in the paper).
+    jacobi_exponent: usize,
+    /// Function of the challenge and the secret input (`z_i` in the paper).
+    challenge_secret_link: BigNumber,
+    /// Challenge value, chosen via fiat-Shamir (`y_i` in the paper).
+    challenge: BigNumber,
 }
 
 #[derive(Serialize)]
@@ -124,11 +130,11 @@ impl Proof for PiModProof {
                     let z = modpow(&y, &exp, &input.N);
 
                     Ok(PiModProofElements {
-                        fourth_root_y: x.get(0).unwrap().clone(),
-                        first_param_satisfy_x: a,
-                        second_param_satisfy_x: b,
-                        y_totient_variable: z,
-                        combine_a_b: y,
+                        fourth_root: x.get(0).unwrap().clone(),
+                        sign_exponent: a,
+                        jacobi_exponent: b,
+                        challenge_secret_link: z,
+                        challenge: y,
                     })
                 })
             })
@@ -187,35 +193,35 @@ impl Proof for PiModProof {
         for elements in &self.elements {
             // First, check that y came from Fiat-Shamir transcript
             let y = positive_challenge_from_transcript(transcript, &input.N)?;
-            if y != elements.combine_a_b {
+            if y != elements.challenge {
                 error!("y does not match Fiat-Shamir challenge");
                 return Err(InternalError::ProtocolError);
             }
 
-            let y_candidate = modpow(&elements.y_totient_variable, &input.N, &input.N);
-            if elements.combine_a_b != y_candidate {
+            let y_candidate = modpow(&elements.challenge_secret_link, &input.N, &input.N);
+            if elements.challenge != y_candidate {
                 error!("z^N != y (mod N)");
                 return Err(InternalError::ProtocolError);
             }
 
-            if elements.first_param_satisfy_x != 0 && elements.first_param_satisfy_x != 1 {
+            if elements.sign_exponent != 0 && elements.sign_exponent != 1 {
                 error!("a not in {{0,1}}");
                 return Err(InternalError::ProtocolError);
             }
 
-            if elements.second_param_satisfy_x != 0 && elements.second_param_satisfy_x != 1 {
+            if elements.jacobi_exponent != 0 && elements.jacobi_exponent != 1 {
                 error!("b not in {{0,1}}");
                 return Err(InternalError::ProtocolError);
             }
 
             let y_prime = y_prime_from_y(
-                &elements.combine_a_b,
+                &elements.challenge,
                 &self.random_jacobi_one,
-                elements.first_param_satisfy_x,
-                elements.second_param_satisfy_x,
+                elements.sign_exponent,
+                elements.jacobi_exponent,
                 &input.N,
             );
-            if modpow(&elements.fourth_root_y, &BigNumber::from(4u64), &input.N) != y_prime {
+            if modpow(&elements.fourth_root, &BigNumber::from(4u64), &input.N) != y_prime {
                 error!("x^4 != y' (mod N)");
                 return Err(InternalError::ProtocolError);
             }
@@ -670,11 +676,11 @@ mod tests {
         let b = rng.next_u64() as u16;
 
         PiModProofElements {
-            fourth_root_y: x,
-            first_param_satisfy_x: a as usize,
-            second_param_satisfy_x: b as usize,
-            combine_a_b: y,
-            y_totient_variable: z,
+            fourth_root: x,
+            sign_exponent: a as usize,
+            jacobi_exponent: b as usize,
+            challenge: y,
+            challenge_secret_link: z,
         }
     }
 
