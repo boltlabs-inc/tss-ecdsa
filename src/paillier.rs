@@ -324,7 +324,7 @@ impl DecryptionKey {
         self.0.to_bytes()
     }
 
-    pub(crate) fn try_from_bytes(bytes: Vec<u8>) -> Result<Self> {
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
         // Convert bytes to libpaillier::DecryptionKey
         // This method does not validate the key for consistency
         let decryption_key = libpaillier::DecryptionKey::from_bytes(bytes).map_err(|err| {
@@ -658,7 +658,7 @@ mod test {
         let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
 
         let bytes = decryption_key.clone().into_bytes();
-        let reconstructed = DecryptionKey::try_from_bytes(bytes);
+        let reconstructed = DecryptionKey::try_from_bytes(&bytes);
 
         assert!(reconstructed.is_ok());
         assert_eq!(reconstructed.unwrap(), decryption_key);
@@ -677,7 +677,7 @@ mod test {
             DecryptionKey(libpaillier::DecryptionKey::with_primes(&p, &q).unwrap());
 
         let bytes = small_decryption_key.into_bytes();
-        assert!(DecryptionKey::try_from_bytes(bytes).is_err());
+        assert!(DecryptionKey::try_from_bytes(&bytes).is_err());
 
         // Generate too-large primes (this is sometimes slow)
         let p = BigNumber::safe_prime_from_rng(PRIME_BITS + 1, rng);
@@ -686,6 +686,6 @@ mod test {
             DecryptionKey(libpaillier::DecryptionKey::with_primes(&p, &q).unwrap());
         assert!(large_decryption_key.modulus().bit_length() > 2 * PRIME_BITS);
         let bytes = large_decryption_key.into_bytes();
-        assert!(DecryptionKey::try_from_bytes(bytes).is_err());
+        assert!(DecryptionKey::try_from_bytes(&bytes).is_err());
     }
 }
