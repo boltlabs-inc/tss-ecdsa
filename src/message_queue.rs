@@ -34,14 +34,21 @@ impl MessageQueue {
         Ok(())
     }
 
-    /// Retrieve (and remove) all messages of a given [`MessageType`].
+    /// Retrieve (and remove) all [`Message`]s of a given [`MessageType`].
     ///
     /// If the given [`MessageType`] is not found, an empty [`Vec`] is returned.
-    pub(crate) fn retrieve_all(&mut self, message_type: MessageType) -> Vec<Message> {
+    pub(crate) fn retrieve_all_of_type(&mut self, message_type: MessageType) -> Vec<Message> {
         self.do_retrieve(message_type, None)
     }
 
-    /// Retrieve (and remove) all messages of a given [`MessageType`] associated
+    /// Retrieve (and remove) all [`Message`]s from the [`MessageQueue`].
+    ///
+    /// If no messages are found, an empty [`Vec`] is returned.
+    pub(crate) fn retrieve_all(&mut self) -> Vec<Message> {
+        self.0.drain().flat_map(|(_key, value)| value).collect()
+    }
+
+    /// Retrieve (and remove) all [`Message`]s of a given [`MessageType`] associated
     /// with the given [`ParticipantIdentifier`].
     ///
     /// If the given [`MessageType`] is not found, an empty [`Vec`] is returned.

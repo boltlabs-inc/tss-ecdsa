@@ -227,6 +227,8 @@ pub struct PresignParticipant {
     broadcast_participant: BroadcastParticipant,
     /// Status of the protocol execution.
     status: Status,
+    /// Whether or not the participant is Ready
+    ready: bool
 }
 
 /// Input needed for [`PresignParticipant`] to run.
@@ -389,6 +391,7 @@ impl ProtocolParticipant for PresignParticipant {
             local_storage: Default::default(),
             broadcast_participant: BroadcastParticipant::new(sid, id, other_participant_ids, ())?,
             status: Status::Initialized,
+            ready: false
         })
     }
 
@@ -462,6 +465,10 @@ impl ProtocolParticipant for PresignParticipant {
     fn status(&self) -> &Self::Status {
         &self.status
     }
+
+    fn is_ready(&self) -> bool {
+        self.ready
+    }
 }
 
 impl InnerProtocolParticipant for PresignParticipant {
@@ -477,6 +484,10 @@ impl InnerProtocolParticipant for PresignParticipant {
 
     fn local_storage_mut(&mut self) -> &mut LocalStorage {
         &mut self.local_storage
+    }
+
+    fn set_ready(&mut self) {
+        self.ready = true;
     }
 }
 
@@ -500,7 +511,7 @@ impl PresignParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling ready presign message.");
 
-        let (ready_outcome, is_ready) = self.process_ready_message::<storage::Ready>(message)?;
+        let (ready_outcome, is_ready) = self.process_ready_message::<R, storage::Ready>(rng, message, input)?;
 
         if is_ready {
             let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, message.id()))?;

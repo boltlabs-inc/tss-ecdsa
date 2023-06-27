@@ -129,6 +129,8 @@ pub struct KeygenParticipant {
     broadcast_participant: BroadcastParticipant,
     /// Status of the protocol execution.
     status: Status,
+    /// Whether or not the participant is Ready
+    ready: bool
 }
 
 /// Output type from key generation, including all parties' public key shares,
@@ -217,6 +219,7 @@ impl ProtocolParticipant for KeygenParticipant {
                 input,
             )?,
             status: Status::Initialized,
+            ready: false
         })
     }
 
@@ -251,14 +254,19 @@ impl ProtocolParticipant for KeygenParticipant {
         rng: &mut R,
         message: &Message,
     ) -> Result<ProcessOutcome<Self::Output>> {
-        info!("Processing keygen message.");
+        info!("KEYGEN: Player {}: received {:?} from {}", self.id(), message.message_type(), message.from());
 
         if *self.status() == Status::TerminatedSuccessfully {
             Err(CallerError::ProtocolAlreadyTerminated)?;
         }
 
+        if !self.is_ready() && message.message_type() != MessageType::Keygen(KeygenMessageType::Ready){
+            self.stash_message(message)?;
+            return Ok(ProcessOutcome::Incomplete);
+        }
+
         match message.message_type() {
-            MessageType::Keygen(KeygenMessageType::Ready) => self.handle_ready_msg(rng, message),
+            MessageType::Keygen(KeygenMessageType::Ready) => self.handle_ready_msg(rng, message, input),
             MessageType::Keygen(KeygenMessageType::R1CommitHash) => {
                 let broadcast_outcome = self.handle_broadcast(rng, message)?;
 
@@ -282,6 +290,10 @@ impl ProtocolParticipant for KeygenParticipant {
     fn status(&self) -> &Self::Status {
         &self.status
     }
+
+    fn is_ready(&self) -> bool{
+        self.ready
+    }
 }
 
 impl InnerProtocolParticipant for KeygenParticipant {
@@ -297,6 +309,10 @@ impl InnerProtocolParticipant for KeygenParticipant {
 
     fn local_storage_mut(&mut self) -> &mut LocalStorage {
         &mut self.local_storage
+    }
+
+    fn set_ready(&mut self) {
+        self.ready = true;
     }
 }
 
@@ -317,13 +333,15 @@ impl KeygenParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
+        input: &<KeygenParticipant as crate::participant::ProtocolParticipant>::Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling ready keygen message.");
 
-        let (ready_outcome, is_ready) = self.process_ready_message::<storage::Ready>(message)?;
+        let (ready_outcome, is_ready) = self.process_ready_message::<R, storage::Ready>(rng, message, input)?;
 
         if is_ready {
             let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, message.id()))?;
+            // extend the output with r1 messages (if they hadn't already been generated)
             Ok(ready_outcome.with_messages(round_one_messages))
         } else {
             Ok(ready_outcome)
@@ -662,7 +680,7 @@ fn schnorr_proof_transcript(global_rid: &[u8; 32]) -> Result<Transcript> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::testing::init_testing, Identifier, ParticipantConfig};
+    use crate::{utils::testing::{init_testing, init_testing_with_seed}, Identifier, ParticipantConfig};
     use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
     use tracing::debug;
@@ -747,7 +765,8 @@ mod tests {
     fn keygen_always_produces_valid_outputs() -> Result<()> {
         let _rng = init_testing();
 
-        for _ in 0..20 {
+        for i in 0..20000 {
+            println!("{}", i);
             keygen_produces_valid_outputs()?;
         }
         Ok(())
@@ -757,6 +776,8 @@ mod tests {
     fn keygen_produces_valid_outputs() -> Result<()> {
         let QUORUM_SIZE = 3;
         let mut rng = init_testing();
+        //let seed = [96, 40, 124, 150, 39, 16, 10, 93, 146, 79, 137, 119, 66, 234, 89, 188, 248, 190, 156, 60, 111, 146, 252, 23, 77, 194, 70, 59, 226, 151, 162, 242];
+        //let mut rng = init_testing_with_seed(seed);
         let sid = Identifier::random(&mut rng);
         let mut quorum = KeygenParticipant::new_quorum(sid, QUORUM_SIZE, &mut rng)?;
         let mut inboxes = HashMap::new();

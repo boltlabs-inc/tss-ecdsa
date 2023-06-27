@@ -154,7 +154,7 @@ impl ProtocolParticipant for BroadcastParticipant {
         rng: &mut R,
         message: &Message,
     ) -> Result<ProcessOutcome<Self::Output>> {
-        info!("Processing broadcast message.");
+        info!("BROADCAST: Player {}: received {:?} from {}", self.id(), message.message_type(), message.from());
 
         if let Status::ParticipantCompletedBroadcast(participants) = self.status() {
             // The protocol has terminated if the number of participants who
@@ -185,6 +185,12 @@ impl ProtocolParticipant for BroadcastParticipant {
     fn status(&self) -> &Self::Status {
         &self.status
     }
+
+    // As a subprotocol, Broadcast doesn't need to be activated with a Ready message.
+    // However, it's part of the trait and needs to be implemented.
+    fn is_ready(&self) -> bool {
+        true
+    }
 }
 
 impl InnerProtocolParticipant for BroadcastParticipant {
@@ -202,6 +208,8 @@ impl InnerProtocolParticipant for BroadcastParticipant {
     fn local_storage_mut(&mut self) -> &mut LocalStorage {
         &mut self.local_storage
     }
+
+    fn set_ready(&mut self) {}
 }
 
 impl BroadcastParticipant {

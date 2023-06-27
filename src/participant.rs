@@ -250,6 +250,9 @@ pub trait ProtocolParticipant {
 
     /// The input of the current session
     fn input(&self) -> &Self::Input;
+
+    /// Returns whether or not the Participant is Ready
+    fn is_ready(&self) -> bool;
 }
 
 pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
@@ -285,38 +288,25 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
 
     /// Process a `ready` message: tell other participants that we're ready and
     /// see if all others have also reported that they are ready.
-    fn process_ready_message<T: TypeTag<Value = ()>>(
+    fn process_ready_message<R: RngCore + CryptoRng, T: TypeTag<Value = ()>>(
         &mut self,
+        rng: &mut R,
         message: &Message,
+        input: &Self::Input,
     ) -> Result<(ProcessOutcome<Self::Output>, bool)> {
-        self.local_storage_mut().store::<T>(message.from(), ());
-        let empty: [u8; 0] = [];
-        // If message came from self, then tell the other participants that we are ready
-        let self_initiated_outcome = if message.from() == self.id() {
-            let messages = self
-                .other_ids()
-                .iter()
-                .map(|other_id| {
-                    Message::new(
-                        message.message_type(),
-                        message.id(),
-                        self.id(),
-                        *other_id,
-                        &empty,
-                    )
-                })
-                .collect::<Result<Vec<Message>>>()?;
-            ProcessOutcome::Processed(messages)
+        // If message came from self, then we should start the protocol
+        if message.from() == self.id() {
+            // First, process any messages that had been received before the Ready signal
+            let banked_messages = self.fetch_all_messages()?;
+            self.set_ready();
+            let outcomes = banked_messages.iter().map(|m| self.process_message(rng, m, input)).collect::<Result<Vec<ProcessOutcome<Self::Output>>>>()?;
+            //Ok((ProcessOutcome::Processed(vec![]), true))
+            
+            Ok((ProcessOutcome::collect(outcomes)?, true))
         } else {
-            ProcessOutcome::Incomplete
-        };
-
-        // Make sure that all parties are ready before proceeding
-        let is_ready = self
-            .local_storage()
-            .contains_for_all_ids::<T>(&self.all_participants());
-
-        Ok((self_initiated_outcome, is_ready))
+            error!("Received a Ready message from the wrong sender!");
+            Err(InternalError::ProtocolError)
+        }
     }
 
     /// Retrieves an item from [`LocalStorage`] associated with the given
@@ -351,8 +341,16 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
     /// If no messages are found, return an empty [`Vec`].
     fn fetch_messages(&mut self, message_type: MessageType) -> Result<Vec<Message>> {
         let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
-        Ok(message_storage.retrieve_all(message_type))
+        Ok(message_storage.retrieve_all_of_type(message_type))
     }
+
+    /// Fetch (and remove) all [`Message`]s of any [`MessageType`].
+    /// If no messages are found, return an empty [`Vec`].
+    fn fetch_all_messages(&mut self) -> Result<Vec<Message>> {
+        let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
+        Ok(message_storage.retrieve_all())
+    }
+
     /// Fetch (and remove) all [`Message`]s matching the given [`MessageType`]
     /// and [`ParticipantIdentifier`]. If no messages are found, return an empty
     /// [`Vec`].
@@ -375,6 +373,8 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         let progress_storage = self.get_from_storage::<local_storage::ProgressStore>()?;
         Ok(progress_storage.get(&func_name).is_some())
     }
+
+    fn set_ready(&mut self);
 }
 
 pub(crate) trait Broadcast {
