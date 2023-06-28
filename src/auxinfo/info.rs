@@ -19,6 +19,7 @@ use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::{error, instrument};
+use zeroize::Zeroize;
 /// Private auxiliary information for a specific
 /// [`Participant`](crate::Participant).
 ///
@@ -75,10 +76,9 @@ impl AuxInfoPrivate {
         // AUXINFO_TAG | key_len in bytes | key
         //             | ---8 bytes------ | --key_len bytes---
 
-        // Make sure the AUXINFO_TAG is correct
+        let mut parser = ParseBytes::new(bytes);
         let result = {
-            let mut parser = ParseBytes::new(bytes);
-
+            // Make sure the AUXINFO_TAG is correct
             let actual_tag = parser.take_bytes(AUXINFO_TAG.len())?;
             if actual_tag != AUXINFO_TAG {
                 Err(CallerError::DeserializationFailed)?
@@ -87,9 +87,12 @@ impl AuxInfoPrivate {
             // Extract the length of the key
             let key_len_slice = parser.take_bytes(AUXINFO_LEN)?;
             let len_bytes: [u8; AUXINFO_LEN] = key_len_slice.try_into().map_err(|_| {
-                    error!("Failed to convert byte array (should always work because we defined it to be exactly 8 bytes)");
-                    InternalError::InternalInvariantFailed
-                })?;
+                error!(
+                    "Failed to convert byte array (should always work because we
+                        defined it to be exactly 8 bytes)"
+                );
+                InternalError::InternalInvariantFailed
+            })?;
             let key_len = usize::from_le_bytes(len_bytes);
 
             let key_bytes = parser.take_rest()?;
@@ -98,16 +101,24 @@ impl AuxInfoPrivate {
             }
 
             // Check the key
-            let decryption_key = DecryptionKey::try_from_bytes(key_bytes).map_err(|_| {
-                error!("Failed to deserialize `AuxInfoPrivate` due to invalid decryption key");
-                CallerError::DeserializationFailed
-            })?;
+            let decryption_key = DecryptionKey::try_from_bytes(key_bytes)
+                .map_err(|_| CallerError::DeserializationFailed)?;
 
             Ok(Self { decryption_key })
         };
 
+        // When creating the `DecryptionKey`, the secret bytes get copied. Here, we
+        // delete the original copy.
+        parser.zeroize();
+
         if result.is_err() {
-            error!("Failed to deserialize `AuxInfoPrivate`");
+            error!(
+                "Failed to deserialize `AuxInfoPrivate. Expected format:
+                        {:?} | key_len | key
+                        where `key_len` is a little-endian encoded usize
+                        and `key` is exactly `key_len` bytes long.",
+                AUXINFO_TAG
+            );
         }
         result
     }
