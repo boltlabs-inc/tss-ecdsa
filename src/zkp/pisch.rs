@@ -243,10 +243,7 @@ impl PiSchProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        utils::testing::{init_testing, init_testing_with_seed},
-        zkp::BadContext,
-    };
+    use crate::{utils::testing::init_testing, zkp::BadContext};
     fn transcript() -> Transcript {
         Transcript::new(b"PiSchProof Test")
     }
@@ -311,11 +308,11 @@ mod tests {
 
     #[test]
     fn test_precommit_proof() -> Result<()> {
-        let mut rng = init_testing_with_seed([
+        /*let mut rng = init_testing_with_seed([
             174, 101, 6, 147, 18, 174, 163, 126, 132, 239, 178, 90, 83, 137, 86, 20, 11, 191, 118,
             124, 38, 15, 163, 168, 65, 83, 186, 245, 34, 116, 119, 164,
-        ]);
-        //let mut rng = init_testing();
+        ]);*/
+        let mut rng = init_testing();
 
         let q = crate::utils::k256_order();
         let g = CurvePoint::GENERATOR;
@@ -325,15 +322,15 @@ mod tests {
 
         let input = CommonInput::new(&X);
         let com = PiSchProof::precommit(&mut rng, &input)?;
-        let mut transcript = Transcript::new(b"some external proof stuff");
+        //let mut transcript = Transcript::new(b"some external proof stuff");
         let proof = PiSchProof::prove_from_precommit(
             &(),
             &com,
             &input,
             &ProverSecret::new(&x),
-            &transcript,
+            &transcript(),
         )?;
-        proof.verify(input, &(), &mut transcript)?;
+        proof.verify(input, &(), &mut transcript())?;
 
         //test public param mismatch
         let input2 = CommonInput::new(&X);
@@ -342,9 +339,9 @@ mod tests {
             &com,
             &input2,
             &ProverSecret::new(&x),
-            &transcript,
+            &transcript(),
         )?;
-        assert!(proof2.verify(input, &(), &mut transcript).is_err());
+        assert!(proof2.verify(input, &(), &mut transcript()).is_err());
 
         //test transcript mismatch
         let transcript2 = Transcript::new(b"some other external proof stuff");
@@ -355,7 +352,7 @@ mod tests {
             &ProverSecret::new(&x),
             &transcript2,
         )?;
-        assert!(proof3.verify(input, &(), &mut transcript).is_err());
+        assert!(proof3.verify(input, &(), &mut transcript()).is_err());
 
         Ok(())
     }
