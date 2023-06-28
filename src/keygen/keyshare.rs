@@ -101,7 +101,7 @@ impl KeySharePrivate {
 
             // Check that the share itself is valid
             let share = BigNumber::from_slice(share_bytes);
-            if share > k256_order() || share < BigNumber::zero() {
+            if share > k256_order() || share < BigNumber::one() {
                 Err(CallerError::DeserializationFailed)?
             }
 
@@ -173,5 +173,114 @@ impl AsRef<CurvePoint> for KeySharePublic {
     /// Get the public curvepoint which is the public key share.
     fn as_ref(&self) -> &CurvePoint {
         &self.X
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        keygen::{keyshare::KEYSHARE_TAG, KeySharePrivate},
+        utils::{k256_order, testing::init_testing},
+    };
+
+    #[test]
+    fn keyshare_private_bytes_conversion_works() {
+        let rng = &mut init_testing();
+        let share = KeySharePrivate::random(rng);
+
+        let bytes = share.clone().into_bytes();
+        let reconstructed = KeySharePrivate::try_from_bytes(bytes);
+
+        assert!(reconstructed.is_ok());
+        assert_eq!(reconstructed.unwrap(), share);
+    }
+
+    #[test]
+    fn keyshare_private_bytes_must_be_in_range() {
+        // Share must be < k256_order()
+        let too_big = KeySharePrivate {
+            x: k256_order() + 1,
+        };
+        let bytes = too_big.into_bytes();
+        assert!(KeySharePrivate::try_from_bytes(bytes).is_err());
+
+        // Note: I tried testing the negative case but it seems like the
+        // unknown_order crate's `from_bytes` method always interprets
+        // numbers as positive. Unfortunately the crate does not
+        // document the expected representation only noting that it
+        // takes a big-endian byte sequence.
+    }
+
+    #[test]
+    fn deserialized_keyshare_private_tag_must_be_correct() {
+        let rng = &mut init_testing();
+        let key_share = KeySharePrivate::random(rng);
+
+        // Cut out the tag from the serialized bytes for convenience.
+        let share_bytes = &key_share.into_bytes()[KEYSHARE_TAG.len()..];
+
+        // Tag must have correct content
+        let wrong_tag = b"NotTheRightTag!";
+        assert_eq!(wrong_tag.len(), KEYSHARE_TAG.len());
+        let bad_bytes = [wrong_tag.as_slice(), share_bytes].concat();
+        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+
+        // Tag must be correct length (too short, too long)
+        let short_tag = &KEYSHARE_TAG[..5];
+        let bad_bytes = [short_tag, share_bytes].concat();
+        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+
+        let bad_bytes = [KEYSHARE_TAG, b"TAG EXTENSION!", share_bytes].concat();
+        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+
+        // Normal serialization works
+        let bytes = [KEYSHARE_TAG, share_bytes].concat();
+        assert!(KeySharePrivate::try_from_bytes(bytes).is_ok());
+    }
+
+    #[test]
+    fn deserialized_keyshare_private_length_field_must_be_correct() {
+        let rng = &mut init_testing();
+        let share_bytes = KeySharePrivate::random(rng).x.to_bytes();
+
+        // Length must be specified
+        let bad_bytes = [KEYSHARE_TAG, &share_bytes].concat();
+        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+
+        // Length must be little endian
+        let share_len = share_bytes.len().to_be_bytes();
+        let bad_bytes = [KEYSHARE_TAG, &share_len, &share_bytes].concat();
+        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+
+        // Length must be correct (too long, too short)
+        let too_short = (share_bytes.len() - 5).to_le_bytes();
+        let bad_bytes = [KEYSHARE_TAG, &too_short, &share_bytes].concat();
+        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+
+        let too_long = (share_bytes.len() + 5).to_le_bytes();
+        let bad_bytes = [KEYSHARE_TAG, &too_long, &share_bytes].concat();
+        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+
+        // Correct length works
+        let share_len = share_bytes.len().to_le_bytes();
+        let bytes = [KEYSHARE_TAG, &share_len, &share_bytes].concat();
+        assert!(KeySharePrivate::try_from_bytes(bytes).is_ok());
+    }
+
+    #[test]
+    fn deserialized_keyshare_private_requires_all_fields() {
+        // Part of a tag or the whole tag alone doesn't pass
+        let bytes = &KEYSHARE_TAG[..3];
+        assert!(KeySharePrivate::try_from_bytes(bytes.to_vec()).is_err());
+        assert!(KeySharePrivate::try_from_bytes(KEYSHARE_TAG.to_vec()).is_err());
+
+        // Length with no secret following doesn't pass
+        let share_len = k256_order().bit_length() / 8;
+        let bytes = [KEYSHARE_TAG, &share_len.to_le_bytes()].concat();
+        assert!(KeySharePrivate::try_from_bytes(bytes).is_err());
+
+        // Zero-length doesn't pass
+        let bytes = [KEYSHARE_TAG, &0usize.to_le_bytes()].concat();
+        assert!(KeySharePrivate::try_from_bytes(bytes).is_err());
     }
 }
