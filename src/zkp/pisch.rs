@@ -75,21 +75,6 @@ pub(crate) struct CommonInput<'a> {
     X: &'a CurvePoint,
 }
 
-#[derive(Clone)]
-pub struct BigNumberWrapper(libpaillier::unknown_order::BigNumber);
-
-impl AsRef<libpaillier::unknown_order::BigNumber> for BigNumberWrapper {
-    fn as_ref(&self) -> &libpaillier::unknown_order::BigNumber {
-        &self.0
-    }
-}
-
-#[derive(Serialize)]
-pub(crate) struct PiSchPublicParams {
-    g: CurvePoint,
-    q: BigNumber,
-}
-
 impl PiSchPrecommit {
     pub(crate) fn precommitment(&self) -> &CurvePoint {
         &self.precommitment
@@ -322,7 +307,6 @@ mod tests {
 
         let input = CommonInput::new(&X);
         let com = PiSchProof::precommit(&mut rng, &input)?;
-        //let mut transcript = Transcript::new(b"some external proof stuff");
         let proof = PiSchProof::prove_from_precommit(
             &(),
             &com,
@@ -331,17 +315,6 @@ mod tests {
             &transcript(),
         )?;
         proof.verify(input, &(), &mut transcript())?;
-
-        //test public param mismatch
-        let input2 = CommonInput::new(&X);
-        let proof2 = PiSchProof::prove_from_precommit(
-            &(),
-            &com,
-            &input2,
-            &ProverSecret::new(&x),
-            &transcript(),
-        )?;
-        assert!(proof2.verify(input, &(), &mut transcript()).is_err());
 
         //test transcript mismatch
         let transcript2 = Transcript::new(b"some other external proof stuff");
