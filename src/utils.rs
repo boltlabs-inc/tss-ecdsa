@@ -77,6 +77,40 @@ impl<'de> Deserialize<'de> for CurvePoint {
     }
 }
 
+/// Helper type for parsing byte array into slices.
+///
+/// This type implements [`Zeroize`]. When parsing secret types, you should
+/// manually call `zeroize()` after parsing is complete.
+#[derive(Zeroize)]
+pub(crate) struct ParseBytes {
+    bytes: Vec<u8>,
+    offset: usize,
+}
+
+impl ParseBytes {
+    /// Consume bytes for parsing.
+    pub(crate) fn new(bytes: Vec<u8>) -> ParseBytes {
+        ParseBytes { bytes, offset: 0 }
+    }
+
+    /// Take next `n` bytes from array.
+    pub(crate) fn take_bytes(&mut self, n: usize) -> Result<&[u8]> {
+        let slice = &self
+            .bytes
+            .get(self.offset..self.offset + n)
+            .ok_or(CallerError::DeserializationFailed)?;
+        self.offset += n;
+        Ok(slice)
+    }
+
+    /// Take the rest of the bytes from the array.
+    pub(crate) fn take_rest(&mut self) -> Result<&[u8]> {
+        self.bytes
+            .get(self.offset..)
+            .ok_or(CallerError::DeserializationFailed.into())
+    }
+}
+
 /// Returns `true` if `value ∊ [-2^n, 2^n]`.
 pub(crate) fn within_bound_by_size(value: &BigNumber, n: usize) -> bool {
     let bound = BigNumber::one() << n;

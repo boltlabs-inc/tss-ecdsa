@@ -8,7 +8,7 @@
 
 use crate::{
     errors::{CallerError, InternalError, Result},
-    utils::{k256_order, CurvePoint},
+    utils::{k256_order, CurvePoint, ParseBytes},
     ParticipantIdentifier,
 };
 use libpaillier::unknown_order::BigNumber;
@@ -16,7 +16,7 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
-use zeroize::ZeroizeOnDrop;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 const KEYSHARE_TAG: &[u8] = b"KeySharePrivate";
 /// Length of the field indicating the length of the key share.
@@ -52,7 +52,7 @@ impl KeySharePrivate {
 
     /// Convert private material into bytes.
     ///
-    /// 🔒 This is inteded for use by the calling application for secure
+    /// 🔒 This is intended for use by the calling application for secure
     /// storage. The output of this function should be handled with care.
     pub fn into_bytes(self) -> Vec<u8> {
         // Format:
@@ -75,41 +75,53 @@ impl KeySharePrivate {
         // KEYSHARE_TAG | key_len in bytes | key (big endian bytes)
         //              | 8 bytes          | key_len bytes
 
-        // Check the tag.
-        if bytes.len() < KEYSHARE_TAG.len() {
-            error!("Failed to deserialize `KeySharePrivate`: invalid tag");
-            Err(CallerError::DeserializationFailed)?
-        }
-        let (actual_tag, bytes) = bytes.split_at(KEYSHARE_TAG.len());
-        if actual_tag != KEYSHARE_TAG {
-            error!("Failed to deserialize `KeySharePrivate`: invalid tag");
-            Err(CallerError::DeserializationFailed)?
-        }
+        let mut parser = ParseBytes::new(bytes);
+        let result = {
+            // Make sure the KEYSHARE_TAG is correct.
+            let actual_tag = parser.take_bytes(KEYSHARE_TAG.len())?;
+            if actual_tag != KEYSHARE_TAG {
+                Err(CallerError::DeserializationFailed)?
+            }
 
-        // Check the share len
-        if bytes.len() < KEYSHARE_LEN {
-            error!("Failed to deserialize `KeySharePrivate`: invalid length field");
-            Err(CallerError::DeserializationFailed)?
-        }
-        let (share_len, share_bytes) = bytes.split_at(KEYSHARE_LEN);
-        let fixed_size_len: [u8; KEYSHARE_LEN] = share_len.try_into().map_err(|_| {
-            error!("Failed to convert byte array even though we specified the size");
-            InternalError::InternalInvariantFailed
-        })?;
+            // Extract the length of the key share
+            let share_len_slice = parser.take_bytes(KEYSHARE_LEN)?;
+            let share_len_bytes: [u8; KEYSHARE_LEN] = share_len_slice.try_into().map_err(|_| {
+                error!(
+                    "Failed to convert byte array (should always work because we
+                defined it to be exactly 8 bytes"
+                );
+                InternalError::InternalInvariantFailed
+            })?;
+            let share_len = usize::from_le_bytes(share_len_bytes);
 
-        if usize::from_le_bytes(fixed_size_len) != share_bytes.len() {
-            error!("Failed to deserialize `KeySharePrivate`: invalid length field");
-            Err(CallerError::DeserializationFailed)?
-        }
+            let share_bytes = parser.take_rest()?;
+            if share_bytes.len() != share_len {
+                Err(CallerError::DeserializationFailed)?
+            }
 
-        // Check the key share
-        let share = BigNumber::from_slice(share_bytes);
-        if share > k256_order() || share < BigNumber::zero() {
-            error!("Failed to deserialize `KeySharePrivate`: share value out of range");
-            Err(CallerError::DeserializationFailed)?
-        }
+            // Check that the share itself is valid
+            let share = BigNumber::from_slice(share_bytes);
+            if share > k256_order() || share < BigNumber::zero() {
+                Err(CallerError::DeserializationFailed)?
+            }
 
-        Ok(Self { x: share })
+            Ok(Self { x: share })
+        };
+
+        // When creating the `BigNumber`, the secret bytes get copied. Here, we delete
+        // the original copy.
+        parser.zeroize();
+
+        if result.is_err() {
+            error!(
+                "Failed to deserialize `KeySharePrivate. Expected format:
+                        {:?} | share_len | share
+                        where `share_len` is a little-endian encoded usize
+                        and `share` is exactly `share_len` bytes long.",
+                KEYSHARE_TAG
+            );
+        }
+        result
     }
 }
 
