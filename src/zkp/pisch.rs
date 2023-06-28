@@ -36,7 +36,7 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{convert::AsRef, fmt::Debug};
 use tracing::error;
 use utils::CurvePoint;
 
@@ -75,6 +75,15 @@ pub(crate) struct CommonInput<'a> {
     X: &'a CurvePoint,
 }
 
+#[derive(Clone)]
+pub struct BigNumberWrapper(libpaillier::unknown_order::BigNumber);
+
+impl AsRef<libpaillier::unknown_order::BigNumber> for BigNumberWrapper {
+    fn as_ref(&self) -> &libpaillier::unknown_order::BigNumber {
+        &self.0
+    }
+}
+
 #[derive(Serialize)]
 pub(crate) struct PiSchPublicParams {
     g: CurvePoint,
@@ -108,16 +117,20 @@ impl<'a> Debug for ProverSecret<'a> {
     }
 }
 
+impl AsRef<utils::CurvePoint> for utils::CurvePoint {
+    fn as_ref(&self) -> &utils::CurvePoint {
+        self
+    }
+}
+
 impl<'a> ProverSecret<'a> {
-    pub(crate) fn new<X>(x:&'a X) -> ProverSecret<'a>
+    pub(crate) fn new<X>(x: &'a X) -> ProverSecret<'a>
     where
         X: AsRef<BigNumber> + 'a,
     {
         Self { x: x.as_ref() }
     }
 }
-
-
 
 impl Proof2 for PiSchProof {
     type CommonInput<'a> = CommonInput<'a>;
@@ -260,7 +273,14 @@ mod tests {
         let input = CommonInput::new(&X);
 
         // Proving knowledge of the random secret x
-        let proof = PiSchProof::prove(input, ProverSecret::new(&x), &(), &mut transcript(), rng)?;
+        let xwrap = BigNumberWrapper(x);
+        let proof = PiSchProof::prove(
+            input,
+            ProverSecret::new(&xwrap),
+            &(),
+            &mut transcript(),
+            rng,
+        )?;
 
         test_code(proof, input)?;
         Ok(())
@@ -302,9 +322,10 @@ mod tests {
     #[test]
     fn test_precommit_proof() -> Result<()> {
         let mut rng = init_testing_with_seed([
-            230, 208, 20, 185, 242, 203, 71, 127, 173, 17, 62, 66, 46, 21, 50, 98, 12, 245, 207,
-            82, 103, 116, 239, 213, 33, 36, 101, 140, 100, 210, 19, 31,
+            174, 101, 6, 147, 18, 174, 163, 126, 132, 239, 178, 90, 83, 137, 86, 20, 11, 191, 118,
+            124, 38, 15, 163, 168, 65, 83, 186, 245, 34, 116, 119, 164,
         ]);
+        //let mut rng = init_testing();
 
         let q = crate::utils::k256_order();
         let g = CurvePoint::GENERATOR;
@@ -315,11 +336,12 @@ mod tests {
         let input = CommonInput::new(&X);
         let com = PiSchProof::precommit(&mut rng, &input)?;
         let mut transcript = Transcript::new(b"some external proof stuff");
+        let xwrap = BigNumberWrapper(x);
         let proof = PiSchProof::prove_from_precommit(
             &(),
             &com,
             &input,
-            &ProverSecret::new(&x),
+            &ProverSecret::new(&xwrap),
             &transcript,
         )?;
         proof.verify(input, &(), &mut transcript)?;
@@ -330,7 +352,7 @@ mod tests {
             &(),
             &com,
             &input2,
-            &ProverSecret::new(&x),
+            &ProverSecret::new(&xwrap),
             &transcript,
         )?;
         assert!(proof2.verify(input, &(), &mut transcript).is_err());
@@ -341,7 +363,7 @@ mod tests {
             &(),
             &com,
             &input,
-            &ProverSecret::new(&x),
+            &ProverSecret::new(&xwrap),
             &transcript2,
         )?;
         assert!(proof3.verify(input, &(), &mut transcript).is_err());
