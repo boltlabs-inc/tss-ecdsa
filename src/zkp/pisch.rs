@@ -124,11 +124,8 @@ impl AsRef<utils::CurvePoint> for utils::CurvePoint {
 }
 
 impl<'a> ProverSecret<'a> {
-    pub(crate) fn new<X>(x: &'a X) -> ProverSecret<'a>
-    where
-        X: AsRef<BigNumber> + 'a,
-    {
-        Self { x: x.as_ref() }
+    pub(crate) fn new(x: &'a BigNumber) -> ProverSecret<'a> {
+        Self { x }
     }
 }
 
@@ -273,14 +270,7 @@ mod tests {
         let input = CommonInput::new(&X);
 
         // Proving knowledge of the random secret x
-        let xwrap = BigNumberWrapper(x);
-        let proof = PiSchProof::prove(
-            input,
-            ProverSecret::new(&xwrap),
-            &(),
-            &mut transcript(),
-            rng,
-        )?;
+        let proof = PiSchProof::prove(input, ProverSecret::new(&x), &(), &mut transcript(), rng)?;
 
         test_code(proof, input)?;
         Ok(())
@@ -336,12 +326,11 @@ mod tests {
         let input = CommonInput::new(&X);
         let com = PiSchProof::precommit(&mut rng, &input)?;
         let mut transcript = Transcript::new(b"some external proof stuff");
-        let xwrap = BigNumberWrapper(x);
         let proof = PiSchProof::prove_from_precommit(
             &(),
             &com,
             &input,
-            &ProverSecret::new(&xwrap),
+            &ProverSecret::new(&x),
             &transcript,
         )?;
         proof.verify(input, &(), &mut transcript)?;
@@ -352,7 +341,7 @@ mod tests {
             &(),
             &com,
             &input2,
-            &ProverSecret::new(&xwrap),
+            &ProverSecret::new(&x),
             &transcript,
         )?;
         assert!(proof2.verify(input, &(), &mut transcript).is_err());
@@ -363,7 +352,7 @@ mod tests {
             &(),
             &com,
             &input,
-            &ProverSecret::new(&xwrap),
+            &ProverSecret::new(&x),
             &transcript2,
         )?;
         assert!(proof3.verify(input, &(), &mut transcript).is_err());

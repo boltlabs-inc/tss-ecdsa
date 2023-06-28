@@ -579,7 +579,7 @@ impl KeygenParticipant {
             &self.retrieve_context(),
             precom,
             &input,
-            &ProverSecret::new(my_sk),
+            &ProverSecret::new(my_sk.as_ref()),
             &transcript,
         )?;
         let messages = self.message_for_other_participants(
