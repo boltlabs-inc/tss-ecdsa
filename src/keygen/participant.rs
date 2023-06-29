@@ -346,11 +346,8 @@ impl KeygenParticipant {
 
         let (keyshare_private, keyshare_public) = KeySharePublic::new_keyshare(self.id(), rng)?;
 
-        let X = keyshare_public.as_ref();
-
-        let input = CommonInput::new(&X);
         // This corresponds to `A_i` in the paper.
-        let sch_precom = PiSchProof::precommit(rng, &input)?;
+        let sch_precom = PiSchProof::precommit(rng)?;
         let decom = KeygenDecommit::new(rng, &sid, &self.id, &keyshare_public, &sch_precom);
         // This corresponds to `V_i` in the paper.
         let com = decom.commit()?;

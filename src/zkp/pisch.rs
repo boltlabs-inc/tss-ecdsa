@@ -102,12 +102,6 @@ impl<'a> Debug for ProverSecret<'a> {
     }
 }
 
-impl AsRef<utils::CurvePoint> for utils::CurvePoint {
-    fn as_ref(&self) -> &utils::CurvePoint {
-        self
-    }
-}
-
 impl<'a> ProverSecret<'a> {
     pub(crate) fn new(x: &'a BigNumber) -> ProverSecret<'a> {
         Self { x }
@@ -125,7 +119,7 @@ impl Proof2 for PiSchProof {
         transcript: &mut Transcript,
         rng: &mut R,
     ) -> Result<Self> {
-        let com = PiSchProof::precommit(rng, &input)?;
+        let com = PiSchProof::precommit(rng)?;
         let proof = PiSchProof::prove_from_precommit(context, &com, &input, &secret, transcript)?;
         Ok(proof)
     }
@@ -166,10 +160,7 @@ impl Proof2 for PiSchProof {
 
 impl PiSchProof {
     /// "Commitment" phase of the PiSch proof.
-    pub fn precommit<R: RngCore + CryptoRng>(
-        rng: &mut R,
-        _input: &CommonInput,
-    ) -> Result<PiSchPrecommit> {
+    pub fn precommit<R: RngCore + CryptoRng>(rng: &mut R) -> Result<PiSchPrecommit> {
         // Sample alpha from F_q
         let randomness_for_commitment = crate::utils::random_positive_bn(rng, &k256_order());
         // Form a commitment to the mask
@@ -293,10 +284,6 @@ mod tests {
 
     #[test]
     fn test_precommit_proof() -> Result<()> {
-        /*let mut rng = init_testing_with_seed([
-            174, 101, 6, 147, 18, 174, 163, 126, 132, 239, 178, 90, 83, 137, 86, 20, 11, 191, 118,
-            124, 38, 15, 163, 168, 65, 83, 186, 245, 34, 116, 119, 164,
-        ]);*/
         let mut rng = init_testing();
 
         let q = crate::utils::k256_order();
@@ -306,7 +293,7 @@ mod tests {
         let X = g.multiply_by_scalar(&x)?;
 
         let input = CommonInput::new(&X);
-        let com = PiSchProof::precommit(&mut rng, &input)?;
+        let com = PiSchProof::precommit(&mut rng)?;
         let proof = PiSchProof::prove_from_precommit(
             &(),
             &com,

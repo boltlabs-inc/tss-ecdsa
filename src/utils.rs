@@ -31,6 +31,12 @@ pub(crate) const CRYPTOGRAPHIC_RETRY_MAX: usize = 500usize;
 #[derive(Eq, PartialEq, Debug, Clone, Copy, Zeroize)]
 pub(crate) struct CurvePoint(pub k256::ProjectivePoint);
 
+impl AsRef<CurvePoint> for CurvePoint {
+    fn as_ref(&self) -> &CurvePoint {
+        self
+    }
+}
+
 impl CurvePoint {
     pub(crate) const GENERATOR: Self = CurvePoint(k256::ProjectivePoint::GENERATOR);
     /// The identity point, used to initialize the aggregation of a verification
