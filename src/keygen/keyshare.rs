@@ -59,10 +59,12 @@ impl KeySharePrivate {
         // KEYSHARE_TAG | key_len in bytes | key (big endian bytes)
         //              | 8 bytes          | key_len bytes
 
-        let share = self.x.to_bytes();
+        let mut share = self.x.to_bytes();
         let share_len = share.len().to_le_bytes();
 
-        [KEYSHARE_TAG, &share_len, &share].concat()
+        let bytes = [KEYSHARE_TAG, &share_len, &share].concat();
+        share.zeroize();
+        bytes
     }
 
     /// Convert bytes into private material.
@@ -76,7 +78,13 @@ impl KeySharePrivate {
         //              | 8 bytes          | key_len bytes
 
         let mut parser = ParseBytes::new(bytes);
-        let result = {
+
+        // This little method ensures that
+        // 1. We can zeroize out the potentially-sensitive input bytes regardless of
+        //    whether parsing succeeded; and
+        // 2. We can log the error message once at the end, rather than duplicating it
+        //    across all the parsing code
+        let mut parse = || {
             // Make sure the KEYSHARE_TAG is correct.
             let actual_tag = parser.take_bytes(KEYSHARE_TAG.len())?;
             if actual_tag != KEYSHARE_TAG {
@@ -108,10 +116,13 @@ impl KeySharePrivate {
             Ok(Self { x: share })
         };
 
-        // When creating the `BigNumber`, the secret bytes get copied. Here, we delete
-        // the original copy.
+        let result = parse();
+
+        // During parsing, we copy all the bytes we need into the appropriate types.
+        // Here, we delete the original copy.
         parser.zeroize();
 
+        // Log a message in case of error
         if result.is_err() {
             error!(
                 "Failed to deserialize `KeySharePrivate. Expected format:
