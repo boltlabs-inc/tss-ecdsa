@@ -60,10 +60,12 @@ impl AuxInfoPrivate {
         // AUXINFO_TAG | key_len in bytes | key
         //             | ---8 bytes------ | --key_len bytes---
 
-        let key = self.decryption_key.into_bytes();
+        let mut key = self.decryption_key.into_bytes();
         let key_len = key.len().to_le_bytes();
 
-        [AUXINFO_TAG, &key_len, &key].concat()
+        let bytes = [AUXINFO_TAG, &key_len, &key].concat();
+        key.zeroize();
+        bytes
     }
 
     /// Convert bytes into private material.
@@ -77,7 +79,13 @@ impl AuxInfoPrivate {
         //             | ---8 bytes------ | --key_len bytes---
 
         let mut parser = ParseBytes::new(bytes);
-        let result = {
+
+        // This little method ensures that
+        // 1. We can zeroize out the potentially-sensitive input bytes regardless of
+        //    whether parsing succeeded; and
+        // 2. We can log the error message once at the end, rather than duplicating it
+        //    across all the parsing code
+        let mut parse = || {
             // Make sure the AUXINFO_TAG is correct
             let actual_tag = parser.take_bytes(AUXINFO_TAG.len())?;
             if actual_tag != AUXINFO_TAG {
@@ -106,6 +114,8 @@ impl AuxInfoPrivate {
 
             Ok(Self { decryption_key })
         };
+
+        let result = parse();
 
         // When creating the `DecryptionKey`, the secret bytes get copied. Here, we
         // delete the original copy.
