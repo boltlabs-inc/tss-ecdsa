@@ -292,7 +292,6 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        input: &Self::Input,
     ) -> Result<(ProcessOutcome<Self::Output>, bool)> {
         // If message came from self, then we should start the protocol
         if message.from() == self.id() {
@@ -301,7 +300,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
             self.set_ready();
             let outcomes = banked_messages
                 .iter()
-                .map(|m| self.process_message(rng, m, input))
+                .map(|m| self.process_message(rng, m))
                 .collect::<Result<Vec<ProcessOutcome<Self::Output>>>>()?;
 
             Ok((ProcessOutcome::collect(outcomes)?, true))

@@ -209,9 +209,7 @@ impl ProtocolParticipant for AuxInfoParticipant {
         }
 
         match message.message_type() {
-            MessageType::Auxinfo(AuxinfoMessageType::Ready) => {
-                self.handle_ready_msg(rng, message, input)
-            }
+            MessageType::Auxinfo(AuxinfoMessageType::Ready) => self.handle_ready_msg(rng, message),
             MessageType::Auxinfo(AuxinfoMessageType::R1CommitHash) => {
                 let broadcast_outcome = self.handle_broadcast(rng, message)?;
 
@@ -280,12 +278,11 @@ impl AuxInfoParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        input: &<AuxInfoParticipant as crate::participant::ProtocolParticipant>::Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling auxinfo ready message.");
 
         let (ready_outcome, is_ready) =
-            self.process_ready_message::<R, storage::Ready>(rng, message, input)?;
+            self.process_ready_message::<R, storage::Ready>(rng, message)?;
 
         if is_ready {
             let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, message.id()))?;

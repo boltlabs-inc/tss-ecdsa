@@ -273,9 +273,7 @@ impl ProtocolParticipant for KeygenParticipant {
         }
 
         match message.message_type() {
-            MessageType::Keygen(KeygenMessageType::Ready) => {
-                self.handle_ready_msg(rng, message, input)
-            }
+            MessageType::Keygen(KeygenMessageType::Ready) => self.handle_ready_msg(rng, message),
             MessageType::Keygen(KeygenMessageType::R1CommitHash) => {
                 let broadcast_outcome = self.handle_broadcast(rng, message)?;
 
@@ -342,12 +340,11 @@ impl KeygenParticipant {
         &mut self,
         rng: &mut R,
         message: &Message,
-        input: &<KeygenParticipant as crate::participant::ProtocolParticipant>::Input,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling ready keygen message.");
 
         let (ready_outcome, is_ready) =
-            self.process_ready_message::<R, storage::Ready>(rng, message, input)?;
+            self.process_ready_message::<R, storage::Ready>(rng, message)?;
 
         if is_ready {
             let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, message.id()))?;
