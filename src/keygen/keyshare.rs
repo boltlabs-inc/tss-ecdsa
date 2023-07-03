@@ -79,7 +79,7 @@ impl KeySharePrivate {
 
         let mut parser = ParseBytes::new(bytes);
 
-        // This little method ensures that
+        // This little function ensures that
         // 1. We can zeroize out the potentially-sensitive input bytes regardless of
         //    whether parsing succeeded; and
         // 2. We can log the error message once at the end, rather than duplicating it
