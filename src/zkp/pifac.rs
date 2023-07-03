@@ -7,8 +7,8 @@
 // of this source tree.
 
 //! Implements a zero-knowledge proof that the modulus `N` can be factored into
-//! ...two numbers greater than `2^ℓ`, where `ℓ` is a fixed parameter defined by
-//! parameters::ELL.
+//! two numbers greater than `2^ℓ`, where `ℓ` is a fixed parameter defined by
+//! [`parameters::ELL`](crate::parameters::ELL).
 //!
 //! The proof is defined in Figure 28 of CGGMP[^cite], and uses a standard
 //! Fiat-Shamir transformation to make the proof non-interactive.
@@ -41,9 +41,9 @@ pub(crate) struct PiFacProof {
     p_commitment: Commitment,
     /// Commitment to the factor `q` (`Q` in the paper).
     q_commitment: Commitment,
-    /// `A` in the paper.
+    /// Commitment to a mask for p (`A` in the paper).
     p_mask_commitment: Commitment,
-    /// `B` in the paper.
+    /// Commitment to a mask for q (`B` in the paper).
     q_mask_commitment: Commitment,
     /// Commitment linking `q` to the commitment randomness used in
     /// `p_commitment`.
@@ -54,9 +54,9 @@ pub(crate) struct PiFacProof {
     p_masked: BigNumber,
     /// Mask `q` (`z2` in the paper).
     q_masked: BigNumber,
-    /// `w1` in the paper.
+    /// Masked commitment randomness used to form `p_commitment` (`w1` in the paper).
     masked_p_commitment_randomness: MaskedRandomness,
-    /// `w2` in the paper.
+    /// Masked commitment randomness used to form `q_commitment` (`w2` in the paper).
     masked_q_commitment_randomness: MaskedRandomness,
     /// Masked commitment randomness linking `p` to the commitment randomness
     /// used in `q_commitment` (`v` in the paper).
@@ -124,8 +124,8 @@ impl Proof for PiFacProof {
         // Small names for scaling factors in our ranges
         let sqrt_N0 = &sqrt(&input.modulus);
 
-        let p_mask = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
-        let q_mask = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0);
+        let p_mask = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0); // `alpha` in the paper
+        let q_mask = random_plusminus_scaled(rng, ELL + EPSILON, sqrt_N0); // `beta` in the paper
 
         let link_randomness =
             input
@@ -269,11 +269,11 @@ impl Proof for PiFacProof {
         }
 
         if crate::utils::within_bound_by_size(&self.p_masked, ELL + EPSILON) {
-            error!("self.z1 > z_bound check failed");
+            error!("p is out of range!");
             return Err(InternalError::ProtocolError);
-        }
+        }                     
         if crate::utils::within_bound_by_size(&self.q_masked, ELL + EPSILON) {
-            error!("self.z2 > z_bound check failed");
+            error!("q is out of range!");
             return Err(InternalError::ProtocolError);
         }
 
