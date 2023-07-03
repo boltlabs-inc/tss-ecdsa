@@ -13,7 +13,7 @@ use crate::{
     },
     presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
     protocol::SignatureShare,
-    utils::{bn_to_scalar, CurvePoint},
+    utils::{bn_to_scalar, CurvePoint, ParseBytes},
 };
 use k256::{
     elliptic_curve::{AffineXCoordinate, PrimeField},
@@ -55,12 +55,14 @@ pub(crate) struct RecordPair {
 /// d_A)`, which is exactly a valid (normal) ECDSA signature.
 ///
 /// [^cite]: [Wikipedia](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm#Signature_generation_algorithm)
-#[derive(ZeroizeOnDrop)]
+#[derive(ZeroizeOnDrop, PartialEq, Eq)]
 pub struct PresignRecord {
     R: CurvePoint,
     k: Scalar,
     chi: Scalar,
 }
+
+const RECORD_TAG: &[u8] = b"Presign Record";
 
 impl Debug for PresignRecord {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -131,5 +133,100 @@ impl PresignRecord {
         // Produce a ECDSA signature share of the digest (`σ` in the paper).
         let signature_share = self.k * digest + x_projection * self.chi;
         Ok(SignatureShare::new(x_projection, signature_share))
+    }
+
+    
+    /// Convert private material into bytes.
+    ///
+    /// 🔒 This is intended for use by the calling application for secure
+    /// storage. The output of this function should be handled with care.
+    pub fn into_bytes(self) -> Vec<u8> {
+        // Format:
+        // RECORD TAG
+        // Curve point length in bytes (8 bytes)
+        // Curve point
+        // k randomness share length in bytes (8 bytes)
+        // k randomness share
+        // chi share length in bytes (8 bytes)
+        // chi share
+
+
+        let mut = self.R.to_bytes();
+        let share_len = share.len().to_le_bytes();
+
+        let bytes = [RECORD_TAG, &share_len, &share].concat();
+        share.zeroize();
+        bytes
+    }
+
+    /// Convert bytes into private material.
+    ///
+    /// 🔒 This is intended for use by the calling application for secure
+    /// storage. Do not use this method to create arbitrary instances of
+    /// [`KeySharePrivate`].
+    pub fn try_from_bytes(bytes: Vec<u8>) -> Result<Self> {
+        // Expected format:
+        // KEYSHARE_TAG | key_len in bytes | key (big endian bytes)
+        //              | 8 bytes          | key_len bytes
+
+        let mut parser = ParseBytes::new(bytes);
+            todo!()
+            /*
+
+        // This little function ensures that
+        // 1. We can zeroize out the potentially-sensitive input bytes regardless of
+        //    whether parsing succeeded; and
+        // 2. We can log the error message once at the end, rather than duplicating it
+        //    across all the parsing code
+        let mut parse = || {
+            // Make sure the KEYSHARE_TAG is correct.
+            let actual_tag = parser.take_bytes(KEYSHARE_TAG.len())?;
+            if actual_tag != KEYSHARE_TAG {
+                Err(CallerError::DeserializationFailed)?
+            }
+
+            // Extract the length of the key share
+            let share_len_slice = parser.take_bytes(KEYSHARE_LEN)?;
+            let share_len_bytes: [u8; KEYSHARE_LEN] = share_len_slice.try_into().map_err(|_| {
+                error!(
+                    "Failed to convert byte array (should always work because we
+                defined it to be exactly 8 bytes"
+                );
+                InternalError::InternalInvariantFailed
+            })?;
+            let share_len = usize::from_le_bytes(share_len_bytes);
+
+            let share_bytes = parser.take_rest()?;
+            if share_bytes.len() != share_len {
+                Err(CallerError::DeserializationFailed)?
+            }
+
+            // Check that the share itself is valid
+            let share = BigNumber::from_slice(share_bytes);
+            if share > k256_order() || share < BigNumber::one() {
+                Err(CallerError::DeserializationFailed)?
+            }
+
+            Ok(Self { x: share })
+        };
+
+        let result = parse();
+
+        // During parsing, we copy all the bytes we need into the appropriate types.
+        // Here, we delete the original copy.
+        parser.zeroize();
+
+        // Log a message in case of error
+        if result.is_err() {
+            error!(
+                "Failed to deserialize `KeySharePrivate. Expected format:
+                        {:?} | share_len | share
+                        where `share_len` is a little-endian encoded usize
+                        and `share` is exactly `share_len` bytes long.",
+                KEYSHARE_TAG
+            );
+        }
+        result
+ */
     }
 }
