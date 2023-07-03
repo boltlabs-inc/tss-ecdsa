@@ -288,7 +288,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
 
     /// Process a `ready` message: tell other participants that we're ready and
     /// see if all others have also reported that they are ready.
-    fn process_ready_message<R: RngCore + CryptoRng, T: TypeTag<Value = ()>>(
+    fn process_ready_message<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
         message: &Message,

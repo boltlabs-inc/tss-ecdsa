@@ -281,8 +281,7 @@ impl AuxInfoParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling auxinfo ready message.");
 
-        let (ready_outcome, is_ready) =
-            self.process_ready_message::<R, storage::Ready>(rng, message)?;
+        let (ready_outcome, is_ready) = self.process_ready_message::<R>(rng, message)?;
 
         if is_ready {
             let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, message.id()))?;
