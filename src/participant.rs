@@ -303,7 +303,6 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
                 .iter()
                 .map(|m| self.process_message(rng, m, input))
                 .collect::<Result<Vec<ProcessOutcome<Self::Output>>>>()?;
-            //Ok((ProcessOutcome::Processed(vec![]), true))
 
             Ok((ProcessOutcome::collect(outcomes)?, true))
         } else {
