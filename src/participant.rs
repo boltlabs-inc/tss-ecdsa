@@ -299,9 +299,12 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
             // First, process any messages that had been received before the Ready signal
             let banked_messages = self.fetch_all_messages()?;
             self.set_ready();
-            let outcomes = banked_messages.iter().map(|m| self.process_message(rng, m, input)).collect::<Result<Vec<ProcessOutcome<Self::Output>>>>()?;
+            let outcomes = banked_messages
+                .iter()
+                .map(|m| self.process_message(rng, m, input))
+                .collect::<Result<Vec<ProcessOutcome<Self::Output>>>>()?;
             //Ok((ProcessOutcome::Processed(vec![]), true))
-            
+
             Ok((ProcessOutcome::collect(outcomes)?, true))
         } else {
             error!("Received a Ready message from the wrong sender!");

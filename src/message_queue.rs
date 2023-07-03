@@ -48,8 +48,8 @@ impl MessageQueue {
         self.0.drain().flat_map(|(_key, value)| value).collect()
     }
 
-    /// Retrieve (and remove) all [`Message`]s of a given [`MessageType`] associated
-    /// with the given [`ParticipantIdentifier`].
+    /// Retrieve (and remove) all [`Message`]s of a given [`MessageType`]
+    /// associated with the given [`ParticipantIdentifier`].
     ///
     /// If the given [`MessageType`] is not found, an empty [`Vec`] is returned.
     pub(crate) fn retrieve(
