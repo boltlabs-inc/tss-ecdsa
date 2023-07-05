@@ -163,10 +163,10 @@ impl PresignRecord {
             RECORD_TAG,
             &point_len,
             &point,
-            &random_share,
             &random_share_len,
-            &chi_share,
+            &random_share,
             &chi_share_len,
+            &chi_share,
         ]
         .concat();
 
@@ -184,7 +184,7 @@ impl PresignRecord {
     /// [`PresignRecord`].
     pub fn try_from_bytes(bytes: Vec<u8>) -> Result<Self> {
         // Expected format:
-        // KEYSHARE_TAG | key_len in bytes | key (big endian bytes)
+        // RECORD_TAG | key_len in bytes | key (big endian bytes)
         //              | 8 bytes          | key_len bytes
 
         let mut parser = ParseBytes::new(bytes);
@@ -195,19 +195,18 @@ impl PresignRecord {
         // 2. We can log the error message once at the end, rather than duplicating it
         //    across all the parsing code
         let mut parse = || -> Result<PresignRecord> {
-            // Make sure the KEYSHARE_TAG is correct.
+            // Make sure the RECORD_TAG is correct.
             let actual_tag = parser.take_bytes(RECORD_TAG.len())?;
             if actual_tag != RECORD_TAG {
                 Err(CallerError::DeserializationFailed)?
             }
 
-            // Extract the length of the point
+            // Parse the curve point
             let point_len = parser.take_len()?;
             let point_bytes = parser.take_bytes(point_len)?;
-
-            // TODO: Check that the point itself is valid
             let point = CurvePoint::try_from_bytes(point_bytes)?;
 
+            // Parse the random share `k`
             let random_share_len = parser.take_len()?;
             let random_share_slice = parser.take_bytes(random_share_len)?;
             let random_share_bytes: [u8; 32] = random_share_slice
@@ -215,19 +214,19 @@ impl PresignRecord {
                 .map_err(|_| CallerError::DeserializationFailed)?;
             let random_share: Option<_> = Scalar::from_repr(random_share_bytes.into()).into();
 
+            // Parse the chi share
             let chi_share_len = parser.take_len()?;
             let chi_share_slice = parser.take_rest()?;
             if chi_share_slice.len() != chi_share_len {
                 Err(CallerError::DeserializationFailed)?
             }
-
-            // Check that the chi share is valid
             let chi_share_bytes: [u8; 32] = chi_share_slice
                 .try_into()
                 .map_err(|_| CallerError::DeserializationFailed)?;
             let chi_share: Option<_> = Scalar::from_repr(chi_share_bytes.into()).into();
 
-            // TODO: check properties of k, chi
+            // The random and chi shares both need to be elements of `F_q`;
+            // the k256::Scalar's parsing methods check this for us.
 
             match (random_share, chi_share) {
                 (Some(k), Some(chi)) => Ok(Self { R: point, k, chi }),
@@ -252,5 +251,212 @@ impl PresignRecord {
             );
         }
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use k256::{
+        elliptic_curve::{Field, Group},
+        ProjectivePoint, Scalar,
+    };
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+
+    use crate::{
+        presign::record::RECORD_TAG,
+        utils::{testing::init_testing, CurvePoint},
+        PresignRecord,
+    };
+
+    fn random_record(rng: &mut StdRng) -> PresignRecord {
+        let point = CurvePoint(ProjectivePoint::random(StdRng::from_seed(rng.gen())));
+        let random_share = Scalar::random(StdRng::from_seed(rng.gen()));
+        let chi_share = Scalar::random(rng);
+
+        PresignRecord {
+            R: point,
+            k: random_share,
+            chi: chi_share,
+        }
+    }
+
+    #[test]
+    fn record_bytes_conversion_works() {
+        let rng = &mut init_testing();
+        let record = random_record(rng);
+        let clone = PresignRecord { ..record };
+
+        let bytes = record.into_bytes();
+        let reconstructed = PresignRecord::try_from_bytes(bytes);
+
+        assert!(reconstructed.is_ok());
+        assert_eq!(reconstructed.unwrap(), clone);
+    }
+
+    #[test]
+    fn deserialized_record_tag_must_be_correct() {
+        let rng = &mut init_testing();
+        let record = random_record(rng);
+
+        // Cut out the tag from the serialized bytes for convenience.
+        let share_bytes = &record.into_bytes()[RECORD_TAG.len()..];
+
+        // Tag must have correct content
+        let wrong_tag = b"NotTheRightTag";
+        assert_eq!(wrong_tag.len(), RECORD_TAG.len());
+        let bad_bytes = [wrong_tag.as_slice(), share_bytes].concat();
+        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+
+        // Tag must be correct length (too short, too long)
+        let short_tag = &RECORD_TAG[..5];
+        let bad_bytes = [short_tag, share_bytes].concat();
+        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+
+        let bad_bytes = [RECORD_TAG, b"TAG EXTENSION!", share_bytes].concat();
+        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+
+        // Normal serialization works
+        let bytes = [RECORD_TAG, share_bytes].concat();
+        assert!(PresignRecord::try_from_bytes(bytes).is_ok());
+    }
+
+    fn test_length_field(front: &[u8], len: usize, back: &[u8]) {
+        // Length must be specified
+        let bad_bytes = [front, back].concat();
+        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+
+        // Length must be little endian
+        let bad_bytes = [front, &len.to_be_bytes(), back].concat();
+        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+
+        // Length must be correct (too long, too short)
+        let too_short = (len - 5).to_le_bytes();
+        let bad_bytes = [front, &too_short, back].concat();
+        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+
+        let too_long = (len + 5).to_le_bytes();
+        let bad_bytes = [front, &too_long, back].concat();
+        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+
+        // Correct length works
+        let bytes = [front, &len.to_le_bytes(), back].concat();
+        assert!(PresignRecord::try_from_bytes(bytes).is_ok());
+    }
+
+    #[test]
+    fn point_field_must_have_length_prepended() {
+        let rng = &mut init_testing();
+        let PresignRecord { R, k, chi } = random_record(rng);
+
+        let point = R.to_bytes();
+
+        let random_share = k.to_bytes();
+        let random_share_len = random_share.len().to_le_bytes();
+
+        let chi_share = chi.to_bytes();
+        let chi_share_len = chi_share.len().to_le_bytes();
+
+        let back = [
+            point.as_slice(),
+            &random_share_len,
+            &random_share,
+            &chi_share_len,
+            &chi_share,
+        ]
+        .concat();
+
+        test_length_field(RECORD_TAG, point.len(), &back)
+    }
+
+    #[test]
+    fn k_field_must_have_length_prepended() {
+        let rng = &mut init_testing();
+        let PresignRecord { R, k, chi } = random_record(rng);
+
+        let point = R.to_bytes();
+        let point_len = point.len().to_le_bytes();
+
+        let random_share = k.to_bytes();
+        let front = [RECORD_TAG, &point_len, &point].concat();
+
+        let chi_share = chi.to_bytes();
+        let chi_share_len = chi_share.len().to_le_bytes();
+
+        let back = [random_share.as_slice(), &chi_share_len, &chi_share].concat();
+
+        test_length_field(&front, random_share.len(), &back)
+    }
+
+    #[test]
+    fn chi_field_must_have_length_prepended() {
+        let rng = &mut init_testing();
+        let PresignRecord { R, k, chi } = random_record(rng);
+
+        let point = R.to_bytes();
+        let point_len = point.len().to_le_bytes();
+
+        let random_share = k.to_bytes();
+        let random_share_len = random_share.len().to_le_bytes();
+
+        let chi_share = chi.to_bytes();
+        let front = [
+            RECORD_TAG,
+            &point_len,
+            &point,
+            &random_share_len,
+            &random_share,
+        ]
+        .concat();
+
+        test_length_field(&front, chi_share.len(), &chi_share)
+    }
+
+    #[test]
+    fn deserialized_keyshare_private_requires_all_fields() {
+        let rng = &mut init_testing();
+
+        // Part of a tag or the whole tag alone doesn't pass
+        let bytes = &RECORD_TAG[..3];
+        assert!(PresignRecord::try_from_bytes(bytes.to_vec()).is_err());
+        assert!(PresignRecord::try_from_bytes(RECORD_TAG.to_vec()).is_err());
+
+        let PresignRecord { R, k, chi } = random_record(rng);
+
+        let point = R.to_bytes();
+        let point_len = point.len().to_le_bytes();
+
+        let random_share = k.to_bytes();
+        let random_share_len = random_share.len().to_le_bytes();
+
+        let chi_share = chi.to_bytes();
+        let chi_share_len = chi_share.len().to_le_bytes();
+
+        let zero_len = 0usize.to_le_bytes();
+
+        // Length with no curve point following doesn't pass
+        let bytes = [RECORD_TAG, &point_len].concat();
+        assert!(PresignRecord::try_from_bytes(bytes).is_err());
+
+        // Zero-length doesn't pass
+        let bytes = [RECORD_TAG, &zero_len].concat();
+        assert!(PresignRecord::try_from_bytes(bytes).is_err());
+
+        // Length with no randomness share following doesn't pass
+        let bytes = [RECORD_TAG, &point_len, &point, &random_share_len].concat();
+        assert!(PresignRecord::try_from_bytes(bytes).is_err());
+
+        let bytes = [RECORD_TAG, &point_len, &point, &zero_len].concat();
+        assert!(PresignRecord::try_from_bytes(bytes).is_err());
+
+        // Length with no chi share following doesn't pass
+        let bytes = [RECORD_TAG, &point_len, &point, &random_share_len, &random_share, &chi_share_len].concat();
+        assert!(PresignRecord::try_from_bytes(bytes).is_err());
+
+        let bytes = [RECORD_TAG, &point_len, &point, &random_share_len, &random_share, &zero_len].concat();
+        assert!(PresignRecord::try_from_bytes(bytes).is_err());
+
+        // Full thing works (e.g. the encoding scheme used above is correct)
+        let bytes = [RECORD_TAG, &point_len, &point, &random_share_len, &random_share, &chi_share_len, &chi_share].concat();
+        assert!(PresignRecord::try_from_bytes(bytes).is_ok());
     }
 }
