@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    errors::{CallerError, InternalError, Result},
+    errors::{CallerError, Result},
     utils::{k256_order, CurvePoint, ParseBytes},
     ParticipantIdentifier,
 };
@@ -19,8 +19,6 @@ use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 const KEYSHARE_TAG: &[u8] = b"KeySharePrivate";
-/// Length of the field indicating the length of the key share.
-const KEYSHARE_LEN: usize = 8;
 
 /// Private key corresponding to a given [`Participant`](crate::Participant)'s
 /// [`KeySharePublic`].
@@ -92,15 +90,7 @@ impl KeySharePrivate {
             }
 
             // Extract the length of the key share
-            let share_len_slice = parser.take_bytes(KEYSHARE_LEN)?;
-            let share_len_bytes: [u8; KEYSHARE_LEN] = share_len_slice.try_into().map_err(|_| {
-                error!(
-                    "Failed to convert byte array (should always work because we
-                defined it to be exactly 8 bytes"
-                );
-                InternalError::InternalInvariantFailed
-            })?;
-            let share_len = usize::from_le_bytes(share_len_bytes);
+            let share_len = parser.take_len()?;
 
             let share_bytes = parser.take_rest()?;
             if share_bytes.len() != share_len {

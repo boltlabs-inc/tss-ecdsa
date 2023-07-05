@@ -39,8 +39,6 @@ pub struct AuxInfoPrivate {
 }
 
 const AUXINFO_TAG: &[u8] = b"AuxInfoPrivate";
-// Length of the length field for auxinfo serialization.
-const AUXINFO_LEN: usize = 8;
 
 impl AuxInfoPrivate {
     pub(crate) fn encryption_key(&self) -> EncryptionKey {
@@ -93,15 +91,7 @@ impl AuxInfoPrivate {
             }
 
             // Extract the length of the key
-            let key_len_slice = parser.take_bytes(AUXINFO_LEN)?;
-            let len_bytes: [u8; AUXINFO_LEN] = key_len_slice.try_into().map_err(|_| {
-                error!(
-                    "Failed to convert byte array (should always work because we
-                        defined it to be exactly 8 bytes)"
-                );
-                InternalError::InternalInvariantFailed
-            })?;
-            let key_len = usize::from_le_bytes(len_bytes);
+            let key_len = parser.take_len()?;
 
             let key_bytes = parser.take_rest()?;
             if key_bytes.len() != key_len {
