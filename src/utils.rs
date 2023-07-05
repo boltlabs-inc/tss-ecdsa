@@ -84,9 +84,9 @@ pub(crate) fn within_bound_by_size(value: &BigNumber, n: usize) -> bool {
 }
 
 /*pub(crate) within_bound_by_sqrt_modulus(value: &BigNumber, x: usize) -> bool {
-    let 
+    let
 }*/
- 
+
 /// Compute a^e (mod n).
 #[cfg_attr(feature = "flame_it", flame("utils"))]
 pub(crate) fn modpow(a: &BigNumber, e: &BigNumber, n: &BigNumber) -> BigNumber {

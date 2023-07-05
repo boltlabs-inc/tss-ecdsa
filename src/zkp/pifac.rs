@@ -54,9 +54,11 @@ pub(crate) struct PiFacProof {
     p_masked: BigNumber,
     /// Mask `q` (`z2` in the paper).
     q_masked: BigNumber,
-    /// Masked commitment randomness used to form `p_commitment` (`w1` in the paper).
+    /// Masked commitment randomness used to form `p_commitment` (`w1` in the
+    /// paper).
     masked_p_commitment_randomness: MaskedRandomness,
-    /// Masked commitment randomness used to form `q_commitment` (`w2` in the paper).
+    /// Masked commitment randomness used to form `q_commitment` (`w2` in the
+    /// paper).
     masked_q_commitment_randomness: MaskedRandomness,
     /// Masked commitment randomness linking `p` to the commitment randomness
     /// used in `q_commitment` (`v` in the paper).
@@ -271,7 +273,7 @@ impl Proof for PiFacProof {
         if crate::utils::within_bound_by_size(&self.p_masked, ELL + EPSILON) {
             error!("p is out of range!");
             return Err(InternalError::ProtocolError);
-        }                     
+        }
         if crate::utils::within_bound_by_size(&self.q_masked, ELL + EPSILON) {
             error!("q is out of range!");
             return Err(InternalError::ProtocolError);
