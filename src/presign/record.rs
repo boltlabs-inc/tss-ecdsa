@@ -194,7 +194,7 @@ impl PresignRecord {
         //    whether parsing succeeded; and
         // 2. We can log the error message once at the end, rather than duplicating it
         //    across all the parsing code
-        let mut _parse = || -> Result<()> {
+        let mut parse = || -> Result<PresignRecord> {
             // Make sure the KEYSHARE_TAG is correct.
             let actual_tag = parser.take_bytes(RECORD_TAG.len())?;
             if actual_tag != RECORD_TAG {
@@ -202,51 +202,55 @@ impl PresignRecord {
             }
 
             // Extract the length of the point
-            let _point_len = parser.take_len()?;
+            let point_len = parser.take_len()?;
+            let point_bytes = parser.take_bytes(point_len)?;
 
-            Ok(())
+            // TODO: Check that the point itself is valid
+            let point = CurvePoint::try_from_bytes(point_bytes)?;
+
+            let random_share_len = parser.take_len()?;
+            let random_share_slice = parser.take_bytes(random_share_len)?;
+            let random_share_bytes: [u8; 32] = random_share_slice
+                .try_into()
+                .map_err(|_| CallerError::DeserializationFailed)?;
+            let random_share: Option<_> = Scalar::from_repr(random_share_bytes.into()).into();
+
+            let chi_share_len = parser.take_len()?;
+            let chi_share_slice = parser.take_rest()?;
+            if chi_share_slice.len() != chi_share_len {
+                Err(CallerError::DeserializationFailed)?
+            }
+
+            // Check that the chi share is valid
+            let chi_share_bytes: [u8; 32] = chi_share_slice
+                .try_into()
+                .map_err(|_| CallerError::DeserializationFailed)?;
+            let chi_share: Option<_> = Scalar::from_repr(chi_share_bytes.into()).into();
+
+            // TODO: check properties of k, chi
+
+            match (random_share, chi_share) {
+                (Some(k), Some(chi)) => Ok(Self { R: point, k, chi }),
+                _ => Err(CallerError::DeserializationFailed)?,
+            }
         };
-        todo!();
-        /*
-                   // Extract the length of the key share
-                   let share_len_slice = parser.take_bytes(KEYSHARE_LEN)?;
-                   let share_len_bytes: [u8; KEYSHARE_LEN] = share_len_slice.try_into().map_err(|_| {
-                       error!(
-                       InternalError::InternalInvariantFailed
-                   })?;
-                   let share_len = usize::from_le_bytes(share_len_bytes);
 
-                   let share_bytes = parser.take_rest()?;
-                   if share_bytes.len() != share_len {
-                       Err(CallerError::DeserializationFailed)?
-                   }
+        let result = parse();
 
-                   // Check that the share itself is valid
-                   let share = BigNumber::from_slice(share_bytes);
-                   if share > k256_order() || share < BigNumber::one() {
-                       Err(CallerError::DeserializationFailed)?
-                   }
+        // During parsing, we copy all the bytes we need into the appropriate types.
+        // Here, we delete the original copy.
+        parser.zeroize();
 
-                   Ok(Self { x: share })
-               };
-
-               let result = parse();
-
-               // During parsing, we copy all the bytes we need into the appropriate types.
-               // Here, we delete the original copy.
-               parser.zeroize();
-
-               // Log a message in case of error
-               if result.is_err() {
-                   error!(
-                       "Failed to deserialize `KeySharePrivate. Expected format:
-                               {:?} | share_len | share
-                               where `share_len` is a little-endian encoded usize
-                               and `share` is exactly `share_len` bytes long.",
-                       KEYSHARE_TAG
-                   );
-               }
-               result
-        */
+        // Log a message in case of error
+        if result.is_err() {
+            error!(
+                "Failed to deserialize `PresignRecord`. Expected format:
+                    {:?} | curve_point | k | chi
+                where the last three elements are each prepended by an 8 byte
+                little-endian encoded usize describing the length of the remainder of the field",
+                RECORD_TAG
+            );
+        }
+        result
     }
 }

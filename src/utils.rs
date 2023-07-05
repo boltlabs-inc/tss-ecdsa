@@ -60,8 +60,7 @@ impl CurvePoint {
         bytes
     }
 
-    #[allow(unused)]
-    pub(crate) fn try_from_bytes(bytes: Vec<u8>) -> Result<Self> {
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
         let mut fixed_len_bytes: [u8; 33] = bytes.try_into().map_err(|_| {
             error!("Failed to encode bytes as a curve point");
             CallerError::DeserializationFailed
@@ -125,7 +124,7 @@ mod curve_point_tests {
         let rng = &mut init_testing();
         let point = CurvePoint(k256::ProjectivePoint::random(rng));
         let bytes = point.to_bytes();
-        let reconstructed = CurvePoint::try_from_bytes(bytes).unwrap();
+        let reconstructed = CurvePoint::try_from_bytes(&bytes).unwrap();
         assert_eq!(point, reconstructed);
     }
 }
