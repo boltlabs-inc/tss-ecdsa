@@ -120,9 +120,8 @@ impl Output {
 
 #[cfg(test)]
 mod tests {
-    use crate::{paillier::DecryptionKey, utils::testing::init_testing};
-
     use super::*;
+    use crate::{paillier::DecryptionKey, utils::testing::init_testing};
 
     #[test]
     fn from_into_parts_works() {

@@ -48,7 +48,7 @@ pub(crate) struct PiFacProof {
     /// Commitment linking `q` to the commitment randomness used in
     /// `p_commitment`.
     q_link_commitment: Commitment,
-    /// Randomness for commitment.
+    /// Randomness linking `q` to `p_commitment`.
     link_randomness: CommitmentRandomness,
     /// Mask `p` (`z1` in the paper`).
     p_masked: BigNumber,
@@ -270,11 +270,13 @@ impl Proof for PiFacProof {
             return Err(InternalError::ProtocolError);
         }
 
-        if crate::utils::within_bound_by_size(&self.p_masked, ELL + EPSILON) {
+        if crate::utils::within_bound_by_sqrt_modulus(&self.p_masked, ELL + EPSILON, &input.modulus)
+        {
             error!("p is out of range!");
             return Err(InternalError::ProtocolError);
         }
-        if crate::utils::within_bound_by_size(&self.q_masked, ELL + EPSILON) {
+        if crate::utils::within_bound_by_sqrt_modulus(&self.q_masked, ELL + EPSILON, &input.modulus)
+        {
             error!("q is out of range!");
             return Err(InternalError::ProtocolError);
         }
@@ -315,7 +317,7 @@ impl PiFacProof {
 }
 
 /// Find the square root of a positive BigNumber, rounding down
-fn sqrt(num: &BigNumber) -> BigNumber {
+pub(crate) fn sqrt(num: &BigNumber) -> BigNumber {
     // convert to a struct with a square root function first
     let num_bigint: BigInt = BigInt::from_bytes_be(Sign::Plus, &num.to_bytes());
     let sqrt = num_bigint.sqrt();
