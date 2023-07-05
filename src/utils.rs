@@ -9,7 +9,11 @@
 use crate::errors::{CallerError, InternalError, Result};
 use generic_array::GenericArray;
 use k256::{
-    elliptic_curve::{bigint::Encoding, group::ff::PrimeField, AffinePoint, Curve},
+    elliptic_curve::{
+        bigint::Encoding,
+        group::{ff::PrimeField, GroupEncoding},
+        AffinePoint, Curve,
+    },
     Secp256k1,
 };
 use libpaillier::unknown_order::BigNumber;
@@ -47,6 +51,34 @@ impl CurvePoint {
     pub(crate) fn multiply_by_scalar(&self, point: &BigNumber) -> Result<Self> {
         Ok(Self(self.0 * crate::utils::bn_to_scalar(point)?))
     }
+
+    /// Serialize the `CurvePoint` as an affine-encoded secp256k1 byte array.
+    pub(crate) fn to_bytes(self) -> Vec<u8> {
+        let mut generic_array = AffinePoint::<Secp256k1>::from(self.0).to_bytes();
+        let bytes = generic_array.to_vec();
+        generic_array.zeroize();
+        bytes
+    }
+
+    #[allow(unused)]
+    pub(crate) fn try_from_bytes(bytes: Vec<u8>) -> Result<Self> {
+        let mut fixed_len_bytes: [u8; 33] = bytes.try_into().map_err(|_| {
+            error!("Failed to encode bytes as a curve point");
+            CallerError::DeserializationFailed
+        })?;
+
+        let point: Option<AffinePoint<Secp256k1>> =
+            AffinePoint::<Secp256k1>::from_bytes(&fixed_len_bytes.into()).into();
+        fixed_len_bytes.zeroize();
+
+        match point {
+            Some(point) => Ok(Self(point.into())),
+            None => {
+                error!("failed to encode bytes as a curve point");
+                Err(CallerError::DeserializationFailed)?
+            }
+        }
+    }
 }
 
 impl std::ops::Add for CurvePoint {
@@ -83,6 +115,21 @@ impl<'de> Deserialize<'de> for CurvePoint {
     }
 }
 
+#[cfg(test)]
+mod curve_point_tests {
+    use crate::utils::{testing::init_testing, CurvePoint};
+    use k256::elliptic_curve::Group;
+
+    #[test]
+    fn curve_point_byte_conversion_works() {
+        let rng = &mut init_testing();
+        let point = CurvePoint(k256::ProjectivePoint::random(rng));
+        let bytes = point.to_bytes();
+        let reconstructed = CurvePoint::try_from_bytes(bytes).unwrap();
+        assert_eq!(point, reconstructed);
+    }
+}
+
 /// Helper type for parsing byte array into slices.
 ///
 /// This type implements [`Zeroize`]. When parsing secret types, you should
@@ -107,6 +154,21 @@ impl ParseBytes {
             .ok_or(CallerError::DeserializationFailed)?;
         self.offset += n;
         Ok(slice)
+    }
+
+    /// Parse the next 8 bytes as a little-endian encoded usize.
+    pub(crate) fn take_len(&mut self) -> Result<usize> {
+        const LENGTH_BYTES: usize = 8;
+
+        let len_slice = self.take_bytes(LENGTH_BYTES)?;
+        let len_bytes: [u8; LENGTH_BYTES] = len_slice.try_into().map_err(|_| {
+            error!(
+                "Failed to convert byte array (should always work because we
+                   defined it to be exactly 8 bytes"
+            );
+            InternalError::InternalInvariantFailed
+        })?;
+        Ok(usize::from_le_bytes(len_bytes))
     }
 
     /// Take the rest of the bytes from the array.

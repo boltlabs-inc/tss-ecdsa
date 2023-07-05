@@ -8,6 +8,7 @@
 
 use crate::{
     errors::{
+        CallerError,
         InternalError::{InternalInvariantFailed, ProtocolError},
         Result,
     },
@@ -22,7 +23,7 @@ use k256::{
 use sha2::{Digest, Sha256};
 use std::fmt::Debug;
 use tracing::{error, info, instrument};
-use zeroize::ZeroizeOnDrop;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub(crate) struct RecordPair {
     pub(crate) private: RoundThreePrivate,
@@ -135,7 +136,6 @@ impl PresignRecord {
         Ok(SignatureShare::new(x_projection, signature_share))
     }
 
-    
     /// Convert private material into bytes.
     ///
     /// 🔒 This is intended for use by the calling application for secure
@@ -150,12 +150,30 @@ impl PresignRecord {
         // chi share length in bytes (8 bytes)
         // chi share
 
+        let mut point = self.R.to_bytes();
+        let point_len = point.len().to_le_bytes();
 
-        let mut = self.R.to_bytes();
-        let share_len = share.len().to_le_bytes();
+        let mut random_share = self.k.to_bytes();
+        let random_share_len = random_share.len().to_le_bytes();
 
-        let bytes = [RECORD_TAG, &share_len, &share].concat();
-        share.zeroize();
+        let mut chi_share = self.chi.to_bytes();
+        let chi_share_len = chi_share.len().to_le_bytes();
+
+        let bytes = [
+            RECORD_TAG,
+            &point_len,
+            &point,
+            &random_share,
+            &random_share_len,
+            &chi_share,
+            &chi_share_len,
+        ]
+        .concat();
+
+        point.zeroize();
+        random_share.zeroize();
+        chi_share.zeroize();
+
         bytes
     }
 
@@ -163,70 +181,72 @@ impl PresignRecord {
     ///
     /// 🔒 This is intended for use by the calling application for secure
     /// storage. Do not use this method to create arbitrary instances of
-    /// [`KeySharePrivate`].
+    /// [`PresignRecord`].
     pub fn try_from_bytes(bytes: Vec<u8>) -> Result<Self> {
         // Expected format:
         // KEYSHARE_TAG | key_len in bytes | key (big endian bytes)
         //              | 8 bytes          | key_len bytes
 
         let mut parser = ParseBytes::new(bytes);
-            todo!()
-            /*
 
         // This little function ensures that
         // 1. We can zeroize out the potentially-sensitive input bytes regardless of
         //    whether parsing succeeded; and
         // 2. We can log the error message once at the end, rather than duplicating it
         //    across all the parsing code
-        let mut parse = || {
+        let mut _parse = || -> Result<()> {
             // Make sure the KEYSHARE_TAG is correct.
-            let actual_tag = parser.take_bytes(KEYSHARE_TAG.len())?;
-            if actual_tag != KEYSHARE_TAG {
+            let actual_tag = parser.take_bytes(RECORD_TAG.len())?;
+            if actual_tag != RECORD_TAG {
                 Err(CallerError::DeserializationFailed)?
             }
 
-            // Extract the length of the key share
-            let share_len_slice = parser.take_bytes(KEYSHARE_LEN)?;
-            let share_len_bytes: [u8; KEYSHARE_LEN] = share_len_slice.try_into().map_err(|_| {
-                error!(
-                    "Failed to convert byte array (should always work because we
-                defined it to be exactly 8 bytes"
-                );
-                InternalError::InternalInvariantFailed
-            })?;
-            let share_len = usize::from_le_bytes(share_len_bytes);
+            // Extract the length of the point
+            let _point_len = parser.take_len()?;
 
-            let share_bytes = parser.take_rest()?;
-            if share_bytes.len() != share_len {
-                Err(CallerError::DeserializationFailed)?
-            }
-
-            // Check that the share itself is valid
-            let share = BigNumber::from_slice(share_bytes);
-            if share > k256_order() || share < BigNumber::one() {
-                Err(CallerError::DeserializationFailed)?
-            }
-
-            Ok(Self { x: share })
+            Ok(())
         };
+        todo!();
+        /*
+                   // Extract the length of the key share
+                   let share_len_slice = parser.take_bytes(KEYSHARE_LEN)?;
+                   let share_len_bytes: [u8; KEYSHARE_LEN] = share_len_slice.try_into().map_err(|_| {
+                       error!(
+                       InternalError::InternalInvariantFailed
+                   })?;
+                   let share_len = usize::from_le_bytes(share_len_bytes);
 
-        let result = parse();
+                   let share_bytes = parser.take_rest()?;
+                   if share_bytes.len() != share_len {
+                       Err(CallerError::DeserializationFailed)?
+                   }
 
-        // During parsing, we copy all the bytes we need into the appropriate types.
-        // Here, we delete the original copy.
-        parser.zeroize();
+                   // Check that the share itself is valid
+                   let share = BigNumber::from_slice(share_bytes);
+                   if share > k256_order() || share < BigNumber::one() {
+                       Err(CallerError::DeserializationFailed)?
+                   }
 
-        // Log a message in case of error
-        if result.is_err() {
-            error!(
-                "Failed to deserialize `KeySharePrivate. Expected format:
-                        {:?} | share_len | share
-                        where `share_len` is a little-endian encoded usize
-                        and `share` is exactly `share_len` bytes long.",
-                KEYSHARE_TAG
-            );
-        }
-        result
- */
+                   Ok(Self { x: share })
+               };
+
+               let result = parse();
+
+               // During parsing, we copy all the bytes we need into the appropriate types.
+               // Here, we delete the original copy.
+               parser.zeroize();
+
+               // Log a message in case of error
+               if result.is_err() {
+                   error!(
+                       "Failed to deserialize `KeySharePrivate. Expected format:
+                               {:?} | share_len | share
+                               where `share_len` is a little-endian encoded usize
+                               and `share` is exactly `share_len` bytes long.",
+                       KEYSHARE_TAG
+                   );
+               }
+               result
+        */
     }
 }
