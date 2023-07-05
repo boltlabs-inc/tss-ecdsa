@@ -73,7 +73,7 @@ impl CurvePoint {
         match point {
             Some(point) => Ok(Self(point.into())),
             None => {
-                error!("failed to encode bytes as a curve point");
+                error!("Failed to encode bytes as a curve point");
                 Err(CallerError::DeserializationFailed)?
             }
         }

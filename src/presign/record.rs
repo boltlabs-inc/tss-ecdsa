@@ -449,14 +449,39 @@ mod tests {
         assert!(PresignRecord::try_from_bytes(bytes).is_err());
 
         // Length with no chi share following doesn't pass
-        let bytes = [RECORD_TAG, &point_len, &point, &random_share_len, &random_share, &chi_share_len].concat();
+        let bytes = [
+            RECORD_TAG,
+            &point_len,
+            &point,
+            &random_share_len,
+            &random_share,
+            &chi_share_len,
+        ]
+        .concat();
         assert!(PresignRecord::try_from_bytes(bytes).is_err());
 
-        let bytes = [RECORD_TAG, &point_len, &point, &random_share_len, &random_share, &zero_len].concat();
+        let bytes = [
+            RECORD_TAG,
+            &point_len,
+            &point,
+            &random_share_len,
+            &random_share,
+            &zero_len,
+        ]
+        .concat();
         assert!(PresignRecord::try_from_bytes(bytes).is_err());
 
         // Full thing works (e.g. the encoding scheme used above is correct)
-        let bytes = [RECORD_TAG, &point_len, &point, &random_share_len, &random_share, &chi_share_len, &chi_share].concat();
+        let bytes = [
+            RECORD_TAG,
+            &point_len,
+            &point,
+            &random_share_len,
+            &random_share,
+            &chi_share_len,
+            &chi_share,
+        ]
+        .concat();
         assert!(PresignRecord::try_from_bytes(bytes).is_ok());
     }
 }
