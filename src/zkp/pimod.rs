@@ -11,7 +11,7 @@
 //! totient function and `N = pq` where `p`, `q` is congruent to `3 mod 4`.
 //!
 //! The protocol is a combination (and simplification) of van de Graaf and
-//! Peralta and Goldberg et al.
+//! Peralta[^cite1] and Goldberg et al[^cite2].
 //!
 //! The proof is defined in Figure 16 of CGGMP[^cite].
 //!
@@ -21,6 +21,15 @@
 //! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos Makriyannis, and Udi Peled.
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
+//! [^cite1]: J. van de Graaf and R. Peralta. A simple and secure way to show the validity of your public key. In
+//! Advances in Cryptology - CRYPTO ’87, A Conference on the Theory and
+//! Applications of Cryptographic Techniques, Santa Barbara, California, USA,
+//! August 16-20, 1987, Proceedings, pages 128–134, 1987. [^cite2]: Sharon
+//! Goldberg, Leonid Reyzin, Omar Sagga, and Foteini Baldimtsi. Efficient
+//! noninteractive certification of RSA moduli and beyond. In Advances in
+//! Cryptology - ASIACRYPT 2019 - 25th International Conference on the Theory
+//! and Application of Cryptology and Information Security, Kobe, Japan,
+//! December 8-12, 2019, Proceedings, Part III, pages 700–727, 2019.
 
 use crate::{
     errors::*,
