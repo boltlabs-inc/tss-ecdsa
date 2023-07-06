@@ -286,28 +286,32 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
             .collect()
     }
 
-    /// Process a `ready` message: tell other participants that we're ready and
-    /// see if all others have also reported that they are ready.
+    /// Process a `ready` message: If it came from another Participant, ignore
+    /// it. Once ready, process all messages that were received before
+    /// ready.
     fn process_ready_message<R: RngCore + CryptoRng>(
         &mut self,
         rng: &mut R,
         message: &Message,
-    ) -> Result<(ProcessOutcome<Self::Output>, bool)> {
-        // If message came from self, then we should start the protocol
-        if message.from() == self.id() {
-            // First, process any messages that had been received before the Ready signal
-            let banked_messages = self.fetch_all_messages()?;
-            self.set_ready();
-            let outcomes = banked_messages
-                .iter()
-                .map(|m| self.process_message(rng, m))
-                .collect::<Result<Vec<ProcessOutcome<Self::Output>>>>()?;
-
-            Ok((ProcessOutcome::collect(outcomes)?, true))
-        } else {
-            error!("Received a Ready message from the wrong sender!");
-            Err(InternalError::ProtocolError)
+    ) -> Result<ProcessOutcome<Self::Output>> {
+        // First, make sure the message actually came from you.
+        if message.from() != self.id() {
+            error!(
+                "Received a Ready message from {}, but Ready should only be sent to yourself!",
+                message.from()
+            );
+            return Err(InternalError::ProtocolError);
         }
+
+        // Process any messages that had been received before the Ready signal
+        let banked_messages = self.fetch_all_messages()?;
+        self.set_ready();
+        let outcomes = banked_messages
+            .iter()
+            .map(|m| self.process_message(rng, m))
+            .collect::<Result<Vec<_>>>()?;
+
+        ProcessOutcome::collect(outcomes)
     }
 
     /// Retrieves an item from [`LocalStorage`] associated with the given

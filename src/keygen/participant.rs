@@ -265,9 +265,7 @@ impl ProtocolParticipant for KeygenParticipant {
             Err(CallerError::ProtocolAlreadyTerminated)?;
         }
 
-        if !self.is_ready()
-            && message.message_type() != MessageType::Keygen(KeygenMessageType::Ready)
-        {
+        if !self.is_ready() && message.message_type() != Self::ready_type() {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
@@ -343,15 +341,10 @@ impl KeygenParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling ready keygen message.");
 
-        let (ready_outcome, is_ready) = self.process_ready_message::<R>(rng, message)?;
-
-        if is_ready {
-            let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, message.id()))?;
-            // extend the output with r1 messages (if they hadn't already been generated)
-            Ok(ready_outcome.with_messages(round_one_messages))
-        } else {
-            Ok(ready_outcome)
-        }
+        let ready_outcome = self.process_ready_message(rng, message)?;
+        let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, message.id()))?;
+        // extend the output with r1 messages (if they hadn't already been generated)
+        Ok(ready_outcome.with_messages(round_one_messages))
     }
 
     /// Generate the protocol's round one message.
