@@ -6,10 +6,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::{
-    errors::{CallerError, InternalError, Result},
-    zkp::pifac::sqrt,
-};
+use crate::errors::{CallerError, InternalError, Result};
 use generic_array::GenericArray;
 use k256::{
     elliptic_curve::{bigint::Encoding, group::ff::PrimeField, AffinePoint, Curve},
@@ -83,21 +80,6 @@ impl<'de> Deserialize<'de> for CurvePoint {
 /// Returns `true` if `value ∊ [-2^n, 2^n]`.
 pub(crate) fn within_bound_by_size(value: &BigNumber, n: usize) -> bool {
     let bound = BigNumber::one() << n;
-    value <= &bound && value >= &-bound
-}
-
-/*/// Find the square root of a positive BigNumber, rounding down.
-fn sqrt(num: &BigNumber) -> BigNumber {
-    // convert to a struct with a square root function first
-    let num_bigint: BigInt = BigInt::from_bytes_be(Sign::Plus, &num.to_bytes());
-    let sqrt = num_bigint.sqrt();
-    BigNumber::from_slice(sqrt.to_bytes_be().1)
-}*/
-
-/// Returns `true` if `value ∊ [-2^n * sqrt(n), 2^n * sqrt(nzero)]`.
-pub(crate) fn within_bound_by_sqrt_modulus(value: &BigNumber, n: usize, nzero: &BigNumber) -> bool {
-    let sqrt_n = sqrt(nzero);
-    let bound = sqrt_n * (BigNumber::one() << n);
     value <= &bound && value >= &-bound
 }
 

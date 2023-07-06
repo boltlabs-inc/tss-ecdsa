@@ -270,17 +270,19 @@ impl Proof for PiFacProof {
             return Err(InternalError::ProtocolError);
         }
 
-        if crate::utils::within_bound_by_sqrt_modulus(&self.p_masked, ELL + EPSILON, &input.modulus)
-        {
+        let sqrt_modulus = sqrt(&input.modulus);
+        // 2^{ELL + EPSILON}
+        let two_ell_eps = BigNumber::one() << (ELL + EPSILON);
+        // 2^{ELL + EPSILON} * sqrt(N_0)
+        let z_bound = &sqrt_modulus * &two_ell_eps;
+        if self.p_masked < -z_bound.clone() || self.p_masked > z_bound {
             error!("p is out of range!");
             return Err(InternalError::ProtocolError);
         }
-        if crate::utils::within_bound_by_sqrt_modulus(&self.q_masked, ELL + EPSILON, &input.modulus)
-        {
+        if self.q_masked < -z_bound.clone() || self.q_masked > z_bound {
             error!("q is out of range!");
             return Err(InternalError::ProtocolError);
         }
-
         Ok(())
     }
 }
@@ -317,7 +319,7 @@ impl PiFacProof {
 }
 
 /// Find the square root of a positive BigNumber, rounding down
-pub(crate) fn sqrt(num: &BigNumber) -> BigNumber {
+fn sqrt(num: &BigNumber) -> BigNumber {
     // convert to a struct with a square root function first
     let num_bigint: BigInt = BigInt::from_bytes_be(Sign::Plus, &num.to_bytes());
     let sqrt = num_bigint.sqrt();
