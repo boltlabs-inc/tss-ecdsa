@@ -209,10 +209,11 @@ impl PresignRecord {
             // Parse the random share `k`
             let random_share_len = parser.take_len()?;
             let random_share_slice = parser.take_bytes(random_share_len)?;
-            let random_share_bytes: [u8; 32] = random_share_slice
+            let mut random_share_bytes: [u8; 32] = random_share_slice
                 .try_into()
                 .map_err(|_| CallerError::DeserializationFailed)?;
             let random_share: Option<_> = Scalar::from_repr(random_share_bytes.into()).into();
+            random_share_bytes.zeroize();
 
             // Parse the chi share
             let chi_share_len = parser.take_len()?;
@@ -220,10 +221,11 @@ impl PresignRecord {
             if chi_share_slice.len() != chi_share_len {
                 Err(CallerError::DeserializationFailed)?
             }
-            let chi_share_bytes: [u8; 32] = chi_share_slice
+            let mut chi_share_bytes: [u8; 32] = chi_share_slice
                 .try_into()
                 .map_err(|_| CallerError::DeserializationFailed)?;
             let chi_share: Option<_> = Scalar::from_repr(chi_share_bytes.into()).into();
+            chi_share_bytes.zeroize();
 
             // The random and chi shares both need to be elements of `F_q`;
             // the k256::Scalar's parsing methods check this for us.
