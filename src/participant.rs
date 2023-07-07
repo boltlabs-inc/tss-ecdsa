@@ -286,7 +286,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
             .collect()
     }
 
-    /// Process a `ready` message: If it came from another Participant, ignore
+    /// Process a `ready` message: If it came from another Participant, reject
     /// it. Once ready, process all messages that were received before
     /// ready.
     fn process_ready_message<R: RngCore + CryptoRng>(
