@@ -129,7 +129,7 @@ impl Proof for PiModProof {
         let elements: Result<Vec<PiModProofElements>> = (0..LAMBDA)
             .map(|_| {
                 positive_challenge_from_transcript(transcript, &input.N).and_then(|y| {
-                    let (a, b, x) = y_prime_combinations(&w, &y, &secret.p, &secret.q)?;
+                    let (a, b, mut x) = y_prime_combinations(&w, &y, &secret.p, &secret.q)?;
 
                     let phi_n = (&secret.p - 1) * (&secret.q - 1);
                     let exp = input.N.invert(&phi_n).ok_or_else(|| {
@@ -137,9 +137,12 @@ impl Proof for PiModProof {
                         InternalError::InternalInvariantFailed
                     })?;
                     let z = modpow(&y, &exp, &input.N);
-
+                    let fourth_root_y = x.pop().ok_or_else(|| {
+                        error!("Expected to get a fourth root, but did not.");
+                        InternalError::InternalInvariantFailed
+                    });
                     Ok(PiModProofElements {
-                        fourth_root: x.get(0).unwrap().clone(),
+                        fourth_root: fourth_root_y?,
                         sign_exponent: a,
                         jacobi_exponent: b,
                         challenge_secret_link: z,
