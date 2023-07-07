@@ -71,12 +71,12 @@ pub(crate) struct PiModProofElements {
 
 #[derive(Serialize)]
 pub(crate) struct CommonInput {
-    N: BigNumber,
+    modulus: BigNumber,
 }
 
 impl CommonInput {
     pub(crate) fn new(N: &BigNumber) -> Self {
-        Self { N: N.clone() }
+        Self { modulus: N.clone() }
     }
 }
 
@@ -119,24 +119,24 @@ impl Proof for PiModProof {
         rng: &mut R,
     ) -> Result<Self> {
         // Step 1: Pick a random w in [1, N) that has a Jacobi symbol of -1
-        let mut w = random_positive_bn(rng, &input.N);
-        while jacobi(&w, &input.N) != -1 {
-            w = random_positive_bn(rng, &input.N);
+        let mut w = random_positive_bn(rng, &input.modulus);
+        while jacobi(&w, &input.modulus) != -1 {
+            w = random_positive_bn(rng, &input.modulus);
         }
 
         Self::fill_transcript(transcript, context, input, &w)?;
 
         let elements: Result<Vec<PiModProofElements>> = (0..LAMBDA)
             .map(|_| {
-                positive_challenge_from_transcript(transcript, &input.N).and_then(|y| {
+                positive_challenge_from_transcript(transcript, &input.modulus).and_then(|y| {
                     let (a, b, mut x) = y_prime_combinations(&w, &y, &secret.p, &secret.q)?;
 
                     let phi_n = (&secret.p - 1) * (&secret.q - 1);
-                    let exp = input.N.invert(&phi_n).ok_or_else(|| {
+                    let exp = input.modulus.invert(&phi_n).ok_or_else(|| {
                         error!("Could not invert N");
                         InternalError::InternalInvariantFailed
                     })?;
-                    let z = modpow(&y, &exp, &input.N);
+                    let z = modpow(&y, &exp, &input.modulus);
                     let fourth_root_y = x.pop().ok_or_else(|| {
                         error!("Expected to get a fourth root, but did not.");
                         InternalError::InternalInvariantFailed
@@ -191,12 +191,12 @@ impl Proof for PiModProof {
         }
 
         // Verify that N is an odd composite number
-        if &input.N % BigNumber::from(2u64) == BigNumber::zero() {
+        if &input.modulus % BigNumber::from(2u64) == BigNumber::zero() {
             error!("N is even");
             return Err(InternalError::ProtocolError);
         }
 
-        if input.N.is_prime() {
+        if input.modulus.is_prime() {
             error!("N is not composite");
             return Err(InternalError::ProtocolError);
         }
@@ -204,13 +204,17 @@ impl Proof for PiModProof {
 
         for elements in &self.elements {
             // First, check that y came from Fiat-Shamir transcript
-            let y = positive_challenge_from_transcript(transcript, &input.N)?;
+            let y = positive_challenge_from_transcript(transcript, &input.modulus)?;
             if y != elements.challenge {
                 error!("y does not match Fiat-Shamir challenge");
                 return Err(InternalError::ProtocolError);
             }
 
-            let y_candidate = modpow(&elements.challenge_secret_link, &input.N, &input.N);
+            let y_candidate = modpow(
+                &elements.challenge_secret_link,
+                &input.modulus,
+                &input.modulus,
+            );
             if elements.challenge != y_candidate {
                 error!("z^N != y (mod N)");
                 return Err(InternalError::ProtocolError);
@@ -231,9 +235,14 @@ impl Proof for PiModProof {
                 &self.random_jacobi_one,
                 elements.sign_exponent,
                 elements.jacobi_exponent,
-                &input.N,
+                &input.modulus,
             );
-            if modpow(&elements.fourth_root, &BigNumber::from(4u64), &input.N) != y_prime {
+            if modpow(
+                &elements.fourth_root,
+                &BigNumber::from(4u64),
+                &input.modulus,
+            ) != y_prime
+            {
                 error!("x^4 != y' (mod N)");
                 return Err(InternalError::ProtocolError);
             }
@@ -728,7 +737,7 @@ mod tests {
         let (decryption_key, p, q) = DecryptionKey::new(rng).unwrap();
 
         let input = CommonInput {
-            N: decryption_key.encryption_key().modulus().to_owned(),
+            modulus: decryption_key.encryption_key().modulus().to_owned(),
         };
         let secret = ProverSecret { p, q };
 
