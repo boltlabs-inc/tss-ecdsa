@@ -170,7 +170,7 @@ where
 /// protocol.
 pub trait ProtocolParticipant {
     /// Input type for a new protocol instance.
-    type Input: Debug + Clone;
+    type Input: Debug;
     /// Output type of a successful protocol execution.
     type Output: Debug;
     /// Type to determine status of protocol execution.

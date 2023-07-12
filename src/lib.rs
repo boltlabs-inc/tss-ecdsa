@@ -186,6 +186,7 @@ mod participant;
 pub mod presign;
 mod protocol;
 mod ring_pedersen;
+pub mod sign;
 mod utils;
 mod zkp;
 mod zkstar;
