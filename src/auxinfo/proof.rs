@@ -75,8 +75,8 @@ impl AuxInfoProof {
         )?;
         Self::append_pifac_transcript(&mut transcript, context, sid, rho)?;
         let pifac = pifac::PiFacProof::prove(
-            &pifac::CommonInput::new(verifier_params, N),
-            &pifac::ProverSecret::new(p, q),
+            pifac::CommonInput::new(verifier_params, N),
+            pifac::ProverSecret::new(p, q),
             context,
             &mut transcript,
             rng,
@@ -92,7 +92,7 @@ impl AuxInfoProof {
     /// Note: The [`VerifiedRingPedersen`] argument **must be** provided by the
     /// verifier!
     pub(crate) fn verify(
-        &self,
+        self,
         context: &<AuxInfoParticipant as InnerProtocolParticipant>::Context,
         sid: Identifier,
         rho: [u8; 32],
@@ -105,7 +105,7 @@ impl AuxInfoProof {
             .verify(&pimod::CommonInput::new(N), context, &mut transcript)?;
         Self::append_pifac_transcript(&mut transcript, context, sid, rho)?;
         self.pifac.verify(
-            &pifac::CommonInput::new(verifier_params, N),
+            pifac::CommonInput::new(verifier_params, N),
             context,
             &mut transcript,
         )?;
