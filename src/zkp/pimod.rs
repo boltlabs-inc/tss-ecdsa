@@ -7,13 +7,11 @@
 // of this source tree.
 
 //! Implements a zero-knowledge proof that the modulus N is a Paillier-Blum
-//! modulus meaning that the gcd (N, phi(N)) = 1 where phi is the Euler's
+//! modulus meaning that the `gcd (N, phi(N)) = 1` where `phi` is the Euler's
 //! totient function and `N = pq` where `p`, `q` is congruent to `3 mod 4`.
-//!
+//! The proof is defined in Figure 16 of CGGMP[^cite].
 //! The protocol is a combination (and simplification) of van de Graaf and
 //! Peralta[^cite1] and Goldberg et al[^cite2].
-//!
-//! The proof is defined in Figure 16 of CGGMP[^cite].
 //!
 //! This implementation uses a standard Fiat-Shamir transformation to make the
 //! proof non-interactive.
@@ -76,7 +74,9 @@ pub(crate) struct CommonInput {
 
 impl CommonInput {
     pub(crate) fn new(modulus: &BigNumber) -> Self {
-        Self { modulus: modulus.clone() }
+        Self {
+            modulus: modulus.clone(),
+        }
     }
 }
 
@@ -128,26 +128,25 @@ impl Proof for PiModProof {
 
         let elements: Result<Vec<PiModProofElements>> = (0..LAMBDA)
             .map(|_| {
-                positive_challenge_from_transcript(transcript, &input.modulus).and_then(|y| {
-                    let (a, b, mut x) = y_prime_combinations(&w, &y, &secret.p, &secret.q)?;
+                let y = positive_challenge_from_transcript(transcript, &input.modulus)?;
+                let (a, b, mut x) = y_prime_combinations(&w, &y, &secret.p, &secret.q)?;
 
-                    let phi_n = (&secret.p - 1) * (&secret.q - 1);
-                    let exp = input.modulus.invert(&phi_n).ok_or_else(|| {
-                        error!("Could not invert N");
-                        InternalError::InternalInvariantFailed
-                    })?;
-                    let z = modpow(&y, &exp, &input.modulus);
-                    let fourth_root_y = x.pop().ok_or_else(|| {
-                        error!("Expected to get a fourth root, but did not.");
-                        InternalError::InternalInvariantFailed
-                    });
-                    Ok(PiModProofElements {
-                        fourth_root: fourth_root_y?,
-                        sign_exponent: a,
-                        jacobi_exponent: b,
-                        challenge_secret_link: z,
-                        challenge: y,
-                    })
+                let phi_n = (&secret.p - 1) * (&secret.q - 1);
+                let exp = input.modulus.invert(&phi_n).ok_or_else(|| {
+                    error!("Could not invert N");
+                    InternalError::InternalInvariantFailed
+                })?;
+                let z = modpow(&y, &exp, &input.modulus);
+                let fourth_root_y = x.pop().ok_or_else(|| {
+                    error!("Expected to get a fourth root, but did not.");
+                    InternalError::InternalInvariantFailed
+                });
+                Ok(PiModProofElements {
+                    fourth_root: fourth_root_y?,
+                    sign_exponent: a,
+                    jacobi_exponent: b,
+                    challenge_secret_link: z,
+                    challenge: y,
                 })
             })
             .collect();
