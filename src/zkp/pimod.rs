@@ -75,8 +75,8 @@ pub(crate) struct CommonInput {
 }
 
 impl CommonInput {
-    pub(crate) fn new(N: &BigNumber) -> Self {
-        Self { modulus: N.clone() }
+    pub(crate) fn new(modulus: &BigNumber) -> Self {
+        Self { modulus: modulus.clone() }
     }
 }
 
