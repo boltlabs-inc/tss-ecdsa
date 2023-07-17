@@ -6,7 +6,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Implements a zero-knowledge proof that the modulus N is a Paillier-Blum
+//! Implements a zero-knowledge proof that the modulus `N` is a Paillier-Blum
 //! modulus meaning that the `gcd (N, phi(N)) = 1` where `phi` is the Euler's
 //! totient function and `N = pq` where `p`, `q` is congruent to `3 mod 4`.
 //! The proof is defined in Figure 16 of CGGMP[^cite].
