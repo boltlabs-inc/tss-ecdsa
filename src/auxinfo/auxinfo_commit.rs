@@ -93,7 +93,9 @@ impl CommitmentScheme {
         rng.fill_bytes(rid.as_mut_slice());
         rng.fill_bytes(u_i.as_mut_slice());
 
-        public_key.verify(&auxinfo_participant.retrieve_context())?;
+        public_key
+            .clone()
+            .verify(&auxinfo_participant.retrieve_context())?;
         if auxinfo_participant.id() != public_key.participant() {
             error!("Created auxinfo commitment scheme with different participant IDs in the sender and public_key fields");
             return Err(InternalError::InternalInvariantFailed);
@@ -119,7 +121,7 @@ impl CommitmentScheme {
         let scheme: CommitmentScheme = deserialize!(&message.unverified_bytes)?;
 
         // Public parameters in this decommit must be consistent with each other
-        scheme.public_key.verify(context)?;
+        scheme.clone().public_key.verify(context)?;
 
         // Owner must be consistent across message, public keys, and decommit
         if scheme.public_key.participant() != scheme.pid {

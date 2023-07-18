@@ -806,7 +806,7 @@ mod tests {
                 let public_key = output.find_public(pid);
                 assert!(public_key.is_some());
                 // Check that it's valid while we're here.
-                assert!(public_key.unwrap().verify(&context).is_ok());
+                assert!(public_key.unwrap().clone().verify(&context).is_ok());
                 publics_for_pid.push(public_key.unwrap());
             }
 

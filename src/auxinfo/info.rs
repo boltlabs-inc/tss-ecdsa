@@ -165,7 +165,7 @@ impl AuxInfoPublic {
             pk: encryption_key,
             params,
         };
-        public.verify(context)?;
+        public.clone().verify(context)?;
         Ok(public)
     }
 
@@ -184,7 +184,7 @@ impl AuxInfoPublic {
     /// Verifies that the public key's modulus matches the ZKSetupParameters
     /// modulus N, and that the parameters have appropriate s and t values.
     #[instrument(skip_all, err(Debug))]
-    pub(crate) fn verify(&self, context: &impl ProofContext) -> Result<()> {
+    pub(crate) fn verify(self, context: &impl ProofContext) -> Result<()> {
         if self.pk.modulus() != self.params.scheme().modulus() {
             error!("Mismatch between public key modulus and setup parameters modulus");
             return Err(InternalError::Serialization);

@@ -17,7 +17,7 @@ use crate::{
     utils::{modpow, random_plusminus_scaled, random_positive_bn},
     zkp::{
         piprm::{PiPrmProof, PiPrmSecret},
-        Proof, ProofContext,
+        Proof2, ProofContext,
     },
 };
 use bytemuck::TransparentWrapper;
@@ -155,17 +155,19 @@ impl VerifiedRingPedersen {
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Self> {
         let (scheme, lambda, totient) = RingPedersen::extract(sk, rng)?;
-        let secrets = PiPrmSecret::new(lambda, totient);
+        let secrets = PiPrmSecret::new(&lambda, &totient);
         let mut transcript = Transcript::new(b"PiPrmProof");
-        let proof = PiPrmProof::prove(&scheme, &secrets, context, &mut transcript, rng)?;
+        let proof = PiPrmProof::prove(&scheme, secrets, context, &mut transcript, rng)?;
         Ok(Self { scheme, proof })
     }
 
     /// Verifies that the underlying [`RingPedersen`] commitment scheme was
     /// constructed correctly according to the associated [`PiPrmProof`].
-    pub(crate) fn verify(&self, context: &impl ProofContext) -> Result<()> {
+    pub(crate) fn verify(self, context: &impl ProofContext) -> Result<()> {
         let mut transcript = Transcript::new(b"PiPrmProof");
-        self.proof.verify(self.scheme(), context, &mut transcript)
+        // Note we directly borrow the `self.scheme` field instead of using the
+        // `.scheme()` method to avoid Rust lifetime issues.
+        self.proof.verify(&self.scheme, context, &mut transcript)
     }
 
     /// Returns the underlying [`RingPedersen`] commitment scheme associated
