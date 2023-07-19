@@ -388,15 +388,19 @@ mod tests {
         // `rng` will be borrowed. We make another rng to be captured by the closure.
         let mut rng2 = StdRng::from_seed(rng.gen());
 
-        let test_code1 = |input: CommonInput, proof: PiFacProof| {
+        // Modulus in the common input must be the same for proof creation and
+        // validation.
+        let modulus_must_match = |input: CommonInput, proof: PiFacProof| {
             let modulus = prime_gen::try_get_prime_from_pool_insecure(&mut rng2).unwrap();
             let incorrect_N = CommonInput::new(input.setup_params, &modulus);
             assert!(proof.verify(incorrect_N, &(), &mut transcript()).is_err());
             Ok(())
         };
-        with_random_no_small_factors_proof(&mut rng, test_code1)?;
+        with_random_no_small_factors_proof(&mut rng, modulus_must_match)?;
 
-        let test_code2 = |input: CommonInput, proof: PiFacProof| {
+        // Setup parameters in the common input must be the same at proof creation and
+        // verification.
+        let setup_params_must_match = |input: CommonInput, proof: PiFacProof| {
             let setup_param = VerifiedRingPedersen::gen(&mut rng2, &())?;
             let incorrect_startup_params = CommonInput::new(&setup_param, input.modulus);
             assert!(proof
@@ -404,9 +408,10 @@ mod tests {
                 .is_err());
             Ok(())
         };
-        with_random_no_small_factors_proof(&mut rng, test_code2)?;
+        with_random_no_small_factors_proof(&mut rng, setup_params_must_match)?;
 
-        let test_code3 = |input: CommonInput, _proof: PiFacProof| {
+        // Prover secret must have correct factors for the modulus in the common input.
+        let correct_factors = |input: CommonInput, _proof: PiFacProof| {
             let (not_p0, not_q0) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng2).unwrap();
             let incorrect_factors = PiFacProof::prove(
                 input,
@@ -420,6 +425,7 @@ mod tests {
                 .verify(input, &(), &mut transcript())
                 .is_err());
 
+            // Factors must be in the valid range (e.g. large enough).
             let small_p = BigNumber::from(7u64);
             let small_q = BigNumber::from(11u64);
             let setup_params = VerifiedRingPedersen::gen(&mut rng2, &())?;
@@ -452,23 +458,37 @@ mod tests {
                 .verify(mixed_input, &(), &mut transcript())
                 .is_err());
 
-            let small_fac_p = &not_p0 * &BigNumber::from(2u64);
-            let modulus = &small_fac_p * &regular_sized_q;
-            let small_fac_input = CommonInput::new(&setup_params, &modulus);
-            let small_fac_proof = PiFacProof::prove(
-                input,
-                ProverSecret::new(&small_fac_p, &regular_sized_q),
-                &(),
-                &mut transcript(),
-                &mut rng2,
-            )?;
-
-            assert!(small_fac_proof
-                .verify(small_fac_input, &(), &mut transcript())
-                .is_err());
             Ok(())
         };
-        with_random_no_small_factors_proof(&mut rng, test_code3)
+        with_random_no_small_factors_proof(&mut rng, correct_factors)
+    }
+
+    /// TODO: This test does not currently work. It should be addressed as part
+    /// of issue #113.  
+    #[test]
+    #[ignore]
+    fn test_modulus_cannot_have_small_factors() -> Result<()> {
+        let mut rng = init_testing();
+        let (not_p0, _) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let regular_sized_q = prime_gen::try_get_prime_from_pool_insecure(&mut rng).unwrap();
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
+
+        let small_fac_p = &not_p0 * &BigNumber::from(2u64);
+        let modulus = &small_fac_p * &regular_sized_q;
+
+        let small_fac_input = CommonInput::new(&setup_params, &modulus);
+        let small_fac_proof = PiFacProof::prove(
+            small_fac_input,
+            ProverSecret::new(&small_fac_p, &regular_sized_q),
+            &(),
+            &mut transcript(),
+            &mut rng,
+        )?;
+
+        assert!(small_fac_proof
+            .verify(small_fac_input, &(), &mut transcript())
+            .is_err());
+        Ok(())
     }
 
     #[test]
