@@ -129,7 +129,7 @@ impl Proof for PiModProof {
 
         Self::fill_transcript(transcript, context, input, &w)?;
 
-        let elements: Result<Vec<PiModProofElements>> = (0..LAMBDA)
+        let elements = (0..LAMBDA)
             .map(|_| {
                 let y = positive_challenge_from_transcript(transcript, &input.modulus)?;
                 let (a, b, mut x) = y_prime_combinations(&w, &y, &secret.p, &secret.q)?;
@@ -152,7 +152,7 @@ impl Proof for PiModProof {
                     challenge: y,
                 })
             })
-            .collect();
+            .collect::<Result<Vec<PiModProofElements>>>();
 
         let elements = elements?;
 
