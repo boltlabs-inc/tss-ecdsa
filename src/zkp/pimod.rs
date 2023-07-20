@@ -152,9 +152,7 @@ impl Proof for PiModProof {
                     challenge: y,
                 })
             })
-            .collect::<Result<Vec<PiModProofElements>>>();
-
-        let elements = elements?;
+            .collect::<Result<Vec<PiModProofElements>>>()?;
 
         let proof = Self {
             random_jacobi_one: w,
