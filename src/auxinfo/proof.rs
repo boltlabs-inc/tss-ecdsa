@@ -17,6 +17,7 @@ use crate::{
 
 use crate::zkp::{pifac, pimod, Proof, ProofContext};
 
+use crate::zkp::Proof2;
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
