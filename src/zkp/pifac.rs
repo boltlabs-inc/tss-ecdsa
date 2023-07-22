@@ -464,9 +464,9 @@ mod tests {
     }
 
     /// TODO: This test does not currently work. It should be addressed as part
-    /// of issue #113.  
-    #[test]
-    #[ignore]
+    /// of issue #113.
+    // #[test]
+    #[allow(dead_code)]
     fn test_modulus_cannot_have_small_factors() -> Result<()> {
         let mut rng = init_testing();
         let (not_p0, _) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
