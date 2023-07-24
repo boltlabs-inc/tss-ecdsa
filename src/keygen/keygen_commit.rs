@@ -92,7 +92,7 @@ impl KeygenDecommit {
         com: &KeygenCommit,
     ) -> Result<()> {
         let mut transcript = Transcript::new(b"KeyGenR1");
-        let mut decom = &mut self.clone();
+        let decom = &mut self.clone();
         decom.sid = *sid;
         decom.sender = *sender;
         transcript.append_message(b"decom", &serialize!(&decom)?);
