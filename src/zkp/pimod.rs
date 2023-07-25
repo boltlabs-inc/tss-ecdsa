@@ -568,7 +568,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fourth_roots_mod_composite() {
+    fn test_fourth_roots_mod_composite() -> Result<Option<()>> {
         let mut rng = init_testing();
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let N = &p * &q;
@@ -577,21 +577,21 @@ mod tests {
         let mut success = 0;
         loop {
             if success == 10 {
-                return;
+                return Ok(Some(()));
             }
             let a = BigNumber::from_rng(&N, &mut rng);
             let a_n = jacobi(&a, &N);
 
             let roots = fourth_roots_mod_composite(&a, &p, &q);
-            match roots {
-                Ok(xs) => {
+            match roots? {
+                Some(xs) => {
                     assert_eq!(a_n, 1);
                     for x in xs {
                         assert_eq!(modpow(&x, &BigNumber::from(4), &N), a);
                     }
                     success += 1;
                 }
-                Err(_) => {
+                None => {
                     continue;
                 }
             }
