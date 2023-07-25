@@ -371,7 +371,7 @@ fn square_roots_mod_composite(
     n: &BigNumber,
     p: &BigNumber,
     q: &BigNumber,
-) -> Result<[BigNumber; 4]> {
+) -> Result<Option<[BigNumber; 4]>> {
     let (y1, y2) = square_roots_mod_prime(n, p)?;
     let (z1, z2) = square_roots_mod_prime(n, q)?;
 
@@ -380,7 +380,7 @@ fn square_roots_mod_composite(
     let x3 = chinese_remainder_theorem(&y2, &z1, p, q)?;
     let x4 = chinese_remainder_theorem(&y2, &z2, p, q)?;
 
-    Ok([x1, x2, x3, x4])
+    Ok(Some([x1, x2, x3, x4]))
 }
 
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
@@ -388,23 +388,23 @@ fn fourth_roots_mod_composite(
     n: &BigNumber,
     p: &BigNumber,
     q: &BigNumber,
-) -> Result<Vec<BigNumber>> {
+) -> Result<Option<Vec<BigNumber>>> {
     let mut fourth_roots = vec![];
 
     let xs = square_roots_mod_composite(n, p, q)?;
     for x in xs {
-        match square_roots_mod_composite(&x, p, q) {
-            Ok(res) => {
+        match square_roots_mod_composite(&x[0], p, q)? {
+            Some(res) => {
                 for y in res {
                     fourth_roots.push(y);
                 }
             }
-            Err(_) => {
+            None => {
                 continue;
             }
         }
     }
-    Ok(fourth_roots)
+    Ok(Some(fourth_roots))
 }
 
 /// Compute y' = (-1)^a * w^b * y (mod N)
@@ -448,10 +448,11 @@ fn y_prime_combinations(
             let y_prime = y_prime_from_y(y, w, a, b, &N);
             match fourth_roots_mod_composite(&y_prime, p, q) {
                 Ok(values) => {
+                    if values.is_none() { continue; }
                     has_fourth_roots += 1;
                     success_a = a;
                     success_b = b;
-                    ret.extend_from_slice(&values);
+                    ret.extend_from_slice(&values.unwrap());
                 }
                 Err(_) => {
                     continue;
@@ -472,6 +473,8 @@ fn y_prime_combinations(
 
 #[cfg(test)]
 mod tests {
+    use k256::elliptic_curve::PrimeField;
+
     use super::*;
     use crate::{
         paillier::{prime_gen, DecryptionKey},
@@ -511,7 +514,7 @@ mod tests {
     }
 
     #[test]
-    fn test_square_roots_mod_prime() {
+    fn test_square_roots_mod_prime() -> Result<()> {
         let mut rng = init_testing();
         let p = prime_gen::try_get_prime_from_pool_insecure(&mut rng).unwrap();
 
@@ -534,6 +537,7 @@ mod tests {
                 }
             }
         }
+        Ok(())
     }
 
     #[test]
@@ -556,7 +560,7 @@ mod tests {
                 Ok(xs) => {
                     assert_eq!(a_n, 1);
                     for x in xs {
-                        assert_eq!(modpow(&x, &BigNumber::from(2), &N), a);
+                        assert_eq!(modpow(&x[0], &BigNumber::from(2), &N), a);
                     }
                     success += 1;
                 }
@@ -568,7 +572,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fourth_roots_mod_composite() -> Result<Option<()>> {
+    fn test_fourth_roots_mod_composite() -> Result<Option<Vec<BigNumber>>> {
         let mut rng = init_testing();
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let N = &p * &q;
@@ -577,7 +581,7 @@ mod tests {
         let mut success = 0;
         loop {
             if success == 10 {
-                return Ok(Some(()));
+                return Ok(None);
             }
             let a = BigNumber::from_rng(&N, &mut rng);
             let a_n = jacobi(&a, &N);
@@ -596,6 +600,7 @@ mod tests {
                 }
             }
         }
+        
     }
 
     #[test]
