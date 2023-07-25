@@ -40,8 +40,8 @@ use tss_ecdsa::{
     auxinfo::AuxInfoParticipant,
     keygen::{KeygenParticipant, Output},
     messages::Message,
-    Identifier, Participant, ParticipantConfig, ParticipantIdentifier, PresignInput,
-    PresignParticipant, ProtocolParticipant,
+    presign::{self, PresignParticipant},
+    Identifier, Participant, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
 };
 use utils::{MessageFromWorker, SubProtocol};
 use uuid::Uuid;
@@ -428,7 +428,7 @@ impl Worker {
         let key_shares = self.key_gen_material.take(&key_id);
         let auxinfo_output = self.aux_info.take(&key_id);
 
-        let inputs: PresignInput = PresignInput::new(auxinfo_output, key_shares)?;
+        let inputs = presign::Input::new(auxinfo_output, key_shares)?;
         self.new_sub_protocol::<PresignParticipant>(sid, inputs, key_id)
     }
 }

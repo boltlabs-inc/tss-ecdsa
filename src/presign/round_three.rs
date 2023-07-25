@@ -110,7 +110,7 @@ impl TryFrom<&Message> for Public {
 }
 
 /// Used to bundle the inputs passed to round_three() together
-pub(crate) struct RoundThreeInput {
+pub(crate) struct Input {
     pub auxinfo_public: AuxInfoPublic,
     pub r2_private: RoundTwoPrivate,
     pub r2_public: RoundTwoPublic,

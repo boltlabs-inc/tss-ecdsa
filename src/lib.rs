@@ -175,7 +175,7 @@ extern crate flamer;
 pub mod errors;
 
 pub mod auxinfo;
-pub mod broadcast;
+mod broadcast;
 pub mod keygen;
 mod local_storage;
 mod message_queue;
@@ -192,10 +192,6 @@ mod zkp;
 mod zkstar;
 
 pub use participant::ProtocolParticipant;
-pub use presign::{
-    participant::{Input as PresignInput, PresignParticipant},
-    record::PresignRecord,
-};
 pub use protocol::{
     participant_config::ParticipantConfig, Identifier, Participant, ParticipantIdentifier,
     SignatureShare,

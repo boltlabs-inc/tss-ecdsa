@@ -9,22 +9,18 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::{self, AuxInfoPrivate, AuxInfoPublic},
+    auxinfo::{AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::{CallerError, InternalError, Result},
-    keygen::{self, KeySharePrivate, KeySharePublic},
+    keygen::{KeySharePrivate, KeySharePublic},
     local_storage::LocalStorage,
     messages::{Message, MessageType, PresignMessageType},
     parameters::ELL_PRIME,
     participant::{Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant},
     presign::{
+        input::Input,
         record::{PresignRecord, RecordPair},
-        round_one::{
-            Private as RoundOnePrivate, Public as RoundOnePublic,
-            PublicBroadcast as RoundOnePublicBroadcast,
-        },
-        round_three::{Private as RoundThreePrivate, Public as RoundThreePublic, RoundThreeInput},
-        round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
+        round_one, round_three, round_two,
     },
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
@@ -126,15 +122,18 @@ impl PresignContext {
 ///
 /// # Protocol input
 /// The protocol takes an [`Input`] which includes:
-/// - The [`Output`](keygen::Output) of a [`keygen`] protocol execution
-///   - A list of public key shares, one for each participant (including this
-///     participant);
-///   - A single private key share for this participant; and
+/// - The [`Output`](crate::keygen::Output) of a [`keygen`](crate::keygen)
+///   protocol execution
+///   - A list of [public key shares](KeySharePublic), one for each participant
+///     (including this participant);
+///   - A single [private key share](KeySharePrivate) for this participant; and
 ///   - A random value, agreed on by all participants.
-/// - A [`Vec`] of [`AuxInfoPublic`]s, which correspond to the public auxiliary
-///   information of each participant (including this participant), and
-/// - A single [`AuxInfoPrivate`], which corresponds to the **private**
-///   auxiliary information of this participant.
+/// - The [`Output`](crate::auxinfo::Output) of an [`auxinfo`](crate::auxinfo)
+///   protocol execution
+///   - A list of [public auxiliary information](AuxInfoPublic), one for each
+///     participant (including this participant), and
+///   - A single set of [private auxiliary information](`AuxInfoPrivate`) for
+///     this participant.
 ///
 /// # Protocol output
 /// Upon successful completion, the participant outputs the following:
@@ -229,123 +228,6 @@ pub struct PresignParticipant {
     status: Status,
     /// Whether or not the participant is Ready
     ready: bool,
-}
-
-/// Input needed for [`PresignParticipant`] to run.
-#[derive(Debug, Clone)]
-pub struct Input {
-    /// The key share material for the key that will be used in the presign run.
-    keygen_output: keygen::Output,
-    /// The auxiliary info for the key that will be used in the presign run.
-    auxinfo_output: auxinfo::Output,
-}
-
-impl Input {
-    /// Creates a new [`Input`] from the outputs of the
-    /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
-    /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
-    pub fn new(auxinfo_output: auxinfo::Output, keygen_output: keygen::Output) -> Result<Self> {
-        if auxinfo_output.public_auxinfo().len() != keygen_output.public_key_shares().len() {
-            error!(
-                "Number of auxinfo ({:?}) and keyshare ({:?}) public entries is not equal",
-                auxinfo_output.public_auxinfo().len(),
-                keygen_output.public_key_shares().len()
-            );
-            Err(CallerError::BadInput)?
-        }
-
-        // The same set of participants must have produced the key shares and aux infos.
-        let aux_pids = auxinfo_output
-            .public_auxinfo()
-            .iter()
-            .map(AuxInfoPublic::participant)
-            .collect::<HashSet<_>>();
-        let key_pids = keygen_output
-            .public_key_shares()
-            .iter()
-            .map(KeySharePublic::participant)
-            .collect::<HashSet<_>>();
-        if aux_pids != key_pids {
-            error!("Public auxinfo and keyshare inputs to presign weren't from the same set of parties.");
-            Err(CallerError::BadInput)?
-        }
-
-        // There shouldn't be duplicates. Since we checked equality of the sets and the
-        // lengths already, this also applies to auxinfo (also, the `auxinfo::Output`
-        // type checks this at construction already).
-        if key_pids.len() != keygen_output.public_key_shares().len() {
-            error!("Duplicate participant IDs appeared in AuxInfo and KeyShare public input.");
-            Err(CallerError::BadInput)?
-        }
-
-        // The private key share should map to one of the public values.
-        // NB: The corresponding check for `auxinfo::Output` is handled in that type's
-        // constructor.
-        let expected_public_share = keygen_output.private_key_share().public_share()?;
-        if !keygen_output
-            .public_key_shares()
-            .iter()
-            .any(|public_share| expected_public_share == *public_share.as_ref())
-        {
-            error!("Keygen private share did not correspond to any of the provided keygen public shares.");
-            Err(CallerError::BadInput)?
-        }
-
-        Ok(Self {
-            auxinfo_output,
-            keygen_output,
-        })
-    }
-
-    /// Get the set of participants that contributed to the input.
-    ///
-    /// By construction, this must be the same for the auxinfo and key share
-    /// lists.
-    fn participants(&self) -> Vec<ParticipantIdentifier> {
-        self.keygen_output
-            .public_key_shares()
-            .iter()
-            .map(KeySharePublic::participant)
-            .collect()
-    }
-
-    /// Returns the [`AuxInfoPublic`] associated with the given
-    /// [`ParticipantIdentifier`].
-    fn find_auxinfo_public(&self, pid: ParticipantIdentifier) -> Result<&AuxInfoPublic> {
-        self.auxinfo_output.find_public(pid)
-            .ok_or_else(|| {
-                error!("Presign input doesn't contain a public auxinfo for {}, even though we checked for it at construction.", pid);
-                InternalError::InternalInvariantFailed
-            })
-    }
-
-    /// Returns the [`KeySharePublic`] associated with the given
-    /// [`ParticipantIdentifier`].
-    fn find_keyshare_public(&self, pid: ParticipantIdentifier) -> Result<&KeySharePublic> {
-        self.keygen_output
-            .public_key_shares()
-            .iter()
-            .find(|item| item.participant() == pid)
-            .ok_or_else(|| {
-                error!("Presign input doesn't contain a public keyshare for {}, even though we checked for it at construction.", pid);
-                InternalError::InternalInvariantFailed
-            })
-    }
-
-    /// Returns the [`AuxInfoPublic`]s associated with all the participants
-    /// _except_ the given [`ParticipantIdentifier`].
-    fn all_but_one_auxinfo_public(&self, pid: ParticipantIdentifier) -> Vec<&AuxInfoPublic> {
-        self.auxinfo_output
-            .public_auxinfo()
-            .iter()
-            .filter(|item| item.participant() != pid)
-            .collect()
-    }
-    /// Returns a copy of the [`AuxInfoPublic`]s associated with all the
-    /// participants (including this participant).
-    fn to_public_auxinfo(&self) -> Vec<AuxInfoPublic> {
-        self.auxinfo_output.public_auxinfo().to_vec()
-    }
 }
 
 impl ProtocolParticipant for PresignParticipant {
@@ -588,7 +470,7 @@ impl PresignParticipant {
         info!("Presign: Handling round one broadcast message.");
 
         let message = broadcast_message.into_message(BroadcastTag::PresignR1Ciphertexts)?;
-        let public_broadcast: RoundOnePublicBroadcast = deserialize!(&message.unverified_bytes)?;
+        let public_broadcast: round_one::PublicBroadcast = deserialize!(&message.unverified_bytes)?;
         self.local_storage
             .store::<storage::RoundOnePublicBroadcast>(message.from(), public_broadcast);
 
@@ -624,8 +506,6 @@ impl PresignParticipant {
         rng: &mut R,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        use crate::round_one::Public as RoundOnePublic;
-
         info!("Presign: Handling round one message.");
 
         // First check that we have the round one public broadcast from this
@@ -648,7 +528,7 @@ impl PresignParticipant {
 
         let info = PresignKeyShareAndInfo::new(self.id, self.input())?;
         let auxinfo_public = self.input().find_auxinfo_public(message.from())?;
-        let round_one_public = RoundOnePublic::try_from(message)?;
+        let round_one_public = round_one::Public::try_from(message)?;
         round_one_public.verify(
             &self.retrieve_context(),
             info.aux_info_public.params(),
@@ -824,7 +704,7 @@ impl PresignParticipant {
                 .retrieve::<storage::RoundTwoPublic>(pid)?;
             let _ = hashmap.insert(
                 pid,
-                RoundThreeInput {
+                round_three::Input {
                     auxinfo_public: auxinfo_public.clone(),
                     r2_private: r2_private.clone(),
                     r2_public: r2_public.clone(),
@@ -951,7 +831,7 @@ impl PresignParticipant {
             .local_storage
             .retrieve::<storage::RoundOnePublicBroadcast>(message.from())?;
 
-        let round_two_public = RoundTwoPublic::try_from(message)?;
+        let round_two_public = round_two::Public::try_from(message)?;
         round_two_public.clone().verify(
             &self.retrieve_context(),
             receiver_auxinfo_public,
@@ -975,7 +855,7 @@ impl PresignParticipant {
         let sender_r1_public_broadcast = self
             .local_storage
             .retrieve::<storage::RoundOnePublicBroadcast>(message.from())?;
-        let public = RoundThreePublic::try_from(message)?;
+        let public = round_three::Public::try_from(message)?;
         public.clone().verify(
             &self.retrieve_context(),
             receiver_auxinfo_public,
@@ -1003,9 +883,9 @@ pub(crate) struct PresignKeyShareAndInfo {
 impl PresignKeyShareAndInfo {
     fn new(id: ParticipantIdentifier, input: &Input) -> Result<Self> {
         Ok(Self {
-            aux_info_private: input.auxinfo_output.private_auxinfo().clone(),
+            aux_info_private: input.private_auxinfo().clone(),
             aux_info_public: input.find_auxinfo_public(id)?.clone(),
-            keyshare_private: input.keygen_output.private_key_share().clone(),
+            keyshare_private: input.private_key_share().clone(),
             keyshare_public: input.find_keyshare_public(id)?.clone(),
         })
     }
@@ -1025,9 +905,9 @@ impl PresignKeyShareAndInfo {
         context: &impl ProofContext,
         other_auxinfos: &[&AuxInfoPublic],
     ) -> Result<(
-        RoundOnePrivate,
-        HashMap<ParticipantIdentifier, RoundOnePublic>,
-        RoundOnePublicBroadcast,
+        round_one::Private,
+        HashMap<ParticipantIdentifier, round_one::Public>,
+        round_one::PublicBroadcast,
     )> {
         let order = k256_order();
 
@@ -1057,16 +937,16 @@ impl PresignKeyShareAndInfo {
                 &mut transcript,
                 rng,
             )?;
-            let r1_public = RoundOnePublic::from(proof);
+            let r1_public = round_one::Public::from(proof);
             let _ = r1_publics.insert(aux_info_public.participant(), r1_public);
         }
 
-        let r1_public_broadcast = RoundOnePublicBroadcast {
+        let r1_public_broadcast = round_one::PublicBroadcast {
             K: K.clone(),
             G: G.clone(),
         };
 
-        let r1_private = RoundOnePrivate {
+        let r1_private = round_one::Private {
             k,
             rho,
             gamma,
@@ -1085,9 +965,9 @@ impl PresignKeyShareAndInfo {
         rng: &mut R,
         context: &impl ProofContext,
         receiver_aux_info: &AuxInfoPublic,
-        sender_r1_priv: &RoundOnePrivate,
-        receiver_r1_pub_broadcast: &RoundOnePublicBroadcast,
-    ) -> Result<(RoundTwoPrivate, RoundTwoPublic)> {
+        sender_r1_priv: &round_one::Private,
+        receiver_r1_pub_broadcast: &round_one::PublicBroadcast,
+    ) -> Result<(round_two::Private, round_two::Public)> {
         let beta = random_plusminus_by_size(rng, ELL_PRIME);
         let beta_hat = random_plusminus_by_size(rng, ELL_PRIME);
 
@@ -1194,8 +1074,8 @@ impl PresignKeyShareAndInfo {
         )?;
 
         Ok((
-            RoundTwoPrivate { beta, beta_hat },
-            RoundTwoPublic {
+            round_two::Private { beta, beta_hat },
+            round_two::Public {
                 D,
                 D_hat,
                 F,
@@ -1214,11 +1094,11 @@ impl PresignKeyShareAndInfo {
         &self,
         rng: &mut R,
         context: &impl ProofContext,
-        sender_r1_priv: &RoundOnePrivate,
-        other_participant_inputs: &HashMap<ParticipantIdentifier, RoundThreeInput>,
+        sender_r1_priv: &round_one::Private,
+        other_participant_inputs: &HashMap<ParticipantIdentifier, round_three::Input>,
     ) -> Result<(
-        RoundThreePrivate,
-        HashMap<ParticipantIdentifier, RoundThreePublic>,
+        round_three::Private,
+        HashMap<ParticipantIdentifier, round_three::Public>,
     )> {
         let order = k256_order();
         let g = CurvePoint::GENERATOR;
@@ -1287,7 +1167,7 @@ impl PresignKeyShareAndInfo {
                 &mut transcript,
                 rng,
             )?;
-            let val = RoundThreePublic {
+            let val = round_three::Public {
                 delta: delta_scalar,
                 Delta,
                 psi_double_prime,
@@ -1296,7 +1176,7 @@ impl PresignKeyShareAndInfo {
             let _ = ret_publics.insert(*other_id, val);
         }
 
-        let private = RoundThreePrivate {
+        let private = round_three::Private {
             k: sender_r1_priv.k.clone(),
             chi: chi_scalar,
             Gamma,
@@ -1307,131 +1187,5 @@ impl PresignKeyShareAndInfo {
         };
 
         Ok((private, ret_publics))
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::Input;
-    use crate::{
-        auxinfo,
-        errors::{CallerError, InternalError, Result},
-        keygen,
-        utils::testing::init_testing,
-        Identifier, ParticipantConfig, ParticipantIdentifier, PresignParticipant,
-        ProtocolParticipant,
-    };
-
-    #[test]
-    fn inputs_must_be_same_length() {
-        let rng = &mut init_testing();
-
-        let pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
-            .take(5)
-            .collect::<Vec<_>>();
-        let keygen_output = keygen::Output::simulate(&pids, rng);
-        let auxinfo_output = auxinfo::Output::simulate(&pids, rng);
-
-        // Same length works
-        let result = Input::new(auxinfo_output.clone(), keygen_output.clone());
-        assert!(result.is_ok());
-
-        // If keygen is too short, it fails.
-        let short_keygen = keygen::Output::simulate(&pids[1..], rng);
-        let result = Input::new(auxinfo_output, short_keygen);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            InternalError::CallingApplicationMistake(CallerError::BadInput)
-        );
-
-        // If auxinfo is too short, it fails.
-        let short_auxinfo = auxinfo::Output::simulate(&pids[1..], rng);
-        let result = Input::new(short_auxinfo, keygen_output);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            InternalError::CallingApplicationMistake(CallerError::BadInput)
-        );
-    }
-
-    #[test]
-    fn inputs_must_not_have_duplicates() {
-        let rng = &mut init_testing();
-
-        let mut pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
-            .take(5)
-            .collect::<Vec<_>>();
-
-        // This test doesn't bother adding a duplicate in only one of the inputs because
-        // that would fail the length checks tested in `inputs_must_be_same_length`
-        // Instead, duplicate one of the PIDs...
-        pids.push(pids[4]);
-
-        // ...and simulate the outputs. The public material will be different for the
-        // two duplicated PIDs.
-        let keygen_output = keygen::Output::simulate(&pids, rng);
-        let auxinfo_output = auxinfo::Output::simulate(&pids, rng);
-
-        let result = Input::new(auxinfo_output, keygen_output);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            InternalError::CallingApplicationMistake(CallerError::BadInput)
-        );
-    }
-
-    #[test]
-    fn inputs_must_have_same_participant_sets() {
-        let rng = &mut init_testing();
-
-        let auxinfo_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
-            .take(5)
-            .collect::<Vec<_>>();
-        let auxinfo_output = auxinfo::Output::simulate(&auxinfo_pids, rng);
-
-        let keygen_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
-            .take(5)
-            .collect::<Vec<_>>();
-        let keygen_output = keygen::Output::simulate(&keygen_pids, rng);
-
-        let result = Input::new(auxinfo_output, keygen_output);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            InternalError::CallingApplicationMistake(CallerError::BadInput)
-        );
-    }
-
-    #[test]
-    fn protocol_participants_must_match_input_participants() -> Result<()> {
-        let rng = &mut init_testing();
-        let SIZE = 5;
-
-        // Create valid input set with random PIDs
-        let input_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
-            .take(SIZE)
-            .collect::<Vec<_>>();
-        let keygen_output = keygen::Output::simulate(&input_pids, rng);
-        let auxinfo_output = auxinfo::Output::simulate(&input_pids, rng);
-
-        let input = Input::new(auxinfo_output, keygen_output)?;
-
-        // Create valid config with PIDs independent of those used to make the input set
-        let config = ParticipantConfig::random(SIZE, rng);
-
-        let result = PresignParticipant::new(
-            Identifier::random(rng),
-            config.id(),
-            config.other_ids().to_vec(),
-            input,
-        );
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            InternalError::CallingApplicationMistake(CallerError::BadInput)
-        );
-
-        Ok(())
     }
 }

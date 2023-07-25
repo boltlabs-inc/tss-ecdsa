@@ -16,8 +16,13 @@
 //! with Identifiable Aborts. [EPrint archive,
 //! 2021](https://eprint.iacr.org/2021/060.pdf).
 
-pub mod participant;
-pub(crate) mod record;
-pub(crate) mod round_one;
-pub(crate) mod round_three;
-pub(crate) mod round_two;
+mod input;
+mod participant;
+mod record;
+mod round_one;
+mod round_three;
+mod round_two;
+
+pub use input::Input;
+pub use participant::{PresignParticipant, Status};
+pub use record::PresignRecord;

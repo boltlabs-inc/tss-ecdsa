@@ -646,7 +646,7 @@ mod tests {
     use crate::{
         auxinfo::{self, AuxInfoParticipant},
         keygen::KeygenParticipant,
-        presign::participant::Input as PresignInput,
+        presign,
         utils::testing::init_testing,
         PresignParticipant,
     };
@@ -955,7 +955,7 @@ mod tests {
                 )
             })
             .map(|(auxinfo_output, keygen_output)| {
-                PresignInput::new(auxinfo_output, keygen_output).unwrap()
+                presign::Input::new(auxinfo_output, keygen_output).unwrap()
             })
             .collect::<Vec<_>>();
 
@@ -991,7 +991,7 @@ mod tests {
         // And make sure all participants have successfully terminated.
         assert!(presign_quorum
             .iter()
-            .all(|p| *p.status() == crate::presign::participant::Status::TerminatedSuccessfully));
+            .all(|p| *p.status() == presign::Status::TerminatedSuccessfully));
 
         // Now, produce a valid signature
         let mut hasher = Sha256::new();
