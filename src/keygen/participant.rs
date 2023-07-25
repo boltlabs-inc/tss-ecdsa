@@ -161,35 +161,6 @@ impl Output {
     pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
         &self.private_key_share
     }
-
-    /// Simulate the output of a keygen run with the given participants.
-    ///
-    /// This should __never__ be called outside of tests!
-    #[cfg(test)]
-    pub(crate) fn simulate(
-        pids: &[ParticipantIdentifier],
-        rng: &mut (impl CryptoRng + RngCore),
-    ) -> Self {
-        use rand::Rng;
-
-        let (mut private_key_shares, public_key_shares): (Vec<_>, Vec<_>) = pids
-            .iter()
-            .map(|&pid| {
-                // TODO #340: Replace with KeyShare methods once they exist.
-                let secret = KeySharePrivate::random(rng);
-                let public = secret.public_share().unwrap();
-                (secret, KeySharePublic::new(pid, public))
-            })
-            .unzip();
-
-        let rid = rng.gen();
-
-        Self {
-            private_key_share: private_key_shares.pop().unwrap(),
-            public_key_shares,
-            rid,
-        }
-    }
 }
 
 impl ProtocolParticipant for KeygenParticipant {
@@ -680,6 +651,65 @@ mod tests {
     use std::collections::HashMap;
     use tracing::debug;
 
+    impl Output {
+        /// Simulate the output of a keygen run with the given participants.
+        ///
+        /// This should __never__ be called outside of tests!
+        pub(crate) fn simulate(
+            pids: &[ParticipantIdentifier],
+            rng: &mut (impl CryptoRng + RngCore),
+        ) -> Self {
+            let (mut private_key_shares, public_key_shares): (Vec<_>, Vec<_>) = pids
+                .iter()
+                .map(|&pid| {
+                    // TODO #340: Replace with KeyShare methods once they exist.
+                    let secret = KeySharePrivate::random(rng);
+                    let public = secret.public_share().unwrap();
+                    (secret, KeySharePublic::new(pid, public))
+                })
+                .unzip();
+
+            let rid = rng.gen();
+
+            Self {
+                private_key_share: private_key_shares.pop().unwrap(),
+                public_key_shares,
+                rid,
+            }
+        }
+
+        /// Simulate a consistent output of a keygen run with the given
+        /// participants.
+        ///
+        /// This produces output for every config in the provided set. The
+        /// config must have a non-zero length.
+        pub(crate) fn simulate_set(
+            configs: &[ParticipantConfig],
+            rng: &mut (impl CryptoRng + RngCore),
+        ) -> Vec<Self> {
+            let (private_key_shares, public_key_shares): (Vec<_>, Vec<_>) = configs
+                .iter()
+                .map(|config| {
+                    // TODO #340: Replace with KeyShare methods once they exist.
+                    let secret = KeySharePrivate::random(rng);
+                    let public = secret.public_share().unwrap();
+                    (secret, KeySharePublic::new(config.id(), public))
+                })
+                .unzip();
+
+            let rid = rng.gen();
+
+            private_key_shares
+                .into_iter()
+                .map(|private_key_share| Self {
+                    private_key_share,
+                    public_key_shares: public_key_shares.clone(),
+                    rid,
+                })
+                .collect()
+        }
+    }
+
     impl KeygenParticipant {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
@@ -691,6 +721,7 @@ mod tests {
                 .map(|config| Self::new(sid, config.id(), config.other_ids().to_vec(), ()))
                 .collect::<Result<Vec<_>>>()
         }
+
         pub fn initialize_keygen_message(&self, keygen_identifier: Identifier) -> Result<Message> {
             let empty: [u8; 0] = [];
             Message::new(

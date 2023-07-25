@@ -1185,3 +1185,171 @@ impl PresignKeyShareAndInfo {
         Ok((private, ret_publics))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::{collections::HashMap, iter::zip};
+
+    use k256::Scalar;
+    use libpaillier::unknown_order::BigNumber;
+    use rand::{CryptoRng, Rng, RngCore};
+    use tracing::debug;
+
+    use crate::{
+        auxinfo,
+        errors::Result,
+        keygen::{self, KeySharePublic},
+        messages::{Message, MessageType, PresignMessageType},
+        participant::ProcessOutcome,
+        presign::{Input, PresignRecord},
+        utils::{self, testing::init_testing},
+        Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
+    };
+
+    use super::{PresignParticipant, Status};
+
+    fn deliver_all(
+        messages: &[Message],
+        inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
+    ) {
+        for message in messages {
+            for (&id, inbox) in &mut *inboxes {
+                if id == message.to() {
+                    inbox.push(message.clone());
+                    break;
+                }
+            }
+        }
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn process_messages<R: RngCore + CryptoRng>(
+        quorum: &mut Vec<PresignParticipant>,
+        inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
+        rng: &mut R,
+    ) -> Option<(usize, ProcessOutcome<PresignRecord>)> {
+        // Pick a random participant to process
+        let index = rng.gen_range(0..quorum.len());
+        let participant = quorum.get_mut(index).unwrap();
+
+        let inbox = inboxes.get_mut(&participant.id()).unwrap();
+        if inbox.is_empty() {
+            // No messages to process for this participant, so pick another participant
+            return None;
+        }
+        let message = inbox.remove(rng.gen_range(0..inbox.len()));
+        debug!(
+            "processing participant: {}, with message type: {:?} from {}",
+            &participant.id(),
+            &message.message_type(),
+            &message.from(),
+        );
+        Some((index, participant.process_message(rng, &message).unwrap()))
+    }
+
+    #[test]
+    fn presign_produces_valid_outputs() -> Result<()> {
+        let quorum_size = 4;
+        let rng = &mut init_testing();
+        let sid = Identifier::random(rng);
+
+        // Prepare prereqs for making PresignParticipants. Assume all the simulations
+        // are stable (e.g. keep config order)
+        let configs = ParticipantConfig::random_quorum(quorum_size, rng)?;
+        let keygen_outputs = keygen::Output::simulate_set(&configs, rng);
+        let auxinfo_outputs = auxinfo::Output::simulate_set(&configs, rng);
+
+        // Make the participants
+        let mut quorum = zip(configs, zip(keygen_outputs.clone(), auxinfo_outputs))
+            .map(|(config, (keygen_output, auxinfo_output))| {
+                let input = Input::new(auxinfo_output, keygen_output)?;
+                assert_eq!(
+                    &KeySharePublic::new(config.id(), input.private_key_share().public_share()?),
+                    input.find_keyshare_public(config.id())?
+                );
+                PresignParticipant::new(sid, config.id(), config.other_ids().to_vec(), input)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // Make inboxes for message passing
+        let mut inboxes = HashMap::new();
+        for participant in &quorum {
+            let _ = inboxes.insert(participant.id, vec![]);
+        }
+
+        // Make a place to store outputs
+        let mut outputs = std::iter::repeat_with(|| None)
+            .take(quorum_size)
+            .collect::<Vec<_>>();
+
+        // Pass everyone a ready message
+        for participant in &quorum {
+            let inbox = inboxes.get_mut(&participant.id).unwrap();
+            let empty: [u8; 0] = [];
+            inbox.push(Message::new(
+                MessageType::Presign(PresignMessageType::Ready),
+                sid,
+                participant.id,
+                participant.id,
+                &empty,
+            )?);
+        }
+
+        while !quorum
+            .iter()
+            .all(|participant| *participant.status() == Status::TerminatedSuccessfully)
+        {
+            let (index, outcome) = match process_messages(&mut quorum, &mut inboxes, rng) {
+                None => continue,
+                Some(x) => x,
+            };
+
+            // Deliver messages and save outputs
+            match outcome {
+                ProcessOutcome::Incomplete => {}
+                ProcessOutcome::Processed(messages) => deliver_all(&messages, &mut inboxes),
+                ProcessOutcome::Terminated(output) => outputs[index] = Some(output),
+                ProcessOutcome::TerminatedForThisParticipant(output, messages) => {
+                    deliver_all(&messages, &mut inboxes);
+                    outputs[index] = Some(output);
+                }
+            }
+        }
+
+        // Every party produced an output
+        let records: Vec<_> = outputs.into_iter().flatten().collect();
+        assert!(records.len() == quorum_size);
+
+        // Every presign record has the same `R` value
+        // We don't stick this in a HashSet because `CurvePoint`s can't be hashed :(
+        assert!(records
+            .windows(2)
+            .all(|records| records[0].mask_point() == records[1].mask_point()));
+        let mask_point = records[0].mask_point();
+
+        // R is correctly formed with respect to the mask `k`:
+        // R = g^(k^-1), where `g` is the generator of the elliptic curve
+        // and `k` is the sum of the mask shares `k_i` in all the presign records
+        let mask = records
+            .iter()
+            .map(|record| record.mask_share())
+            .fold(Scalar::ZERO, |sum, mask_share| sum + mask_share);
+        let inverse: Scalar = Option::from(mask.invert()).unwrap();
+        assert_eq!(mask_point.0, k256::ProjectivePoint::GENERATOR * inverse);
+
+        // The masked key `Chi` is correctly formed with respect to the mask `k` and
+        // secret key `x`: Chi = x * k mod q
+        let masked_key = records
+            .iter()
+            .map(|record| record.masked_key_share())
+            .fold(Scalar::ZERO, |sum, masked_key_share| sum + masked_key_share);
+        let secret_key = keygen_outputs
+            .iter()
+            .map(|output| output.private_key_share())
+            .fold(BigNumber::zero(), |sum, key_share| sum + key_share.as_ref());
+        // Converting to scalars automatically gets us the mod q
+        assert_eq!(masked_key, utils::bn_to_scalar(&secret_key)? * mask);
+
+        Ok(())
+    }
+}

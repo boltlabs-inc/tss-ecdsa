@@ -82,46 +82,83 @@ impl Output {
     pub(crate) fn private_auxinfo(&self) -> &AuxInfoPrivate {
         &self.private_auxinfo
     }
-
-    /// Simulate the output of an auxinfo run with the given participants.
-    ///
-    /// This should __never__ be called outside of tests! It does not validate
-    /// the PID input.
-    #[cfg(test)]
-    pub(crate) fn simulate(
-        pids: &[ParticipantIdentifier],
-        rng: &mut (impl CryptoRng + RngCore),
-    ) -> Self {
-        use crate::{paillier::DecryptionKey, ring_pedersen::VerifiedRingPedersen};
-
-        let (mut private_auxinfo, public_auxinfo): (Vec<_>, Vec<_>) = pids
-            .iter()
-            .map(|&pid| {
-                let (key, _, _) = DecryptionKey::new(rng).unwrap();
-                (
-                    AuxInfoPrivate::from(key.clone()),
-                    AuxInfoPublic::new(
-                        &(),
-                        pid,
-                        key.encryption_key(),
-                        VerifiedRingPedersen::extract(&key, &(), rng).unwrap(),
-                    )
-                    .unwrap(),
-                )
-            })
-            .unzip();
-
-        Self {
-            private_auxinfo: private_auxinfo.pop().unwrap(),
-            public_auxinfo,
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{paillier::DecryptionKey, utils::testing::init_testing};
+    use crate::{
+        paillier::DecryptionKey, ring_pedersen::VerifiedRingPedersen, utils::testing::init_testing,
+        ParticipantConfig,
+    };
+
+    impl Output {
+        /// Simulate the output of an auxinfo run with the given participants.
+        ///
+        /// This should __never__ be called outside of tests! It does not
+        /// validate the PID input.
+        pub(crate) fn simulate(
+            pids: &[ParticipantIdentifier],
+            rng: &mut (impl CryptoRng + RngCore),
+        ) -> Self {
+            let (mut private_auxinfo, public_auxinfo): (Vec<_>, Vec<_>) = pids
+                .iter()
+                .map(|&pid| {
+                    let (key, _, _) = DecryptionKey::new(rng).unwrap();
+                    (
+                        AuxInfoPrivate::from(key.clone()),
+                        AuxInfoPublic::new(
+                            &(),
+                            pid,
+                            key.encryption_key(),
+                            VerifiedRingPedersen::extract(&key, &(), rng).unwrap(),
+                        )
+                        .unwrap(),
+                    )
+                })
+                .unzip();
+
+            Self {
+                private_auxinfo: private_auxinfo.pop().unwrap(),
+                public_auxinfo,
+            }
+        }
+
+        /// Simulate a consistent output of an auxinfo run with the given
+        /// participants.
+        ///
+        /// This produces output for every config in the provided set. The
+        /// config must have a non-zero length.
+        pub(crate) fn simulate_set(
+            configs: &[ParticipantConfig],
+            rng: &mut (impl CryptoRng + RngCore),
+        ) -> Vec<Self> {
+            let (private_auxinfo, public_auxinfo): (Vec<_>, Vec<_>) = configs
+                .iter()
+                .map(|config| {
+                    let (key, _, _) = DecryptionKey::new(rng).unwrap();
+                    (
+                        AuxInfoPrivate::from(key.clone()),
+                        AuxInfoPublic::new(
+                            &(),
+                            config.id(),
+                            key.encryption_key(),
+                            VerifiedRingPedersen::extract(&key, &(), rng).unwrap(),
+                        )
+                        .unwrap(),
+                    )
+                })
+                .unzip();
+
+            private_auxinfo
+                .into_iter()
+                .map(|private_auxinfo| Self {
+                    private_auxinfo,
+                    public_auxinfo: public_auxinfo.clone(),
+                })
+                .collect()
+        }
+    }
 
     #[test]
     fn from_into_parts_works() {

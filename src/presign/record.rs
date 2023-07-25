@@ -280,6 +280,20 @@ mod tests {
         PresignRecord,
     };
 
+    impl PresignRecord {
+        pub(crate) fn mask_point(&self) -> &CurvePoint {
+            &self.R
+        }
+
+        pub(crate) fn mask_share(&self) -> &Scalar {
+            &self.k
+        }
+
+        pub(crate) fn masked_key_share(&self) -> &Scalar {
+            &self.chi
+        }
+    }
+
     fn random_record(rng: &mut StdRng) -> PresignRecord {
         let point = CurvePoint(ProjectivePoint::random(StdRng::from_seed(rng.gen())));
         let random_share = Scalar::random(StdRng::from_seed(rng.gen()));
