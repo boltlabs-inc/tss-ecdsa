@@ -34,10 +34,6 @@ mod storage {
     use super::*;
     use crate::local_storage::TypeTag;
 
-    pub(super) struct Ready;
-    impl TypeTag for Ready {
-        type Value = ();
-    }
     pub(super) struct Private;
     impl TypeTag for Private {
         type Value = AuxInfoPrivate;

@@ -109,6 +109,19 @@ impl TryFrom<RecordPair> for PresignRecord {
 }
 
 impl PresignRecord {
+    /// Compute the x-projection of the randomly-selected point `R` from the
+    /// [`PresignRecord`].
+    pub(crate) fn x_projection(&self) -> Result<Scalar> {
+        let x_projection = self.R.0.to_affine().x();
+
+        // Note: I don't think this is a foolproof transformation. The `from_repr`
+        // method expects a scalar in the range `[0, q)`, but there's no
+        // guarantee that the x-coordinate of `R` will be in that range.
+        Option::from(Scalar::from_repr(x_projection)).ok_or_else(|| {
+            error!("Unable to compute x-projection of curve point: failed to convert x coord to `Scalar`");
+            InternalInvariantFailed
+        })
+    }
     /// Generate a signature share for the given [`Sha256`] instance.
     ///
     /// This method consumes the [`PresignRecord`] since it must only be used
@@ -117,11 +130,8 @@ impl PresignRecord {
     pub fn sign(self, hasher: Sha256) -> Result<SignatureShare> {
         info!("Issuing signature with presign record.");
         // Compute the x-projection of `R` (`r` in the paper).
-        let x_projection = self.R.0.to_affine().x();
-        let x_projection = Option::from(Scalar::from_repr(x_projection)).ok_or_else(|| {
-            error!("Unable to compute x-projection of curve point: failed to convert projection to `Scalar`");
-            InternalInvariantFailed
-        })?;
+        let x_projection = self.x_projection()?;
+
         // Compute the digest (as a `Scalar`) of the message provided in
         // `hasher` (`m` in the paper).
         let digest =

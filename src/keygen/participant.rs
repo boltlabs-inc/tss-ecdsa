@@ -37,10 +37,6 @@ mod storage {
     use super::*;
     use crate::local_storage::TypeTag;
 
-    pub(super) struct Ready;
-    impl TypeTag for Ready {
-        type Value = ();
-    }
     pub(super) struct Commit;
     impl TypeTag for Commit {
         type Value = KeygenCommit;

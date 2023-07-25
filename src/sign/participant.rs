@@ -12,9 +12,11 @@ use rand::{CryptoRng, RngCore};
 
 use crate::{
     errors::Result,
+    local_storage::LocalStorage,
     messages::{Message, MessageType},
-    participant::ProcessOutcome,
-    protocol::ProtocolType,
+    participant::{InnerProtocolParticipant, ProcessOutcome},
+    protocol::{ProtocolType, SharedContext},
+    zkp::ProofContext,
     Identifier, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
 };
 
@@ -54,7 +56,10 @@ use crate::{
 /// with Identifiable Aborts. [EPrint archive,
 /// 2021](https://eprint.iacr.org/2021/060.pdf).
 
-pub struct SignParticipant {}
+pub struct SignParticipant {
+    storage: LocalStorage,
+    ready: bool,
+}
 
 /// Input for a [`SignParticipant`].
 #[allow(unused)]
@@ -62,6 +67,13 @@ pub struct SignParticipant {}
 pub struct Input {
     message_digest: Box<[u8; 32]>,
     presign_record: PresignRecord,
+}
+
+impl Input {
+    #[allow(unused)]
+    pub(crate) fn presign_record(&self) -> &PresignRecord {
+        &self.presign_record
+    }
 }
 
 /// ECDSA signature on a message.
@@ -79,6 +91,46 @@ pub enum Status {
     Initialized,
     /// Participant has finished the sub-protocol.
     TerminatedSuccessfully,
+}
+
+/// Context for fiat-Shamir proofs generated in the non-interactive signing
+/// protocol.
+///
+/// Note that this is only used in the case of identifiable abort, which is not
+/// yet implemented. A correct execution of signing does not involve any ZK
+/// proofs.
+pub(crate) struct SignContext {
+    shared_context: SharedContext,
+    message_digest: [u8; 32],
+}
+
+impl ProofContext for SignContext {
+    fn as_bytes(&self) -> Result<Vec<u8>> {
+        Ok([
+            self.shared_context.as_bytes()?,
+            self.message_digest.to_vec(),
+        ]
+        .concat())
+    }
+}
+
+impl SignContext {
+    /// Build a [`SignContext`] from a [`SignParticipant`].
+    pub(crate) fn collect(p: &SignParticipant) -> Self {
+        Self {
+            shared_context: SharedContext::collect(p),
+            message_digest: *p.input().message_digest,
+        }
+    }
+}
+
+mod storage {
+    use crate::{local_storage::TypeTag, SignatureShare};
+
+    pub(super) struct Share;
+    impl TypeTag for Share {
+        type Value = SignatureShare;
+    }
 }
 
 #[allow(unused)]
@@ -137,5 +189,25 @@ impl ProtocolParticipant for SignParticipant {
 
     fn is_ready(&self) -> bool {
         todo!()
+    }
+}
+
+impl InnerProtocolParticipant for SignParticipant {
+    type Context = SignContext;
+
+    fn retrieve_context(&self) -> Self::Context {
+        SignContext::collect(self)
+    }
+
+    fn local_storage(&self) -> &LocalStorage {
+        &self.storage
+    }
+
+    fn local_storage_mut(&mut self) -> &mut LocalStorage {
+        &mut self.storage
+    }
+
+    fn set_ready(&mut self) {
+        self.ready = true;
     }
 }

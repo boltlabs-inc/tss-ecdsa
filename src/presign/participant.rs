@@ -47,10 +47,6 @@ use tracing::{error, info, instrument};
 mod storage {
     use crate::local_storage::TypeTag;
 
-    pub(super) struct Ready;
-    impl TypeTag for Ready {
-        type Value = ();
-    }
     pub(super) struct RoundOnePrivate;
     impl TypeTag for RoundOnePrivate {
         type Value = crate::presign::round_one::Private;

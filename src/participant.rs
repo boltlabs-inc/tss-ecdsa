@@ -379,6 +379,8 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         Ok(progress_storage.get(&func_name).is_some())
     }
 
+    /// Each `InnerProtocolParticipant` must have some kind of indicator for
+    /// when it is ready to process messages. This method turns it on.
     fn set_ready(&mut self);
 }
 
