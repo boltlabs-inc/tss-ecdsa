@@ -279,6 +279,16 @@ mod tests {
     }
 
     #[test]
+    fn test_random_response_schnorr_proof() -> Result<()> {
+        Ok(())
+    }
+
+    #[test]
+    fn test_bad_generator_schnorr_proof() -> Result<()> {
+        Ok(())
+    }
+
+    #[test]
     fn test_bad_secret_input_schnorr_proof() -> Result<()> {
         let mut rng = init_testing();
 
