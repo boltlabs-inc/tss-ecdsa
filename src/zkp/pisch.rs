@@ -279,6 +279,64 @@ mod tests {
     }
 
     #[test]
+    fn test_bad_common_input_schnorr_proof() -> Result<()> {
+        let mut rng = init_testing();
+
+        let q = crate::utils::k256_order();
+        let g = CurvePoint::GENERATOR;
+
+        let x = crate::utils::random_positive_bn(&mut rng, &q);
+
+        let X = g.multiply_by_scalar(&x)?;
+
+        // Generating random `Y` for generating random input for verifying the
+        // proof than which was used to create it
+        let y = crate::utils::random_positive_bn(&mut rng, &q);
+        let Y = g.multiply_by_scalar(&y)?;
+        assert_ne!(X, Y);
+
+        let input = CommonInput::new(&X);
+        let com = PiSchProof::precommit(&mut rng)?;
+        let proof = PiSchProof::prove_from_precommit(
+            &(),
+            &com,
+            &input,
+            &ProverSecret::new(&y),
+            &transcript(),
+        )?;
+        let bad_input = CommonInput::new(&Y);
+        assert!(proof.verify(bad_input, &(), &mut transcript()).is_err());
+
+        Ok(())
+    }
+
+    /*#[test]
+    fn test_bad_commitment_schnorr_proof() -> Result<()> {
+        let mut rng = init_testing();
+
+        let q = crate::utils::k256_order();
+        let g = CurvePoint::GENERATOR;
+
+        let x = crate::utils::random_positive_bn(&mut rng, &q);
+
+        let X = g.multiply_by_scalar(&x)?;
+        // Generating random commitment
+        let bad_commitment = PiSchProof::precommit(&mut rng)?;
+
+        let input = CommonInput::new(&X);
+        let proof = PiSchProof::prove_from_precommit(
+            &(),
+            &bad_commitment,
+            &input,
+            &ProverSecret::new(&x),
+            &transcript(),
+        )?;
+        assert!(proof.verify(input, &(), &mut transcript()).is_err());
+
+        Ok(())
+    }*/
+
+    #[test]
     fn test_schnorr_proof() -> Result<()> {
         let mut rng = init_testing();
 
