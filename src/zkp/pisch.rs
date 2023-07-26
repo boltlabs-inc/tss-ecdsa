@@ -145,8 +145,8 @@ impl Proof2 for PiSchProof {
         // Do equality checks
 
         let response_matches_commitment = {
-            let lhs = CurvePoint::GENERATOR.multiply_by_scalar(&self.response)?;
-            let rhs = self.commitment + input.x_commitment.multiply_by_scalar(&self.challenge)?;
+            let lhs = CurvePoint::GENERATOR.multiply_by_bignum(&self.response)?;
+            let rhs = self.commitment + input.x_commitment.multiply_by_bignum(&self.challenge)?;
             lhs == rhs
         };
         if !response_matches_commitment {
@@ -164,7 +164,7 @@ impl PiSchProof {
         // Sample alpha from F_q
         let randomness_for_commitment = random_positive_bn(rng, &k256_order());
         // Form a commitment to the mask
-        let precommitment = CurvePoint::GENERATOR.multiply_by_scalar(&randomness_for_commitment)?;
+        let precommitment = CurvePoint::GENERATOR.multiply_by_bignum(&randomness_for_commitment)?;
         Ok(PiSchPrecommit {
             precommitment,
             randomness_for_commitment,
@@ -244,7 +244,7 @@ mod tests {
         let g = CurvePoint::GENERATOR;
 
         let mut x = random_positive_bn(rng, &q);
-        let x_commit = g.multiply_by_scalar(&x)?;
+        let x_commit = g.multiply_by_bignum(&x)?;
         if additive {
             x += random_positive_bn(rng, &q);
         }
@@ -267,11 +267,11 @@ mod tests {
 
         let x = random_positive_bn(&mut rng, &q);
 
-        let x_commit = g.multiply_by_scalar(&x)?;
+        let x_commit = g.multiply_by_bignum(&x)?;
 
         // Generating random commitment
         let y = random_positive_bn(&mut rng, &q);
-        let y_commit = g.multiply_by_scalar(&y)?;
+        let y_commit = g.multiply_by_bignum(&y)?;
 
         let input = CommonInput::new(&x_commit);
         let com = PiSchProof::precommit(&mut rng)?;
@@ -296,7 +296,7 @@ mod tests {
 
         let x = random_positive_bn(&mut rng, &q);
 
-        let x_commit = g.multiply_by_scalar(&x)?;
+        let x_commit = g.multiply_by_bignum(&x)?;
 
         let input = CommonInput::new(&x_commit);
         let com = PiSchProof::precommit(&mut rng)?;
@@ -321,8 +321,8 @@ mod tests {
 
         let x = random_positive_bn(&mut rng, &q);
 
-        let x_commit = g.multiply_by_scalar(&x)?;
-        let bad_generator = x_commit.multiply_by_scalar(&x)?;
+        let x_commit = g.multiply_by_bignum(&x)?;
+        let bad_generator = x_commit.multiply_by_bignum(&x)?;
 
         let input = CommonInput::new(&bad_generator);
         let com = PiSchProof::precommit(&mut rng)?;
@@ -346,7 +346,7 @@ mod tests {
 
         let x = random_positive_bn(&mut rng, &q);
 
-        let x_commit = g.multiply_by_scalar(&x)?;
+        let x_commit = g.multiply_by_bignum(&x)?;
 
         // Generating random `y` for bad secret input
         let y = random_positive_bn(&mut rng, &q);
@@ -375,12 +375,12 @@ mod tests {
 
         let x = random_positive_bn(&mut rng, &q);
 
-        let x_commit = g.multiply_by_scalar(&x)?;
+        let x_commit = g.multiply_by_bignum(&x)?;
 
         // Generating random commitment to `y` for generating random input for verifying
         // the proof than which was used to create it
         let y = random_positive_bn(&mut rng, &q);
-        let y_commit = g.multiply_by_scalar(&y)?;
+        let y_commit = g.multiply_by_bignum(&y)?;
         assert_ne!(x_commit, y_commit);
 
         let input = CommonInput::new(&x_commit);
@@ -439,7 +439,7 @@ mod tests {
         let g = CurvePoint::GENERATOR;
 
         let x = random_positive_bn(&mut rng, &q);
-        let x_commit = g.multiply_by_scalar(&x)?;
+        let x_commit = g.multiply_by_bignum(&x)?;
 
         let input = CommonInput::new(&x_commit);
         let com = PiSchProof::precommit(&mut rng)?;

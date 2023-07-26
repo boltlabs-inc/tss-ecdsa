@@ -45,7 +45,7 @@ impl KeySharePrivate {
 
     /// Computes the "raw" curve point corresponding to this private key.
     pub(crate) fn public_share(&self) -> Result<CurvePoint> {
-        CurvePoint::GENERATOR.multiply_by_scalar(&self.x)
+        CurvePoint::GENERATOR.multiply_by_bignum(&self.x)
     }
 
     /// Convert private material into bytes.

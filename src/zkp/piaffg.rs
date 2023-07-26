@@ -284,7 +284,7 @@ impl Proof2 for PiAffgProof {
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Compute the exponentiation of the random multiplicative coefficient
         // (producing `B_x` in the paper)
-        let random_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_scalar(&random_mult_coeff)?;
+        let random_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_bignum(&random_mult_coeff)?;
         // Encrypt the random additive coefficient using the 1st encryption key
         // (producing `B_y` in the paper).
         let (random_add_coeff_ciphertext_prover, random_add_coeff_nonce_prover) = input
@@ -424,9 +424,9 @@ impl Proof2 for PiAffgProof {
         }
         // Check that the masked group exponentiation is valid.
         let masked_group_exponentiation_is_valid = {
-            let lhs = CurvePoint::GENERATOR.multiply_by_scalar(&self.masked_mult_coeff)?;
+            let lhs = CurvePoint::GENERATOR.multiply_by_bignum(&self.masked_mult_coeff)?;
             let rhs = self.random_mult_coeff_exp
-                + input.mult_coeff_exp.multiply_by_scalar(&self.challenge)?;
+                + input.mult_coeff_exp.multiply_by_bignum(&self.challenge)?;
             lhs == rhs
         };
         if !masked_group_exponentiation_is_valid {
@@ -576,7 +576,7 @@ mod tests {
         let (decryption_key_1, _, _) = DecryptionKey::new(rng).unwrap();
         let pk1 = decryption_key_1.encryption_key();
 
-        let mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_scalar(x)?;
+        let mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_bignum(x)?;
         let (add_coeff_ciphertext_prover, rho_y) = pk1
             .encrypt(rng, y)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
@@ -783,7 +783,7 @@ mod tests {
 
             // Swap multi coefficient exponent with a random [`CurvePoint`]
             let mask = random_plusminus_by_size(&mut rng, ELL);
-            let bad_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_scalar(&mask)?;
+            let bad_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_bignum(&mask)?;
             assert_ne!(bad_mult_coeff_exp, input.mult_coeff_exp.clone());
             let bad_input = PiAffgInput::new(
                 input.verifier_setup_params,
@@ -813,7 +813,7 @@ mod tests {
         let (decryption_key_1, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let pk1 = decryption_key_1.encryption_key();
 
-        let mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_scalar(&x)?;
+        let mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_bignum(&x)?;
         let (add_coeff_ciphertext_prover, rho_y) = pk1
             .encrypt(&mut rng, &y)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
@@ -969,7 +969,7 @@ mod tests {
             // Swap random_mult_coeff_exp with a random [`CurvePoint`]
             let mut bad_proof = proof.clone();
             let mask = random_plusminus_by_size(&mut rng, ELL);
-            bad_proof.random_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_scalar(&mask)?;
+            bad_proof.random_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_bignum(&mask)?;
             assert_ne!(bad_proof.random_mult_coeff_exp, proof.random_mult_coeff_exp);
             assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 

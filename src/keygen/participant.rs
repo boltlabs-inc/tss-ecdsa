@@ -837,7 +837,7 @@ mod tests {
 
         // Make sure every player got an output
         let outputs: Vec<_> = outputs.into_iter().flatten().collect();
-        assert!(outputs.len() == QUORUM_SIZE);
+        assert_eq!(outputs.len(), QUORUM_SIZE);
 
         // Check returned outputs
         //
@@ -886,7 +886,7 @@ mod tests {
             assert!(public_share.is_some());
 
             let expected_public_share =
-                CurvePoint::GENERATOR.multiply_by_scalar(output.private_key_share.as_ref())?;
+                CurvePoint::GENERATOR.multiply_by_bignum(output.private_key_share.as_ref())?;
             assert_eq!(public_share.unwrap().as_ref(), &expected_public_share);
         }
 

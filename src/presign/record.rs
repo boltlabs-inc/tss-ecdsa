@@ -272,12 +272,14 @@ mod tests {
         elliptic_curve::{Field, Group},
         ProjectivePoint, Scalar,
     };
-    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use libpaillier::unknown_order::BigNumber;
+    use rand::{rngs::StdRng, CryptoRng, Rng, RngCore, SeedableRng};
 
     use crate::{
-        presign::record::RECORD_TAG,
-        utils::{testing::init_testing, CurvePoint},
-        PresignRecord,
+        keygen,
+        presign::{participant::presign_record_set_is_valid, record::RECORD_TAG},
+        utils::{bn_to_scalar, testing::init_testing, CurvePoint},
+        ParticipantConfig, PresignRecord,
     };
 
     impl PresignRecord {
@@ -292,24 +294,88 @@ mod tests {
         pub(crate) fn masked_key_share(&self) -> &Scalar {
             &self.chi
         }
+
+        /// Simulate creation of a random presign record. Do not use outside of
+        /// testing.
+        fn simulate(rng: &mut StdRng) -> PresignRecord {
+            let mask_point = CurvePoint(ProjectivePoint::random(StdRng::from_seed(rng.gen())));
+            let mask_share = Scalar::random(StdRng::from_seed(rng.gen()));
+            let masked_key_share = Scalar::random(rng);
+
+            PresignRecord {
+                R: mask_point,
+                k: mask_share,
+                chi: masked_key_share,
+            }
+        }
+
+        /// Simulate generation of a valid set of presign records to correspond
+        /// with the provided keygen outputs.
+        ///
+        /// For testing only; this does not check that the keygen output set is
+        /// consistent or complete.
+        pub(crate) fn simulate_set(
+            keygen_outputs: &[keygen::Output],
+            rng: &mut (impl CryptoRng + RngCore),
+        ) -> Vec<Self> {
+            // Note: using slightly-biased generation for faster tests
+            let mask_shares =
+                std::iter::repeat_with(|| Scalar::generate_biased(StdRng::from_seed(rng.gen())))
+                    .take(keygen_outputs.len())
+                    .collect::<Vec<_>>();
+            let mask = mask_shares
+                .iter()
+                .fold(Scalar::ZERO, |sum, mask_share| sum + mask_share);
+            let mask_inversion = Option::<Scalar>::from(mask.invert()).unwrap();
+            // `R` in the paper.
+            let mask_point = CurvePoint::GENERATOR.multiply_by_scalar(&mask_inversion);
+
+            let secret_key = keygen_outputs
+                .iter()
+                .map(|output| output.private_key_share())
+                .fold(BigNumber::zero(), |sum, key_share| sum + key_share.as_ref());
+
+            // Make all but one of the masked key shares randomly
+            let mut masked_key_shares =
+                std::iter::repeat_with(|| Scalar::random(StdRng::from_seed(rng.gen())))
+                    .take(keygen_outputs.len() - 1)
+                    .collect::<Vec<_>>();
+            let almost_masked_key = masked_key_shares
+                .iter()
+                .fold(Scalar::ZERO, |sum, masked_share| sum + masked_share);
+
+            // Compute the last key share to force correctness. We need to enforce that
+            // sum(masked_key_shares) = secret_key * mask (mod q)
+            masked_key_shares.push(bn_to_scalar(&secret_key).unwrap() * mask - almost_masked_key);
+
+            assert_eq!(masked_key_shares.len(), keygen_outputs.len());
+            assert_eq!(mask_shares.len(), keygen_outputs.len());
+
+            std::iter::zip(masked_key_shares, mask_shares)
+                .map(|(masked_key_share, mask_share)| Self {
+                    R: mask_point,
+                    k: mask_share,
+                    chi: masked_key_share,
+                })
+                .collect()
+        }
     }
 
-    fn random_record(rng: &mut StdRng) -> PresignRecord {
-        let point = CurvePoint(ProjectivePoint::random(StdRng::from_seed(rng.gen())));
-        let random_share = Scalar::random(StdRng::from_seed(rng.gen()));
-        let chi_share = Scalar::random(rng);
+    #[test]
+    fn simulated_presign_output_is_valid() {
+        let rng = &mut init_testing();
+        let configs = ParticipantConfig::random_quorum(5, rng).unwrap();
+        let keygen_outputs = keygen::Output::simulate_set(&configs, rng);
+        let records = PresignRecord::simulate_set(&keygen_outputs, rng);
 
-        PresignRecord {
-            R: point,
-            k: random_share,
-            chi: chi_share,
-        }
+        // Check validity of set; this will panic if anything is wrong
+        presign_record_set_is_valid(records, keygen_outputs);
     }
 
     #[test]
     fn record_bytes_conversion_works() {
         let rng = &mut init_testing();
-        let record = random_record(rng);
+        let record = PresignRecord::simulate(rng);
         let clone = PresignRecord { ..record };
 
         let bytes = record.into_bytes();
@@ -322,7 +388,7 @@ mod tests {
     #[test]
     fn deserialized_record_tag_must_be_correct() {
         let rng = &mut init_testing();
-        let record = random_record(rng);
+        let record = PresignRecord::simulate(rng);
 
         // Cut out the tag from the serialized bytes for convenience.
         let share_bytes = &record.into_bytes()[RECORD_TAG.len()..];
@@ -372,7 +438,7 @@ mod tests {
     #[test]
     fn point_field_must_have_length_prepended() {
         let rng = &mut init_testing();
-        let PresignRecord { R, k, chi } = random_record(rng);
+        let PresignRecord { R, k, chi } = PresignRecord::simulate(rng);
 
         let point = R.to_bytes();
 
@@ -397,7 +463,7 @@ mod tests {
     #[test]
     fn k_field_must_have_length_prepended() {
         let rng = &mut init_testing();
-        let PresignRecord { R, k, chi } = random_record(rng);
+        let PresignRecord { R, k, chi } = PresignRecord::simulate(rng);
 
         let point = R.to_bytes();
         let point_len = point.len().to_le_bytes();
@@ -416,7 +482,7 @@ mod tests {
     #[test]
     fn chi_field_must_have_length_prepended() {
         let rng = &mut init_testing();
-        let PresignRecord { R, k, chi } = random_record(rng);
+        let PresignRecord { R, k, chi } = PresignRecord::simulate(rng);
 
         let point = R.to_bytes();
         let point_len = point.len().to_le_bytes();
@@ -446,7 +512,7 @@ mod tests {
         assert!(PresignRecord::try_from_bytes(bytes.to_vec()).is_err());
         assert!(PresignRecord::try_from_bytes(RECORD_TAG.to_vec()).is_err());
 
-        let PresignRecord { R, k, chi } = random_record(rng);
+        let PresignRecord { R, k, chi } = PresignRecord::simulate(rng);
 
         let point = R.to_bytes();
         let point_len = point.len().to_le_bytes();

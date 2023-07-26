@@ -14,7 +14,7 @@ use k256::{
         group::{ff::PrimeField, GroupEncoding},
         AffinePoint, Curve,
     },
-    Secp256k1,
+    Scalar, Secp256k1,
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -47,9 +47,19 @@ impl CurvePoint {
     /// key
     pub const IDENTITY: Self = CurvePoint(k256::ProjectivePoint::IDENTITY);
 
-    /// Multiply `self` by a scalar `point`.
-    pub(crate) fn multiply_by_scalar(&self, point: &BigNumber) -> Result<Self> {
-        Ok(Self(self.0 * crate::utils::bn_to_scalar(point)?))
+    /// Multiply `self` by a [`BigNumber`] point, which is first converted to
+    /// the secp256k1 [`Scalar`] field (taken mod `q`, where `q` is the
+    /// order of the curve).
+    ///
+    /// Note: This method ends up cloning the `point` value in the process of
+    /// converting it. This may be insecure if the point contains private
+    /// data.
+    pub(crate) fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
+        Ok(self.multiply_by_scalar(&bn_to_scalar(point)?))
+    }
+
+    pub(crate) fn multiply_by_scalar(&self, point: &Scalar) -> Self {
+        Self(self.0 * point)
     }
 
     /// Serialize the `CurvePoint` as an affine-encoded secp256k1 byte array.

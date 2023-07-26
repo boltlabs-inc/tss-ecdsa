@@ -1016,7 +1016,7 @@ impl PresignKeyShareAndInfo {
             .map_err(|_| InternalError::InternalInvariantFailed)?;
 
         let g = CurvePoint::GENERATOR;
-        let Gamma = g.multiply_by_scalar(&sender_r1_priv.gamma)?;
+        let Gamma = g.multiply_by_bignum(&sender_r1_priv.gamma)?;
 
         // Generate the proofs.
         let mut transcript = Transcript::new(b"PiAffgProof");
@@ -1104,7 +1104,7 @@ impl PresignKeyShareAndInfo {
             .keyshare_private
             .as_ref()
             .modmul(&sender_r1_priv.k, &order);
-        let mut Gamma = g.multiply_by_scalar(&sender_r1_priv.gamma)?;
+        let mut Gamma = g.multiply_by_bignum(&sender_r1_priv.gamma)?;
 
         for round_three_input in other_participant_inputs.values() {
             let r2_pub_j = round_three_input.r2_public.clone();
@@ -1142,7 +1142,7 @@ impl PresignKeyShareAndInfo {
             Gamma = CurvePoint(Gamma.0 + r2_pub_j.Gamma.0);
         }
 
-        let Delta = Gamma.multiply_by_scalar(&sender_r1_priv.k)?;
+        let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k)?;
 
         let delta_scalar = bn_to_scalar(&delta)?;
         let chi_scalar = bn_to_scalar(&chi)?;
@@ -1187,6 +1187,9 @@ impl PresignKeyShareAndInfo {
 }
 
 #[cfg(test)]
+pub(super) use test::presign_record_set_is_valid;
+
+#[cfg(test)]
 mod test {
     use std::{collections::HashMap, iter::zip};
 
@@ -1198,7 +1201,7 @@ mod test {
     use crate::{
         auxinfo,
         errors::Result,
-        keygen::{self, KeySharePublic},
+        keygen,
         messages::{Message, MessageType, PresignMessageType},
         participant::ProcessOutcome,
         presign::{Input, PresignRecord},
@@ -1247,6 +1250,41 @@ mod test {
         Some((index, participant.process_message(rng, &message).unwrap()))
     }
 
+    pub(crate) fn presign_record_set_is_valid(
+        records: Vec<PresignRecord>,
+        keygen_outputs: Vec<keygen::Output>,
+    ) {
+        // Every presign record has the same `R` value
+        // We don't stick this in a HashSet because `CurvePoint`s can't be hashed :(
+        assert!(records
+            .windows(2)
+            .all(|records| records[0].mask_point() == records[1].mask_point()));
+        let mask_point = records[0].mask_point();
+
+        // Mask point `R` is correctly formed with respect to the mask `k`:
+        // `R = g^(k^-1)`, where `g` is the generator of the elliptic curve
+        // and `k` is the sum of the mask shares `k_i` in all the presign records
+        let mask = records
+            .iter()
+            .map(|record| record.mask_share())
+            .fold(Scalar::ZERO, |sum, mask_share| sum + mask_share);
+        let inverse: Scalar = Option::from(mask.invert()).unwrap();
+        assert_eq!(mask_point.0, k256::ProjectivePoint::GENERATOR * inverse);
+
+        // The masked key `Chi` is correctly formed with respect to the mask `k` and
+        // secret key `x`: `Chi = x * k (mod q)`
+        let masked_key = records
+            .iter()
+            .map(|record| record.masked_key_share())
+            .fold(Scalar::ZERO, |sum, masked_key_share| sum + masked_key_share);
+        let secret_key = keygen_outputs
+            .iter()
+            .map(|output| output.private_key_share())
+            .fold(BigNumber::zero(), |sum, key_share| sum + key_share.as_ref());
+        // Converting to scalars automatically gets us the mod q
+        assert_eq!(masked_key, utils::bn_to_scalar(&secret_key).unwrap() * mask);
+    }
+
     #[test]
     fn presign_produces_valid_outputs() -> Result<()> {
         let quorum_size = 4;
@@ -1263,10 +1301,6 @@ mod test {
         let mut quorum = zip(configs, zip(keygen_outputs.clone(), auxinfo_outputs))
             .map(|(config, (keygen_output, auxinfo_output))| {
                 let input = Input::new(auxinfo_output, keygen_output)?;
-                assert_eq!(
-                    &KeySharePublic::new(config.id(), input.private_key_share().public_share()?),
-                    input.find_keyshare_public(config.id())?
-                );
                 PresignParticipant::new(sid, config.id(), config.other_ids().to_vec(), input)
             })
             .collect::<Result<Vec<_>>>()?;
@@ -1283,18 +1317,18 @@ mod test {
             .collect::<Vec<_>>();
 
         // Pass everyone a ready message
-        for participant in &quorum {
-            let inbox = inboxes.get_mut(&participant.id).unwrap();
+        for (pid, inbox) in &mut inboxes {
             let empty: [u8; 0] = [];
             inbox.push(Message::new(
                 MessageType::Presign(PresignMessageType::Ready),
                 sid,
-                participant.id,
-                participant.id,
+                *pid,
+                *pid,
                 &empty,
             )?);
         }
 
+        // Run protocol until all participants report that they're done
         while !quorum
             .iter()
             .all(|participant| *participant.status() == Status::TerminatedSuccessfully)
@@ -1318,37 +1352,10 @@ mod test {
 
         // Every party produced an output
         let records: Vec<_> = outputs.into_iter().flatten().collect();
-        assert!(records.len() == quorum_size);
+        assert_eq!(records.len(), quorum_size);
 
-        // Every presign record has the same `R` value
-        // We don't stick this in a HashSet because `CurvePoint`s can't be hashed :(
-        assert!(records
-            .windows(2)
-            .all(|records| records[0].mask_point() == records[1].mask_point()));
-        let mask_point = records[0].mask_point();
-
-        // R is correctly formed with respect to the mask `k`:
-        // R = g^(k^-1), where `g` is the generator of the elliptic curve
-        // and `k` is the sum of the mask shares `k_i` in all the presign records
-        let mask = records
-            .iter()
-            .map(|record| record.mask_share())
-            .fold(Scalar::ZERO, |sum, mask_share| sum + mask_share);
-        let inverse: Scalar = Option::from(mask.invert()).unwrap();
-        assert_eq!(mask_point.0, k256::ProjectivePoint::GENERATOR * inverse);
-
-        // The masked key `Chi` is correctly formed with respect to the mask `k` and
-        // secret key `x`: Chi = x * k mod q
-        let masked_key = records
-            .iter()
-            .map(|record| record.masked_key_share())
-            .fold(Scalar::ZERO, |sum, masked_key_share| sum + masked_key_share);
-        let secret_key = keygen_outputs
-            .iter()
-            .map(|output| output.private_key_share())
-            .fold(BigNumber::zero(), |sum, key_share| sum + key_share.as_ref());
-        // Converting to scalars automatically gets us the mod q
-        assert_eq!(masked_key, utils::bn_to_scalar(&secret_key)? * mask);
+        // Check validity of set; this will panic if anything is wrong
+        presign_record_set_is_valid(records, keygen_outputs);
 
         Ok(())
     }

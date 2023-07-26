@@ -785,7 +785,7 @@ mod tests {
 
         // Make sure every player got an output
         let outputs: Vec<_> = outputs.into_iter().flatten().collect();
-        assert!(outputs.len() == QUORUM_SIZE);
+        assert_eq!(outputs.len(), QUORUM_SIZE);
 
         let participant_ids = quorum[0].all_participants();
         let context = SharedContext::fill_context(participant_ids, sid);

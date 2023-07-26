@@ -226,7 +226,7 @@ impl Proof2 for PiLogProof {
             .encrypt(rng, &mask)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Commit to the random plaintext using discrete log (`Y` in the paper).
-        let mask_dlog_commit = input.generator.multiply_by_scalar(&mask)?;
+        let mask_dlog_commit = input.generator.multiply_by_bignum(&mask)?;
         // Commit to the random plaintext using ring-Pedersen (producing variables `D`
         // and `ɣ` in the paper).
         let (mask_commit, mask_commit_randomness) =
@@ -310,9 +310,9 @@ impl Proof2 for PiLogProof {
         let group_exponentiation_is_valid = {
             let lhs = input
                 .generator
-                .multiply_by_scalar(&self.plaintext_response)?;
+                .multiply_by_bignum(&self.plaintext_response)?;
             let rhs =
-                self.mask_dlog_commit + input.dlog_commit.multiply_by_scalar(&self.challenge)?;
+                self.mask_dlog_commit + input.dlog_commit.multiply_by_bignum(&self.challenge)?;
             lhs == rhs
         };
         if !group_exponentiation_is_valid {
@@ -437,7 +437,7 @@ mod tests {
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let pk = decryption_key.encryption_key();
         let g = CurvePoint::GENERATOR;
-        let dlog_commit = g.multiply_by_scalar(&x)?;
+        let dlog_commit = g.multiply_by_bignum(&x)?;
         let (ciphertext, rho) = pk.encrypt(&mut rng, &x).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
@@ -464,7 +464,7 @@ mod tests {
 
         // Generate a random generator
         let random_mask = random_plusminus_by_size(&mut rng, ELL);
-        let bad_g = input.generator.multiply_by_scalar(&random_mask)?;
+        let bad_g = input.generator.multiply_by_bignum(&random_mask)?;
         let bad_input = CommonInput::new(
             &ciphertext,
             &dlog_commit,
@@ -523,7 +523,7 @@ mod tests {
 
         // Swap dlog_commit with a random [`CurvePoint`]
         let mask = random_plusminus_by_size(&mut rng, ELL);
-        let bad_dlog_commit = input.generator.multiply_by_scalar(&mask)?;
+        let bad_dlog_commit = input.generator.multiply_by_bignum(&mask)?;
         assert_ne!(&bad_dlog_commit, input.dlog_commit);
         let bad_input = CommonInput::new(
             &ciphertext,
@@ -554,7 +554,7 @@ mod tests {
         let g = CurvePoint::GENERATOR;
 
         // Make a valid common input
-        let dlog_commit = g.multiply_by_scalar(&x)?;
+        let dlog_commit = g.multiply_by_bignum(&x)?;
         let (ciphertext, rho) = pk.encrypt(&mut rng, &x).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let input = CommonInput::new(&ciphertext, &dlog_commit, setup_params.scheme(), &pk, &g);
@@ -641,7 +641,7 @@ mod tests {
             // Swap mask_dlog_commit with a random [`CurvePoint`]
             let mut bad_proof = proof.clone();
             let mask = random_plusminus_by_size(&mut rng, ELL);
-            bad_proof.mask_dlog_commit = input.generator.multiply_by_scalar(&mask)?;
+            bad_proof.mask_dlog_commit = input.generator.multiply_by_bignum(&mask)?;
             assert_ne!(bad_proof.mask_dlog_commit, proof.mask_dlog_commit);
             assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
