@@ -250,6 +250,35 @@ mod tests {
     }
 
     #[test]
+    fn test_bad_secret_input_schnorr_proof() -> Result<()> {
+        let mut rng = init_testing();
+
+        let q = crate::utils::k256_order();
+        let g = CurvePoint::GENERATOR;
+
+        let x = crate::utils::random_positive_bn(&mut rng, &q);
+
+        let X = g.multiply_by_scalar(&x)?;
+
+        // Generating random `y` for bad secret input
+        let y = crate::utils::random_positive_bn(&mut rng, &q);
+        assert_ne!(x, y);
+
+        let input = CommonInput::new(&X);
+        let com = PiSchProof::precommit(&mut rng)?;
+        let proof = PiSchProof::prove_from_precommit(
+            &(),
+            &com,
+            &input,
+            &ProverSecret::new(&y),
+            &transcript(),
+        )?;
+        assert!(proof.verify(input, &(), &mut transcript()).is_err());
+
+        Ok(())
+    }
+
+    #[test]
     fn test_schnorr_proof() -> Result<()> {
         let mut rng = init_testing();
 
