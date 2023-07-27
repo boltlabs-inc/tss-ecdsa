@@ -280,6 +280,26 @@ mod tests {
 
     #[test]
     fn test_random_response_schnorr_proof() -> Result<()> {
+        let mut rng = init_testing();
+
+        let q = crate::utils::k256_order();
+        let g = CurvePoint::GENERATOR;
+
+        let x = crate::utils::random_positive_bn(&mut rng, &q);
+
+        let X = g.multiply_by_scalar(&x)?;
+
+        let input = CommonInput::new(&X);
+        let com = PiSchProof::precommit(&mut rng)?;
+        let mut proof = PiSchProof::prove_from_precommit(
+            &(),
+            &com,
+            &input,
+            &ProverSecret::new(&x),
+            &transcript(),
+        )?;
+        proof.response = crate::utils::random_positive_bn(&mut rng, &q);
+        assert!(proof.verify(input, &(), &mut transcript()).is_err());
         Ok(())
     }
 
