@@ -308,7 +308,7 @@ fn jacobi(numerator: &BigNumber, denominator: &BigNumber) -> isize {
 /// Finds the two x's such that x^2 = n (mod p), where p is a prime that is 3
 /// (mod 4)
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
-fn square_roots_mod_prime(n: &BigNumber, p: &BigNumber) -> Result<(BigNumber, BigNumber)> {
+fn square_roots_mod_prime(n: &BigNumber, p: &BigNumber) -> Option<(BigNumber, BigNumber)> {
     // Compute r = +- n^{p+1/4} (mod p)
     let r = modpow(n, &(&(p + 1) / 4), p);
     let neg_r = r.modneg(p);
@@ -317,10 +317,10 @@ fn square_roots_mod_prime(n: &BigNumber, p: &BigNumber) -> Result<(BigNumber, Bi
     // there are no solutions
 
     if modpow(&r, &BigNumber::from(2), p) == bn_mod(n, p) {
-        return Ok((r, neg_r));
+        Some((r, neg_r))
+    } else {
+        None
     }
-    error!("Could not find square roots modulo n");
-    Err(InternalError::InternalInvariantFailed)
 }
 
 // Finds an (x,y) such that ax + by = 1, or returns error if gcd(a,b) != 1
@@ -371,16 +371,22 @@ fn square_roots_mod_composite(
     n: &BigNumber,
     p: &BigNumber,
     q: &BigNumber,
-) -> Result<[BigNumber; 4]> {
-    let (y1, y2) = square_roots_mod_prime(n, p)?;
-    let (z1, z2) = square_roots_mod_prime(n, q)?;
+) -> Result<Option<[BigNumber; 4]>> {
+    let (y1, y2) = match square_roots_mod_prime(n, p) {
+        Some(roots) => roots,
+        None => return Ok(None),
+    };
+    let (z1, z2) = match square_roots_mod_prime(n, q) {
+        Some(roots) => roots,
+        None => return Ok(None),
+    };
 
     let x1 = chinese_remainder_theorem(&y1, &z1, p, q)?;
     let x2 = chinese_remainder_theorem(&y1, &z2, p, q)?;
     let x3 = chinese_remainder_theorem(&y2, &z1, p, q)?;
     let x4 = chinese_remainder_theorem(&y2, &z2, p, q)?;
 
-    Ok([x1, x2, x3, x4])
+    Ok(Some([x1, x2, x3, x4]))
 }
 
 #[cfg_attr(feature = "flame_it", flame("PaillierBlumModulusProof"))]
@@ -388,23 +394,28 @@ fn fourth_roots_mod_composite(
     n: &BigNumber,
     p: &BigNumber,
     q: &BigNumber,
-) -> Result<Vec<BigNumber>> {
+) -> Result<Option<Vec<BigNumber>>> {
     let mut fourth_roots = vec![];
 
-    let xs = square_roots_mod_composite(n, p, q)?;
-    for x in xs {
-        match square_roots_mod_composite(&x, p, q) {
-            Ok(res) => {
+    let square_roots = match square_roots_mod_composite(n, p, q)? {
+        None => return Ok(None),
+        Some(roots) => roots,
+    };
+
+    // Note: could iter-ize this
+    for root in square_roots {
+        match square_roots_mod_composite(&root, p, q)? {
+            Some(res) => {
                 for y in res {
                     fourth_roots.push(y);
                 }
             }
-            Err(_) => {
+            None => {
                 continue;
             }
         }
     }
-    Ok(fourth_roots)
+    Ok(Some(fourth_roots))
 }
 
 /// Compute y' = (-1)^a * w^b * y (mod N)
@@ -446,14 +457,14 @@ fn y_prime_combinations(
     for a in 0..2 {
         for b in 0..2 {
             let y_prime = y_prime_from_y(y, w, a, b, &N);
-            match fourth_roots_mod_composite(&y_prime, p, q) {
-                Ok(values) => {
+            match fourth_roots_mod_composite(&y_prime, p, q)? {
+                Some(values) => {
                     has_fourth_roots += 1;
                     success_a = a;
                     success_b = b;
                     ret.extend_from_slice(&values);
                 }
-                Err(_) => {
+                None => {
                     continue;
                 }
             }
@@ -521,16 +532,13 @@ mod tests {
 
             let roots = square_roots_mod_prime(&a, &p);
             match roots {
-                Ok((r1, r2)) => {
+                Some((r1, r2)) => {
                     assert_eq!(a_p, 1);
                     assert_eq!(modpow(&r1, &BigNumber::from(2), &p), a);
                     assert_eq!(modpow(&r2, &BigNumber::from(2), &p), a);
                 }
-                Err(InternalError::InternalInvariantFailed) => {
+                None => {
                     assert_ne!(a_p, 1);
-                }
-                Err(_) => {
-                    panic!("Should not reach here");
                 }
             }
         }
@@ -551,16 +559,19 @@ mod tests {
             let a = BigNumber::from_rng(&N, &mut rng);
             let a_n = jacobi(&a, &N);
 
-            let roots = square_roots_mod_composite(&a, &p, &q);
+            // This shouldn't throw an error
+            let roots = square_roots_mod_composite(&a, &p, &q).unwrap();
+
+            // It's ok if it doesn't give a fourth root, though
             match roots {
-                Ok(xs) => {
+                Some(xs) => {
                     assert_eq!(a_n, 1);
                     for x in xs {
                         assert_eq!(modpow(&x, &BigNumber::from(2), &N), a);
                     }
                     success += 1;
                 }
-                Err(_) => {
+                None => {
                     continue;
                 }
             }
@@ -582,16 +593,16 @@ mod tests {
             let a = BigNumber::from_rng(&N, &mut rng);
             let a_n = jacobi(&a, &N);
 
-            let roots = fourth_roots_mod_composite(&a, &p, &q);
+            let roots = fourth_roots_mod_composite(&a, &p, &q).unwrap();
             match roots {
-                Ok(xs) => {
+                Some(xs) => {
                     assert_eq!(a_n, 1);
                     for x in xs {
                         assert_eq!(modpow(&x, &BigNumber::from(4), &N), a);
                     }
                     success += 1;
                 }
-                Err(_) => {
+                None => {
                     continue;
                 }
             }
