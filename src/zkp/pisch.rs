@@ -252,7 +252,6 @@ mod tests {
     #[test]
     fn test_random_commitment_schnorr_proof() -> Result<()> {
         let mut rng = init_testing();
-        let mut rng1 = init_testing();
 
         let q = crate::utils::k256_order();
         let g = CurvePoint::GENERATOR;
@@ -261,19 +260,20 @@ mod tests {
 
         let X = g.multiply_by_scalar(&x)?;
 
-        // Generating random `y` for bad secret input
+        // Generating random commitment
         let y = crate::utils::random_positive_bn(&mut rng, &q);
-        assert_ne!(x, y);
+        let Y = g.multiply_by_scalar(&y)?;
 
         let input = CommonInput::new(&X);
-        let bad_com = PiSchProof::precommit(&mut rng1)?;
-        let proof = PiSchProof::prove_from_precommit(
+        let com = PiSchProof::precommit(&mut rng)?;
+        let mut proof = PiSchProof::prove_from_precommit(
             &(),
-            &bad_com,
+            &com,
             &input,
             &ProverSecret::new(&y),
             &transcript(),
         )?;
+        proof.commitment = Y;
         assert!(proof.verify(input, &(), &mut transcript()).is_err());
         Ok(())
     }
