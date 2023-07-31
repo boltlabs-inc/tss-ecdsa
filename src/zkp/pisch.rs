@@ -146,12 +146,7 @@ impl Proof2 for PiSchProof {
 
         let response_matches_commitment = {
             let lhs = CurvePoint::GENERATOR.multiply_by_scalar(&self.response)?;
-            /*let rhs = CurvePoint(
-                self.commitment.0 + input.x_commitment.0 * utils::bn_to_scalar(&self.challenge)?,
-            );*/
-            let rhs = self
-                .commitment
-                .add(&input.x_commitment.multiply_by_scalar(&self.challenge)?);
+            let rhs = self.commitment + input.x_commitment.multiply_by_scalar(&self.challenge)?;
             lhs == rhs
         };
         if !response_matches_commitment {
@@ -205,10 +200,12 @@ impl PiSchProof {
     }
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         message.check_type(MessageType::Keygen(KeygenMessageType::R3Proof))?;
-        let pischproofbytes: PiSchProof = deserialize!(&message.unverified_bytes)?;
-        assert!(pischproofbytes.challenge < k256_order());
+        let pisch_proof: PiSchProof = deserialize!(&message.unverified_bytes)?;
+        if pisch_proof.challenge >= k256_order() {
+            return Err(InternalError::ProtocolError);
+        }
         //assert!(pischproofbytes.response < k256_order());
-        Ok(pischproofbytes)
+        Ok(pisch_proof)
     }
     fn fill_transcript(
         transcript: &mut Transcript,
@@ -218,7 +215,7 @@ impl PiSchProof {
     ) -> Result<()> {
         transcript.append_message(b"PiSch ProofContext", &context.as_bytes()?);
         transcript.append_message(b"PiSch CommonInput", &serialize!(&input)?);
-        transcript.append_message(b"A", &serialize!(commitment)?);
+        transcript.append_message(b"PiSch Commitment", &serialize!(commitment)?);
         Ok(())
     }
 }
