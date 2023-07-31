@@ -188,7 +188,10 @@ impl PiSchProof {
         let challenge = positive_challenge_from_transcript(&mut local_transcript, &k256_order())?;
 
         // Create a response by masking the secret with the challenge and mask
-        let response = &com.randomness_for_commitment + &challenge * secret.discrete_logarithm;
+        let response = com.randomness_for_commitment.modadd(
+            &challenge.modmul(secret.discrete_logarithm, &k256_order()),
+            &k256_order(),
+        );
 
         // Proof consists of all 3 messages in the 3 rounds
         let proof = Self {
@@ -204,9 +207,9 @@ impl PiSchProof {
         if pisch_proof.challenge >= k256_order() {
             return Err(InternalError::ProtocolError);
         }
-        /*if pisch_proof.response >= k256_order() {
+        if pisch_proof.response >= k256_order() {
             return Err(InternalError::ProtocolError);
-        }*/
+        }
         Ok(pisch_proof)
     }
     fn fill_transcript(
