@@ -574,16 +574,6 @@ mod tests {
     }
 
     #[test]
-    fn inputs_should_be_correct() -> Result<()> {
-        Ok(())
-    }
-
-    #[test]
-    fn setup_paramaters_should_be_same_proof_and_verify() -> Result<()> {
-        Ok(())
-    }
-
-    #[test]
     // Make sure the bytes representations for BigNum and BigInt
     // didn't change in a way that would mess up the sqrt funtion
     fn test_bignum_bigint_byte_representation() -> Result<()> {
