@@ -503,15 +503,24 @@ mod tests {
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
         let input = CommonInput::new(&setup_params, &N0);
-        let mut proof = PiFacProof::prove(
+        let proof = PiFacProof::prove(
             input,
             ProverSecret::new(&p0, &q0),
             &(),
             &mut transcript(),
             &mut rng,
         )?;
-        proof.p_masked = random_positive_bn(&mut rng, &k256_order());
-        assert!(proof.verify(input, &(), &mut transcript()).is_err());
+        let mut incorrect_proof = proof.clone();
+        //let correct_p_masked = proof.p_masked.clone();
+        incorrect_proof.p_masked = random_positive_bn(&mut rng, &k256_order());
+        assert!(incorrect_proof
+            .verify(input, &(), &mut transcript())
+            .is_err());
+        let mut incorrect_proof = proof.clone();
+        incorrect_proof.q_masked = random_positive_bn(&mut rng, &k256_order());
+        assert!(incorrect_proof
+            .verify(input, &(), &mut transcript())
+            .is_err());
         Ok(())
     }
 
