@@ -203,7 +203,7 @@ impl PiSchProof {
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         message.check_type(MessageType::Keygen(KeygenMessageType::R3Proof))?;
         let pischproofbytes: PiSchProof = deserialize!(&message.unverified_bytes)?;
-        //assert!(pischproofbytes.challenge < k256_order());
+        assert!(pischproofbytes.challenge < k256_order());
         //assert!(pischproofbytes.response < k256_order());
         Ok(pischproofbytes)
     }
