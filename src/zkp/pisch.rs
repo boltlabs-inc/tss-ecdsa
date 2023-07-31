@@ -204,7 +204,9 @@ impl PiSchProof {
         if pisch_proof.challenge >= k256_order() {
             return Err(InternalError::ProtocolError);
         }
-        //assert!(pischproofbytes.response < k256_order());
+        /*if pisch_proof.response >= k256_order() {
+            return Err(InternalError::ProtocolError);
+        }*/
         Ok(pisch_proof)
     }
     fn fill_transcript(
