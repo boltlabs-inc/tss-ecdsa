@@ -511,16 +511,27 @@ mod tests {
             &mut rng,
         )?;
         let mut incorrect_proof = proof.clone();
-        //let correct_p_masked = proof.p_masked.clone();
-        incorrect_proof.p_masked = random_positive_bn(&mut rng, &k256_order());
+        let random_bignumber = random_positive_bn(&mut rng, &k256_order());
+        incorrect_proof.p_masked = random_bignumber.clone();
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
             .is_err());
         let mut incorrect_proof = proof.clone();
-        incorrect_proof.q_masked = random_positive_bn(&mut rng, &k256_order());
+        incorrect_proof.q_masked = random_bignumber.clone();
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
             .is_err());
+        let mut incorrect_proof = proof.clone();
+
+        let scheme = VerifiedRingPedersen::gen(&mut rng, &())?;
+        let (random_commitment, _random_commmitment_randomness) =
+            scheme.scheme().commit(&random_bignumber, 256, &mut rng);
+        //let c_ = scheme.scheme().reconstruct(&random_bignumber, r.as_masked());
+        incorrect_proof.p_commitment = random_commitment;
+        assert!(incorrect_proof
+            .verify(input, &(), &mut transcript())
+            .is_err());
+
         Ok(())
     }
 
