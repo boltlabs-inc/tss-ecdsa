@@ -146,9 +146,12 @@ impl Proof2 for PiSchProof {
 
         let response_matches_commitment = {
             let lhs = CurvePoint::GENERATOR.multiply_by_scalar(&self.response)?;
-            let rhs = CurvePoint(
+            /*let rhs = CurvePoint(
                 self.commitment.0 + input.x_commitment.0 * utils::bn_to_scalar(&self.challenge)?,
-            );
+            );*/
+            let rhs = self
+                .commitment
+                .add(&input.x_commitment.multiply_by_scalar(&self.challenge)?);
             lhs == rhs
         };
         if !response_matches_commitment {

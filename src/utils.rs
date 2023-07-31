@@ -47,6 +47,11 @@ impl CurvePoint {
     /// key
     pub const IDENTITY: Self = CurvePoint(k256::ProjectivePoint::IDENTITY);
 
+    /// Add a curvepoint to `self`.
+    pub(crate) fn add(&self, other: &CurvePoint) -> CurvePoint {
+        CurvePoint(self.0 + other.0)
+    }
+
     /// Multiply `self` by a scalar `point`.
     pub(crate) fn multiply_by_scalar(&self, point: &BigNumber) -> Result<Self> {
         Ok(Self(self.0 * crate::utils::bn_to_scalar(point)?))
