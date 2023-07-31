@@ -331,7 +331,11 @@ fn sqrt(num: &BigNumber) -> BigNumber {
 
 #[cfg(test)]
 mod tests {
-    use crate::{paillier::prime_gen, utils::testing::init_testing, zkp::BadContext};
+    use crate::{
+        paillier::prime_gen,
+        utils::{k256_order, random_positive_bn, testing::init_testing},
+        zkp::BadContext,
+    };
     use rand::{prelude::StdRng, Rng, SeedableRng};
 
     use super::*;
@@ -488,6 +492,36 @@ mod tests {
         assert!(small_fac_proof
             .verify(small_fac_input, &(), &mut transcript())
             .is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn proof_elements_should_be_correct() -> Result<()> {
+        let mut rng = init_testing();
+        let (p0, q0) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let N0 = &p0 * &q0;
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
+
+        let input = CommonInput::new(&setup_params, &N0);
+        let mut proof = PiFacProof::prove(
+            input,
+            ProverSecret::new(&p0, &q0),
+            &(),
+            &mut transcript(),
+            &mut rng,
+        )?;
+        proof.p_masked = random_positive_bn(&mut rng, &k256_order());
+        assert!(proof.verify(input, &(), &mut transcript()).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn inputs_should_be_correct() -> Result<()> {
+        Ok(())
+    }
+
+    #[test]
+    fn setup_paramaters_should_be_same_proof_and_verify() -> Result<()> {
         Ok(())
     }
 
