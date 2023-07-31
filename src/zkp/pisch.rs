@@ -231,7 +231,7 @@ mod tests {
         additive: bool,
         test_code: impl Fn(PiSchProof, CommonInput) -> Result<()>,
     ) -> Result<()> {
-        let q = crate::utils::k256_order();
+        let q = k256_order();
         let g = CurvePoint::GENERATOR;
 
         let mut x = random_positive_bn(rng, &q);
@@ -250,10 +250,10 @@ mod tests {
     }
 
     #[test]
-    fn test_random_commitment_schnorr_proof() -> Result<()> {
+    fn proof_commitment_field_must_match_input() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = crate::utils::k256_order();
+        let q = k256_order();
         let g = CurvePoint::GENERATOR;
 
         let x = random_positive_bn(&mut rng, &q);
@@ -279,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn test_random_response_schnorr_proof() -> Result<()> {
+    fn proof_response_field_must_match_input() -> Result<()> {
         let mut rng = init_testing();
 
         let q = k256_order();
@@ -304,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bad_generator_schnorr_proof() -> Result<()> {
+    fn generator_must_be_correct() -> Result<()> {
         let mut rng = init_testing();
 
         let q = k256_order();
@@ -329,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bad_secret_input_schnorr_proof() -> Result<()> {
+    fn secret_input_must_be_the_same_proving_and_verifying() -> Result<()> {
         let mut rng = init_testing();
 
         let q = k256_order();
@@ -358,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bad_common_input_schnorr_proof() -> Result<()> {
+    fn common_input_must_be_the_same_proving_and_verifying() -> Result<()> {
         let mut rng = init_testing();
 
         let q = k256_order();
@@ -368,8 +368,8 @@ mod tests {
 
         let x_commit = g.multiply_by_scalar(&x)?;
 
-        // Generating random `Y` for generating random input for verifying the
-        // proof than which was used to create it
+        // Generating random commitment to `y` for generating random input for verifying
+        // the proof than which was used to create it
         let y = random_positive_bn(&mut rng, &q);
         let y_commit = g.multiply_by_scalar(&y)?;
         assert_ne!(x_commit, y_commit);
