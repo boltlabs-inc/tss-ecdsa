@@ -143,3 +143,26 @@ impl AuxInfoProof {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rand::random;
+
+    use crate::utils::testing::init_testing;
+    use crate::paillier::prime_gen;
+
+    use super::*;
+
+    #[test]
+    fn auxinfo_proof_verifies() -> Result<()> {
+        let rng = init_testing();
+        let sid = Identifier::random(&mut rng);
+        let rho = random(); 
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
+        let modulus = prime_gen::try_get_prime_from_pool_insecure(&mut rng).unwrap();
+        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let proof = AuxInfoProof::prove(&mut rng, &(), sid, rho, &setup_params, &modulus, &p, &q)?;
+        assert!(proof.verify(&(), sid, rho, &setup_params, &modulus).is_ok());
+        Ok(())
+    }
+}
