@@ -784,10 +784,10 @@ mod tests {
 
     #[test]
     fn commitment_must_be_correct() -> Result<()> {
-        /*let mut rng = init_testing();
-        let (proof, input) = random_pimod_proof(&mut rng);
-        proof
-        assert!(proof.verify(&input, &(), &mut transcript()).is_ok());*/
+        let mut rng = init_testing();
+        let (mut bad_proof, input) = random_pimod_proof(&mut rng);
+        bad_proof.random_jacobi_one = random_positive_bn(&mut rng, &k256_order());
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
         Ok(())
     }
 
