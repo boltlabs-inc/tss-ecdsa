@@ -499,10 +499,10 @@ mod tests {
     fn proof_elements_should_be_correct() -> Result<()> {
         let mut rng = init_testing();
         let (p0, q0) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
-        let N0 = &p0 * &q0;
+        let modulus = &p0 * &q0;
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
-        let input = CommonInput::new(&setup_params, &N0);
+        let input = CommonInput::new(&setup_params, &modulus);
         let proof = PiFacProof::prove(
             input,
             ProverSecret::new(&p0, &q0),
@@ -523,8 +523,8 @@ mod tests {
             .is_err());
         let mut incorrect_proof = proof.clone();
         let scheme = VerifiedRingPedersen::gen(&mut rng, &())?;
-        let (random_commitment, random_commmitment_randomness) =
-            scheme.scheme().commit(&random_bignumber, 256, &mut rng);
+        let (random_commitment, _) =
+            scheme.scheme().commit(&random_bignumber, ELL, &mut rng);
         incorrect_proof.p_commitment = random_commitment.clone();
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
@@ -535,6 +535,8 @@ mod tests {
             .verify(input, &(), &mut transcript())
             .is_err());
         let mut incorrect_proof = proof.clone();
+        let (random_commitment, random_commmitment_randomness) =
+            scheme.scheme().commit(&random_bignumber, ELL+EPSILON, &mut rng);
         incorrect_proof.p_mask_commitment = random_commitment.clone();
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
