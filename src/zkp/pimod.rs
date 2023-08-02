@@ -483,6 +483,8 @@ fn y_prime_combinations(
 
 #[cfg(test)]
 mod tests {
+    use rand::random;
+
     use super::*;
     use crate::{
         paillier::{prime_gen, DecryptionKey},
@@ -783,14 +785,39 @@ mod tests {
     #[test]
     fn responses_must_be_correct() -> Result<()> {
         let mut rng = init_testing();
-        let (mut proof, input) = random_pimod_proof(&mut rng);
+        let (proof, input) = random_pimod_proof(&mut rng);
         let new_challenge_secret_link = random_positive_bn(&mut rng, &k256_order());
-        if let Some(first_element) = proof.elements.get_mut(0) {
+        let mut bad_proof = proof.clone();
+        if let Some(first_element) = bad_proof.elements.get_mut(0) {
             first_element.challenge_secret_link = new_challenge_secret_link;
         } else {
             println!("No element found");
         }
-        assert!(proof.verify(&input, &(), &mut transcript()).is_err());
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
+        let mut bad_proof = proof.clone();
+        let new_sign_exponent: usize = random();
+        if let Some(first_element) = bad_proof.elements.get_mut(0) {
+            first_element.sign_exponent = new_sign_exponent;
+        } else {
+            println!("No element found");
+        }
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
+        let mut bad_proof = proof.clone();
+        let new_jacobi_exponent: usize = random();
+        if let Some(first_element) = bad_proof.elements.get_mut(0) {
+            first_element.sign_exponent = new_jacobi_exponent;
+        } else {
+            println!("No element found");
+        }
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
+        let new_fourth_root = random_positive_bn(&mut rng, &k256_order());
+        let mut bad_proof = proof.clone();
+        if let Some(first_element) = bad_proof.elements.get_mut(0) {
+            first_element.fourth_root = new_fourth_root;
+        } else {
+            println!("No element found");
+        }
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
         Ok(())
     }
 
