@@ -773,11 +773,24 @@ mod tests {
 
     #[test]
     fn commitment_must_be_correct() -> Result<()> {
+        /*let mut rng = init_testing();
+        let (proof, input) = random_pimod_proof(&mut rng);
+        proof
+        assert!(proof.verify(&input, &(), &mut transcript()).is_ok());*/
         Ok(())
     }
 
     #[test]
     fn responses_must_be_correct() -> Result<()> {
+        let mut rng = init_testing();
+        let (mut proof, input) = random_pimod_proof(&mut rng);
+        let new_challenge_secret_link = random_positive_bn(&mut rng, &k256_order());
+        if let Some(first_element) = proof.elements.get_mut(0) {
+            first_element.challenge_secret_link = new_challenge_secret_link;
+        } else {
+            println!("No element found");
+        }
+        assert!(proof.verify(&input, &(), &mut transcript()).is_err());
         Ok(())
     }
 
