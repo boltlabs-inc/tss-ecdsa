@@ -770,6 +770,15 @@ mod tests {
 
     #[test]
     fn challenges_must_be_derived_from_transcript() -> Result<()> {
+        let mut rng = init_testing();
+        let (mut bad_proof, input) = random_pimod_proof(&mut rng);
+        let new_challenge = random_positive_bn(&mut rng, &k256_order());
+        if let Some(first_element) = bad_proof.elements.get_mut(0) {
+            first_element.challenge_secret_link = new_challenge;
+        } else {
+            println!("No element found");
+        }
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
         Ok(())
     }
 
