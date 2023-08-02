@@ -147,6 +147,7 @@ impl AuxInfoProof {
 #[cfg(test)]
 mod tests {
     use rand::random;
+    use rocket::response::content;
 
     use crate::utils::testing::init_testing;
     use crate::paillier::prime_gen;
