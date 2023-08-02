@@ -756,8 +756,7 @@ mod tests {
         };
         let secret = ProverSecret { p, q };
 
-        let mut transcript = Transcript::new(b"PiMod Test");
-        let proof_result = PiModProof::prove(&input, &secret, &(), &mut transcript, rng);
+        let proof_result = PiModProof::prove(&input, &secret, &(), &mut transcript(), rng);
         assert!(proof_result.is_ok());
         (proof_result.unwrap(), input)
     }
@@ -795,20 +794,16 @@ mod tests {
     #[test]
     fn pimod_proof_verifies() {
         let mut rng = init_testing();
-
         let (proof, input) = random_pimod_proof(&mut rng);
-        let mut transcript = Transcript::new(b"PiMod Test");
-        assert!(proof.verify(&input, &(), &mut transcript).is_ok());
+        assert!(proof.verify(&input, &(), &mut transcript()).is_ok());
     }
 
     #[test]
     fn pimod_proof_context_must_be_correct() -> Result<()> {
         let mut rng = init_testing();
-
         let context = BadContext {};
         let (proof, input) = random_pimod_proof(&mut rng);
-        let mut transcript = Transcript::new(b"PiMod Test");
-        let result = proof.verify(&input, &context, &mut transcript);
+        let result = proof.verify(&input, &context, &mut transcript());
         assert!(result.is_err());
         Ok(())
     }
@@ -844,11 +839,8 @@ mod tests {
         let (proof, input) = random_pimod_proof(&mut rng);
         let (short_proof, long_proof) = transform(&proof);
 
-        let mut transcript = Transcript::new(b"PiMod Test");
-        assert!(short_proof.verify(&input, &(), &mut transcript).is_err());
-        let mut transcript = Transcript::new(b"PiMod Test");
-        assert!(long_proof.verify(&input, &(), &mut transcript).is_err());
-        let mut transcript = Transcript::new(b"PiMod Test");
-        assert!(proof.verify(&input, &(), &mut transcript).is_ok());
+        assert!(short_proof.verify(&input, &(), &mut transcript()).is_err());
+        assert!(long_proof.verify(&input, &(), &mut transcript()).is_err());
+        assert!(proof.verify(&input, &(), &mut transcript()).is_ok());
     }
 }
