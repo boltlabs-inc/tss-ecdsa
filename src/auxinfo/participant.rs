@@ -679,16 +679,13 @@ mod tests {
     fn deliver_all(
         messages: &[Message],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
-    ) -> Result<()> {
+    ) {
         for message in messages {
-            for (&id, inbox) in &mut *inboxes {
-                if id == message.to() {
-                    inbox.push(message.clone());
-                    break;
-                }
-            }
+            inboxes
+                .get_mut(&message.to())
+                .unwrap()
+                .push(message.clone());
         }
-        Ok(())
     }
 
     fn is_auxinfo_done(quorum: &[AuxInfoParticipant]) -> bool {
@@ -774,10 +771,10 @@ mod tests {
             // Deliver messages and save outputs
             match outcome {
                 ProcessOutcome::Incomplete => {}
-                ProcessOutcome::Processed(messages) => deliver_all(&messages, &mut inboxes)?,
+                ProcessOutcome::Processed(messages) => deliver_all(&messages, &mut inboxes),
                 ProcessOutcome::Terminated(output) => outputs[index] = Some(output),
                 ProcessOutcome::TerminatedForThisParticipant(output, messages) => {
-                    deliver_all(&messages, &mut inboxes)?;
+                    deliver_all(&messages, &mut inboxes);
                     outputs[index] = Some(output);
                 }
             }

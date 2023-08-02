@@ -12,19 +12,13 @@ use tss_ecdsa::{
 };
 
 /// Delivers all messages into their respective participant's inboxes
-fn deliver_all(
-    messages: &[Message],
-    inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
-) -> Result<()> {
+fn deliver_all(messages: &[Message], inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>) {
     for message in messages {
-        for (id, inbox) in inboxes.iter_mut() {
-            if *id == message.to() {
-                inbox.push(message.clone());
-                break;
-            }
-        }
+        inboxes
+            .get_mut(&message.to())
+            .unwrap()
+            .push(message.clone());
     }
-    Ok(())
 }
 
 /// Process a single message for a single participant, randomly chosen. If that
@@ -48,7 +42,7 @@ fn process_messages<R: RngCore + CryptoRng, P: ProtocolParticipant>(
     let index = rng.gen_range(0..inbox.len());
     let message = inbox.remove(index);
     let (output, messages) = participant.process_single_message(&message, rng)?;
-    deliver_all(&messages, inboxes)?;
+    deliver_all(&messages, inboxes);
 
     Ok(output)
 }

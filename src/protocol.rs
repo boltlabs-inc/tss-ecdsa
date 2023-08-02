@@ -797,17 +797,15 @@ mod tests {
     fn deliver_all(
         messages: &[Message],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
-    ) -> Result<()> {
+    ) {
         for message in messages {
-            for (&id, inbox) in &mut *inboxes {
-                if id == message.to() {
-                    inbox.push(message.clone());
-                    break;
-                }
-            }
+            inboxes
+                .get_mut(&message.to())
+                .unwrap()
+                .push(message.clone());
         }
-        Ok(())
     }
+
     fn process_messages<R: RngCore + CryptoRng, P: ProtocolParticipant>(
         quorum: &mut [Participant<P>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
@@ -833,7 +831,7 @@ mod tests {
             &message.message_type(),
         );
         let (output, messages) = participant.process_single_message(&message, rng)?;
-        deliver_all(&messages, inboxes)?;
+        deliver_all(&messages, inboxes);
 
         // Return the (id, output) pair, so the calling application knows _who_
         // finished.

@@ -1216,12 +1216,10 @@ mod test {
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
     ) {
         for message in messages {
-            for (&id, inbox) in &mut *inboxes {
-                if id == message.to() {
-                    inbox.push(message.clone());
-                    break;
-                }
-            }
+            inboxes
+                .get_mut(&message.to())
+                .unwrap()
+                .push(message.clone());
         }
     }
 
