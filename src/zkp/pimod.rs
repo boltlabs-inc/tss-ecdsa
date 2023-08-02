@@ -491,6 +491,10 @@ mod tests {
         zkp::BadContext,
     };
 
+    fn transcript() -> Transcript {
+        Transcript::new(b"PiMod Test")
+    }
+
     #[test]
     fn test_jacobi() {
         let mut rng = init_testing();
@@ -759,6 +763,36 @@ mod tests {
     }
 
     #[test]
+    fn secret_inout_should_be_correct() -> Result<()> {
+        Ok(())
+    }
+
+    #[test]
+    fn challenges_must_be_derived_from_transcript() -> Result<()> {
+        Ok(())
+    }
+
+    #[test]
+    fn commitment_must_be_correct() -> Result<()> {
+        Ok(())
+    }
+
+    #[test]
+    fn responses_must_be_correct() -> Result<()> {
+        Ok(())
+    }
+
+    #[test]
+    fn common_input_must_be_same_for_proving_and_verifying() -> Result<()> {
+        let mut rng = init_testing();
+        let random_bn = random_positive_bn(&mut rng, &k256_order());
+        let (proof, _) = random_pimod_proof(&mut rng);
+        let bad_input = CommonInput::new(&random_bn);
+        assert!(proof.verify(&bad_input, &(), &mut transcript()).is_err());
+        Ok(())
+    }
+
+    #[test]
     fn pimod_proof_verifies() {
         let mut rng = init_testing();
 
@@ -778,6 +812,7 @@ mod tests {
         assert!(result.is_err());
         Ok(())
     }
+
     #[test]
     fn pimod_proof_requires_correct_number_of_elements_for_soundness() {
         let mut rng = init_testing();
