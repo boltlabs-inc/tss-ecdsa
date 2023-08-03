@@ -14,3 +14,4 @@
 //! 2021](https://eprint.iacr.org/2021/060.pdf).
 
 mod participant;
+mod share;

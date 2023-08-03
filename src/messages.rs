@@ -32,6 +32,8 @@ pub enum MessageType {
     Keygen(KeygenMessageType),
     /// Presign messages
     Presign(PresignMessageType),
+    /// Sign message
+    Sign(SignMessageType),
     /// Broadcast messages
     Broadcast(BroadcastMessageType),
 }
@@ -39,7 +41,7 @@ pub enum MessageType {
 /// An enum consisting of all auxinfo message types
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AuxinfoMessageType {
-    /// Signals that auxinfo generation is ready
+    /// Signal to self that we're ready to run the protocol
     Ready,
     /// A hash commitment to the public keyshare and associated proofs
     R1CommitHash,
@@ -53,7 +55,7 @@ pub enum AuxinfoMessageType {
 /// An enum consisting of all keygen message types
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum KeygenMessageType {
-    /// Signals that keyshare generation is ready
+    /// Signal to self that we're ready to run the protocol
     Ready,
     /// A hash commitment to the public keyshare and associated proofs
     R1CommitHash,
@@ -67,7 +69,7 @@ pub enum KeygenMessageType {
 /// An enum consisting of all presign message types
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PresignMessageType {
-    /// Signals that presigning is ready
+    /// Signal to self that we're ready to run the protocol
     Ready,
     /// First round of presigning
     RoundOne,
@@ -77,6 +79,15 @@ pub enum PresignMessageType {
     RoundTwo,
     /// Third round of presigning
     RoundThree,
+}
+
+/// Messages sent during the signing protocol
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SignMessageType {
+    /// Signal to self that we're ready to run the protocol
+    Ready,
+    /// First (only) round
+    RoundOneShare,
 }
 
 /// The type of broadcast message this is.

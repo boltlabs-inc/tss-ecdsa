@@ -13,11 +13,11 @@ use rand::{CryptoRng, RngCore};
 use crate::{
     errors::Result,
     local_storage::LocalStorage,
-    messages::{Message, MessageType},
+    messages::{Message, MessageType, SignMessageType},
     participant::{InnerProtocolParticipant, ProcessOutcome},
     protocol::{ProtocolType, SharedContext},
     zkp::ProofContext,
-    Identifier, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
+    Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
 };
 
 /// A participant that runs the signing protocol in Figure 8 of Canetti et
@@ -57,8 +57,11 @@ use crate::{
 /// 2021](https://eprint.iacr.org/2021/060.pdf).
 
 pub struct SignParticipant {
+    sid: Identifier,
     storage: LocalStorage,
-    ready: bool,
+    input: Input,
+    config: ParticipantConfig,
+    status: Status,
 }
 
 /// Input for a [`SignParticipant`].
@@ -87,9 +90,11 @@ pub struct Signature(k256::ecdsa::Signature);
 #[allow(unused)]
 #[derive(Debug, PartialEq)]
 pub enum Status {
-    /// Participant has been initialized.
+    /// Participant is created but has not received a ready message from self.
+    NotReady,
+    /// Participant received a ready message and is executing the protocol.
     Initialized,
-    /// Participant has finished the sub-protocol.
+    /// Participant finished the protocol.
     TerminatedSuccessfully,
 }
 
@@ -125,7 +130,7 @@ impl SignContext {
 }
 
 mod storage {
-    use crate::{local_storage::TypeTag, SignatureShare};
+    use crate::{local_storage::TypeTag, sign::share::SignatureShare};
 
     pub(super) struct Share;
     impl TypeTag for Share {
@@ -140,7 +145,7 @@ impl ProtocolParticipant for SignParticipant {
     type Status = Status;
 
     fn ready_type() -> MessageType {
-        todo!()
+        MessageType::Sign(SignMessageType::Ready)
     }
 
     fn protocol_type() -> ProtocolType {
@@ -156,15 +161,22 @@ impl ProtocolParticipant for SignParticipant {
     where
         Self: Sized,
     {
-        todo!()
+        let config = ParticipantConfig::new(id, &other_participant_ids)?;
+        Ok(Self {
+            sid,
+            config,
+            input,
+            storage: Default::default(),
+            status: Status::NotReady,
+        })
     }
 
     fn id(&self) -> ParticipantIdentifier {
-        todo!()
+        self.config.id()
     }
 
     fn other_ids(&self) -> &[ParticipantIdentifier] {
-        todo!()
+        self.config.other_ids()
     }
 
     fn process_message<R: RngCore + CryptoRng>(
@@ -176,19 +188,19 @@ impl ProtocolParticipant for SignParticipant {
     }
 
     fn status(&self) -> &Self::Status {
-        todo!()
+        &self.status
     }
 
     fn sid(&self) -> Identifier {
-        todo!()
+        self.sid
     }
 
     fn input(&self) -> &Self::Input {
-        todo!()
+        &self.input
     }
 
     fn is_ready(&self) -> bool {
-        todo!()
+        self.status != Status::NotReady
     }
 }
 
@@ -208,6 +220,6 @@ impl InnerProtocolParticipant for SignParticipant {
     }
 
     fn set_ready(&mut self) {
-        self.ready = true;
+        self.status = Status::Initialized;
     }
 }
