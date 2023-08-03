@@ -523,8 +523,7 @@ mod tests {
             .is_err());
         let mut incorrect_proof = proof.clone();
         let scheme = VerifiedRingPedersen::gen(&mut rng, &())?;
-        let (random_commitment, _) =
-            scheme.scheme().commit(&random_bignumber, ELL, &mut rng);
+        let (random_commitment, _) = scheme.scheme().commit(&random_bignumber, ELL, &mut rng);
         incorrect_proof.p_commitment = random_commitment.clone();
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
@@ -536,7 +535,9 @@ mod tests {
             .is_err());
         let mut incorrect_proof = proof.clone();
         let (random_commitment, random_commmitment_randomness) =
-            scheme.scheme().commit(&random_bignumber, ELL+EPSILON, &mut rng);
+            scheme
+                .scheme()
+                .commit(&random_bignumber, ELL + EPSILON, &mut rng);
         incorrect_proof.p_mask_commitment = random_commitment.clone();
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
