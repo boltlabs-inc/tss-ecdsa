@@ -56,7 +56,7 @@ pub(crate) struct RecordPair {
 /// d_A)`, which is exactly a valid (normal) ECDSA signature.
 ///
 /// [^cite]: [Wikipedia](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm#Signature_generation_algorithm)
-#[derive(ZeroizeOnDrop, PartialEq, Eq)]
+#[derive(Zeroize, ZeroizeOnDrop, PartialEq, Eq)]
 pub struct PresignRecord {
     R: CurvePoint,
     k: Scalar,
@@ -109,6 +109,13 @@ impl TryFrom<RecordPair> for PresignRecord {
 }
 
 impl PresignRecord {
+    pub(crate) fn mask_share(&self) -> &Scalar {
+        &self.k
+    }
+
+    pub(crate) fn masked_key_share(&self) -> &Scalar {
+        &self.chi
+    }
     /// Compute the x-projection of the randomly-selected point `R` from the
     /// [`PresignRecord`].
     pub(crate) fn x_projection(&self) -> Result<Scalar> {
@@ -285,14 +292,6 @@ mod tests {
     impl PresignRecord {
         pub(crate) fn mask_point(&self) -> &CurvePoint {
             &self.R
-        }
-
-        pub(crate) fn mask_share(&self) -> &Scalar {
-            &self.k
-        }
-
-        pub(crate) fn masked_key_share(&self) -> &Scalar {
-            &self.chi
         }
 
         /// Simulate creation of a random presign record. Do not use outside of

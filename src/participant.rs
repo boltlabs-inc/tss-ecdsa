@@ -275,13 +275,18 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
     fn message_for_other_participants<T: Serialize>(
         &self,
         message_type: MessageType,
-        id: Identifier,
         data: T,
     ) -> Result<Vec<Message>> {
         self.other_ids()
             .iter()
             .map(|&other_participant_id| {
-                Message::new(message_type, id, self.id(), other_participant_id, &data)
+                Message::new(
+                    message_type,
+                    self.sid(),
+                    self.id(),
+                    other_participant_id,
+                    &data,
+                )
             })
             .collect()
     }

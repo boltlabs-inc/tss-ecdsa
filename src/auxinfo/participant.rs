@@ -403,7 +403,6 @@ impl AuxInfoParticipant {
         let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
         let more_messages = self.message_for_other_participants(
             MessageType::Auxinfo(AuxinfoMessageType::R2Decommit),
-            sid,
             decom,
         )?;
         messages.extend(more_messages);
@@ -754,11 +753,9 @@ mod tests {
             .take(QUORUM_SIZE)
             .collect::<Vec<_>>();
 
-        let keyshare_identifier = Identifier::random(&mut rng);
-
         for participant in &quorum {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
-            inbox.push(participant.initialize_auxinfo_message(keyshare_identifier)?);
+            inbox.push(participant.initialize_auxinfo_message(sid)?);
         }
 
         while !is_auxinfo_done(&quorum) {

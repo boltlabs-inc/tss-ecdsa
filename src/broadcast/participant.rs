@@ -224,7 +224,7 @@ impl BroadcastParticipant {
         _rng: &mut R,
         message_type: MessageType,
         data: Vec<u8>,
-        sid: Identifier,
+        _sid: Identifier,
         tag: BroadcastTag,
     ) -> Result<Vec<Message>> {
         info!(
@@ -240,7 +240,6 @@ impl BroadcastParticipant {
         };
         let messages = self.message_for_other_participants(
             MessageType::Broadcast(BroadcastMessageType::Disperse),
-            sid,
             b_data,
         )?;
         Ok(messages)

@@ -8,6 +8,7 @@
 //! This module instantiates a [`SignParticipant`] which implements the
 //! signing protocol.
 
+use k256::Scalar;
 use rand::{CryptoRng, RngCore};
 use tracing::{error, info, warn};
 
@@ -18,11 +19,13 @@ use crate::{
     participant::{InnerProtocolParticipant, ProcessOutcome},
     protocol::{ProtocolType, SharedContext},
     run_only_once,
+    sign::share::{Signature, SignatureShare},
+    utils::bn_to_scalar,
     zkp::ProofContext,
     Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
 };
-
-use super::share::Signature;
+use libpaillier::unknown_order::BigNumber;
+use zeroize::Zeroize;
 
 /// A participant that runs the signing protocol in Figure 8 of Canetti et
 /// al[^cite].
@@ -127,11 +130,18 @@ impl SignContext {
 }
 
 mod storage {
+    use k256::Scalar;
+
     use crate::{local_storage::TypeTag, sign::share::SignatureShare};
 
     pub(super) struct Share;
     impl TypeTag for Share {
         type Value = SignatureShare;
+    }
+
+    pub(super) struct XProj;
+    impl TypeTag for XProj {
+        type Value = Scalar;
     }
 }
 
@@ -265,24 +275,62 @@ impl SignParticipant {
         info!("Handling sign ready message.");
 
         let ready_outcome = self.process_ready_message(rng, message)?;
-        let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, message.id()))?;
-        // extend the output with round one messages (if they hadn't already been
-        // generated)
-        Ok(ready_outcome.with_messages(round_one_messages))
+
+        // Generate round 1 messages (note: the run_only_once! should be unnecessary
+        // now)
+        let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, self.sid()))?;
+
+        // Process any stashed round 1 messages from other parties
+        // `process_ready_message` also does this, but because of our "readiness check"
+        // in `handle_round_one_msgs`, it'll just re-stash anything we've
+        // received until after we run `gen_round_one_msgs`, so we re-process
+        // them here
+        let round_one_outcomes = self
+            .fetch_messages(MessageType::Sign(SignMessageType::RoundOneShare))?
+            .iter()
+            .map(|message| self.process_message(rng, message))
+            .collect::<Result<_>>()?;
+
+        ready_outcome
+            .with_messages(round_one_messages)
+            .consolidate(round_one_outcomes)
     }
 
-    #[allow(unused)]
     fn gen_round_one_msgs<R: RngCore + CryptoRng>(
         &mut self,
-        rng: &mut R,
-        sid: Identifier,
+        _rng: &mut R,
+        _sid: Identifier,
     ) -> Result<Vec<Message>> {
+        let record = &self.input.presign_record;
+
+        // Interpret the message digest as an integer mod `q`
+        // Note: The `from_slice` method doesn't document the fact that it reads numbers
+        // in big-endian
+        let digest = bn_to_scalar(&BigNumber::from_slice(self.input.message_digest.as_slice()))?;
+        //TODO: try to simplify / clean up bn_to_scalar method
+
         // Compute the x-projection of `R` from the `PresignRecord`
+        let x_projection = record.x_projection()?;
 
         // Compute the share
+        let share = SignatureShare::new(
+            record.mask_share() * &digest + x_projection * record.masked_key_share(),
+        );
+
+        // Erase the presign record
+        self.input.presign_record.zeroize();
+
+        // Save pieces for our own use later
+        self.storage
+            .store::<storage::Share>(self.id(), share.clone());
+        self.storage
+            .store::<storage::XProj>(self.id(), x_projection);
 
         // Form output messages
-        todo!()
+        self.message_for_other_participants(
+            MessageType::Sign(SignMessageType::RoundOneShare),
+            share,
+        )
     }
 
     #[allow(unused)]
@@ -291,16 +339,42 @@ impl SignParticipant {
         rng: &mut R,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        // Stash signature share
+        // Make sure we're ready to process incoming messages
+        if !self.is_ready() {
+            self.stash_message(message);
+            return Ok(ProcessOutcome::Incomplete);
+        }
 
-        // If we've received all messages...
+        // Save this signature share
+        let share = SignatureShare::try_from(message)?;
+        self.storage.store::<storage::Share>(message.from(), share);
+
+        // If we haven't received shares from all parties, stop here
+        let all_participants = self.all_participants();
+        if !self
+            .storage
+            .contains_for_all_ids::<storage::Share>(&all_participants)
+        {
+            return Ok(ProcessOutcome::Incomplete);
+        }
+
+        // Otherwise, get everyone's share and the x-projection we saved in round one
+        let shares = all_participants
+            .into_iter()
+            .map(|pid| self.storage.remove::<storage::Share>(pid))
+            .collect::<Result<Vec<_>>>()?;
+        let x_projection = self.storage.remove::<storage::XProj>(self.id())?;
 
         // Compute full signature
+        let sum = shares.into_iter().fold(Scalar::ZERO, |a, b| a + b);
 
-        // Verify signature (how? -- might need to add input from auxinfo + keygen)
+        let signature = Signature::try_from_scalars(x_projection, sum)?;
 
-        // Output full signature (TODO: add type)
+        // TODO: Verify signature (how? -- might need to add input from auxinfo +
+        // keygen)
 
-        todo!()
+        // Output full signature
+        self.status = Status::TerminatedSuccessfully;
+        Ok(ProcessOutcome::Terminated(signature))
     }
 }

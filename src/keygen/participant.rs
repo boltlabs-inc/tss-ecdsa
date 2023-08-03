@@ -450,7 +450,6 @@ impl KeygenParticipant {
         let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
         let more_messages = self.message_for_other_participants(
             MessageType::Keygen(KeygenMessageType::R2Decommit),
-            sid,
             decom,
         )?;
         messages.extend_from_slice(&more_messages);
@@ -494,7 +493,7 @@ impl KeygenParticipant {
 
         if r2_done {
             // Generate messages for round 3...
-            let round_three_messages = run_only_once!(self.gen_round_three_msgs(message.id()))?;
+            let round_three_messages = run_only_once!(self.gen_round_three_msgs())?;
 
             // ...and handle any messages that other participants have sent for round 3.
             let round_three_outcomes = self
@@ -516,7 +515,7 @@ impl KeygenParticipant {
     /// the private value corresponding to its public key share.
     #[cfg_attr(feature = "flame_it", flame("keygen"))]
     #[instrument(skip_all, err(Debug))]
-    fn gen_round_three_msgs(&mut self, sid: Identifier) -> Result<Vec<Message>> {
+    fn gen_round_three_msgs(&mut self) -> Result<Vec<Message>> {
         info!("Generating round three keygen messages.");
 
         // Construct `global rid` out of each participant's `rid`s.
@@ -565,7 +564,6 @@ impl KeygenParticipant {
         )?;
         let messages = self.message_for_other_participants(
             MessageType::Keygen(KeygenMessageType::R3Proof),
-            sid,
             proof,
         )?;
         Ok(messages)
@@ -786,7 +784,6 @@ mod tests {
     // This test is cheap. Try a bunch of message permutations to decrease error
     // likelihood
     fn keygen_always_produces_valid_outputs() -> Result<()> {
-        let _rng = init_testing();
         for _ in 0..30 {
             keygen_produces_valid_outputs()?;
         }
@@ -807,11 +804,9 @@ mod tests {
             .take(QUORUM_SIZE)
             .collect::<Vec<_>>();
 
-        let keyshare_identifier = Identifier::random(&mut rng);
-
         for participant in &quorum {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
-            inbox.push(participant.initialize_keygen_message(keyshare_identifier)?);
+            inbox.push(participant.initialize_keygen_message(sid)?);
         }
 
         while !is_keygen_done(&quorum) {

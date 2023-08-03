@@ -1,10 +1,47 @@
 use k256::Scalar;
+use serde::{Deserialize, Serialize};
+use tracing::error;
+
+use crate::{
+    errors::{InternalError, Result},
+    messages::{Message, MessageType, SignMessageType},
+};
 
 /// A single participant's share of the signature.
 #[allow(unused)]
-#[derive(Debug)]
-pub struct SignatureShare {
-    share: Scalar,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignatureShare(Scalar);
+
+impl SignatureShare {
+    pub(super) fn new(share: Scalar) -> Self {
+        Self(share)
+    }
+}
+
+impl TryFrom<&Message> for SignatureShare {
+    type Error = InternalError;
+
+    fn try_from(message: &Message) -> Result<Self> {
+        message.check_type(MessageType::Sign(SignMessageType::RoundOneShare))?;
+
+        // There's no additional verification here; the `Scalar` type ensures that the
+        // value is in range.
+        deserialize!(&message.unverified_bytes)
+    }
+}
+
+impl std::ops::Add<SignatureShare> for SignatureShare {
+    type Output = Scalar;
+    fn add(self, rhs: SignatureShare) -> Self::Output {
+        self.0 + rhs.0
+    }
+}
+
+impl std::ops::Add<SignatureShare> for Scalar {
+    type Output = Self;
+    fn add(self, rhs: SignatureShare) -> Self::Output {
+        self + rhs.0
+    }
 }
 
 /// ECDSA signature on a message.
@@ -13,3 +50,14 @@ pub struct SignatureShare {
 /// threshold ECDSA algorithm by Canetti et al.
 #[derive(Debug)]
 pub struct Signature(k256::ecdsa::Signature);
+
+impl Signature {
+    pub(super) fn try_from_scalars(r: Scalar, s: Scalar) -> Result<Self> {
+        Ok(Self(k256::ecdsa::Signature::from_scalars(r, s)
+            .map_err(|e| {
+                error!("Failed to generate `Signature` from `Scalar`s but they should be correctly formatted {e:?}");
+                InternalError::InternalInvariantFailed
+            })?
+        ))
+    }
+}
