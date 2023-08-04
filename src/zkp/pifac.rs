@@ -482,26 +482,23 @@ mod tests {
         with_random_no_small_factors_proof(&mut rng, correct_factors)
     }
 
-    /// TODO: This test does not currently work. It should be addressed as part
-    /// of issue #113.
-    // #[test]
-    #[allow(dead_code)]
-    fn test_modulus_cannot_have_small_factors() -> Result<()> {
+    #[test]
+    fn test_modulus_cannot_have_large_factors() -> Result<()> {
         let mut rng = init_testing();
-        let (not_p0, regular_sized_q) =
+        let (regular_sized_p, regular_sized_q) =
             prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
-        //let small_p = BigNumber::from(7u64);
-        //let regular_sized_q = prime_gen::try_get_prime_from_pool_insecure(&mut
-        // rng).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
-        let small_fac_p = &not_p0 * &BigNumber::from(2u64);
-        let modulus = &small_fac_p * &regular_sized_q;
+        let small_fac_p = BigNumber::from(2u64);
+        let small_fac_q = BigNumber::from(2u64);
+        let big_q = &regular_sized_p * &regular_sized_q;
+        let big_p = big_q.clone();
+        let modulus = &small_fac_p * &big_q;
 
         let small_fac_input = CommonInput::new(&setup_params, &modulus);
         let small_fac_proof = PiFacProof::prove(
             small_fac_input,
-            ProverSecret::new(&small_fac_p, &regular_sized_q),
+            ProverSecret::new(&small_fac_p, &big_q),
             &(),
             &mut transcript(),
             &mut rng,
@@ -510,6 +507,21 @@ mod tests {
         assert!(small_fac_proof
             .verify(small_fac_input, &(), &mut transcript())
             .is_err());
+
+        let modulus = &big_p * &small_fac_q;
+        let small_fac_input = CommonInput::new(&setup_params, &modulus);
+        let small_fac_proof = PiFacProof::prove(
+            small_fac_input,
+            ProverSecret::new(&big_p, &small_fac_q),
+            &(),
+            &mut transcript(),
+            &mut rng,
+        )?;
+
+        assert!(small_fac_proof
+            .verify(small_fac_input, &(), &mut transcript())
+            .is_err());
+
         Ok(())
     }
 
