@@ -488,8 +488,11 @@ mod tests {
     #[allow(dead_code)]
     fn test_modulus_cannot_have_small_factors() -> Result<()> {
         let mut rng = init_testing();
-        let (not_p0, _) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
-        let regular_sized_q = prime_gen::try_get_prime_from_pool_insecure(&mut rng).unwrap();
+        let (not_p0, regular_sized_q) =
+            prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        //let small_p = BigNumber::from(7u64);
+        //let regular_sized_q = prime_gen::try_get_prime_from_pool_insecure(&mut
+        // rng).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
         let small_fac_p = &not_p0 * &BigNumber::from(2u64);
