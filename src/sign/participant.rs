@@ -72,7 +72,7 @@ pub struct SignParticipant {
     status: Status,
 }
 
-/// Input for a [`SignParticipant`].
+/// Input for the signing protocol.
 #[allow(unused)]
 #[derive(Debug)]
 pub struct Input {
@@ -106,6 +106,7 @@ impl Input {
         self.message_digest.as_slice()
     }
 
+    #[allow(unused)]
     pub(crate) fn public_key(&self) -> Result<k256::ecdsa::VerifyingKey> {
         // Add up all the key shares
         let public_key_point = self
@@ -415,5 +416,135 @@ impl SignParticipant {
         // Output full signature
         self.status = Status::TerminatedSuccessfully;
         Ok(ProcessOutcome::Terminated(signature))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+
+    use rand::{CryptoRng, Rng, RngCore};
+    use sha2::Digest;
+    use tracing::debug;
+
+    use crate::{
+        errors::Result,
+        keygen,
+        messages::{Message, MessageType},
+        participant::ProcessOutcome,
+        presign::PresignRecord,
+        sign::{self, participant::Status, share::Signature},
+        utils::testing::init_testing,
+        Identifier, ParticipantConfig, ProtocolParticipant,
+    };
+
+    use super::SignParticipant;
+
+    #[allow(clippy::type_complexity)]
+    fn process_messages<'a, R: RngCore + CryptoRng>(
+        quorum: &'a mut [SignParticipant],
+        inbox: &mut Vec<Message>,
+        rng: &mut R,
+    ) -> Option<(&'a SignParticipant, ProcessOutcome<Signature>)> {
+        // Pick a random message to process
+        if inbox.is_empty() {
+            return None;
+        }
+        let message = inbox.swap_remove(rng.gen_range(0..inbox.len()));
+        let participant = quorum.iter_mut().find(|p| p.id() == message.to()).unwrap();
+
+        debug!(
+            "processing participant: {}, with message type: {:?} from {}",
+            &message.to(),
+            &message.message_type(),
+            &message.from(),
+        );
+
+        let outcome = participant.process_message(rng, &message).unwrap();
+        Some((participant, outcome))
+    }
+
+    #[test]
+    fn signing_produces_valid_signature() -> Result<()> {
+        let quorum_size = 4;
+        let rng = &mut init_testing();
+        let sid = Identifier::random(rng);
+
+        // Prepare prereqs for making SignParticipants. Assume all the simulations
+        // are stable (e.g. keep config order)
+        let configs = ParticipantConfig::random_quorum(quorum_size, rng)?;
+        let keygen_outputs = keygen::Output::simulate_set(&configs, rng);
+        let presign_records = PresignRecord::simulate_set(&keygen_outputs, rng);
+
+        let message = b"the quick brown fox jumped over the lazy dog";
+        let message_digest = sha2::Sha256::digest(message);
+
+        let inputs = std::iter::zip(keygen_outputs, presign_records).map(|(keygen, record)| {
+            sign::Input::new(
+                Box::new(message_digest.into()),
+                record,
+                keygen.public_key_shares().to_vec(),
+            )
+        });
+        let mut quorum =
+            std::iter::zip(ParticipantConfig::random_quorum(quorum_size, rng)?, inputs)
+                .map(|(config, input)| {
+                    SignParticipant::new(sid, config.id(), config.other_ids().to_vec(), input)
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+        // Prepare caching of data for protocol execution
+        let mut outputs = HashMap::with_capacity(quorum_size);
+
+        let mut inbox = Vec::new();
+        for participant in &quorum {
+            let empty: [u8; 0] = [];
+            inbox.push(Message::new(
+                MessageType::Sign(crate::messages::SignMessageType::Ready),
+                sid,
+                participant.id(),
+                participant.id(),
+                &empty,
+            )?);
+        }
+
+        // Run protocol until all participants report that they're done
+        while !quorum
+            .iter()
+            .all(|participant| *participant.status() == Status::TerminatedSuccessfully)
+        {
+            let (processor, outcome) = match process_messages(&mut quorum, &mut inbox, rng) {
+                None => continue,
+                Some(x) => x,
+            };
+
+            // Deliver messages and save outputs
+            match outcome {
+                ProcessOutcome::Incomplete => {}
+                ProcessOutcome::Processed(messages) => inbox.extend(messages),
+                ProcessOutcome::Terminated(output) => {
+                    assert!(outputs.insert(processor.id(), output).is_none())
+                }
+                ProcessOutcome::TerminatedForThisParticipant(output, messages) => {
+                    inbox.extend(messages);
+                    assert!(outputs.insert(processor.id(), output).is_none());
+                }
+            }
+        }
+
+        // Everyone should have gotten an output
+        assert_eq!(outputs.len(), quorum.len());
+        let signatures = outputs.into_values().collect::<Vec<_>>();
+
+        // Everyone should have gotten the same output. We don't use a hashset because
+        // the underlying signature type doesn't derive `Hash`
+        assert!(signatures
+            .windows(2)
+            .all(|signature| signature[0] == signature[1]));
+
+        // TODO: get the public key from somewhere, verify the signature against
+        // `message`.
+
+        Ok(())
     }
 }
