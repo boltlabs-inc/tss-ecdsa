@@ -547,10 +547,12 @@ mod tests {
             .verify(input, &(), &mut transcript())
             .is_err());
         let mut incorrect_proof = proof.clone();
+
         incorrect_proof.q_masked = random_bignumber.clone();
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
             .is_err());
+
         let mut incorrect_proof = proof.clone();
         let scheme = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (random_commitment, _) = scheme.scheme().commit(&random_bignumber, ELL, &mut rng);
@@ -558,11 +560,13 @@ mod tests {
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
             .is_err());
+
         let mut incorrect_proof = proof.clone();
         incorrect_proof.q_commitment = random_commitment.clone();
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
             .is_err());
+
         let mut incorrect_proof = proof.clone();
         let (random_commitment, random_commmitment_randomness) =
             scheme
@@ -572,11 +576,13 @@ mod tests {
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
             .is_err());
+
         let mut incorrect_proof = proof.clone();
         incorrect_proof.q_mask_commitment = random_commitment.clone();
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
             .is_err());
+
         let mut incorrect_proof = proof.clone();
         incorrect_proof.q_link_commitment = random_commitment.clone();
         assert!(incorrect_proof
@@ -587,17 +593,20 @@ mod tests {
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
             .is_err());
+
         let mut incorrect_proof = proof.clone();
         let random_masked_randomness = random_commmitment_randomness.as_masked();
         incorrect_proof.masked_p_commitment_randomness = random_masked_randomness.clone();
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
             .is_err());
+
         let mut incorrect_proof = proof.clone();
         incorrect_proof.masked_q_commitment_randomness = random_masked_randomness.clone();
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
             .is_err());
+        
         let mut incorrect_proof = proof.clone();
         incorrect_proof.masked_p_link = random_masked_randomness.clone();
         assert!(incorrect_proof
