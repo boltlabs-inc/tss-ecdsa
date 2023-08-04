@@ -462,6 +462,21 @@ mod tests {
                 .verify(mixed_input, &(), &mut transcript())
                 .is_err());
 
+            let regular_sized_p = prime_gen::try_get_prime_from_pool_insecure(&mut rng2).unwrap();
+            let modulus = &regular_sized_p * &small_q;
+            let mixed_input = CommonInput::new(&setup_params, &modulus);
+            let mixed_proof = PiFacProof::prove(
+                input,
+                ProverSecret::new(&regular_sized_p, &small_q),
+                &(),
+                &mut transcript(),
+                &mut rng2,
+            )?;
+
+            assert!(mixed_proof
+                .verify(mixed_input, &(), &mut transcript())
+                .is_err());
+
             Ok(())
         };
         with_random_no_small_factors_proof(&mut rng, correct_factors)
