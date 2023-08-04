@@ -15,3 +15,5 @@
 
 mod participant;
 mod share;
+
+pub use participant::Input;

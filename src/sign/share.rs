@@ -61,3 +61,9 @@ impl Signature {
         ))
     }
 }
+
+impl AsRef<k256::ecdsa::Signature> for Signature {
+    fn as_ref(&self) -> &k256::ecdsa::Signature {
+        &self.0
+    }
+}

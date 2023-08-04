@@ -8,19 +8,20 @@
 //! This module instantiates a [`SignParticipant`] which implements the
 //! signing protocol.
 
-use k256::Scalar;
+use k256::{ecdsa::VerifyingKey, Scalar};
 use rand::{CryptoRng, RngCore};
 use tracing::{error, info, warn};
 
 use crate::{
     errors::{CallerError, InternalError, Result},
+    keygen::KeySharePublic,
     local_storage::LocalStorage,
     messages::{Message, MessageType, SignMessageType},
     participant::{InnerProtocolParticipant, ProcessOutcome},
     protocol::{ProtocolType, SharedContext},
     run_only_once,
     sign::share::{Signature, SignatureShare},
-    utils::bn_to_scalar,
+    utils::{bn_to_scalar, CurvePoint},
     zkp::ProofContext,
     Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
 };
@@ -77,12 +78,45 @@ pub struct SignParticipant {
 pub struct Input {
     message_digest: Box<[u8; 32]>,
     presign_record: PresignRecord,
+    public_key_shares: Vec<KeySharePublic>,
 }
 
 impl Input {
-    #[allow(unused)]
+    /// Construct a new input for signing.
+    ///
+    /// The `public_key_shares` should be the same ones used to generate the
+    /// [`PresignRecord`].
+    pub fn new(
+        digest: Box<[u8; 32]>,
+        record: PresignRecord,
+        public_key_shares: Vec<KeySharePublic>,
+    ) -> Self {
+        Self {
+            message_digest: digest,
+            presign_record: record,
+            public_key_shares,
+        }
+    }
+
     pub(crate) fn presign_record(&self) -> &PresignRecord {
         &self.presign_record
+    }
+
+    pub(crate) fn digest(&self) -> &[u8] {
+        self.message_digest.as_slice()
+    }
+
+    pub(crate) fn public_key(&self) -> Result<k256::ecdsa::VerifyingKey> {
+        // Add up all the key shares
+        let public_key_point = self
+            .public_key_shares
+            .iter()
+            .fold(CurvePoint::IDENTITY, |sum, share| sum + *share.as_ref());
+
+        VerifyingKey::from_encoded_point(&public_key_point.0.to_affine().into()).map_err(|_| {
+            error!("Keygen output does not produce a valid public key.");
+            InternalError::InternalInvariantFailed
+        })
     }
 }
 
@@ -301,12 +335,12 @@ impl SignParticipant {
         _rng: &mut R,
         _sid: Identifier,
     ) -> Result<Vec<Message>> {
-        let record = &self.input.presign_record;
+        let record = &self.input.presign_record();
 
         // Interpret the message digest as an integer mod `q`
         // Note: The `from_slice` method doesn't document the fact that it reads numbers
         // in big-endian
-        let digest = bn_to_scalar(&BigNumber::from_slice(self.input.message_digest.as_slice()))?;
+        let digest = bn_to_scalar(&BigNumber::from_slice(self.input.digest()))?;
         //TODO: try to simplify / clean up bn_to_scalar method
 
         // Compute the x-projection of `R` from the `PresignRecord`
@@ -370,8 +404,13 @@ impl SignParticipant {
 
         let signature = Signature::try_from_scalars(x_projection, sum)?;
 
-        // TODO: Verify signature (how? -- might need to add input from auxinfo +
-        // keygen)
+        // TODO: Verify signature
+        // We currently can't verify the signature because we only have the digest
+        // encoded as bytes. The k256 library v10.4 provides two APIs: one that
+        // takes a `Digest` and one that takes the original message. The latest
+        // version (13.1 at time of writing) provides a `hazmat` method
+        // to verify from the digest-as-bytes; we have to be very sure that it's
+        // actually a hash digest to avoid security issues.
 
         // Output full signature
         self.status = Status::TerminatedSuccessfully;
