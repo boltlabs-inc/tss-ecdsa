@@ -606,7 +606,7 @@ mod tests {
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
             .is_err());
-        
+
         let mut incorrect_proof = proof.clone();
         incorrect_proof.masked_p_link = random_masked_randomness.clone();
         assert!(incorrect_proof
