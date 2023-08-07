@@ -783,7 +783,7 @@ mod tests {
         let (mut bad_proof, input) = random_pimod_proof(&mut rng);
         let new_challenge = random_positive_bn(&mut rng, &k256_order());
         if let Some(first_element) = bad_proof.elements.get_mut(0) {
-            first_element.challenge_secret_link = new_challenge;
+            first_element.challenge = new_challenge;
         } else {
             panic!("No element found");
         }
