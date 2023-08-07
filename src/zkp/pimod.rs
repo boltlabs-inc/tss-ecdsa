@@ -785,7 +785,7 @@ mod tests {
         if let Some(first_element) = bad_proof.elements.get_mut(0) {
             first_element.challenge_secret_link = new_challenge;
         } else {
-            println!("No element found");
+            panic!("No element found");
         }
         assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
         Ok(())
@@ -809,7 +809,7 @@ mod tests {
         if let Some(first_element) = bad_proof.elements.get_mut(0) {
             first_element.challenge_secret_link = new_challenge_secret_link;
         } else {
-            println!("No element found");
+            panic!("No element found");
         }
         assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
         let mut bad_proof = proof.clone();
@@ -817,7 +817,7 @@ mod tests {
         if let Some(first_element) = bad_proof.elements.get_mut(0) {
             first_element.sign_exponent = new_sign_exponent;
         } else {
-            println!("No element found");
+            panic!("No element found");
         }
         assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
         let mut bad_proof = proof.clone();
@@ -825,7 +825,7 @@ mod tests {
         if let Some(first_element) = bad_proof.elements.get_mut(0) {
             first_element.sign_exponent = new_jacobi_exponent;
         } else {
-            println!("No element found");
+            panic!("No element found");
         }
         assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
         let new_fourth_root = random_positive_bn(&mut rng, &k256_order());
@@ -833,7 +833,7 @@ mod tests {
         if let Some(first_element) = bad_proof.elements.get_mut(0) {
             first_element.fourth_root = new_fourth_root;
         } else {
-            println!("No element found");
+            panic!("No element found");
         }
         assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
         Ok(())
