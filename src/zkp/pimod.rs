@@ -766,17 +766,14 @@ mod tests {
     #[test]
     fn secret_input_should_be_correct() -> Result<()> {
         let mut rng = init_testing();
-        let (decryption_key, p, q) = DecryptionKey::new(&mut rng).unwrap();
+        let (_, p, q) = DecryptionKey::new(&mut rng).unwrap();
         let (new_decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let input = CommonInput {
-            modulus: decryption_key.encryption_key().modulus().to_owned(),
+            modulus: new_decryption_key.encryption_key().modulus().to_owned(),
         };
         let bad_secret = ProverSecret { p, q };
         let proof = PiModProof::prove(&input, &bad_secret, &(), &mut transcript(), &mut rng)?;
-        let bad_input = CommonInput {
-            modulus: new_decryption_key.encryption_key().modulus().to_owned(),
-        };
-        assert!(proof.verify(&bad_input, &(), &mut transcript()).is_err());
+        assert!(proof.verify(&input, &(), &mut transcript()).is_err());
         Ok(())
     }
 
