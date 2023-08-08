@@ -8,8 +8,14 @@
 //! This module instantiates a [`SignParticipant`] which implements the
 //! signing protocol.
 
-use k256::{ecdsa::VerifyingKey, Scalar};
+use generic_array::{typenum::U32, GenericArray};
+use k256::{
+    ecdsa::{signature::DigestVerifier, VerifyingKey},
+    elliptic_curve::ops::Reduce,
+    Scalar, U256,
+};
 use rand::{CryptoRng, RngCore};
+use sha2::{Digest, Sha256};
 use tracing::{error, info, warn};
 
 use crate::{
@@ -21,11 +27,10 @@ use crate::{
     protocol::{ProtocolType, SharedContext},
     run_only_once,
     sign::share::{Signature, SignatureShare},
-    utils::{bn_to_scalar, CurvePoint},
+    utils::{CurvePoint},
     zkp::ProofContext,
     Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
 };
-use libpaillier::unknown_order::BigNumber;
 use zeroize::Zeroize;
 
 /// A participant that runs the signing protocol in Figure 8 of Canetti et
@@ -73,10 +78,9 @@ pub struct SignParticipant {
 }
 
 /// Input for the signing protocol.
-#[allow(unused)]
 #[derive(Debug)]
 pub struct Input {
-    message_digest: Box<[u8; 32]>,
+    message_digest: Sha256,
     presign_record: PresignRecord,
     public_key_shares: Vec<KeySharePublic>,
 }
@@ -87,7 +91,7 @@ impl Input {
     /// The `public_key_shares` should be the same ones used to generate the
     /// [`PresignRecord`].
     pub fn new(
-        digest: Box<[u8; 32]>,
+        digest: Sha256,
         record: PresignRecord,
         public_key_shares: Vec<KeySharePublic>,
     ) -> Self {
@@ -98,15 +102,17 @@ impl Input {
         }
     }
 
+    /// Retrieve the presign record.
     pub(crate) fn presign_record(&self) -> &PresignRecord {
         &self.presign_record
     }
 
-    pub(crate) fn digest(&self) -> &[u8] {
-        self.message_digest.as_slice()
+    /// Compute the digest. Note that this forces a clone of the `Sha256`
+    /// object.
+    pub(crate) fn digest(&self) -> GenericArray<u8, U32> {
+        self.message_digest.clone().finalize()
     }
 
-    #[allow(unused)]
     pub(crate) fn public_key(&self) -> Result<k256::ecdsa::VerifyingKey> {
         // Add up all the key shares
         let public_key_point = self
@@ -122,7 +128,6 @@ impl Input {
 }
 
 /// Protocol status for [`SignParticipant`].
-#[allow(unused)]
 #[derive(Debug, PartialEq)]
 pub enum Status {
     /// Participant is created but has not received a ready message from self.
@@ -159,7 +164,7 @@ impl SignContext {
     pub(crate) fn collect(p: &SignParticipant) -> Self {
         Self {
             shared_context: SharedContext::collect(p),
-            message_digest: *p.input().message_digest,
+            message_digest: p.input().digest().into(),
         }
     }
 }
@@ -180,7 +185,6 @@ mod storage {
     }
 }
 
-#[allow(unused)]
 impl ProtocolParticipant for SignParticipant {
     type Input = Input;
     type Output = Signature;
@@ -239,9 +243,7 @@ impl ProtocolParticipant for SignParticipant {
 
         match message.message_type() {
             MessageType::Sign(SignMessageType::Ready) => self.handle_ready_message(rng, message),
-            MessageType::Sign(SignMessageType::RoundOneShare) => {
-                self.handle_round_one_msg(rng, message)
-            }
+            MessageType::Sign(SignMessageType::RoundOneShare) => self.handle_round_one_msg(message),
             message_type => {
                 error!(
                     "Invalid MessageType passed to SignParticipant. Got: {:?}",
@@ -311,24 +313,23 @@ impl SignParticipant {
 
         let ready_outcome = self.process_ready_message(rng, message)?;
 
-        // Generate round 1 messages (note: the run_only_once! should be unnecessary
-        // now)
+        // Generate round 1 messages
         let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, self.sid()))?;
 
-        // Process any stashed round 1 messages from other parties
-        // `process_ready_message` also does this, but because of our "readiness check"
-        // in `handle_round_one_msgs`, it'll just re-stash anything we've
-        // received until after we run `gen_round_one_msgs`, so we re-process
-        // them here
-        let round_one_outcomes = self
-            .fetch_messages(MessageType::Sign(SignMessageType::RoundOneShare))?
-            .iter()
-            .map(|message| self.process_message(rng, message))
-            .collect::<Result<_>>()?;
-
-        ready_outcome
-            .with_messages(round_one_messages)
-            .consolidate(round_one_outcomes)
+        // PROBLEM: If you processed the other 3 people's messages in
+        // `process_ready_message`, then generate your own share in
+        // `gen_round_one_msg`, you never go in and finish the protocol.
+        if self
+            .storage
+            .contains_for_all_ids::<storage::Share>(&self.all_participants())
+        {
+            let round_one_outcome = self.compute_output()?;
+            ready_outcome
+                .with_messages(round_one_messages)
+                .consolidate(vec![round_one_outcome])
+        } else {
+            Ok(ready_outcome.with_messages(round_one_messages))
+        }
     }
 
     fn gen_round_one_msgs<R: RngCore + CryptoRng>(
@@ -338,10 +339,9 @@ impl SignParticipant {
     ) -> Result<Vec<Message>> {
         let record = &self.input.presign_record();
 
-        // Interpret the message digest as an integer mod `q`
-        // Note: The `from_slice` method doesn't document the fact that it reads numbers
-        // in big-endian
-        let digest = bn_to_scalar(&BigNumber::from_slice(self.input.digest()))?;
+        // Interpret the message digest as an integer mod `q`. This matches the way that the
+        // k256 library converts a digest to a scalar.
+        let digest = <Scalar as Reduce<U256>>::from_be_bytes_reduced(self.input.digest());
         //TODO: try to simplify / clean up bn_to_scalar method
 
         // Compute the x-projection of `R` from the `PresignRecord`
@@ -368,15 +368,13 @@ impl SignParticipant {
         )
     }
 
-    #[allow(unused)]
-    fn handle_round_one_msg<R: RngCore + CryptoRng>(
+    fn handle_round_one_msg(
         &mut self,
-        rng: &mut R,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         // Make sure we're ready to process incoming messages
         if !self.is_ready() {
-            self.stash_message(message);
+            self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
 
@@ -385,16 +383,24 @@ impl SignParticipant {
         self.storage.store::<storage::Share>(message.from(), share);
 
         // If we haven't received shares from all parties, stop here
-        let all_participants = self.all_participants();
         if !self
             .storage
-            .contains_for_all_ids::<storage::Share>(&all_participants)
+            .contains_for_all_ids::<storage::Share>(&self.all_participants())
         {
             return Ok(ProcessOutcome::Incomplete);
         }
 
+        self.compute_output()
+    }
+
+    /// Completes the "output" step of the protocol. This method assumes that you have received a
+    /// share from every participant, including yourself!
+    fn compute_output(
+        &mut self,
+    ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         // Otherwise, get everyone's share and the x-projection we saved in round one
-        let shares = all_participants
+        let shares = self
+            .all_participants()
             .into_iter()
             .map(|pid| self.storage.remove::<storage::Share>(pid))
             .collect::<Result<Vec<_>>>()?;
@@ -405,13 +411,14 @@ impl SignParticipant {
 
         let signature = Signature::try_from_scalars(x_projection, sum)?;
 
-        // TODO: Verify signature
-        // We currently can't verify the signature because we only have the digest
-        // encoded as bytes. The k256 library v10.4 provides two APIs: one that
-        // takes a `Digest` and one that takes the original message. The latest
-        // version (13.1 at time of writing) provides a `hazmat` method
-        // to verify from the digest-as-bytes; we have to be very sure that it's
-        // actually a hash digest to avoid security issues.
+        // Verify signature
+        self.input
+            .public_key()?
+            .verify_digest(self.input.message_digest.clone(), signature.as_ref())
+            .map_err(|e| {
+                error!("Failed to verify signature {:?}", e);
+                InternalError::ProtocolError
+            })?;
 
         // Output full signature
         self.status = Status::TerminatedSuccessfully;
@@ -434,7 +441,7 @@ mod test {
         participant::ProcessOutcome,
         presign::PresignRecord,
         sign::{self, participant::Status, share::Signature},
-        utils::testing::init_testing,
+        utils::testing::{init_testing, init_testing_with_seed},
         Identifier, ParticipantConfig, ProtocolParticipant,
     };
 
@@ -465,9 +472,20 @@ mod test {
     }
 
     #[test]
+    fn signing_always_works() {
+        for _ in 0..100 {
+            signing_produces_valid_signature().unwrap()
+        }
+    }
+
+    #[test]
     fn signing_produces_valid_signature() -> Result<()> {
         let quorum_size = 4;
-        let rng = &mut init_testing();
+        let _rng = &mut init_testing();
+        let rng = &mut init_testing_with_seed([
+            55, 229, 190, 1, 110, 121, 83, 14, 122, 32, 22, 170, 144, 22, 238, 75, 85, 62, 62, 224,
+            3, 73, 107, 236, 157, 128, 142, 175, 177, 97, 54, 68,
+        ]);
         let sid = Identifier::random(rng);
 
         // Prepare prereqs for making SignParticipants. Assume all the simulations
@@ -477,15 +495,16 @@ mod test {
         let presign_records = PresignRecord::simulate_set(&keygen_outputs, rng);
 
         let message = b"the quick brown fox jumped over the lazy dog";
-        let message_digest = sha2::Sha256::digest(message);
+        let message_digest = sha2::Sha256::new().chain(message);
 
         let inputs = std::iter::zip(keygen_outputs, presign_records).map(|(keygen, record)| {
             sign::Input::new(
-                Box::new(message_digest.into()),
+                message_digest.clone(),
                 record,
                 keygen.public_key_shares().to_vec(),
             )
         });
+
         let mut quorum =
             std::iter::zip(ParticipantConfig::random_quorum(quorum_size, rng)?, inputs)
                 .map(|(config, input)| {
@@ -529,6 +548,14 @@ mod test {
                     inbox.extend(messages);
                     assert!(outputs.insert(processor.id(), output).is_none());
                 }
+            }
+
+            if inbox.is_empty()
+                && !quorum
+                    .iter()
+                    .all(|p| *p.status() == Status::TerminatedSuccessfully)
+            {
+                panic!("we're stuck")
             }
         }
 

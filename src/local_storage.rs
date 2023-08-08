@@ -51,7 +51,7 @@ pub(crate) struct LocalStorage {
 
 impl LocalStorage {
     /// Stores `value` via a [`TypeTag`] and
-    /// [`ParticipantIdentifier`] tuple.
+    /// [`ParticipantIdentifier`] tuple, overwriting any pre-existing value.
     pub(crate) fn store<T: TypeTag>(
         &mut self,
         participant_id: ParticipantIdentifier,
