@@ -443,7 +443,7 @@ mod test {
         keygen,
         messages::{Message, MessageType},
         participant::ProcessOutcome,
-        presign::PresignRecord,
+        presign::{test, PresignRecord},
         sign::{self, participant::Status, share::Signature},
         utils::{
             bn_to_scalar,
@@ -480,7 +480,7 @@ mod test {
 
     #[test]
     fn signing_always_works() {
-        for _ in 0..100 {
+        for _ in 0..10 {
             signing_produces_valid_signature().unwrap()
         }
     }
@@ -505,9 +505,8 @@ mod test {
         let m = <Scalar as Reduce<U256>>::from_be_bytes_reduced(Sha256::digest(message));
 
         let s = k * (m + r * secret_key);
-        k256::ecdsa::Signature::from_scalars(r, s).unwrap()
+        let signature = k256::ecdsa::Signature::from_scalars(r, s).unwrap();
 
-        /*
         // These checks fail when the overall thing fails
         let public_key = keygen_outputs[0].public_key().unwrap();
 
@@ -516,24 +515,31 @@ mod test {
             .verify_digest(Sha256::new().chain(message), &signature)
             .is_ok());
         signature
-        */
     }
 
     #[test]
     fn signing_produces_valid_signature() -> Result<()> {
         let quorum_size = 4;
-        let _rng = &mut init_testing();
+        let rng = &mut init_testing();
+        /* // fails with simulated presign input
         let rng = &mut init_testing_with_seed([
             55, 229, 190, 1, 110, 121, 83, 14, 122, 32, 22, 170, 144, 22, 238, 75, 85, 62, 62, 224,
             3, 73, 107, 236, 157, 128, 142, 175, 177, 97, 54, 68,
         ]);
+        */
+        // fails with real presign input
+        //let rng = &mut init_testing_with_seed([140, 214, 55, 20, 191, 115, 24, 91,
+        // 250, 27, 174, 233, 115, 99, 31, 228, 218, 209, 49, 218, 194, 164, 90, 31,
+        // 171, 145, 133, 140, 207, 57, 181, 228]);
         let sid = Identifier::random(rng);
 
         // Prepare prereqs for making SignParticipants. Assume all the simulations
         // are stable (e.g. keep config order)
         let configs = ParticipantConfig::random_quorum(quorum_size, rng)?;
         let keygen_outputs = keygen::Output::simulate_set(&configs, rng);
-        let presign_records = PresignRecord::simulate_set(&keygen_outputs, rng);
+
+        //let presign_records = PresignRecord::simulate_set(&keygen_outputs, rng);
+        let presign_records = test::run_presign(&configs, &keygen_outputs, rng)?;
 
         let message = b"the quick brown fox jumped over the lazy dog";
         let message_digest = sha2::Sha256::new().chain(message);

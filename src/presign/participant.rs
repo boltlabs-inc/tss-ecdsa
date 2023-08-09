@@ -1190,12 +1190,12 @@ impl PresignKeyShareAndInfo {
 pub(super) use test::presign_record_set_is_valid;
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use std::{collections::HashMap, iter::zip};
 
     use k256::Scalar;
     use libpaillier::unknown_order::BigNumber;
-    use rand::{CryptoRng, Rng, RngCore};
+    use rand::{rngs::StdRng, CryptoRng, Rng, RngCore};
     use tracing::debug;
 
     use crate::{
@@ -1287,18 +1287,37 @@ mod test {
     fn presign_produces_valid_outputs() -> Result<()> {
         let quorum_size = 4;
         let rng = &mut init_testing();
-        let sid = Identifier::random(rng);
 
         // Prepare prereqs for making PresignParticipants. Assume all the simulations
         // are stable (e.g. keep config order)
         let configs = ParticipantConfig::random_quorum(quorum_size, rng)?;
         let keygen_outputs = keygen::Output::simulate_set(&configs, rng);
+
+        let records = run_presign(&configs, &keygen_outputs, rng)?;
+
+        // Every party must produce an output
+        assert_eq!(records.len(), quorum_size);
+
+        // Check validity of set; this will panic if anything is wrong
+        presign_record_set_is_valid(records, keygen_outputs);
+
+        Ok(())
+    }
+
+    pub(crate) fn run_presign(
+        configs: &[ParticipantConfig],
+        keygen_outputs: &[keygen::Output],
+        rng: &mut StdRng,
+    ) -> Result<Vec<PresignRecord>> {
+        assert_eq!(configs.len(), keygen_outputs.len());
+
         let auxinfo_outputs = auxinfo::Output::simulate_set(&configs, rng);
+        let sid = Identifier::random(rng);
 
         // Make the participants
-        let mut quorum = zip(configs, zip(keygen_outputs.clone(), auxinfo_outputs))
+        let mut quorum = zip(configs, zip(keygen_outputs, auxinfo_outputs))
             .map(|(config, (keygen_output, auxinfo_output))| {
-                let input = Input::new(auxinfo_output, keygen_output)?;
+                let input = Input::new(auxinfo_output, keygen_output.clone())?;
                 PresignParticipant::new(sid, config.id(), config.other_ids().to_vec(), input)
             })
             .collect::<Result<Vec<_>>>()?;
@@ -1311,7 +1330,7 @@ mod test {
 
         // Make a place to store outputs
         let mut outputs = std::iter::repeat_with(|| None)
-            .take(quorum_size)
+            .take(configs.len())
             .collect::<Vec<_>>();
 
         // Pass everyone a ready message
@@ -1348,13 +1367,7 @@ mod test {
             }
         }
 
-        // Every party produced an output
-        let records: Vec<_> = outputs.into_iter().flatten().collect();
-        assert_eq!(records.len(), quorum_size);
-
-        // Check validity of set; this will panic if anything is wrong
-        presign_record_set_is_valid(records, keygen_outputs);
-
-        Ok(())
+        // Get rid of any `None` outputs
+        Ok(outputs.into_iter().flatten().collect())
     }
 }
