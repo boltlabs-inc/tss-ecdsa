@@ -27,7 +27,7 @@ use crate::{
     protocol::{ProtocolType, SharedContext},
     run_only_once,
     sign::share::{Signature, SignatureShare},
-    utils::{CurvePoint},
+    utils::CurvePoint,
     zkp::ProofContext,
     Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
 };
@@ -339,8 +339,8 @@ impl SignParticipant {
     ) -> Result<Vec<Message>> {
         let record = &self.input.presign_record();
 
-        // Interpret the message digest as an integer mod `q`. This matches the way that the
-        // k256 library converts a digest to a scalar.
+        // Interpret the message digest as an integer mod `q`. This matches the way that
+        // the k256 library converts a digest to a scalar.
         let digest = <Scalar as Reduce<U256>>::from_be_bytes_reduced(self.input.digest());
         //TODO: try to simplify / clean up bn_to_scalar method
 
@@ -393,11 +393,10 @@ impl SignParticipant {
         self.compute_output()
     }
 
-    /// Completes the "output" step of the protocol. This method assumes that you have received a
-    /// share from every participant, including yourself!
-    fn compute_output(
-        &mut self,
-    ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
+    /// Completes the "output" step of the protocol. This method assumes that
+    /// you have received a share from every participant, including
+    /// yourself!
+    fn compute_output(&mut self) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         // Otherwise, get everyone's share and the x-projection we saved in round one
         let shares = self
             .all_participants()
@@ -430,8 +429,13 @@ impl SignParticipant {
 mod test {
     use std::collections::HashMap;
 
+    use k256::{
+        ecdsa::signature::{DigestVerifier, Verifier},
+        elliptic_curve::ops::Reduce,
+        Scalar, U256,
+    };
     use rand::{CryptoRng, Rng, RngCore};
-    use sha2::Digest;
+    use sha2::{Digest, Sha256};
     use tracing::debug;
 
     use crate::{
@@ -441,7 +445,10 @@ mod test {
         participant::ProcessOutcome,
         presign::PresignRecord,
         sign::{self, participant::Status, share::Signature},
-        utils::testing::{init_testing, init_testing_with_seed},
+        utils::{
+            bn_to_scalar,
+            testing::{init_testing, init_testing_with_seed},
+        },
         Identifier, ParticipantConfig, ProtocolParticipant,
     };
 
@@ -478,6 +485,40 @@ mod test {
         }
     }
 
+    fn reconstruct_record_fields(
+        message: &[u8],
+        records: &[PresignRecord],
+        keygen_outputs: &[keygen::Output],
+    ) -> k256::ecdsa::Signature {
+        let k = records
+            .iter()
+            .map(|record| record.mask_share())
+            .fold(Scalar::ZERO, |a, b| a + b);
+
+        let secret_key = keygen_outputs
+            .iter()
+            .map(|output| bn_to_scalar(output.private_key_share().as_ref()).unwrap())
+            .fold(Scalar::ZERO, |a, b| a + b);
+
+        let r = records[0].x_projection().unwrap();
+
+        let m = <Scalar as Reduce<U256>>::from_be_bytes_reduced(Sha256::digest(message));
+
+        let s = k * (m + r * secret_key);
+        k256::ecdsa::Signature::from_scalars(r, s).unwrap()
+
+        /*
+        // These checks fail when the overall thing fails
+        let public_key = keygen_outputs[0].public_key().unwrap();
+
+        assert!(public_key.verify(message, &signature).is_ok());
+        assert!(public_key
+            .verify_digest(Sha256::new().chain(message), &signature)
+            .is_ok());
+        signature
+        */
+    }
+
     #[test]
     fn signing_produces_valid_signature() -> Result<()> {
         let quorum_size = 4;
@@ -496,6 +537,11 @@ mod test {
 
         let message = b"the quick brown fox jumped over the lazy dog";
         let message_digest = sha2::Sha256::new().chain(message);
+
+        // Save some things for later -- a signature constructucted from the records and
+        // the public key
+        let fake_sig = reconstruct_record_fields(message, &presign_records, &keygen_outputs);
+        let public_key = &keygen_outputs[0].public_key().unwrap();
 
         let inputs = std::iter::zip(keygen_outputs, presign_records).map(|(keygen, record)| {
             sign::Input::new(
@@ -561,7 +607,7 @@ mod test {
 
         // Everyone should have gotten an output
         assert_eq!(outputs.len(), quorum.len());
-        let signatures = outputs.into_values().collect::<Vec<_>>();
+        let mut signatures = outputs.into_values().collect::<Vec<_>>();
 
         // Everyone should have gotten the same output. We don't use a hashset because
         // the underlying signature type doesn't derive `Hash`
@@ -569,8 +615,14 @@ mod test {
             .windows(2)
             .all(|signature| signature[0] == signature[1]));
 
-        // TODO: get the public key from somewhere, verify the signature against
-        // `message`.
+        // Verify the signature against `message`.
+        let real_sig = signatures.pop().unwrap();
+        assert_eq!(real_sig.as_ref(), &fake_sig);
+
+        assert!(public_key.verify(message, real_sig.as_ref()).is_ok());
+        assert!(public_key
+            .verify_digest(Sha256::new().chain(message), real_sig.as_ref())
+            .is_ok());
 
         Ok(())
     }

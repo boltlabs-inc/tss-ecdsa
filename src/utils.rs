@@ -433,22 +433,6 @@ pub(crate) mod testing {
     /// Initialize any test necessary for our tests. This should be called at
     /// the top of all our tests. This function is idempotent.
     pub(crate) fn init_testing() -> StdRng {
-        let logging_level = EnvFilter::from_default_env()
-            .max_level_hint()
-            .unwrap()
-            .into_level()
-            .unwrap();
-
-        // Only capture logging events from tss_ecdsa crate.
-        let targets = Targets::new().with_target("tss_ecdsa", logging_level);
-        let stdout_layer = tracing_subscriber::fmt::layer()
-            .pretty()
-            .with_filter(targets);
-
-        // It's okay if this fails. It just means logging has already been set up for
-        // this thread.
-        let _ = tracing_subscriber::registry().with(stdout_layer).try_init();
-
         init_rng()
     }
 
