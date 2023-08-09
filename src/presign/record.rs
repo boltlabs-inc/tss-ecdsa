@@ -279,7 +279,6 @@ mod tests {
         elliptic_curve::{Field, Group},
         ProjectivePoint, Scalar,
     };
-    use libpaillier::unknown_order::BigNumber;
     use rand::{rngs::StdRng, CryptoRng, Rng, RngCore, SeedableRng};
 
     use crate::{
@@ -329,23 +328,11 @@ mod tests {
             // `R` in the paper.
             let mask_point = CurvePoint::GENERATOR.multiply_by_scalar(&mask_inversion);
 
-            let secret_key = keygen_outputs
+            // Compute the masked key shares as (secret_key_share * mask)
+            let masked_key_shares = keygen_outputs
                 .iter()
-                .map(|output| output.private_key_share())
-                .fold(BigNumber::zero(), |sum, key_share| sum + key_share.as_ref());
-
-            // Make all but one of the masked key shares randomly
-            let mut masked_key_shares =
-                std::iter::repeat_with(|| Scalar::random(StdRng::from_seed(rng.gen())))
-                    .take(keygen_outputs.len() - 1)
-                    .collect::<Vec<_>>();
-            let almost_masked_key = masked_key_shares
-                .iter()
-                .fold(Scalar::ZERO, |sum, masked_share| sum + masked_share);
-
-            // Compute the last key share to force correctness. We need to enforce that
-            // sum(masked_key_shares) = secret_key * mask (mod q)
-            masked_key_shares.push(bn_to_scalar(&secret_key).unwrap() * mask - almost_masked_key);
+                .map(|output| bn_to_scalar(output.private_key_share().as_ref()).unwrap())
+                .map(|secret_key_share| secret_key_share * mask);
 
             assert_eq!(masked_key_shares.len(), keygen_outputs.len());
             assert_eq!(mask_shares.len(), keygen_outputs.len());
