@@ -17,6 +17,7 @@ use k256::{
 use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
 use tracing::{error, info, warn};
+use zeroize::Zeroize;
 
 use crate::{
     errors::{CallerError, InternalError, Result},
@@ -31,7 +32,6 @@ use crate::{
     zkp::ProofContext,
     Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
 };
-use zeroize::Zeroize;
 
 /// A participant that runs the signing protocol in Figure 8 of Canetti et
 /// al[^cite].
@@ -121,8 +121,8 @@ impl Input {
             .fold(CurvePoint::IDENTITY, |sum, share| sum + *share.as_ref());
 
         VerifyingKey::from_encoded_point(&public_key_point.0.to_affine().into()).map_err(|_| {
-            error!("Keygen output does not produce a valid public key.");
-            InternalError::InternalInvariantFailed
+            error!("Keygen output does not produce a valid public key");
+            CallerError::BadInput.into()
         })
     }
 }
@@ -389,6 +389,7 @@ impl SignParticipant {
             return Ok(ProcessOutcome::Incomplete);
         }
 
+        // Otherwise, continue on to run the `Output` step of the protocol
         self.compute_output()
     }
 
@@ -396,7 +397,8 @@ impl SignParticipant {
     /// you have received a share from every participant, including
     /// yourself!
     fn compute_output(&mut self) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        // Otherwise, get everyone's share and the x-projection we saved in round one
+        // Retrieve everyone's share and the x-projection we saved in round one
+        // (This will fail if we're missing any shares)
         let shares = self
             .all_participants()
             .into_iter()
@@ -452,6 +454,8 @@ mod test {
 
     use super::SignParticipant;
 
+    /// Pick a random incoming message and have the correct participant process
+    /// it.
     fn process_messages<'a, R: RngCore + CryptoRng>(
         quorum: &'a mut [SignParticipant],
         inbox: &mut Vec<Message>,
@@ -499,7 +503,6 @@ mod test {
             .map(|record| record.mask_share())
             .fold(Scalar::ZERO, |a, b| a + b);
 
-        //TODO: try to simplify / clean up bn_to_scalar method
         let secret_key = keygen_outputs
             .iter()
             .map(|output| bn_to_scalar(output.private_key_share().as_ref()).unwrap())
@@ -598,6 +601,8 @@ mod test {
                 }
             }
 
+            // Debug check -- did we process all the messages without finishing the
+            // protocol?
             if inbox.is_empty()
                 && !quorum
                     .iter()
