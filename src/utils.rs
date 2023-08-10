@@ -406,15 +406,16 @@ pub(crate) mod testing {
         rngs::{OsRng, StdRng},
         Rng, SeedableRng,
     };
-    use tracing::Level;
     use tracing_subscriber::{
         filter::Targets, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
     };
 
-    /// Returns an rng to be used for testing. This will print the rng seed
-    /// to stderr so that if a test fails, the failing seed can be recovered
-    /// and used for debugging.
-    fn init_rng() -> StdRng {
+    /// Initialize any fields necessary for our tests. This should be called at
+    /// the top of all our tests. This function is idempotent.
+    ///
+    /// This will print the rng seed to stderr so that if a test fails, the
+    /// failing seed can be recovered and used for debugging.
+    pub(crate) fn init_testing() -> StdRng {
         let mut seeder = OsRng;
         let seed = seeder.gen();
         eprintln!(
@@ -422,18 +423,6 @@ pub(crate) mod testing {
         );
         eprintln!("\t{seed:?}");
         StdRng::from_seed(seed)
-    }
-
-    /// Returns an rng with a manually-specified seed to be used for debugging.
-    #[allow(unused)]
-    fn init_rng_with_seed(seed: [u8; 32]) -> StdRng {
-        StdRng::from_seed(seed)
-    }
-
-    /// Initialize any test necessary for our tests. This should be called at
-    /// the top of all our tests. This function is idempotent.
-    pub(crate) fn init_testing() -> StdRng {
-        init_rng()
     }
 
     /// A seeded version of init_testing. Additionally, turns on logging by
@@ -447,7 +436,7 @@ pub(crate) mod testing {
             .unwrap();
 
         // Only capture logging events from tss_ecdsa crate.
-        let targets = Targets::new().with_target("tss_ecdsa", Level::DEBUG);
+        let targets = Targets::new().with_target("tss_ecdsa", logging_level);
         let stdout_layer = tracing_subscriber::fmt::layer()
             .pretty()
             .with_filter(targets);
@@ -457,6 +446,6 @@ pub(crate) mod testing {
         let _ = tracing_subscriber::registry().with(stdout_layer).try_init();
 
         // Return RNG
-        init_rng_with_seed(seed)
+        StdRng::from_seed(seed)
     }
 }

@@ -109,10 +109,12 @@ impl TryFrom<RecordPair> for PresignRecord {
 }
 
 impl PresignRecord {
+    /// Get the mask share (`k` in the paper) from the record.
     pub(crate) fn mask_share(&self) -> &Scalar {
         &self.k
     }
 
+    /// Get the masked key share (`chi` in the paper) from the record.
     pub(crate) fn masked_key_share(&self) -> &Scalar {
         &self.chi
     }

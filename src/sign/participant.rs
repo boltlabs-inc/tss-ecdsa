@@ -11,7 +11,7 @@
 use generic_array::{typenum::U32, GenericArray};
 use k256::{
     ecdsa::{signature::DigestVerifier, VerifyingKey},
-    elliptic_curve::ops::Reduce,
+    elliptic_curve::{ops::Reduce, subtle::ConditionallySelectable, IsHigh},
     Scalar, U256,
 };
 use rand::{CryptoRng, RngCore};
@@ -230,7 +230,10 @@ impl ProtocolParticipant for SignParticipant {
         rng: &mut R,
         message: &Message,
     ) -> Result<ProcessOutcome<Self::Output>> {
-        info!("Processing signing message.");
+        info!(
+            "Processing signing message of type {:?}",
+            message.message_type()
+        );
 
         if *self.status() == Status::TerminatedSuccessfully {
             Err(CallerError::ProtocolAlreadyTerminated)?;
@@ -309,16 +312,12 @@ impl SignParticipant {
         rng: &mut R,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        info!("Handling sign ready message.");
-
         let ready_outcome = self.process_ready_message(rng, message)?;
 
         // Generate round 1 messages
         let round_one_messages = run_only_once!(self.gen_round_one_msgs(rng, self.sid()))?;
 
-        // PROBLEM: If you processed the other 3 people's messages in
-        // `process_ready_message`, then generate your own share in
-        // `gen_round_one_msg`, you never go in and finish the protocol.
+        // If our generated share was the last one, complete the protocol.
         if self
             .storage
             .contains_for_all_ids::<storage::Share>(&self.all_participants())
@@ -328,6 +327,7 @@ impl SignParticipant {
                 .with_messages(round_one_messages)
                 .consolidate(vec![round_one_outcome])
         } else {
+            // Otherwise, just return the new messages
             Ok(ready_outcome.with_messages(round_one_messages))
         }
     }
@@ -337,19 +337,18 @@ impl SignParticipant {
         _rng: &mut R,
         _sid: Identifier,
     ) -> Result<Vec<Message>> {
-        let record = &self.input.presign_record();
+        let record = self.input.presign_record();
 
         // Interpret the message digest as an integer mod `q`. This matches the way that
         // the k256 library converts a digest to a scalar.
         let digest = <Scalar as Reduce<U256>>::from_be_bytes_reduced(self.input.digest());
-        //TODO: try to simplify / clean up bn_to_scalar method
 
         // Compute the x-projection of `R` from the `PresignRecord`
         let x_projection = record.x_projection()?;
 
         // Compute the share
         let share = SignatureShare::new(
-            record.mask_share() * &digest + x_projection * record.masked_key_share(),
+            record.mask_share() * &digest + (x_projection * record.masked_key_share()),
         );
 
         // Erase the presign record
@@ -405,8 +404,10 @@ impl SignParticipant {
             .collect::<Result<Vec<_>>>()?;
         let x_projection = self.storage.remove::<storage::XProj>(self.id())?;
 
-        // Compute full signature
-        let sum = shares.into_iter().fold(Scalar::ZERO, |a, b| a + b);
+        // Sum up the signature shares and convert to BIP-0062 format (negating if the
+        // sum is > group order /2)
+        let mut sum = shares.into_iter().fold(Scalar::ZERO, |a, b| a + b);
+        sum.conditional_assign(&sum.negate(), sum.is_high());
 
         let signature = Signature::try_from_scalars(x_projection, sum)?;
 
@@ -431,7 +432,7 @@ mod test {
 
     use k256::{
         ecdsa::signature::{DigestVerifier, Verifier},
-        elliptic_curve::ops::Reduce,
+        elliptic_curve::{ops::Reduce, subtle::ConditionallySelectable, IsHigh},
         Scalar, U256,
     };
     use rand::{CryptoRng, Rng, RngCore};
@@ -443,18 +444,14 @@ mod test {
         keygen,
         messages::{Message, MessageType},
         participant::ProcessOutcome,
-        presign::{test, PresignRecord},
+        presign::PresignRecord,
         sign::{self, participant::Status, share::Signature},
-        utils::{
-            bn_to_scalar,
-            testing::{init_testing, init_testing_with_seed},
-        },
+        utils::{bn_to_scalar, testing::init_testing},
         Identifier, ParticipantConfig, ProtocolParticipant,
     };
 
     use super::SignParticipant;
 
-    #[allow(clippy::type_complexity)]
     fn process_messages<'a, R: RngCore + CryptoRng>(
         quorum: &'a mut [SignParticipant],
         inbox: &mut Vec<Message>,
@@ -480,12 +477,19 @@ mod test {
 
     #[test]
     fn signing_always_works() {
-        for _ in 0..10 {
+        for _ in 0..1000 {
             signing_produces_valid_signature().unwrap()
         }
     }
 
-    fn reconstruct_record_fields(
+    /// This method is used for debugging. It "simulates" the non-distributed
+    /// ECDSA signing algorithm by reconstructing the mask `k` and secret
+    /// key fields from the presign records and keygen outputs,
+    /// respectively, and using them to compute the signature.
+    ///
+    /// It can be used to check that the distributed signature is being computed
+    /// correctly according to the presign record.
+    fn compute_non_distributed_ecdsa(
         message: &[u8],
         records: &[PresignRecord],
         keygen_outputs: &[keygen::Output],
@@ -495,6 +499,7 @@ mod test {
             .map(|record| record.mask_share())
             .fold(Scalar::ZERO, |a, b| a + b);
 
+        //TODO: try to simplify / clean up bn_to_scalar method
         let secret_key = keygen_outputs
             .iter()
             .map(|output| bn_to_scalar(output.private_key_share().as_ref()).unwrap())
@@ -504,7 +509,9 @@ mod test {
 
         let m = <Scalar as Reduce<U256>>::from_be_bytes_reduced(Sha256::digest(message));
 
-        let s = k * (m + r * secret_key);
+        let mut s = k * (m + r * secret_key);
+        s.conditional_assign(&s.negate(), s.is_high());
+
         let signature = k256::ecdsa::Signature::from_scalars(r, s).unwrap();
 
         // These checks fail when the overall thing fails
@@ -521,34 +528,24 @@ mod test {
     fn signing_produces_valid_signature() -> Result<()> {
         let quorum_size = 4;
         let rng = &mut init_testing();
-        /* // fails with simulated presign input
-        let rng = &mut init_testing_with_seed([
-            55, 229, 190, 1, 110, 121, 83, 14, 122, 32, 22, 170, 144, 22, 238, 75, 85, 62, 62, 224,
-            3, 73, 107, 236, 157, 128, 142, 175, 177, 97, 54, 68,
-        ]);
-        */
-        // fails with real presign input
-        //let rng = &mut init_testing_with_seed([140, 214, 55, 20, 191, 115, 24, 91,
-        // 250, 27, 174, 233, 115, 99, 31, 228, 218, 209, 49, 218, 194, 164, 90, 31,
-        // 171, 145, 133, 140, 207, 57, 181, 228]);
         let sid = Identifier::random(rng);
 
         // Prepare prereqs for making SignParticipants. Assume all the simulations
         // are stable (e.g. keep config order)
         let configs = ParticipantConfig::random_quorum(quorum_size, rng)?;
         let keygen_outputs = keygen::Output::simulate_set(&configs, rng);
-
-        //let presign_records = PresignRecord::simulate_set(&keygen_outputs, rng);
-        let presign_records = test::run_presign(&configs, &keygen_outputs, rng)?;
+        let presign_records = PresignRecord::simulate_set(&keygen_outputs, rng);
 
         let message = b"the quick brown fox jumped over the lazy dog";
         let message_digest = sha2::Sha256::new().chain(message);
 
         // Save some things for later -- a signature constructucted from the records and
         // the public key
-        let fake_sig = reconstruct_record_fields(message, &presign_records, &keygen_outputs);
+        let non_distributed_sig =
+            compute_non_distributed_ecdsa(message, &presign_records, &keygen_outputs);
         let public_key = &keygen_outputs[0].public_key().unwrap();
 
+        // Form signing inputs and participants
         let inputs = std::iter::zip(keygen_outputs, presign_records).map(|(keygen, record)| {
             sign::Input::new(
                 message_digest.clone(),
@@ -556,7 +553,6 @@ mod test {
                 keygen.public_key_shares().to_vec(),
             )
         });
-
         let mut quorum =
             std::iter::zip(ParticipantConfig::random_quorum(quorum_size, rng)?, inputs)
                 .map(|(config, input)| {
@@ -564,7 +560,7 @@ mod test {
                 })
                 .collect::<Result<Vec<_>>>()?;
 
-        // Prepare caching of data for protocol execution
+        // Prepare caching of data (outputs and messages) for protocol execution
         let mut outputs = HashMap::with_capacity(quorum_size);
 
         let mut inbox = Vec::new();
@@ -613,7 +609,7 @@ mod test {
 
         // Everyone should have gotten an output
         assert_eq!(outputs.len(), quorum.len());
-        let mut signatures = outputs.into_values().collect::<Vec<_>>();
+        let signatures = outputs.into_values().collect::<Vec<_>>();
 
         // Everyone should have gotten the same output. We don't use a hashset because
         // the underlying signature type doesn't derive `Hash`
@@ -621,13 +617,14 @@ mod test {
             .windows(2)
             .all(|signature| signature[0] == signature[1]));
 
-        // Verify the signature against `message`.
-        let real_sig = signatures.pop().unwrap();
-        assert_eq!(real_sig.as_ref(), &fake_sig);
+        // Make sure the signature we got matches the non-distributed one
+        let distributed_sig = &signatures[0];
+        assert_eq!(distributed_sig.as_ref(), &non_distributed_sig);
 
-        assert!(public_key.verify(message, real_sig.as_ref()).is_ok());
+        // Verify that we have a valid signature under the public key for the `message`
+        assert!(public_key.verify(message, distributed_sig.as_ref()).is_ok());
         assert!(public_key
-            .verify_digest(Sha256::new().chain(message), real_sig.as_ref())
+            .verify_digest(Sha256::new().chain(message), distributed_sig.as_ref())
             .is_ok());
 
         Ok(())

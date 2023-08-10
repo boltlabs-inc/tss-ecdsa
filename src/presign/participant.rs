@@ -1190,7 +1190,7 @@ impl PresignKeyShareAndInfo {
 pub(super) use test::presign_record_set_is_valid;
 
 #[cfg(test)]
-pub(crate) mod test {
+mod test {
     use std::{collections::HashMap, iter::zip};
 
     use k256::Scalar;
@@ -1311,7 +1311,7 @@ pub(crate) mod test {
     ) -> Result<Vec<PresignRecord>> {
         assert_eq!(configs.len(), keygen_outputs.len());
 
-        let auxinfo_outputs = auxinfo::Output::simulate_set(&configs, rng);
+        let auxinfo_outputs = auxinfo::Output::simulate_set(configs, rng);
         let sid = Identifier::random(rng);
 
         // Make the participants

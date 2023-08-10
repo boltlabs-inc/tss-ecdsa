@@ -26,6 +26,3 @@ mod round_two;
 pub use input::Input;
 pub use participant::{PresignParticipant, Status};
 pub use record::PresignRecord;
-
-#[cfg(test)]
-pub(crate) use participant::test;
