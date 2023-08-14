@@ -489,16 +489,14 @@ mod tests {
             prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
-        let small_fac_p = BigNumber::from(2u64);
-        let small_fac_q = BigNumber::from(2u64);
-        let big_q = &regular_sized_p * &regular_sized_q;
-        let big_p = big_q.clone();
-        let modulus = &small_fac_p * &big_q;
+        let small_factor = BigNumber::from(2u64);
+        let large_factor = &regular_sized_p * &regular_sized_q;
+        let modulus = &small_factor * &large_factor;
 
         let small_fac_input = CommonInput::new(&setup_params, &modulus);
         let small_fac_proof = PiFacProof::prove(
             small_fac_input,
-            ProverSecret::new(&small_fac_p, &big_q),
+            ProverSecret::new(&small_factor, &large_factor),
             &(),
             &mut transcript(),
             &mut rng,
@@ -508,11 +506,9 @@ mod tests {
             .verify(small_fac_input, &(), &mut transcript())
             .is_err());
 
-        let modulus = &big_p * &small_fac_q;
-        let small_fac_input = CommonInput::new(&setup_params, &modulus);
         let small_fac_proof = PiFacProof::prove(
             small_fac_input,
-            ProverSecret::new(&big_p, &small_fac_q),
+            ProverSecret::new(&large_factor, &small_factor),
             &(),
             &mut transcript(),
             &mut rng,
