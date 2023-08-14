@@ -583,8 +583,15 @@ mod tests {
             .verify(input, &(), &mut transcript())
             .is_err());
 
+        let (q_link_commitment, _) = input.setup_params.scheme().commit_with_commitment(
+            &proof.q_commitment,
+            &proof.p_masked,
+            ELL + EPSILON,
+            input.modulus,
+            &mut rng,
+        );
         let mut incorrect_proof = proof.clone();
-        incorrect_proof.q_link_commitment = random_commitment.clone();
+        incorrect_proof.q_link_commitment = q_link_commitment;
         assert!(incorrect_proof
             .verify(input, &(), &mut transcript())
             .is_err());
