@@ -387,7 +387,7 @@ mod tests {
     }
 
     #[test]
-    fn test_no_small_factors_proof_negative_cases() -> Result<()> {
+    fn modulus_common_input_must_be_same_proving_and_verifying() -> Result<()> {
         let mut rng = init_testing();
         // `rng` will be borrowed. We make another rng to be captured by the closure.
         let mut rng2 = StdRng::from_seed(rng.gen());
@@ -400,20 +400,31 @@ mod tests {
             assert!(proof.verify(incorrect_N, &(), &mut transcript()).is_err());
             Ok(())
         };
-        with_random_no_small_factors_proof(&mut rng, modulus_must_match)?;
+        with_random_no_small_factors_proof(&mut rng, modulus_must_match)
+    }
 
+    #[test]
+    fn setup_params_common_input_must_be_same_proving_and_verifying() -> Result<()> {
+        let mut rng = init_testing();
         // Setup parameters in the common input must be the same at proof creation and
         // verification.
         let setup_params_must_match = |input: CommonInput, proof: PiFacProof| {
-            let setup_param = VerifiedRingPedersen::gen(&mut rng2, &())?;
+            let mut rng = init_testing();
+            let setup_param = VerifiedRingPedersen::gen(&mut rng, &())?;
             let incorrect_startup_params = CommonInput::new(&setup_param, input.modulus);
             assert!(proof
                 .verify(incorrect_startup_params, &(), &mut transcript())
                 .is_err());
             Ok(())
         };
-        with_random_no_small_factors_proof(&mut rng, setup_params_must_match)?;
+        with_random_no_small_factors_proof(&mut rng, setup_params_must_match)
+    }
 
+    #[test]
+    fn test_no_small_factors_proof_negative_cases() -> Result<()> {
+        let mut rng = init_testing();
+        // `rng` will be borrowed. We make another rng to be captured by the closure.
+        let mut rng2 = StdRng::from_seed(rng.gen());
         // Prover secret must have correct factors for the modulus in the common input.
         let correct_factors = |input: CommonInput, _proof: PiFacProof| {
             let (not_p0, not_q0) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng2).unwrap();
