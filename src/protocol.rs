@@ -505,6 +505,7 @@ impl ProofContext for SharedContext {
 }
 
 impl SharedContext {
+    #[cfg(test)]
     pub fn gen_shared_context(
         sid: Identifier,
         participants: Vec<ParticipantIdentifier>,
