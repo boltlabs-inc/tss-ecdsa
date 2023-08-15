@@ -27,16 +27,17 @@ use crate::{
 ///   library expects a 256-bit digest (e.g. produced by SHA3-256 (Keccak)).
 /// - The [`Output`](crate::keygen::Output) of a [`keygen`](crate::keygen)
 ///   protocol execution
-///   - A list of [public key shares](KeySharePublic), one for each participant
-///     (including this participant);
-///   - A single [private key share](KeySharePrivate) for this participant; and
+///   - A list of [public key shares](crate::keygen::KeySharePublic), one for
+///     each participant (including this participant);
+///   - A single [private key share](crate::keygen::KeySharePrivate) for this
+///     participant; and
 ///   - A random value, agreed on by all participants.
 /// - The [`Output`](crate::auxinfo::Output) of an [`auxinfo`](crate::auxinfo)
 ///   protocol execution
-///   - A list of [public auxiliary information](AuxInfoPublic), one for each
-///     participant (including this participant), and
-///   - A single set of [private auxiliary information](`AuxInfoPrivate`) for
-///     this participant.
+///   - A list of [public auxiliary information](crate::auxinfo::AuxInfoPublic),
+///     one for each participant (including this participant), and
+///   - A single set of [private auxiliary
+///     information](`crate::auxinfo::AuxInfoPrivate`) for this participant.
 ///
 ///
 /// # Protocol output
@@ -81,13 +82,10 @@ impl ProtocolParticipant for InteractiveSignParticipant {
 
     type Status = Status;
 
-    /// Get the type of a "ready" message, signalling that a participant
-    /// is ready to begin protocol execution.
     fn ready_type() -> MessageType {
         PresignParticipant::ready_type()
     }
 
-    /// Define which protocol this implements.
     fn protocol_type() -> ProtocolType {
         todo!()
     }
@@ -102,15 +100,13 @@ impl ProtocolParticipant for InteractiveSignParticipant {
         todo!()
     }
 
-    /// Return the participant id
     fn id(&self) -> ParticipantIdentifier {
-        // Note: both participants must have the same participant ID
+        // Note: signer should have the same participant ID
         self.presigner.id()
     }
 
-    /// Return other Participant ids apart from the current one
     fn other_ids(&self) -> &[ParticipantIdentifier] {
-        // Note: both participants must have the same set of other IDs
+        // Note: signer should have the same set of other IDs
         self.presigner.other_ids()
     }
 
@@ -123,8 +119,12 @@ impl ProtocolParticipant for InteractiveSignParticipant {
         todo!()
     }
 
-    /// The status of the protocol execution.
     fn status(&self) -> &Self::Status {
+        // This method makes some assumptions about ordering for calling presign
+        // and sign -- e.g. we will not pass a ready message to the `signer` until
+        // the `presigner` is sucessfully completed.
+        // Another option would be to maintain a status field and update it at
+        // the appropriate poitns.
         if !self.presigner.is_ready() {
             return &Status::NotReady;
         }
@@ -140,17 +140,15 @@ impl ProtocolParticipant for InteractiveSignParticipant {
         }
     }
 
-    /// The session identifier for the current session
     fn sid(&self) -> Identifier {
+        // Note: signer should have the same sid
         self.presigner.sid()
     }
 
-    /// The input of the current session
     fn input(&self) -> &Self::Input {
         &self.input
     }
 
-    /// Returns whether or not the Participant is Ready
     fn is_ready(&self) -> bool {
         self.status() != &Status::NotReady
     }
