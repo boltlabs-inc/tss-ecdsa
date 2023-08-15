@@ -38,10 +38,7 @@ use crate::{
 ///
 /// Note that this only runs Figure 8. By itself, this corresponds to the
 /// non-interactive signing protocol; it expects a
-/// [`PresignRecord`](crate::PresignRecord) as input. It could be
-/// used as a component to execute the interactive signing protocol, but this is
-/// not yet implemented.
-///
+/// [`PresignRecord`](crate::PresignRecord) as input.
 ///
 /// # Protocol input
 /// The protocol takes two fields as input:
