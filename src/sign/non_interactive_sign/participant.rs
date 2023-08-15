@@ -27,7 +27,7 @@ use crate::{
     participant::{InnerProtocolParticipant, ProcessOutcome},
     protocol::{ProtocolType, SharedContext},
     run_only_once,
-    sign::share::{Signature, SignatureShare},
+    sign::{non_interactive_sign::share::SignatureShare, Signature},
     utils::CurvePoint,
     zkp::ProofContext,
     Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
@@ -172,7 +172,7 @@ impl SignContext {
 mod storage {
     use k256::Scalar;
 
-    use crate::{local_storage::TypeTag, sign::share::SignatureShare};
+    use crate::{local_storage::TypeTag, sign::non_interactive_sign::share::SignatureShare};
 
     pub(super) struct Share;
     impl TypeTag for Share {
@@ -447,7 +447,7 @@ mod test {
         messages::{Message, MessageType},
         participant::ProcessOutcome,
         presign::PresignRecord,
-        sign::{self, participant::Status, share::Signature},
+        sign::{self, non_interactive_sign::participant::Status, Signature},
         utils::{bn_to_scalar, testing::init_testing},
         Identifier, ParticipantConfig, ProtocolParticipant,
     };

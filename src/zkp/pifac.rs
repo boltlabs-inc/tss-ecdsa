@@ -172,6 +172,7 @@ impl Proof2 for PiFacProof {
 
         // Verifier samples e in +- q (where q is the group order)
         let e = plusminus_challenge_from_transcript(transcript)?;
+        println!("prove- challenge: {:?}", e);
 
         let sigma_hat = nu.mask_neg(&link_randomness, secret.p);
         let p_masked = &p_mask + &e * secret.p;
@@ -216,6 +217,7 @@ impl Proof2 for PiFacProof {
 
         // Verifier samples e in +- q (where q is the group order)
         let e = plusminus_challenge_from_transcript(transcript)?;
+        println!("verify challenge: {:?}", e);
 
         let masked_p_commitment_is_valid = {
             let lhs = input
