@@ -5,9 +5,6 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! This module instantiates a [`SignParticipant`] which implements the
-//! signing protocol.
-
 use generic_array::{typenum::U32, GenericArray};
 use k256::{
     ecdsa::{signature::DigestVerifier, VerifyingKey},
@@ -33,8 +30,8 @@ use crate::{
     Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
 };
 
-/// A participant that runs the signing protocol in Figure 8 of Canetti et
-/// al[^cite].
+/// A participant that runs the non-interactive signing protocol in Figure 8 of
+/// Canetti et al[^cite].
 ///
 /// Note that this only runs Figure 8. By itself, this corresponds to the
 /// non-interactive signing protocol; it expects a
@@ -65,7 +62,7 @@ use crate::{
 /// Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
 /// with Identifiable Aborts. [EPrint archive,
 /// 2021](https://eprint.iacr.org/2021/060.pdf).
-
+#[derive(Debug)]
 pub struct SignParticipant {
     sid: Identifier,
     storage: LocalStorage,
@@ -74,7 +71,7 @@ pub struct SignParticipant {
     status: Status,
 }
 
-/// Input for the signing protocol.
+/// Input for the non-interactive signing protocol.
 #[derive(Debug)]
 pub struct Input {
     message_digest: Sha256,

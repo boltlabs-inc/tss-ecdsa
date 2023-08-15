@@ -5,8 +5,11 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! This module implements the signing protocol defined in Figure 8 of
-//! the protocol by Canetti et al[^cite].
+//! This module implements two signing protocols defined in Canetti et
+//! al[^cite].
+//!
+//! It includes both the interactive signing protocol (described in Figure 3)
+//! and the non-interactive protocol (described in Figure 8).
 //!
 //! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
 //! Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
@@ -17,10 +20,12 @@ mod interactive_sign;
 mod non_interactive_sign;
 
 use k256::Scalar;
-pub use non_interactive_sign::participant::Input;
 use tracing::error;
 
 use crate::errors::{InternalError, Result};
+
+pub use interactive_sign::participant::{Input as InteractiveInput, InteractiveSignParticipant};
+pub use non_interactive_sign::participant::{Input, SignParticipant};
 
 /// ECDSA signature on a message.
 ///
