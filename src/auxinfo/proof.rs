@@ -176,8 +176,9 @@ mod tests {
         let sid = Identifier::random(&mut rng);
         let rho = random();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
-        let modulus = prime_gen::try_get_prime_from_pool_insecure(&mut rng).unwrap();
+        //let modulus = prime_gen::try_get_prime_from_pool_insecure(&mut rng).unwrap();
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let modulus = &p * &q;
         let shared_context = &generate_shared_context();
         let proof = AuxInfoProof::prove(
             &mut rng,

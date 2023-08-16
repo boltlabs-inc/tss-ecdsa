@@ -483,6 +483,8 @@ fn y_prime_combinations(
 
 #[cfg(test)]
 mod tests {
+    use rand::random;
+
     use super::*;
     use crate::{
         paillier::{prime_gen, DecryptionKey},
@@ -490,6 +492,10 @@ mod tests {
         utils::testing::init_testing,
         zkp::BadContext,
     };
+
+    fn transcript() -> Transcript {
+        Transcript::new(b"PiMod Test")
+    }
 
     #[test]
     fn test_jacobi() {
@@ -576,6 +582,22 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn modulus_should_have_prime_factors() -> Result<()> {
+        let mut rng = init_testing();
+        let (_, _p, q) = DecryptionKey::new(&mut rng).unwrap();
+        let one: BigNumber = BigNumber::from(1);
+        let modulus = one.clone() * q.clone();
+        let input = CommonInput { modulus };
+        let secret = ProverSecret { p: one, q };
+        let proof = match PiModProof::prove(&input, &secret, &(), &mut transcript(), &mut rng) {
+            Ok(proof) => proof,
+            Err(_) => return Err(InternalError::InternalInvariantFailed),
+        };
+        assert!(proof.verify(&input, &(), &mut transcript()).is_err());
+        Ok(())
     }
 
     #[test]
@@ -752,32 +774,114 @@ mod tests {
         };
         let secret = ProverSecret { p, q };
 
-        let mut transcript = Transcript::new(b"PiMod Test");
-        let proof_result = PiModProof::prove(&input, &secret, &(), &mut transcript, rng);
+        let proof_result = PiModProof::prove(&input, &secret, &(), &mut transcript(), rng);
         assert!(proof_result.is_ok());
         (proof_result.unwrap(), input)
     }
 
     #[test]
+    fn secret_input_should_be_correct() -> Result<()> {
+        let mut rng = init_testing();
+        let (_, p, q) = DecryptionKey::new(&mut rng).unwrap();
+        let (new_decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
+        let input = CommonInput {
+            modulus: new_decryption_key.encryption_key().modulus().to_owned(),
+        };
+        let bad_secret = ProverSecret { p, q };
+        let proof = PiModProof::prove(&input, &bad_secret, &(), &mut transcript(), &mut rng)?;
+        assert!(proof.verify(&input, &(), &mut transcript()).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn challenges_must_be_derived_from_transcript() -> Result<()> {
+        let mut rng = init_testing();
+        let (mut bad_proof, input) = random_pimod_proof(&mut rng);
+        let new_challenge = random_positive_bn(&mut rng, &k256_order());
+        if let Some(first_element) = bad_proof.elements.get_mut(0) {
+            first_element.challenge = new_challenge;
+        } else {
+            panic!("No element found");
+        }
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn commitment_must_be_correct() -> Result<()> {
+        let mut rng = init_testing();
+        let (mut bad_proof, input) = random_pimod_proof(&mut rng);
+        bad_proof.random_jacobi_one = random_positive_bn(&mut rng, &k256_order());
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn responses_must_be_correct() -> Result<()> {
+        let mut rng = init_testing();
+        let (proof, input) = random_pimod_proof(&mut rng);
+        let new_challenge_secret_link = random_positive_bn(&mut rng, &k256_order());
+        let mut bad_proof = proof.clone();
+        if let Some(first_element) = bad_proof.elements.get_mut(0) {
+            first_element.challenge_secret_link = new_challenge_secret_link;
+        } else {
+            panic!("No element found");
+        }
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
+        let mut bad_proof = proof.clone();
+        let new_sign_exponent: usize = random();
+        if let Some(first_element) = bad_proof.elements.get_mut(0) {
+            first_element.sign_exponent = new_sign_exponent;
+        } else {
+            panic!("No element found");
+        }
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
+        let mut bad_proof = proof.clone();
+        let new_jacobi_exponent: usize = random();
+        if let Some(first_element) = bad_proof.elements.get_mut(0) {
+            first_element.sign_exponent = new_jacobi_exponent;
+        } else {
+            panic!("No element found");
+        }
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
+        let new_fourth_root = random_positive_bn(&mut rng, &k256_order());
+        let mut bad_proof = proof.clone();
+        if let Some(first_element) = bad_proof.elements.get_mut(0) {
+            first_element.fourth_root = new_fourth_root;
+        } else {
+            panic!("No element found");
+        }
+        assert!(bad_proof.verify(&input, &(), &mut transcript()).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn common_input_must_be_same_for_proving_and_verifying() -> Result<()> {
+        let mut rng = init_testing();
+        let random_bn = random_positive_bn(&mut rng, &k256_order());
+        let (proof, _) = random_pimod_proof(&mut rng);
+        let bad_input = CommonInput::new(&random_bn);
+        assert!(proof.verify(&bad_input, &(), &mut transcript()).is_err());
+        Ok(())
+    }
+
+    #[test]
     fn pimod_proof_verifies() {
         let mut rng = init_testing();
-
         let (proof, input) = random_pimod_proof(&mut rng);
-        let mut transcript = Transcript::new(b"PiMod Test");
-        assert!(proof.verify(&input, &(), &mut transcript).is_ok());
+        assert!(proof.verify(&input, &(), &mut transcript()).is_ok());
     }
 
     #[test]
     fn pimod_proof_context_must_be_correct() -> Result<()> {
         let mut rng = init_testing();
-
         let context = BadContext {};
         let (proof, input) = random_pimod_proof(&mut rng);
-        let mut transcript = Transcript::new(b"PiMod Test");
-        let result = proof.verify(&input, &context, &mut transcript);
+        let result = proof.verify(&input, &context, &mut transcript());
         assert!(result.is_err());
         Ok(())
     }
+
     #[test]
     fn pimod_proof_requires_correct_number_of_elements_for_soundness() {
         let mut rng = init_testing();
@@ -809,11 +913,8 @@ mod tests {
         let (proof, input) = random_pimod_proof(&mut rng);
         let (short_proof, long_proof) = transform(&proof);
 
-        let mut transcript = Transcript::new(b"PiMod Test");
-        assert!(short_proof.verify(&input, &(), &mut transcript).is_err());
-        let mut transcript = Transcript::new(b"PiMod Test");
-        assert!(long_proof.verify(&input, &(), &mut transcript).is_err());
-        let mut transcript = Transcript::new(b"PiMod Test");
-        assert!(proof.verify(&input, &(), &mut transcript).is_ok());
+        assert!(short_proof.verify(&input, &(), &mut transcript()).is_err());
+        assert!(long_proof.verify(&input, &(), &mut transcript()).is_err());
+        assert!(proof.verify(&input, &(), &mut transcript()).is_ok());
     }
 }
