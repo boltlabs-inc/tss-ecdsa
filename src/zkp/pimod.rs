@@ -585,20 +585,37 @@ mod tests {
     }
 
     #[test]
-    fn modulus_should_have_prime_factors() -> Result<()> {
+    fn modulus_factors_cannot_be_one() -> Result<()> {
         let mut rng = init_testing();
         let (_, _p, q) = DecryptionKey::new(&mut rng).unwrap();
         let one: BigNumber = BigNumber::from(1);
         let modulus = one.clone() * q.clone();
         let input = CommonInput { modulus };
-        let secret = ProverSecret { p: one, q };
-        let proof = match PiModProof::prove(&input, &secret, &(), &mut transcript(), &mut rng) {
-            Ok(proof) => proof,
-            Err(_) => return Err(InternalError::InternalInvariantFailed),
+        let secret = ProverSecret {
+            p: one.clone(),
+            q: q.clone(),
         };
-        assert!(proof.verify(&input, &(), &mut transcript()).is_err());
+        let proof = PiModProof::prove(&input, &secret, &(), &mut transcript(), &mut rng);
+        assert!(proof.is_err());
         Ok(())
     }
+
+    /*#[test]
+    fn modulus_factors_cannot_be_composite() -> Result<()> {
+        let mut rng = init_testing();
+        let (_, p, q) = DecryptionKey::new(&mut rng).unwrap();
+        let one: BigNumber = BigNumber::from(1);
+        let new_q = q.clone() + one.clone();
+        let secret = ProverSecret {
+            p: p.clone(),
+            q: new_q.clone(),
+        };
+        let modulus = new_q.clone() * p;
+        let input = CommonInput { modulus };
+        let proof = PiModProof::prove(&input, &secret, &(), &mut transcript(), &mut rng)?;
+        assert!(proof.verify(&input, &(), &mut transcript()).is_err());
+        Ok(())
+    }*/
 
     #[test]
     fn test_fourth_roots_mod_composite() {
