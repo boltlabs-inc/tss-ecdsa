@@ -198,10 +198,6 @@ impl ProtocolParticipant for KeygenParticipant {
         self.sid
     }
 
-    fn input(&self) -> &Self::Input {
-        &()
-    }
-
     #[cfg_attr(feature = "flame_it", flame("keygen"))]
     #[instrument(skip_all)]
     fn process_message<R: RngCore + CryptoRng>(

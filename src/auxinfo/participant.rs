@@ -113,8 +113,6 @@ mod storage {
 pub struct AuxInfoParticipant {
     /// The current session identifier
     sid: Identifier,
-    /// The current protocol input
-    input: (),
     /// A unique identifier for this participant
     id: ParticipantIdentifier,
     /// A list of all other participant identifiers participating in the
@@ -142,7 +140,6 @@ impl ProtocolParticipant for AuxInfoParticipant {
     ) -> Result<Self> {
         Ok(Self {
             sid,
-            input,
             id,
             other_participant_ids: other_participant_ids.clone(),
             local_storage: Default::default(),
@@ -174,10 +171,6 @@ impl ProtocolParticipant for AuxInfoParticipant {
 
     fn sid(&self) -> Identifier {
         self.sid
-    }
-
-    fn input(&self) -> &Self::Input {
-        &self.input
     }
 
     #[cfg_attr(feature = "flame_it", flame("auxinfo"))]

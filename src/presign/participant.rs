@@ -280,10 +280,6 @@ impl ProtocolParticipant for PresignParticipant {
         self.sid
     }
 
-    fn input(&self) -> &Self::Input {
-        &self.input
-    }
-
     /// Process the incoming message.
     ///
     /// This method produces a [`PresignRecord`] once presigning is complete.
@@ -364,6 +360,10 @@ impl Broadcast for PresignParticipant {
 }
 
 impl PresignParticipant {
+    fn input(&self) -> &Input {
+        &self.input
+    }
+
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this

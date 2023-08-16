@@ -245,9 +245,6 @@ pub trait ProtocolParticipant {
 
     /// The session identifier for the current session
     fn sid(&self) -> Identifier;
-
-    /// The input of the current session
-    fn input(&self) -> &Self::Input;
 }
 
 pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {

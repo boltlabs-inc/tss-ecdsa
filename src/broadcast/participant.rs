@@ -113,9 +113,6 @@ impl ProtocolParticipant for BroadcastParticipant {
         self.sid
     }
 
-    fn input(&self) -> &Self::Input {
-        &()
-    }
     fn ready_type() -> MessageType {
         // I'm not totally confident since broadcast takes a different shape than the
         // other protocols, but this is definitely the first message in the

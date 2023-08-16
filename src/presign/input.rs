@@ -76,6 +76,10 @@ impl Input {
         })
     }
 
+    pub(crate) fn public_key_shares(&self) -> &[KeySharePublic] {
+        self.keygen_output.public_key_shares()
+    }
+
     /// Get the set of participants that contributed to the input.
     ///
     /// By construction, this must be the same for the auxinfo and key share

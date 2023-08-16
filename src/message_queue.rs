@@ -21,7 +21,7 @@ use crate::{
 use std::collections::HashMap;
 
 /// A type for storing a queue of [`Message`]s by [`MessageType`].
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct MessageQueue(HashMap<MessageType, Vec<Message>>);
 
 impl MessageQueue {

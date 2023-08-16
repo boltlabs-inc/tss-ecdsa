@@ -149,7 +149,7 @@ impl SignContext {
     pub(crate) fn collect(p: &SignParticipant) -> Self {
         Self {
             shared_context: SharedContext::collect(p),
-            message_digest: p.input().digest().into(),
+            message_digest: p.input.digest().into(),
         }
     }
 }
@@ -261,10 +261,6 @@ impl ProtocolParticipant for SignParticipant {
 
     fn sid(&self) -> Identifier {
         self.sid
-    }
-
-    fn input(&self) -> &Self::Input {
-        &self.input
     }
 }
 
