@@ -585,6 +585,22 @@ mod tests {
     }
 
     #[test]
+    fn modulus_should_have_prime_factors() -> Result<()> {
+        let mut rng = init_testing();
+        let (_, _p, q) = DecryptionKey::new(&mut rng).unwrap();
+        let one: BigNumber = BigNumber::from(1);
+        let modulus = one.clone() * q.clone();
+        let input = CommonInput { modulus };
+        let secret = ProverSecret { p: one, q };
+        let proof = match PiModProof::prove(&input, &secret, &(), &mut transcript(), &mut rng) {
+            Ok(proof) => proof,
+            Err(_) => return Err(InternalError::InternalInvariantFailed),
+        };
+        assert!(proof.verify(&input, &(), &mut transcript()).is_err());
+        Ok(())
+    }
+
+    #[test]
     fn test_fourth_roots_mod_composite() {
         let mut rng = init_testing();
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
