@@ -5,6 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use std::collections::HashSet;
+
 use generic_array::{typenum::U32, GenericArray};
 use k256::{
     ecdsa::{signature::DigestVerifier, VerifyingKey},
@@ -202,6 +204,20 @@ impl ProtocolParticipant for SignParticipant {
         Self: Sized,
     {
         let config = ParticipantConfig::new(id, &other_participant_ids)?;
+
+        // The input must contain exactly one public key per particpant ID.
+        let public_key_pids = input
+            .public_key_shares
+            .iter()
+            .map(|share| share.participant())
+            .collect::<HashSet<_>>();
+        let pids = std::iter::once(id)
+            .chain(other_participant_ids)
+            .collect::<HashSet<_>>();
+        if public_key_pids != pids || config.count() != input.public_key_shares.len() {
+            Err(CallerError::BadInput)?
+        }
+
         Ok(Self {
             sid,
             config,
@@ -550,12 +566,11 @@ mod test {
                 keygen.public_key_shares().to_vec(),
             )
         });
-        let mut quorum =
-            std::iter::zip(ParticipantConfig::random_quorum(quorum_size, rng)?, inputs)
-                .map(|(config, input)| {
-                    SignParticipant::new(sid, config.id(), config.other_ids().to_vec(), input)
-                })
-                .collect::<Result<Vec<_>>>()?;
+        let mut quorum = std::iter::zip(configs, inputs)
+            .map(|(config, input)| {
+                SignParticipant::new(sid, config.id(), config.other_ids().to_vec(), input)
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         // Prepare caching of data (outputs and messages) for protocol execution
         let mut outputs = HashMap::with_capacity(quorum_size);

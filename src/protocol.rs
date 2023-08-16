@@ -322,6 +322,12 @@ pub(crate) mod participant_config {
             participant
         }
 
+        /// Returns the total number of participants specified in the config
+        /// (both other and self).
+        pub fn count(&self) -> usize {
+            self.other_ids.len() + 1
+        }
+
         pub(crate) fn into_parts(self) -> (ParticipantIdentifier, Vec<ParticipantIdentifier>) {
             (self.id, self.other_ids)
         }
