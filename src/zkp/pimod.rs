@@ -587,7 +587,7 @@ mod tests {
     #[test]
     fn modulus_factors_cannot_be_one() -> Result<()> {
         let mut rng = init_testing();
-        let (_, _p, q) = DecryptionKey::new(&mut rng).unwrap();
+        let (_, _, q) = DecryptionKey::new(&mut rng).unwrap();
         let one: BigNumber = BigNumber::from(1);
         let modulus = one.clone() * q.clone();
         let input = CommonInput { modulus };
@@ -600,22 +600,21 @@ mod tests {
         Ok(())
     }
 
-    /*#[test]
+    #[test]
     fn modulus_factors_cannot_be_composite() -> Result<()> {
         let mut rng = init_testing();
-        let (_, p, q) = DecryptionKey::new(&mut rng).unwrap();
-        let one: BigNumber = BigNumber::from(1);
-        let new_q = q.clone() + one.clone();
-        let secret = ProverSecret {
-            p: p.clone(),
-            q: new_q.clone(),
-        };
-        let modulus = new_q.clone() * p;
+        let (_, _, q) = DecryptionKey::new(&mut rng).unwrap();
+        let random_odd_composite: BigNumber = BigNumber::from(15);
+        let modulus = random_odd_composite.clone() * q.clone();
         let input = CommonInput { modulus };
-        let proof = PiModProof::prove(&input, &secret, &(), &mut transcript(), &mut rng)?;
-        assert!(proof.verify(&input, &(), &mut transcript()).is_err());
+        let secret = ProverSecret {
+            p: random_odd_composite,
+            q: q.clone(),
+        };
+        let proof = PiModProof::prove(&input, &secret, &(), &mut transcript(), &mut rng);
+        assert!(proof.is_err());
         Ok(())
-    }*/
+    }
 
     #[test]
     fn test_fourth_roots_mod_composite() {
