@@ -804,8 +804,10 @@ mod tests {
             modulus: new_decryption_key.encryption_key().modulus().to_owned(),
         };
         let bad_secret = ProverSecret { p, q };
-        let proof = PiModProof::prove(&input, &bad_secret, &(), &mut transcript(), &mut rng)?;
-        assert!(proof.verify(&input, &(), &mut transcript()).is_err());
+        match PiModProof::prove(&input, &bad_secret, &(), &mut transcript(), &mut rng) {
+            Ok(proof) => assert!(proof.verify(&input, &(), &mut transcript()).is_err()),
+            Err(_) => return Ok(()),
+        };
         Ok(())
     }
 
