@@ -147,9 +147,6 @@ impl AuxInfoProof {
 #[cfg(test)]
 mod tests {
     use rand::random;
-    //use rocket::response::content;
-
-    //use crate::auxinfo::participant;
     use crate::{
         paillier::prime_gen,
         protocol::SharedContext,
@@ -176,7 +173,6 @@ mod tests {
         let sid = Identifier::random(&mut rng);
         let rho = random();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
-        //let modulus = prime_gen::try_get_prime_from_pool_insecure(&mut rng).unwrap();
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
         let shared_context = &generate_shared_context();
