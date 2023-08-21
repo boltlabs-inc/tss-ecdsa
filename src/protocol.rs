@@ -511,6 +511,21 @@ impl ProofContext for SharedContext {
 }
 
 impl SharedContext {
+    #[cfg(test)]
+    pub fn gen_shared_context(
+        sid: Identifier,
+        participants: Vec<ParticipantIdentifier>,
+        generator: CurvePoint,
+        order: BigNumber,
+    ) -> Self {
+        SharedContext {
+            sid,
+            participants,
+            generator,
+            order,
+        }
+    }
+
     pub(crate) fn collect<P: InnerProtocolParticipant>(p: &P) -> Self {
         let mut participants = p.all_participants();
         participants.sort();
