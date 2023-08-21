@@ -190,4 +190,85 @@ mod tests {
             .is_ok());
         Ok(())
     }
+
+    #[test]
+    fn each_constituent_proof_must_be_valid() -> Result<()> {
+        let mut rng = init_testing();
+        let sid = Identifier::random(&mut rng);
+        let rho = random();
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
+        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let modulus = &p * &q;
+        let shared_context = &generate_shared_context();
+        let mut transcript = AuxInfoProof::new_transcript();
+        AuxInfoProof::append_pimod_transcript(&mut transcript, shared_context, sid, rho)?;
+        let pimod = pimod::PiModProof::prove(
+            &pimod::CommonInput::new(&modulus),
+            &pimod::ProverSecret::new(&p, &q),
+            shared_context,
+            &mut transcript,
+            &mut rng,
+        )?;
+        AuxInfoProof::append_pifac_transcript(&mut transcript, shared_context, sid, rho)?;
+        let pifac = pifac::PiFacProof::prove(
+            pifac::CommonInput::new(&setup_params, &modulus),
+            pifac::ProverSecret::new(&p, &q),
+            shared_context,
+            &mut transcript,
+            &mut rng,
+        )?;
+        let proof = AuxInfoProof {
+            pimod: pimod.clone(),
+            pifac: pifac.clone(),
+        };
+        assert!(proof
+            .verify(shared_context, sid, rho, &setup_params, &modulus)
+            .is_ok());
+        let mut rng1 = init_testing();
+        let sid1 = Identifier::random(&mut rng1);
+        let rho1: [u8; 32] = random();
+        let setup_params1 = VerifiedRingPedersen::gen(&mut rng1, &())?;
+        let (p1, q1) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng1).unwrap();
+        let modulus1 = &p1 * &q1;
+        let shared_context1 = &generate_shared_context();
+        let mut transcript1 = AuxInfoProof::new_transcript();
+        AuxInfoProof::append_pimod_transcript(&mut transcript1, shared_context1, sid1, rho1)?;
+        let pimod1 = pimod::PiModProof::prove(
+            &pimod::CommonInput::new(&modulus1),
+            &pimod::ProverSecret::new(&p1, &q1),
+            shared_context1,
+            &mut transcript1,
+            &mut rng1,
+        )?;
+        AuxInfoProof::append_pifac_transcript(&mut transcript1, shared_context1, sid1, rho1)?;
+        let pifac1 = pifac::PiFacProof::prove(
+            pifac::CommonInput::new(&setup_params1, &modulus1),
+            pifac::ProverSecret::new(&p1, &q1),
+            shared_context1,
+            &mut transcript1,
+            &mut rng1,
+        )?;
+        let proof1 = AuxInfoProof {
+            pimod: pimod1.clone(),
+            pifac: pifac1.clone(),
+        };
+        assert!(proof1
+            .verify(shared_context1, sid1, rho1, &setup_params1, &modulus1)
+            .is_ok());
+        let proof2 = AuxInfoProof {
+            pimod,
+            pifac: pifac1,
+        };
+        assert!(proof2
+            .verify(shared_context1, sid1, rho1, &setup_params1, &modulus1)
+            .is_err());
+        let proof3 = AuxInfoProof {
+            pimod: pimod1,
+            pifac,
+        };
+        assert!(proof3
+            .verify(shared_context1, sid1, rho1, &setup_params1, &modulus1)
+            .is_err());
+        Ok(())
+    }
 }
