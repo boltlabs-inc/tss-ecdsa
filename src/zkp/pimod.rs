@@ -587,13 +587,21 @@ mod tests {
     #[test]
     fn modulus_factors_cannot_be_one() -> Result<()> {
         let mut rng = init_testing();
-        let (_, _, q) = DecryptionKey::new(&mut rng).unwrap();
+        let (_, p, q) = DecryptionKey::new(&mut rng).unwrap();
         let one: BigNumber = BigNumber::from(1);
-        let modulus = one.clone() * q.clone();
+        let modulus = &one * &q;
         let input = CommonInput { modulus };
         let secret = ProverSecret {
             p: one.clone(),
             q: q.clone(),
+        };
+        let proof = PiModProof::prove(&input, &secret, &(), &mut transcript(), &mut rng);
+        assert!(proof.is_err());
+        let modulus = &p * &one;
+        let input = CommonInput { modulus };
+        let secret = ProverSecret {
+            p: p.clone(),
+            q: one.clone(),
         };
         let proof = PiModProof::prove(&input, &secret, &(), &mut transcript(), &mut rng);
         assert!(proof.is_err());
@@ -603,13 +611,21 @@ mod tests {
     #[test]
     fn modulus_factors_cannot_be_composite() -> Result<()> {
         let mut rng = init_testing();
-        let (_, _, q) = DecryptionKey::new(&mut rng).unwrap();
+        let (_, p, q) = DecryptionKey::new(&mut rng).unwrap();
         let random_odd_composite: BigNumber = BigNumber::from(15);
-        let modulus = random_odd_composite.clone() * q.clone();
+        let modulus = &random_odd_composite * &q;
         let input = CommonInput { modulus };
         let secret = ProverSecret {
-            p: random_odd_composite,
+            p: random_odd_composite.clone(),
             q: q.clone(),
+        };
+        let proof = PiModProof::prove(&input, &secret, &(), &mut transcript(), &mut rng);
+        assert!(proof.is_err());
+        let modulus = &p * &random_odd_composite;
+        let input = CommonInput { modulus };
+        let secret = ProverSecret {
+            p: p.clone(),
+            q: random_odd_composite,
         };
         let proof = PiModProof::prove(&input, &secret, &(), &mut transcript(), &mut rng);
         assert!(proof.is_err());
@@ -804,6 +820,9 @@ mod tests {
             modulus: new_decryption_key.encryption_key().modulus().to_owned(),
         };
         let bad_secret = ProverSecret { p, q };
+        // If the modulus is incorrect as it does not depend on the prime factors,
+        // either the proving or the verifying should fail and we need not distinguish
+        // between the two cases
         match PiModProof::prove(&input, &bad_secret, &(), &mut transcript(), &mut rng) {
             Ok(proof) => assert!(proof.verify(&input, &(), &mut transcript()).is_err()),
             Err(_) => return Ok(()),
