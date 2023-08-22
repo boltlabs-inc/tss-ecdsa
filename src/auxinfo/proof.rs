@@ -145,26 +145,9 @@ impl AuxInfoProof {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        paillier::prime_gen,
-        protocol::SharedContext,
-        utils::{k256_order, testing::init_testing, CurvePoint},
-        ParticipantIdentifier,
-    };
-    use rand::random;
-
     use super::*;
-
-    pub(crate) fn generate_shared_context() -> SharedContext {
-        let mut rng = init_testing();
-        let sid = Identifier::random(&mut rng);
-        let participant = ParticipantIdentifier::random(&mut rng);
-        let participant2 = ParticipantIdentifier::random(&mut rng);
-        let participants = vec![participant, participant2];
-        let generator = CurvePoint::GENERATOR;
-        let order = k256_order();
-        SharedContext::gen_shared_context(sid, participants, generator, order)
-    }
+    use crate::{paillier::prime_gen, protocol::SharedContext, utils::testing::init_testing};
+    use rand::{random, Rng};
 
     #[test]
     fn auxinfo_proof_verifies() -> Result<()> {
@@ -174,10 +157,10 @@ mod tests {
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
-        let shared_context = &generate_shared_context();
+        let shared_context = SharedContext::random(&mut rng);
         let proof = AuxInfoProof::prove(
             &mut rng,
-            shared_context,
+            &shared_context,
             sid,
             rho,
             &setup_params,
@@ -186,7 +169,7 @@ mod tests {
             &q,
         )?;
         assert!(proof
-            .verify(shared_context, sid, rho, &setup_params, &modulus)
+            .verify(&shared_context, sid, rho, &setup_params, &modulus)
             .is_ok());
         Ok(())
     }
@@ -195,11 +178,11 @@ mod tests {
     fn each_constituent_proof_must_be_valid() -> Result<()> {
         let mut rng = init_testing();
         let sid = Identifier::random(&mut rng);
-        let rho = random();
+        let rho = rng.gen();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
-        let shared_context = &generate_shared_context();
+        let shared_context = &SharedContext::random(&mut rng);
         let mut transcript = AuxInfoProof::new_transcript();
         AuxInfoProof::append_pimod_transcript(&mut transcript, shared_context, sid, rho)?;
         let pimod = pimod::PiModProof::prove(
@@ -224,13 +207,12 @@ mod tests {
         assert!(proof
             .verify(shared_context, sid, rho, &setup_params, &modulus)
             .is_ok());
-        let mut rng1 = init_testing();
-        let sid1 = Identifier::random(&mut rng1);
-        let rho1: [u8; 32] = random();
-        let setup_params1 = VerifiedRingPedersen::gen(&mut rng1, &())?;
-        let (p1, q1) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng1).unwrap();
+        let sid1 = Identifier::random(&mut rng);
+        let rho1: [u8; 32] = rng.gen();
+        let setup_params1 = VerifiedRingPedersen::gen(&mut rng, &())?;
+        let (p1, q1) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus1 = &p1 * &q1;
-        let shared_context1 = &generate_shared_context();
+        let shared_context1 = &SharedContext::random(&mut rng);
         let mut transcript1 = AuxInfoProof::new_transcript();
         AuxInfoProof::append_pimod_transcript(&mut transcript1, shared_context1, sid1, rho1)?;
         let pimod1 = pimod::PiModProof::prove(
@@ -238,7 +220,7 @@ mod tests {
             &pimod::ProverSecret::new(&p1, &q1),
             shared_context1,
             &mut transcript1,
-            &mut rng1,
+            &mut rng,
         )?;
         AuxInfoProof::append_pifac_transcript(&mut transcript1, shared_context1, sid1, rho1)?;
         let pifac1 = pifac::PiFacProof::prove(
@@ -246,7 +228,7 @@ mod tests {
             pifac::ProverSecret::new(&p1, &q1),
             shared_context1,
             &mut transcript1,
-            &mut rng1,
+            &mut rng,
         )?;
         let proof1 = AuxInfoProof {
             pimod: pimod1.clone(),
@@ -281,7 +263,7 @@ mod tests {
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
-        let shared_context = &generate_shared_context();
+        let shared_context = &SharedContext::random(&mut rng);
         let mut transcript = AuxInfoProof::new_transcript();
         AuxInfoProof::append_pimod_transcript(&mut transcript, shared_context, sid, bad_rho)?;
         let bad_pimod = pimod::PiModProof::prove(

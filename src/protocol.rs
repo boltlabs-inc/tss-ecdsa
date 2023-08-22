@@ -510,14 +510,17 @@ impl ProofContext for SharedContext {
     }
 }
 
+use rand::rngs::StdRng;
 impl SharedContext {
+    /// This function should not be used outside of the tests.
     #[cfg(test)]
-    pub fn gen_shared_context(
-        sid: Identifier,
-        participants: Vec<ParticipantIdentifier>,
-        generator: CurvePoint,
-        order: BigNumber,
-    ) -> Self {
+    pub fn random(rng: &mut StdRng) -> Self {
+        let sid = Identifier::random(rng);
+        let participant = ParticipantIdentifier::random(rng);
+        let participant2 = ParticipantIdentifier::random(rng);
+        let participants = vec![participant, participant2];
+        let generator = CurvePoint::GENERATOR;
+        let order = k256_order();
         SharedContext {
             sid,
             participants,
