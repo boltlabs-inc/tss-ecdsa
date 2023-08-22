@@ -24,5 +24,5 @@ mod round_three;
 mod round_two;
 
 pub use input::Input;
-pub use participant::{PresignParticipant, Status};
+pub use participant::PresignParticipant;
 pub use record::PresignRecord;

@@ -28,6 +28,7 @@ use crate::{
     Identifier,
 };
 
+use crate::participant::Status;
 use k256::ecdsa::VerifyingKey;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
@@ -61,15 +62,6 @@ mod storage {
     impl TypeTag for PublicKeyshare {
         type Value = KeySharePublic;
     }
-}
-
-/// Protocol status for [`KeygenParticipant`].
-#[derive(Debug, PartialEq)]
-pub enum Status {
-    /// The protocol has been initialized.
-    Initialized,
-    /// The protocol has terminated successfully.
-    TerminatedSuccessfully,
 }
 
 /// A [`ProtocolParticipant`] that runs the key generation protocol[^cite].
@@ -125,8 +117,6 @@ pub struct KeygenParticipant {
     broadcast_participant: BroadcastParticipant,
     /// Status of the protocol execution.
     status: Status,
-    /// Whether or not the participant is Ready
-    ready: bool,
 }
 
 /// Output type from key generation, including all parties' public key shares,
@@ -166,7 +156,6 @@ impl Output {
 impl ProtocolParticipant for KeygenParticipant {
     type Input = ();
     type Output = Output;
-    type Status = Status;
 
     fn new(
         sid: Identifier,
@@ -185,8 +174,7 @@ impl ProtocolParticipant for KeygenParticipant {
                 other_participant_ids,
                 input,
             )?,
-            status: Status::Initialized,
-            ready: false,
+            status: Status::NotReady,
         })
     }
 
@@ -259,12 +247,12 @@ impl ProtocolParticipant for KeygenParticipant {
         }
     }
 
-    fn status(&self) -> &Self::Status {
+    fn status(&self) -> &Status {
         &self.status
     }
 
     fn is_ready(&self) -> bool {
-        self.ready
+        self.status.is_ready()
     }
 }
 
@@ -283,8 +271,8 @@ impl InnerProtocolParticipant for KeygenParticipant {
         &mut self.local_storage
     }
 
-    fn set_ready(&mut self) {
-        self.ready = true;
+    fn set_ready(&mut self) -> Result<()> {
+        self.status.set_ready()
     }
 }
 
@@ -855,9 +843,8 @@ mod tests {
             assert!(publics_for_pid.windows(2).all(|pks| pks[0] == pks[1]));
 
             // Check that each participant fully completed its broadcast portion.
-            if let crate::broadcast::participant::Status::ParticipantCompletedBroadcast(
-                participants,
-            ) = party.broadcast_participant().status()
+            if let Status::ParticipantCompletedBroadcast(participants) =
+                party.broadcast_participant().status()
             {
                 assert_eq!(participants.len(), party.other_participant_ids.len());
             } else {

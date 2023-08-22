@@ -16,6 +16,7 @@ use crate::{
     run_only_once_per_tag, Identifier,
 };
 
+use crate::participant::Status;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -30,27 +31,6 @@ mod storage {
     impl TypeTag for Votes {
         type Value = HashMap<BroadcastIndex, Vec<u8>>;
     }
-}
-
-/// Protocol status for [`BroadcastParticipant`].
-#[derive(Debug, PartialEq)]
-pub enum Status {
-    /// The protocol has been initialized, but no participants have completed a
-    /// broadcast.
-    Initialized,
-    /// A vector of participants that have completed a broadcast.
-    ///
-    /// This vector does _not_ correspond to those participants that have
-    /// _initialized_ (and hence successfully completed) a broadcast, but rather
-    /// the participants who, when either sending a message or _forwarding_ a
-    /// message, resulted in the completion of the broadcast. Since all
-    /// participants broadcast messages at the same time, this is used to track
-    /// termination of the protocol by tracking the vector _size_: If the size
-    /// is equal to the number of other participants then the broadcast has
-    /// completed (as this equates to this participant receiving the broadcasts
-    /// of all other participants, regardless of which participant was the one
-    /// who sent the final message "completing" a given broadcast).
-    ParticipantCompletedBroadcast(Vec<ParticipantIdentifier>),
 }
 
 #[derive(Debug)]
@@ -105,7 +85,6 @@ impl BroadcastOutput {
 impl ProtocolParticipant for BroadcastParticipant {
     type Input = ();
     type Output = BroadcastOutput;
-    type Status = Status;
 
     fn new(
         sid: Identifier,
@@ -187,7 +166,7 @@ impl ProtocolParticipant for BroadcastParticipant {
         }
     }
 
-    fn status(&self) -> &Self::Status {
+    fn status(&self) -> &Status {
         &self.status
     }
 
@@ -214,7 +193,9 @@ impl InnerProtocolParticipant for BroadcastParticipant {
         &mut self.local_storage
     }
 
-    fn set_ready(&mut self) {}
+    fn set_ready(&mut self) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl BroadcastParticipant {
@@ -329,6 +310,7 @@ impl BroadcastParticipant {
                     Status::ParticipantCompletedBroadcast(participants) => {
                         participants.push(voter);
                     }
+                    status => return Err(InternalError::UnexpectedStatus(status.clone())),
                 }
 
                 return Ok(ProcessOutcome::Terminated(out));

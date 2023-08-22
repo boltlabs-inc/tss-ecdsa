@@ -12,4 +12,4 @@ mod keyshare;
 mod participant;
 
 pub use keyshare::{KeySharePrivate, KeySharePublic};
-pub use participant::{KeygenParticipant, Output, Status};
+pub use participant::{KeygenParticipant, Output};

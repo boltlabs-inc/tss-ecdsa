@@ -7,6 +7,7 @@
 // of this source tree.
 
 //! A list of error types which are produced during an execution of the protocol
+use crate::participant::Status;
 use core::fmt::Debug;
 use thiserror::Error;
 
@@ -25,6 +26,8 @@ pub enum InternalError {
     ProtocolError,
     #[error("Represents some code assumption that was checked at runtime but failed to be true")]
     InternalInvariantFailed,
+    #[error("Unexpected state: {0:?} for protocol participant's status")]
+    UnexpectedStatus(Status),
 }
 
 /// Errors that are caused by incorrect behavior by the calling application.

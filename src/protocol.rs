@@ -13,7 +13,7 @@
 use crate::{
     errors::{CallerError, InternalError, Result},
     messages::{Message, MessageType},
-    participant::{InnerProtocolParticipant, ProtocolParticipant},
+    participant::{InnerProtocolParticipant, ProtocolParticipant, Status},
     protocol::participant_config::ParticipantConfig,
     utils::{k256_order, CurvePoint},
     zkp::ProofContext,
@@ -205,7 +205,7 @@ impl<P: ProtocolParticipant> Participant<P> {
     }
 
     /// Return the protocol status.
-    pub fn status(&self) -> &P::Status {
+    pub fn status(&self) -> &Status {
         self.participant.status()
     }
 }
@@ -650,11 +650,8 @@ impl std::fmt::Display for Identifier {
 mod tests {
     use super::*;
     use crate::{
-        auxinfo::{self, AuxInfoParticipant},
-        keygen::KeygenParticipant,
-        presign,
-        utils::testing::init_testing,
-        PresignParticipant,
+        auxinfo::AuxInfoParticipant, keygen::KeygenParticipant, participant::Status, presign,
+        utils::testing::init_testing, PresignParticipant,
     };
     use k256::ecdsa::signature::DigestVerifier;
     use rand::seq::IteratorRandom;
@@ -900,7 +897,7 @@ mod tests {
         // And make sure all participants have successfully terminated.
         assert!(auxinfo_quorum
             .iter()
-            .all(|p| *p.status() == auxinfo::Status::TerminatedSuccessfully));
+            .all(|p| *p.status() == Status::TerminatedSuccessfully));
 
         // Set up keygen participants
         let keygen_sid = Identifier::random(&mut rng);
@@ -938,7 +935,7 @@ mod tests {
         // And make sure all participants have successfully terminated.
         assert!(keygen_quorum
             .iter()
-            .all(|p| *p.status() == crate::keygen::Status::TerminatedSuccessfully));
+            .all(|p| *p.status() == Status::TerminatedSuccessfully));
 
         // Save the public key for later
         let saved_public_key = keygen_outputs
@@ -995,7 +992,7 @@ mod tests {
         // And make sure all participants have successfully terminated.
         assert!(presign_quorum
             .iter()
-            .all(|p| *p.status() == presign::Status::TerminatedSuccessfully));
+            .all(|p| *p.status() == Status::TerminatedSuccessfully));
 
         // Now, produce a valid signature
         let mut hasher = Sha256::new();

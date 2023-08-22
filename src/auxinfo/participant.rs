@@ -21,7 +21,9 @@ use crate::{
     local_storage::LocalStorage,
     messages::{AuxinfoMessageType, Message, MessageType},
     paillier::DecryptionKey,
-    participant::{Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant},
+    participant::{
+        Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant, Status,
+    },
     protocol::{Identifier, ParticipantIdentifier, ProtocolType, SharedContext},
     ring_pedersen::VerifiedRingPedersen,
     run_only_once,
@@ -58,15 +60,6 @@ mod storage {
     impl TypeTag for Witnesses {
         type Value = AuxInfoWitnesses;
     }
-}
-
-/// Protocol status for [`AuxInfoParticipant`].
-#[derive(Debug, PartialEq)]
-pub enum Status {
-    /// Protocol has initialized successfully.
-    Initialized,
-    /// Protocol has terminated successfully.
-    TerminatedSuccessfully,
 }
 
 /// A [`ProtocolParticipant`] that runs the auxiliary information
@@ -133,8 +126,6 @@ pub struct AuxInfoParticipant {
     broadcast_participant: BroadcastParticipant,
     /// The status of the protocol execution
     status: Status,
-    /// Whether or not the participant is Ready
-    ready: bool,
 }
 
 impl ProtocolParticipant for AuxInfoParticipant {
@@ -142,7 +133,6 @@ impl ProtocolParticipant for AuxInfoParticipant {
     // The output type includes `AuxInfoPublic` material for all participants
     // (including ourselves) and `AuxInfoPrivate` for ourselves.
     type Output = Output;
-    type Status = Status;
 
     fn new(
         sid: Identifier,
@@ -162,8 +152,7 @@ impl ProtocolParticipant for AuxInfoParticipant {
                 other_participant_ids,
                 input,
             )?,
-            status: Status::Initialized,
-            ready: false,
+            status: Status::NotReady,
         })
     }
 
@@ -233,12 +222,12 @@ impl ProtocolParticipant for AuxInfoParticipant {
         }
     }
 
-    fn status(&self) -> &Self::Status {
+    fn status(&self) -> &Status {
         &self.status
     }
 
     fn is_ready(&self) -> bool {
-        self.ready
+        self.status.is_ready()
     }
 }
 
@@ -257,8 +246,8 @@ impl InnerProtocolParticipant for AuxInfoParticipant {
         &mut self.local_storage
     }
 
-    fn set_ready(&mut self) {
-        self.ready = true;
+    fn set_ready(&mut self) -> Result<()> {
+        self.status.set_ready()
     }
 }
 
@@ -804,9 +793,8 @@ mod tests {
             assert!(publics_for_pid.windows(2).all(|pks| pks[0] == pks[1]));
 
             // Check that each participant fully completed its broadcast portion.
-            if let crate::broadcast::participant::Status::ParticipantCompletedBroadcast(
-                participants,
-            ) = party.broadcast_participant().status()
+            if let Status::ParticipantCompletedBroadcast(participants) =
+                party.broadcast_participant().status()
             {
                 assert_eq!(participants.len(), party.other_participant_ids.len());
             } else {

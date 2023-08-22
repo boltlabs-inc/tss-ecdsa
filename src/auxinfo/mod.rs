@@ -24,4 +24,4 @@ mod proof;
 
 pub use info::{AuxInfoPrivate, AuxInfoPublic};
 pub use output::Output;
-pub use participant::{AuxInfoParticipant, Status};
+pub use participant::AuxInfoParticipant;

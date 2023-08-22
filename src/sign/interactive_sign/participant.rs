@@ -11,13 +11,10 @@ use sha2::Sha256;
 use crate::{
     errors::Result,
     messages::{Message, MessageType},
-    participant::ProcessOutcome,
+    participant::{ProcessOutcome, Status},
     presign::{self, PresignParticipant},
     protocol::ProtocolType,
-    sign::{
-        non_interactive_sign::{self, participant::SignParticipant},
-        Signature,
-    },
+    sign::{non_interactive_sign::participant::SignParticipant, Signature},
     Identifier, ParticipantIdentifier, ProtocolParticipant,
 };
 
@@ -73,23 +70,9 @@ pub struct Input {
     presign_input: presign::Input,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum Status {
-    /// Participant is created but has not received a ready message from self.
-    NotReady,
-    /// Participant received a ready message and is running presign.
-    RunningPresign,
-    /// Participant completed presign and is running sign.
-    RunningSign,
-    /// Participant completed signing and output a signature.
-    TerminatedSuccessfully,
-}
-
 impl ProtocolParticipant for InteractiveSignParticipant {
     type Input = Input;
     type Output = Signature;
-
-    type Status = Status;
 
     fn ready_type() -> MessageType {
         PresignParticipant::ready_type()
@@ -128,7 +111,7 @@ impl ProtocolParticipant for InteractiveSignParticipant {
         todo!()
     }
 
-    fn status(&self) -> &Self::Status {
+    fn status(&self) -> &Status {
         // This method makes some assumptions about ordering for calling presign
         // and sign -- e.g. we will not pass a ready message to the `signer` until
         // the `presigner` is sucessfully completed.
@@ -140,9 +123,7 @@ impl ProtocolParticipant for InteractiveSignParticipant {
         if !self.signer.is_ready() {
             return &Status::RunningPresign;
         }
-        if self.signer.status()
-            != &non_interactive_sign::participant::Status::TerminatedSuccessfully
-        {
+        if self.signer.status() != &Status::TerminatedSuccessfully {
             &Status::RunningSign
         } else {
             &Status::TerminatedSuccessfully
