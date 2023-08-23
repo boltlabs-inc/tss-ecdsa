@@ -17,7 +17,7 @@ use crate::{
     utils::{bn_to_scalar, CurvePoint, ParseBytes},
 };
 use k256::{
-    elliptic_curve::{AffineXCoordinate, PrimeField},
+    elliptic_curve::{point::AffineCoordinates, PrimeField},
     Scalar,
 };
 use sha2::{Digest, Sha256};
@@ -183,9 +183,9 @@ impl PresignRecord {
             &point_len,
             &point,
             &random_share_len,
-            &random_share,
+            random_share.as_ref(),
             &chi_share_len,
-            &chi_share,
+            chi_share.as_ref(),
         ]
         .concat();
 
@@ -319,10 +319,9 @@ mod tests {
             rng: &mut (impl CryptoRng + RngCore),
         ) -> Vec<Self> {
             // Note: using slightly-biased generation for faster tests
-            let mask_shares =
-                std::iter::repeat_with(|| Scalar::generate_biased(StdRng::from_seed(rng.gen())))
-                    .take(keygen_outputs.len())
-                    .collect::<Vec<_>>();
+            let mask_shares = std::iter::repeat_with(|| Scalar::generate_biased(rng))
+                .take(keygen_outputs.len())
+                .collect::<Vec<_>>();
             let mask = mask_shares
                 .iter()
                 .fold(Scalar::ZERO, |sum, mask_share| sum + mask_share);
@@ -439,9 +438,9 @@ mod tests {
         let back = [
             point.as_slice(),
             &random_share_len,
-            &random_share,
+            random_share.as_ref(),
             &chi_share_len,
-            &chi_share,
+            chi_share.as_ref(),
         ]
         .concat();
 
@@ -479,16 +478,17 @@ mod tests {
         let random_share_len = random_share.len().to_le_bytes();
 
         let chi_share = chi.to_bytes();
+
         let front = [
             RECORD_TAG,
             &point_len,
             &point,
             &random_share_len,
-            &random_share,
+            random_share.as_ref(),
         ]
         .concat();
 
-        test_length_field(&front, chi_share.len(), &chi_share)
+        test_length_field(&front, chi_share.len(), chi_share.as_ref())
     }
 
     #[test]
@@ -534,7 +534,7 @@ mod tests {
             &point_len,
             &point,
             &random_share_len,
-            &random_share,
+            random_share.as_ref(),
             &chi_share_len,
         ]
         .concat();
@@ -545,7 +545,7 @@ mod tests {
             &point_len,
             &point,
             &random_share_len,
-            &random_share,
+            random_share.as_ref(),
             &zero_len,
         ]
         .concat();
@@ -557,9 +557,9 @@ mod tests {
             &point_len,
             &point,
             &random_share_len,
-            &random_share,
+            random_share.as_ref(),
             &chi_share_len,
-            &chi_share,
+            chi_share.as_ref(),
         ]
         .concat();
         assert!(PresignRecord::try_from_bytes(bytes).is_ok());

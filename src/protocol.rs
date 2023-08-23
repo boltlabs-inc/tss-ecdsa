@@ -18,7 +18,7 @@ use crate::{
     utils::{k256_order, CurvePoint},
     zkp::ProofContext,
 };
-use k256::elliptic_curve::IsHigh;
+use k256::elliptic_curve::scalar::IsHigh;
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -656,7 +656,7 @@ mod tests {
         utils::testing::init_testing,
         PresignParticipant,
     };
-    use k256::ecdsa::signature::DigestVerifier;
+    use k256::ecdsa::signature::Verifier;
     use rand::seq::IteratorRandom;
     use sha2::{Digest, Sha256};
     use std::collections::HashMap;
@@ -1007,7 +1007,10 @@ mod tests {
         let signature = SignatureShare::into_signature(shares)?;
 
         // Moment of truth, does the signature verify?
-        assert!(saved_public_key.verify_digest(hasher, &signature).is_ok());
+        //assert!(saved_public_key.verify_digest(hasher, &signature).is_ok());
+        assert!(saved_public_key
+            .verify(b"some test message", &signature)
+            .is_ok());
 
         #[cfg(feature = "flame_it")]
         flame::dump_html(&mut std::fs::File::create("dev/flame-graph.html").unwrap()).unwrap();

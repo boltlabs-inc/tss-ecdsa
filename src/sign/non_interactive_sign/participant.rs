@@ -10,7 +10,7 @@ use std::collections::HashSet;
 use generic_array::{typenum::U32, GenericArray};
 use k256::{
     ecdsa::{signature::DigestVerifier, VerifyingKey},
-    elliptic_curve::{ops::Reduce, subtle::ConditionallySelectable, IsHigh},
+    elliptic_curve::{ops::Reduce, scalar::IsHigh, subtle::ConditionallySelectable},
     Scalar, U256,
 };
 use rand::{CryptoRng, RngCore};
@@ -109,6 +109,7 @@ impl Input {
         self.message_digest.clone().finalize()
     }
 
+    #[allow(unused)]
     pub(crate) fn public_key(&self) -> Result<k256::ecdsa::VerifyingKey> {
         // Add up all the key shares
         let public_key_point = self
@@ -351,7 +352,7 @@ impl SignParticipant {
 
         // Interpret the message digest as an integer mod `q`. This matches the way that
         // the k256 library converts a digest to a scalar.
-        let digest = <Scalar as Reduce<U256>>::from_be_bytes_reduced(self.input.digest());
+        let digest = <Scalar as Reduce<U256>>::reduce_bytes(&self.input.digest());
 
         // Compute the x-projection of `R` from the `PresignRecord`
         let x_projection = record.x_projection()?;
@@ -444,7 +445,7 @@ mod test {
 
     use k256::{
         ecdsa::signature::{DigestVerifier, Verifier},
-        elliptic_curve::{ops::Reduce, subtle::ConditionallySelectable, IsHigh},
+        elliptic_curve::{ops::Reduce, scalar::IsHigh, subtle::ConditionallySelectable},
         Scalar, U256,
     };
     use rand::{CryptoRng, Rng, RngCore};
@@ -520,7 +521,7 @@ mod test {
 
         let r = records[0].x_projection().unwrap();
 
-        let m = <Scalar as Reduce<U256>>::from_be_bytes_reduced(Sha256::digest(message));
+        let m = <Scalar as Reduce<U256>>::reduce_bytes(&Sha256::digest(message));
 
         let mut s = k * (m + r * secret_key);
         s.conditional_assign(&s.negate(), s.is_high());
@@ -532,7 +533,7 @@ mod test {
 
         assert!(public_key.verify(message, &signature).is_ok());
         assert!(public_key
-            .verify_digest(Sha256::new().chain(message), &signature)
+            .verify_digest(Sha256::new().chain_update(message), &signature)
             .is_ok());
         signature
     }
@@ -550,7 +551,7 @@ mod test {
         let presign_records = PresignRecord::simulate_set(&keygen_outputs, rng);
 
         let message = b"the quick brown fox jumped over the lazy dog";
-        let message_digest = sha2::Sha256::new().chain(message);
+        let message_digest = sha2::Sha256::new().chain_update(message);
 
         // Save some things for later -- a signature constructucted from the records and
         // the public key
@@ -638,9 +639,11 @@ mod test {
         // Verify that we have a valid signature under the public key for the `message`
         assert!(public_key.verify(message, distributed_sig.as_ref()).is_ok());
         assert!(public_key
-            .verify_digest(Sha256::new().chain(message), distributed_sig.as_ref())
+            .verify_digest(
+                Sha256::new().chain_update(message),
+                distributed_sig.as_ref()
+            )
             .is_ok());
-
         Ok(())
     }
 }
