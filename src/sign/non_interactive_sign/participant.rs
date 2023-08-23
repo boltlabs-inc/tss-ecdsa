@@ -237,7 +237,7 @@ impl ProtocolParticipant for SignParticipant {
             Err(CallerError::ProtocolAlreadyTerminated)?;
         }
 
-        if !self.is_ready() && message.message_type() != Self::ready_type() {
+        if !self.status().is_ready() && message.message_type() != Self::ready_type() {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
@@ -266,10 +266,6 @@ impl ProtocolParticipant for SignParticipant {
     fn input(&self) -> &Self::Input {
         &self.input
     }
-
-    fn is_ready(&self) -> bool {
-        self.status != Status::NotReady
-    }
 }
 
 impl InnerProtocolParticipant for SignParticipant {
@@ -287,8 +283,8 @@ impl InnerProtocolParticipant for SignParticipant {
         &mut self.storage
     }
 
-    fn set_ready(&mut self) -> Result<()> {
-        self.status.set_ready()
+    fn status_mut(&mut self) -> &mut Status {
+        &mut self.status
     }
 }
 
@@ -362,7 +358,7 @@ impl SignParticipant {
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         // Make sure we're ready to process incoming messages
-        if !self.is_ready() {
+        if !self.status().is_ready() {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }

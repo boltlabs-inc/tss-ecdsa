@@ -117,10 +117,10 @@ impl ProtocolParticipant for InteractiveSignParticipant {
         // the `presigner` is sucessfully completed.
         // Another option would be to maintain a status field and update it at
         // the appropriate poitns.
-        if !self.presigner.is_ready() {
+        if !self.presigner.status().is_ready() {
             return &Status::NotReady;
         }
-        if !self.signer.is_ready() {
+        if !self.signer.status().is_ready() {
             return &Status::RunningPresign;
         }
         if self.signer.status() != &Status::TerminatedSuccessfully {
@@ -137,9 +137,5 @@ impl ProtocolParticipant for InteractiveSignParticipant {
 
     fn input(&self) -> &Self::Input {
         &self.input
-    }
-
-    fn is_ready(&self) -> bool {
-        self.status() != &Status::NotReady
     }
 }

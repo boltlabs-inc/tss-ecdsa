@@ -169,12 +169,6 @@ impl ProtocolParticipant for BroadcastParticipant {
     fn status(&self) -> &Status {
         &self.status
     }
-
-    // As a subprotocol, Broadcast doesn't need to be activated with a Ready
-    // message. However, it's part of the trait and needs to be implemented.
-    fn is_ready(&self) -> bool {
-        true
-    }
 }
 
 impl InnerProtocolParticipant for BroadcastParticipant {
@@ -193,8 +187,8 @@ impl InnerProtocolParticipant for BroadcastParticipant {
         &mut self.local_storage
     }
 
-    fn set_ready(&mut self) -> Result<()> {
-        Ok(())
+    fn status_mut(&mut self) -> &mut Status {
+        &mut self.status
     }
 }
 

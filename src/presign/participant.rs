@@ -300,7 +300,7 @@ impl ProtocolParticipant for PresignParticipant {
             Err(CallerError::ProtocolAlreadyTerminated)?;
         }
 
-        if !self.is_ready() && message.message_type() != Self::ready_type() {
+        if !self.status().is_ready() && message.message_type() != Self::ready_type() {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
@@ -335,10 +335,6 @@ impl ProtocolParticipant for PresignParticipant {
     fn status(&self) -> &Status {
         &self.status
     }
-
-    fn is_ready(&self) -> bool {
-        self.status.is_ready()
-    }
 }
 
 impl InnerProtocolParticipant for PresignParticipant {
@@ -356,8 +352,8 @@ impl InnerProtocolParticipant for PresignParticipant {
         &mut self.local_storage
     }
 
-    fn set_ready(&mut self) -> Result<()> {
-        self.status.set_ready()
+    fn status_mut(&mut self) -> &mut Status {
+        &mut self.status
     }
 }
 

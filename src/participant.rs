@@ -248,9 +248,6 @@ pub trait ProtocolParticipant {
 
     /// The input of the current session
     fn input(&self) -> &Self::Input;
-
-    /// Returns whether or not the Participant is Ready
-    fn is_ready(&self) -> bool;
 }
 
 pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
@@ -308,7 +305,15 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
 
         // Process any messages that had been received before the Ready signal
         let banked_messages = self.fetch_all_messages()?;
-        self.set_ready()?;
+
+        // Ensure our status is in the right state.
+        let status = self.status_mut();
+        if status != &Status::NotReady {
+            return Err(InternalError::UnexpectedStatus(status.clone()));
+        }
+        // And update to _ready_.
+        *status = Status::Initialized;
+
         let outcomes = banked_messages
             .iter()
             .map(|m| self.process_message(rng, m))
@@ -382,9 +387,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
         Ok(progress_storage.get(&func_name).is_some())
     }
 
-    /// Each `InnerProtocolParticipant` must have some kind of indicator for
-    /// when it is ready to process messages. This method turns it on.
-    fn set_ready(&mut self) -> Result<()>;
+    fn status_mut(&mut self) -> &mut Status;
 }
 
 pub(crate) trait Broadcast {
@@ -472,17 +475,6 @@ pub enum Status {
 impl Status {
     pub(crate) fn is_ready(&self) -> bool {
         self != &Status::NotReady
-    }
-
-    /// Updates status from `[Status::NotReady]` to `[Status::Initialized]`.
-    ///
-    /// Returns error if the status was anything other than `NotReady`.
-    pub(crate) fn set_ready(&mut self) -> Result<()> {
-        if self != &Status::NotReady {
-            return Err(InternalError::UnexpectedStatus(self.clone()));
-        }
-        *self = Status::Initialized;
-        Ok(())
     }
 }
 
