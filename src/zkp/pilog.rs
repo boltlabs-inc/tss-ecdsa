@@ -373,7 +373,7 @@ mod tests {
 
         let g = CurvePoint::GENERATOR;
 
-        let X = CurvePoint(g.0 * utils::bn_to_scalar(x)?);
+        let X = g.multiply_by_bignum(x)?;
         let (ciphertext, rho) = pk.encrypt(rng, x).unwrap();
 
         let setup_params = VerifiedRingPedersen::gen(rng, &())?;

@@ -1122,7 +1122,7 @@ impl PresignKeyShareAndInfo {
             // reasoning.
             delta = delta.modadd(&alpha.modsub(&r2_priv_j.beta, &order), &order);
             chi = chi.modadd(&alpha_hat.modsub(&r2_priv_j.beta_hat, &order), &order);
-            Gamma = CurvePoint(Gamma.0 + r2_pub_j.Gamma.0);
+            Gamma = Gamma + r2_pub_j.Gamma;
         }
 
         let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k)?;
@@ -1251,7 +1251,10 @@ mod test {
             .map(|record| record.mask_share())
             .fold(Scalar::ZERO, |sum, mask_share| sum + mask_share);
         let inverse: Scalar = Option::from(mask.invert()).unwrap();
-        assert_eq!(mask_point.0, k256::ProjectivePoint::GENERATOR * inverse);
+        assert_eq!(
+            mask_point.get_zero(),
+            k256::ProjectivePoint::GENERATOR * inverse
+        );
 
         // The masked key `Chi` is correctly formed with respect to the mask `k` and
         // secret key `x`: `Chi = x * k (mod q)`

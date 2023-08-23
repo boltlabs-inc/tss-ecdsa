@@ -132,7 +132,7 @@ impl Input {
             .iter()
             .fold(CurvePoint::IDENTITY, |sum, share| sum + *share.as_ref());
 
-        VerifyingKey::from_encoded_point(&public_key_point.0.to_affine().into()).map_err(|_| {
+        VerifyingKey::from_encoded_point(&public_key_point.into()).map_err(|_| {
             error!("Keygen output does not produce a valid public key");
             CallerError::BadInput.into()
         })

@@ -14,7 +14,7 @@ use k256::{
         group::{ff::PrimeField, GroupEncoding},
         AffinePoint, Curve,
     },
-    Scalar, Secp256k1,
+    EncodedPoint, ProjectivePoint, Scalar, Secp256k1,
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -33,7 +33,13 @@ pub(crate) const CRYPTOGRAPHIC_RETRY_MAX: usize = 500usize;
 /// private type, `Debug` should be manually implemented with the field of this
 /// type explicitly redacted!
 #[derive(Eq, PartialEq, Debug, Clone, Copy, Zeroize)]
-pub(crate) struct CurvePoint(pub k256::ProjectivePoint);
+pub(crate) struct CurvePoint(k256::ProjectivePoint);
+
+impl From<CurvePoint> for EncodedPoint {
+    fn from(value: CurvePoint) -> EncodedPoint {
+        value.0.to_affine().into()
+    }
+}
 
 impl AsRef<CurvePoint> for CurvePoint {
     fn as_ref(&self) -> &CurvePoint {
@@ -42,6 +48,13 @@ impl AsRef<CurvePoint> for CurvePoint {
 }
 
 impl CurvePoint {
+    pub(crate) fn get_zero(&self) -> ProjectivePoint {
+        self.0
+    }
+    #[cfg(test)]
+    pub(crate) fn new(point: ProjectivePoint) -> Self {
+        CurvePoint(point)
+    }
     pub(crate) const GENERATOR: Self = CurvePoint(k256::ProjectivePoint::GENERATOR);
     /// The identity point, used to initialize the aggregation of a verification
     /// key
