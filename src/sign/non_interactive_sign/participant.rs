@@ -109,7 +109,6 @@ impl Input {
         self.message_digest.clone().finalize()
     }
 
-    #[allow(unused)]
     pub(crate) fn public_key(&self) -> Result<k256::ecdsa::VerifyingKey> {
         // Add up all the key shares
         let public_key_point = self

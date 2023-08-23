@@ -656,7 +656,7 @@ mod tests {
         utils::testing::init_testing,
         PresignParticipant,
     };
-    use k256::ecdsa::signature::Verifier;
+    use k256::ecdsa::signature::{DigestVerifier, Verifier};
     use rand::seq::IteratorRandom;
     use sha2::{Digest, Sha256};
     use std::collections::HashMap;
@@ -1007,7 +1007,7 @@ mod tests {
         let signature = SignatureShare::into_signature(shares)?;
 
         // Moment of truth, does the signature verify?
-        //assert!(saved_public_key.verify_digest(hasher, &signature).is_ok());
+        assert!(saved_public_key.verify_digest(hasher, &signature).is_ok());
         assert!(saved_public_key
             .verify(b"some test message", &signature)
             .is_ok());
