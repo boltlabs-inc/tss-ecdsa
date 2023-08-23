@@ -9,7 +9,9 @@
 
 mod keygen_commit;
 mod keyshare;
+mod output;
 mod participant;
 
 pub use keyshare::{KeySharePrivate, KeySharePublic};
-pub use participant::{KeygenParticipant, Output};
+pub use output::Output;
+pub use participant::KeygenParticipant;

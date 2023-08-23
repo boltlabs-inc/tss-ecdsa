@@ -1,3 +1,9 @@
+// Copyright (c) 2022-2023 Bolt Labs Holdings, Inc
+//
+// This source code is licensed under both the MIT license found in the
+// LICENSE-MIT file in the root directory of this source tree and the Apache
+// License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+// of this source tree.
 use std::collections::HashSet;
 
 use tracing::error;
@@ -49,26 +55,19 @@ impl Input {
             Err(CallerError::BadInput)?
         }
 
-        // There shouldn't be duplicates. Since we checked equality of the sets and the
-        // lengths already, this also applies to auxinfo (also, the `auxinfo::Output`
-        // type checks this at construction already).
+        // There shouldn't be duplicates.
+        // This check is redundant, since it's also checked in the `auxinfo::Output` and
+        // `keygen::Output` constructors, so we actually don't test it below.
+        // Also, since we checked equality of the sets and the lengths already, checking
+        // for keygen also validates it for auxinfo
         if key_pids.len() != keygen_output.public_key_shares().len() {
             error!("Duplicate participant IDs appeared in AuxInfo and KeyShare public input.");
             Err(CallerError::BadInput)?
         }
 
-        // The private key share should map to one of the public values.
-        // NB: The corresponding check for `auxinfo::Output` is handled in that type's
-        // constructor.
-        let expected_public_share = keygen_output.private_key_share().public_share()?;
-        if !keygen_output
-            .public_key_shares()
-            .iter()
-            .any(|public_share| expected_public_share == *public_share.as_ref())
-        {
-            error!("Keygen private share did not correspond to any of the provided keygen public shares.");
-            Err(CallerError::BadInput)?
-        }
+        // The constructors for keygen and auxinfo output already check other important
+        // properties, like that the private component maps to one of public
+        // components for each one.
 
         Ok(Self {
             auxinfo_output,
@@ -179,32 +178,6 @@ mod test {
         // If auxinfo is too short, it fails.
         let short_auxinfo = auxinfo::Output::simulate(&pids[1..], rng);
         let result = Input::new(short_auxinfo, keygen_output);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            InternalError::CallingApplicationMistake(CallerError::BadInput)
-        );
-    }
-
-    #[test]
-    fn inputs_must_not_have_duplicates() {
-        let rng = &mut init_testing();
-
-        let mut pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
-            .take(5)
-            .collect::<Vec<_>>();
-
-        // This test doesn't bother adding a duplicate in only one of the inputs because
-        // that would fail the length checks tested in `inputs_must_be_same_length`
-        // Instead, duplicate one of the PIDs...
-        pids.push(pids[4]);
-
-        // ...and simulate the outputs. The public material will be different for the
-        // two duplicated PIDs.
-        let keygen_output = keygen::Output::simulate(&pids, rng);
-        let auxinfo_output = auxinfo::Output::simulate(&pids, rng);
-
-        let result = Input::new(auxinfo_output, keygen_output);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),

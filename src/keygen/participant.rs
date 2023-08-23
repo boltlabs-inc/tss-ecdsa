@@ -14,13 +14,15 @@ use crate::{
     keygen::{
         keygen_commit::{KeygenCommit, KeygenDecommit},
         keyshare::{KeySharePrivate, KeySharePublic},
+        output::Output,
     },
     local_storage::LocalStorage,
     messages::{KeygenMessageType, Message, MessageType},
-    participant::{Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant},
+    participant::{
+        Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant, Status,
+    },
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
-    utils::CurvePoint,
     zkp::{
         pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
         Proof2,
@@ -28,8 +30,6 @@ use crate::{
     Identifier,
 };
 
-use crate::participant::Status;
-use k256::ecdsa::VerifyingKey;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use tracing::{error, info, instrument, warn};
@@ -117,40 +117,6 @@ pub struct KeygenParticipant {
     broadcast_participant: BroadcastParticipant,
     /// Status of the protocol execution.
     status: Status,
-}
-
-/// Output type from key generation, including all parties' public key shares,
-/// this party's private key share, and a bit of global randomness.
-#[derive(Debug, Clone)]
-pub struct Output {
-    public_key_shares: Vec<KeySharePublic>,
-    private_key_share: KeySharePrivate,
-    #[allow(unused)]
-    rid: [u8; 32],
-}
-
-impl Output {
-    /// Construct the generated public key.
-    pub fn public_key(&self) -> Result<VerifyingKey> {
-        // Add up all the key shares
-        let public_key_point = self
-            .public_key_shares
-            .iter()
-            .fold(CurvePoint::IDENTITY, |sum, share| sum + *share.as_ref());
-
-        VerifyingKey::from_encoded_point(&public_key_point.0.to_affine().into()).map_err(|_| {
-            error!("Keygen output does not produce a valid public key.");
-            InternalError::InternalInvariantFailed
-        })
-    }
-
-    pub(crate) fn public_key_shares(&self) -> &[KeySharePublic] {
-        &self.public_key_shares
-    }
-
-    pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
-        &self.private_key_share
-    }
 }
 
 impl ProtocolParticipant for KeygenParticipant {
@@ -605,11 +571,7 @@ impl KeygenParticipant {
                 .remove::<storage::PrivateKeyshare>(self.id)?;
             self.status = Status::TerminatedSuccessfully;
 
-            let output = Output {
-                public_key_shares,
-                private_key_share,
-                rid: global_rid,
-            };
+            let output = Output::from_parts(public_key_shares, private_key_share, global_rid)?;
             Ok(ProcessOutcome::Terminated(output))
         } else {
             // Otherwise, we'll have to wait for more round three messages.
@@ -628,69 +590,13 @@ fn schnorr_proof_transcript(global_rid: &[u8; 32]) -> Result<Transcript> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::testing::init_testing, Identifier, ParticipantConfig};
+    use crate::{
+        utils::{testing::init_testing, CurvePoint},
+        Identifier, ParticipantConfig,
+    };
     use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
     use tracing::debug;
-
-    impl Output {
-        /// Simulate the output of a keygen run with the given participants.
-        ///
-        /// This should __never__ be called outside of tests!
-        pub(crate) fn simulate(
-            pids: &[ParticipantIdentifier],
-            rng: &mut (impl CryptoRng + RngCore),
-        ) -> Self {
-            let (mut private_key_shares, public_key_shares): (Vec<_>, Vec<_>) = pids
-                .iter()
-                .map(|&pid| {
-                    // TODO #340: Replace with KeyShare methods once they exist.
-                    let secret = KeySharePrivate::random(rng);
-                    let public = secret.public_share().unwrap();
-                    (secret, KeySharePublic::new(pid, public))
-                })
-                .unzip();
-
-            let rid = rng.gen();
-
-            Self {
-                private_key_share: private_key_shares.pop().unwrap(),
-                public_key_shares,
-                rid,
-            }
-        }
-
-        /// Simulate a consistent output of a keygen run with the given
-        /// participants.
-        ///
-        /// This produces output for every config in the provided set. The
-        /// config must have a non-zero length.
-        pub(crate) fn simulate_set(
-            configs: &[ParticipantConfig],
-            rng: &mut (impl CryptoRng + RngCore),
-        ) -> Vec<Self> {
-            let (private_key_shares, public_key_shares): (Vec<_>, Vec<_>) = configs
-                .iter()
-                .map(|config| {
-                    // TODO #340: Replace with KeyShare methods once they exist.
-                    let secret = KeySharePrivate::random(rng);
-                    let public = secret.public_share().unwrap();
-                    (secret, KeySharePublic::new(config.id(), public))
-                })
-                .unzip();
-
-            let rid = rng.gen();
-
-            private_key_shares
-                .into_iter()
-                .map(|private_key_share| Self {
-                    private_key_share,
-                    public_key_shares: public_key_shares.clone(),
-                    rid,
-                })
-                .collect()
-        }
-    }
 
     impl KeygenParticipant {
         pub fn new_quorum<R: RngCore + CryptoRng>(
@@ -826,7 +732,7 @@ mod tests {
             let mut publics_for_pid = vec![];
             for output in &outputs {
                 let key_share = output
-                    .public_key_shares
+                    .public_key_shares()
                     .iter()
                     .find(|key_share| key_share.participant() == pid);
 
@@ -855,20 +761,20 @@ mod tests {
             .zip(quorum.iter().map(ProtocolParticipant::id))
         {
             let public_share = output
-                .public_key_shares
+                .public_key_shares()
                 .iter()
                 .find(|public_share| public_share.participant() == pid);
             assert!(public_share.is_some());
 
             let expected_public_share =
-                CurvePoint::GENERATOR.multiply_by_bignum(output.private_key_share.as_ref())?;
+                CurvePoint::GENERATOR.multiply_by_bignum(output.private_key_share().as_ref())?;
             assert_eq!(public_share.unwrap().as_ref(), &expected_public_share);
         }
 
         // Check that every participant has the same `rid` value
         assert!(outputs
             .windows(2)
-            .all(|outputs| outputs[0].rid == outputs[1].rid));
+            .all(|outputs| outputs[0].rid() == outputs[1].rid()));
 
         Ok(())
     }
