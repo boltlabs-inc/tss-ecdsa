@@ -287,7 +287,7 @@ impl Proof for PiLogProof {
         // ... and check that it's the correct challenge.
         if challenge != self.challenge {
             error!("Fiat-Shamir consistency check failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         // Check that the Paillier encryption of the secret plaintext is valid.
@@ -295,16 +295,16 @@ impl Proof for PiLogProof {
             let lhs = input
                 .prover_encryption_key
                 .encrypt_with_nonce(&self.plaintext_response, &self.nonce_response)
-                .map_err(|_| InternalError::ProtocolError)?;
+                .map_err(|_| InternalError::ProtocolError(None))?;
             let rhs = input
                 .prover_encryption_key
                 .multiply_and_add(&self.challenge, input.ciphertext, &self.mask_ciphertext)
-                .map_err(|_| InternalError::ProtocolError)?;
+                .map_err(|_| InternalError::ProtocolError(None))?;
             lhs == rhs
         };
         if !paillier_encryption_is_valid {
             error!("paillier encryption check (first equality check) failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         // Check that the group exponentiation of the secret plaintext is valid.
         let group_exponentiation_is_valid = {
@@ -317,7 +317,7 @@ impl Proof for PiLogProof {
         };
         if !group_exponentiation_is_valid {
             error!("group exponentiation check (second equality check) failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         // Check that the ring-Pedersen commitment of the secret plaintext is valid.
@@ -334,14 +334,14 @@ impl Proof for PiLogProof {
         };
         if !ring_pedersen_commitment_is_valid {
             error!("ring Pedersen commitment check (third equality check) failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         // Do a range check on the plaintext response, which validates that the
         // plaintext falls within the same range.
         if !within_bound_by_size(&self.plaintext_response, ELL + EPSILON) {
             error!("plaintext range check failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         Ok(())

@@ -417,7 +417,7 @@ impl SignParticipant {
             .verify_digest(self.input.message_digest.clone(), signature.as_ref())
             .map_err(|e| {
                 error!("Failed to verify signature {:?}", e);
-                InternalError::ProtocolError
+                InternalError::ProtocolError(None)
             })?;
 
         // Output full signature

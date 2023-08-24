@@ -396,7 +396,7 @@ impl Proof for PiAffgProof {
         // ... and check that it's the correct challenge.
         if challenge != self.challenge {
             error!("Fiat-Shamir consistency check failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         // Check that the affine-like transformation holds over the masked
         // coefficients using the verifier's encryption key.
@@ -420,7 +420,7 @@ impl Proof for PiAffgProof {
         .map_err(|_| InternalError::InternalInvariantFailed)?;
         if !masked_affine_operation_is_valid {
             error!("Masked affine operation check (first equality check) failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         // Check that the masked group exponentiation is valid.
         let masked_group_exponentiation_is_valid = {
@@ -431,7 +431,7 @@ impl Proof for PiAffgProof {
         };
         if !masked_group_exponentiation_is_valid {
             error!("Masked group exponentiation check (second equality check) failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         // Check that the masked additive coefficient is valid using the
         // prover's encryption key.
@@ -439,7 +439,7 @@ impl Proof for PiAffgProof {
             let lhs = input
                 .prover_encryption_key
                 .encrypt_with_nonce(&self.masked_add_coeff, &self.masked_add_coeff_nonce_prover)
-                .map_err(|_| InternalError::ProtocolError)?;
+                .map_err(|_| InternalError::ProtocolError(None))?;
             let rhs = input
                 .prover_encryption_key
                 .multiply_and_add(
@@ -447,12 +447,12 @@ impl Proof for PiAffgProof {
                     input.add_coeff_ciphertext_prover,
                     &self.random_add_coeff_ciphertext_prover,
                 )
-                .map_err(|_| InternalError::ProtocolError)?;
+                .map_err(|_| InternalError::ProtocolError(None))?;
             lhs == rhs
         };
         if !masked_additive_coefficient_is_valid {
             error!("Masked additive coefficient check (third equality check) failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         // Check that the masked multiplicative coefficient commitment is valid.
         let masked_mult_coeff_commit_is_valid = {
@@ -471,7 +471,7 @@ impl Proof for PiAffgProof {
             error!(
                 "Masked multiplicative coefficient commitment check (fourth equality check) failed"
             );
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         // Check that the masked additive coefficient commitment is valid.
         let masked_add_coeff_commit_is_valid = {
@@ -488,17 +488,17 @@ impl Proof for PiAffgProof {
         };
         if !masked_add_coeff_commit_is_valid {
             error!("Masked additive coefficient commitment check (fifth equality check) failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         // Do a range check on the masked multiplicative coefficient.
         if !within_bound_by_size(&self.masked_mult_coeff, ELL + EPSILON) {
             error!("Multiplicative coefficient range check failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         // Do a range check on the masked additive coefficient.
         if !within_bound_by_size(&self.masked_add_coeff, ELL_PRIME + EPSILON) {
             error!("Additive coefficient range check failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         Ok(())
     }

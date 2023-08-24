@@ -75,7 +75,7 @@ impl BroadcastOutput {
                 "Incorrect Broadcast Tag on received message. Expected {:?}, got {:?}",
                 expected_tag, self.tag
             );
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         let message = self.msg;
         Ok(message)
@@ -308,7 +308,7 @@ impl BroadcastParticipant {
             }
         }
         error!("Broadcast failed because no message got enough votes");
-        Err(InternalError::ProtocolError)
+        Err(InternalError::ProtocolError(None))
     }
 
     #[instrument(skip_all, err(Debug))]

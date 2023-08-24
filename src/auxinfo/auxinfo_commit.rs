@@ -10,9 +10,11 @@ use crate::{
     auxinfo::{info::AuxInfoPublic, participant::AuxInfoParticipant},
     errors::{InternalError, Result},
     messages::{AuxinfoMessageType, Message, MessageType},
+    parameters::ELL,
     participant::{InnerProtocolParticipant, ProtocolParticipant},
     protocol::{Identifier, ParticipantIdentifier},
 };
+use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -123,6 +125,9 @@ impl CommitmentScheme {
         // Public parameters in this decommit must be consistent with each other
         scheme.clone().public_key.verify(context)?;
 
+        let lower_bound = BigNumber::one() << ELL;
+        assert!(scheme.public_key.params().scheme().modulus() >= &lower_bound);
+
         // Owner must be consistent across message, public keys, and decommit
         if scheme.public_key.participant() != scheme.pid {
             error!(
@@ -130,7 +135,7 @@ impl CommitmentScheme {
                 scheme.pid,
                 scheme.public_key.participant(),
             );
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(Some(scheme.pid)));
         }
         if scheme.pid != message.from() {
             error!(
@@ -138,7 +143,7 @@ impl CommitmentScheme {
                 scheme.pid,
                 message.from()
             );
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(Some(scheme.pid)));
         }
 
         // Session ID must be correct
@@ -148,7 +153,7 @@ impl CommitmentScheme {
                 scheme.sid,
                 message.id()
             );
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(Some(scheme.pid)));
         }
 
         Ok(scheme)
@@ -183,21 +188,21 @@ impl CommitmentScheme {
                 "Decommitment has the wrong session ID. Got {}, expected {}.",
                 self.sid, sid
             );
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(Some(self.pid)));
         }
         if *sender != self.pid {
             error!(
                 "Decommitment has the wrong sender ID. Got {}, expected {}.",
                 self.pid, sender
             );
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(Some(self.pid)));
         }
 
         let rebuilt_com = self.commit()?;
 
         if rebuilt_com != *com {
             error!("Commitment verification failed; does not match commitment. Commitment scheme: {:?}. Commitment: {:?}", self, com);
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(Some(self.pid)));
         }
 
         Ok(())

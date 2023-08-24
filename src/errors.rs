@@ -7,7 +7,7 @@
 // of this source tree.
 
 //! A list of error types which are produced during an execution of the protocol
-use crate::participant::Status;
+use crate::{participant::Status, ParticipantIdentifier};
 use core::fmt::Debug;
 use thiserror::Error;
 
@@ -23,7 +23,7 @@ pub enum InternalError {
     #[error("Serialization Error")]
     Serialization,
     #[error("Some player sent a message which does not match the protocol specification")]
-    ProtocolError,
+    ProtocolError(Option<ParticipantIdentifier>),
     #[error("Represents some code assumption that was checked at runtime but failed to be true")]
     InternalInvariantFailed,
     #[error("Unexpected state: {0:?} for protocol participant's status")]

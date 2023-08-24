@@ -211,7 +211,7 @@ impl Proof for PiEncProof {
         let e = plusminus_challenge_from_transcript(transcript)?;
         if e != self.challenge {
             error!("Fiat-Shamir didn't verify");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         // Check that the plaintext and nonce responses are well-formed (e.g. that the
@@ -220,16 +220,16 @@ impl Proof for PiEncProof {
             let lhs = input
                 .encryption_key
                 .encrypt_with_nonce(&self.plaintext_response, &self.nonce_response)
-                .map_err(|_| InternalError::ProtocolError)?;
+                .map_err(|_| InternalError::ProtocolError(None))?;
             let rhs = input
                 .encryption_key
                 .multiply_and_add(&e, input.ciphertext, &self.ciphertext_mask)
-                .map_err(|_| InternalError::ProtocolError)?;
+                .map_err(|_| InternalError::ProtocolError(None))?;
             lhs == rhs
         };
         if !ciphertext_mask_is_well_formed {
             error!("ciphertext mask check (first equality check) failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         // Check that the plaintext and commitment randomness responses are well formed
@@ -249,14 +249,14 @@ impl Proof for PiEncProof {
         };
         if !responses_match_commitments {
             error!("response validation check (second equality check) failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         // Make sure the ciphertext response is in range
         let bound = BigNumber::one() << (ELL + EPSILON);
         if self.plaintext_response < -bound.clone() || self.plaintext_response > bound {
             error!("bounds check on plaintext response failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         Ok(())

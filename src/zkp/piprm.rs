@@ -151,13 +151,13 @@ impl Proof for PiPrmProof {
             || self.responses.len() != SOUNDNESS
         {
             error!("length of values provided does not match soundness parameter");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         let challenges = generate_challenge_bytes(input, &self.commitments, context, transcript)?;
         // Check Fiat-Shamir consistency.
         if challenges != self.challenge_bytes.as_slice() {
             error!("Fiat-Shamir does not verify");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         let is_sound = challenges
@@ -178,7 +178,7 @@ impl Proof for PiPrmProof {
 
         if !is_sound {
             error!("response validation check failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         Ok(())

@@ -231,7 +231,7 @@ impl Proof for PiFacProof {
         };
         if !masked_p_commitment_is_valid {
             error!("masked_p_commitment_is_valid failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         let masked_q_commitment_is_valid = {
@@ -248,7 +248,7 @@ impl Proof for PiFacProof {
         };
         if !masked_q_commitment_is_valid {
             error!("masked_q_commitment_is_valid failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         let modulus_links_provided_factors = {
@@ -270,7 +270,7 @@ impl Proof for PiFacProof {
         };
         if !modulus_links_provided_factors {
             error!("modulus_links_provided_factors failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         let sqrt_modulus = sqrt(input.modulus);
@@ -280,11 +280,11 @@ impl Proof for PiFacProof {
         let z_bound = &sqrt_modulus * &two_ell_eps;
         if self.p_masked < -z_bound.clone() || self.p_masked > z_bound {
             error!("p is out of range!");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         if self.q_masked < -z_bound.clone() || self.q_masked > z_bound {
             error!("q is out of range!");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         Ok(())
     }

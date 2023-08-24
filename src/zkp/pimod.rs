@@ -175,7 +175,7 @@ impl Proof for PiModProof {
                     self.elements.len(),
                     LAMBDA,
                 );
-                return Err(InternalError::ProtocolError);
+                return Err(InternalError::ProtocolError(None));
             }
             Ordering::Greater => {
                 error!(
@@ -183,7 +183,7 @@ impl Proof for PiModProof {
                     self.elements.len(),
                     LAMBDA
                 );
-                return Err(InternalError::ProtocolError);
+                return Err(InternalError::ProtocolError(None));
             }
             Ordering::Equal => {}
         }
@@ -191,12 +191,12 @@ impl Proof for PiModProof {
         // Verify that N is an odd composite number
         if input.modulus.nmod(&BigNumber::from(2u64)).is_zero() {
             error!("N is even");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         if input.modulus.is_prime() {
             error!("N is not composite");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         Self::fill_transcript(transcript, context, &input, &self.random_jacobi_one)?;
 
@@ -205,7 +205,7 @@ impl Proof for PiModProof {
             let y = positive_challenge_from_transcript(transcript, input.modulus)?;
             if y != elements.challenge {
                 error!("y does not match Fiat-Shamir challenge");
-                return Err(InternalError::ProtocolError);
+                return Err(InternalError::ProtocolError(None));
             }
 
             let y_candidate = modpow(
@@ -215,17 +215,17 @@ impl Proof for PiModProof {
             );
             if elements.challenge != y_candidate {
                 error!("z^N != y (mod N)");
-                return Err(InternalError::ProtocolError);
+                return Err(InternalError::ProtocolError(None));
             }
 
             if elements.sign_exponent != 0 && elements.sign_exponent != 1 {
                 error!("a not in {{0,1}}");
-                return Err(InternalError::ProtocolError);
+                return Err(InternalError::ProtocolError(None));
             }
 
             if elements.jacobi_exponent != 0 && elements.jacobi_exponent != 1 {
                 error!("b not in {{0,1}}");
-                return Err(InternalError::ProtocolError);
+                return Err(InternalError::ProtocolError(None));
             }
 
             let y_prime = y_prime_from_y(
@@ -237,7 +237,7 @@ impl Proof for PiModProof {
             );
             if modpow(&elements.fourth_root, &BigNumber::from(4u64), input.modulus) != y_prime {
                 error!("x^4 != y' (mod N)");
-                return Err(InternalError::ProtocolError);
+                return Err(InternalError::ProtocolError(None));
             }
         }
 

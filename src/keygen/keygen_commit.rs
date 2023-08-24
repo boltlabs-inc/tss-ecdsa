@@ -104,7 +104,7 @@ impl KeygenDecommit {
             Ok(())
         } else {
             error!("decommitment does not match original commitment");
-            Err(InternalError::ProtocolError)
+            Err(InternalError::ProtocolError(Some(*sender)))
         }
     }
 }

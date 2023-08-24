@@ -139,7 +139,7 @@ impl Proof for PiSchProof {
         let challenge = positive_challenge_from_transcript(transcript, &k256_order())?;
         if challenge != self.challenge {
             error!("Fiat-Shamir consistency check failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         // Do equality checks
@@ -151,7 +151,7 @@ impl Proof for PiSchProof {
         };
         if !response_matches_commitment {
             error!("verification equation checked failed");
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         Ok(())
@@ -205,10 +205,10 @@ impl PiSchProof {
         message.check_type(MessageType::Keygen(KeygenMessageType::R3Proof))?;
         let pisch_proof: PiSchProof = deserialize!(&message.unverified_bytes)?;
         if pisch_proof.challenge >= k256_order() {
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         if pisch_proof.response >= k256_order() {
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         Ok(pisch_proof)
     }

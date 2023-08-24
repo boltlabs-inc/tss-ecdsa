@@ -466,7 +466,7 @@ impl PresignParticipant {
                 "Received more than one presign round one message from sender {}.",
                 message.from()
             );
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
         match retrieved_messages.get(0) {
             Some(message) => self.handle_round_one_msg(rng, message),
@@ -781,7 +781,7 @@ impl PresignParticipant {
                     "Mismatch in Gamma values for r3_private and the r3_pub of participant: {:?}",
                     &self.other_participant_ids[i]
                 );
-                return Err(InternalError::ProtocolError);
+                return Err(InternalError::ProtocolError(None));
             }
         }
 
@@ -1102,7 +1102,7 @@ impl PresignKeyShareAndInfo {
                         "Decryption failed, ciphertext out of range: {:?}",
                         r2_pub_j.D
                     );
-                    InternalError::ProtocolError
+                    InternalError::ProtocolError(None)
                 })?;
             let alpha_hat = self
                 .aux_info_private
@@ -1113,7 +1113,7 @@ impl PresignKeyShareAndInfo {
                         "Decryption failed, ciphertext out of range: {:?}",
                         r2_pub_j.D_hat
                     );
-                    InternalError::ProtocolError
+                    InternalError::ProtocolError(None)
                 })?;
 
             // Note: We do a subtraction of `beta` and `beta_hat` here because

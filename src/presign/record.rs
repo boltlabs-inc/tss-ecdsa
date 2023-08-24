@@ -91,7 +91,7 @@ impl TryFrom<RecordPair> for PresignRecord {
         let g = CurvePoint::GENERATOR;
         if CurvePoint(g.0 * delta) != Delta {
             error!("Could not create PresignRecord: mismatch between calculated private and public deltas");
-            return Err(ProtocolError);
+            return Err(ProtocolError(None));
         }
 
         let delta_inv = Option::<Scalar>::from(delta.invert()).ok_or_else(|| {

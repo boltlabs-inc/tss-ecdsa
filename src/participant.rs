@@ -297,7 +297,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
                 "Received a Ready message from {}, but Ready should only be sent to yourself!",
                 message.from()
             );
-            return Err(InternalError::ProtocolError);
+            return Err(InternalError::ProtocolError(None));
         }
 
         // Process any messages that had been received before the Ready signal
