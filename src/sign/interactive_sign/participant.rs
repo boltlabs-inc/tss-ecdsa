@@ -91,45 +91,40 @@ impl SigningMaterial {
         other_ids: Vec<ParticipantIdentifier>,
         sid: Identifier,
     ) -> Result<()> {
-        // Make a dummy partial input to temporarily hold the place of `self`
-        let mut updater = SigningMaterial::PartialInput {
-            digest: Sha256::new(),
-            public_keys: vec![],
-        };
+        // Take the original self and replace it with a placeholder value.
+        let signing_material = std::mem::replace(
+            self,
+            SigningMaterial::PartialInput {
+                digest: Default::default(),
+                public_keys: vec![],
+            },
+        );
 
-        // Now the real signing material is in `updater`
-        std::mem::swap(&mut updater, self);
-
-        // Update the `updater` from a partial input to a signer
-        updater = match updater {
+        match signing_material {
             SigningMaterial::PartialInput {
                 digest,
                 public_keys,
             } => {
                 let signing_input = sign::Input::new(digest, record, public_keys);
-                let signer = SignParticipant::new(sid, id, other_ids, signing_input)?;
-
-                SigningMaterial::Signer {
-                    signer: Box::new(signer),
-                }
+                let signer = Box::new(SignParticipant::new(sid, id, other_ids, signing_input)?);
+                *self = SigningMaterial::Signer { signer };
+                Ok(())
             }
-
-            // Throw an error if we already had a signer
-            SigningMaterial::Signer { .. } => {
-                // Restore the original state into `self`
-                std::mem::swap(&mut updater, self);
-
-                // Throw an error
+            original_state => {
+                let _ = std::mem::replace(self, original_state);
                 error!(
                     "State error: presigning just finished but we somehow already have a signer"
                 );
                 Err(InternalError::InternalInvariantFailed)?
             }
-        };
+        }
+    }
 
-        // Put the updated signer back into `self`
-        std::mem::swap(&mut updater, self);
-        Ok(())
+    fn as_mut_signer(&mut self) -> Result<&mut SignParticipant> {
+        match self {
+            SigningMaterial::Signer { ref mut signer } => Ok(signer),
+            _ => todo!("Return error"),
+        }
     }
 }
 
@@ -291,16 +286,7 @@ impl InteractiveSignParticipant {
             &empty,
         )?;
 
-        let signer = match &mut self.signing_material {
-            SigningMaterial::PartialInput { .. } => {
-                error!(
-                    "We literally just created the signer, but now it's back to being the input"
-                );
-                Err(InternalError::InternalInvariantFailed)?
-            }
-            SigningMaterial::Signer { signer } => signer,
-        };
-
+        let signer = self.signing_material.as_mut_signer()?;
         // ...and process the ready message + any signing messages we already received.
         let signing_outcomes = std::iter::once(ready_message)
             .chain(self.signing_message_storage.retrieve_all())
