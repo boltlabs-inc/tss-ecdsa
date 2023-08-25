@@ -3,10 +3,6 @@ on:
   push:
     branches:
       - main
-  
-  # This is only here to test that the changes work. Should not be merged to main.
-  pull_request:
-    types: [opened]
 
 jobs:
   test:
