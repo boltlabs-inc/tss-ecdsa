@@ -69,6 +69,12 @@ impl Input {
         // properties, like that the private component maps to one of public
         // components for each one.
 
+        // The participant IDs for the private components of each output should match
+        if keygen_output.private_pid() != auxinfo_output.private_pid() {
+            error!("Expected private keygen and auxinfo outputs to correspond to the same participant, but they didn't");
+            Err(CallerError::BadInput)?
+        }
+
         Ok(Self {
             auxinfo_output,
             keygen_output,

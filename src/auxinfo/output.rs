@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use crate::{
     auxinfo::info::{AuxInfoPrivate, AuxInfoPublic},
-    errors::{CallerError, Result},
+    errors::{CallerError, InternalError, Result},
     protocol::ParticipantIdentifier,
 };
 use tracing::error;
@@ -71,6 +71,21 @@ impl Output {
 
     pub(crate) fn public_auxinfo(&self) -> &[AuxInfoPublic] {
         &self.public_auxinfo
+    }
+
+    pub(crate) fn private_pid(&self) -> Result<ParticipantIdentifier> {
+        let expected_public_key = self.private_auxinfo.encryption_key();
+        match self
+            .public_auxinfo
+            .iter()
+            .find(|auxinfo| &expected_public_key == auxinfo.pk())
+        {
+            Some(public_auxinfo) => Ok(public_auxinfo.participant()),
+            None => {
+                error!("Didn't find public aux info corresponding to the private aux info, but there should be one by construction");
+                Err(InternalError::InternalInvariantFailed)
+            }
+        }
     }
 
     pub(crate) fn find_public(&self, pid: ParticipantIdentifier) -> Option<&AuxInfoPublic> {

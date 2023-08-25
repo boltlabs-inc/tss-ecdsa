@@ -11,6 +11,7 @@ use crate::{
     errors::{CallerError, InternalError, Result},
     keygen::keyshare::{KeySharePrivate, KeySharePublic},
     utils::CurvePoint,
+    ParticipantIdentifier,
 };
 
 use k256::ecdsa::VerifyingKey;
@@ -46,6 +47,23 @@ impl Output {
 
     pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
         &self.private_key_share
+    }
+
+    /// Get the [`ParticipantIdentifier`] corresponding to the
+    /// [`KeySharePrivate`].
+    pub(crate) fn private_pid(&self) -> Result<ParticipantIdentifier> {
+        let expected_public_share = self.private_key_share.public_share()?;
+        match self
+            .public_key_shares
+            .iter()
+            .find(|share| share.as_ref() == &expected_public_share)
+        {
+            Some(public_key_share) => Ok(public_key_share.participant()),
+            None => {
+                error!("Didn't find a public key share corresponding to the private key share, but there should be one by construction");
+                Err(InternalError::InternalInvariantFailed)
+            }
+        }
     }
 
     /// This could be made public if appropriate
