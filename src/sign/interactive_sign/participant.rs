@@ -6,7 +6,7 @@
 // of this source tree.
 
 use rand::{CryptoRng, RngCore};
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use tracing::{error, info};
 
 use crate::{
@@ -15,7 +15,7 @@ use crate::{
     message_queue::MessageQueue,
     messages::{Message, MessageType, SignMessageType},
     participant::{ProcessOutcome, Status},
-    presign::{self, PresignParticipant},
+    presign::{self, PresignParticipant, PresignRecord},
     protocol::ProtocolType,
     sign::{self, non_interactive_sign::participant::SignParticipant, Signature},
     Identifier, ParticipantIdentifier, ProtocolParticipant,
@@ -60,12 +60,77 @@ use crate::{
 /// 2021](https://eprint.iacr.org/2021/060.pdf).
 #[derive(Debug)]
 pub struct InteractiveSignParticipant {
+    signing_material: SigningMaterial,
+    presigner: PresignParticipant,
+    signing_message_storage: MessageQueue,
+}
+
+/// Set of possible states for the signing material.
+///
+/// Either we have not yet started the signing protocol, so we are only saving
+/// the input, or we are actively running signing.
+#[derive(Debug)]
+enum SigningMaterial {
     /// When we create the `signer`, we'll need to pass this input, plus the
     /// output of `presign`.
-    partial_signing_input: (Sha256, Vec<KeySharePublic>),
-    presigner: PresignParticipant,
-    signer: Option<SignParticipant>,
-    signing_message_storage: MessageQueue,
+    PartialInput {
+        digest: Sha256,
+        public_keys: Vec<KeySharePublic>,
+    },
+    Signer {
+        signer: Box<SignParticipant>,
+    },
+}
+
+impl SigningMaterial {
+    /// Update from `PartialInput` to `Signer`.
+    fn update(
+        &mut self,
+        record: PresignRecord,
+        id: ParticipantIdentifier,
+        other_ids: Vec<ParticipantIdentifier>,
+        sid: Identifier,
+    ) -> Result<()> {
+        // Make a dummy partial input to temporarily hold the place of `self`
+        let mut updater = SigningMaterial::PartialInput {
+            digest: Sha256::new(),
+            public_keys: vec![],
+        };
+
+        // Now the real signing material is in `updater`
+        std::mem::swap(&mut updater, self);
+
+        // Update the `updater` from a partial input to a signer
+        updater = match updater {
+            SigningMaterial::PartialInput {
+                digest,
+                public_keys,
+            } => {
+                let signing_input = sign::Input::new(digest, record, public_keys);
+                let signer = SignParticipant::new(sid, id, other_ids, signing_input)?;
+
+                SigningMaterial::Signer {
+                    signer: Box::new(signer),
+                }
+            }
+
+            // Throw an error if we already had a signer
+            SigningMaterial::Signer { .. } => {
+                // Restore the original state into `self`
+                std::mem::swap(&mut updater, self);
+
+                // Throw an error
+                error!(
+                    "State error: presigning just finished but we somehow already have a signer"
+                );
+                Err(InternalError::InternalInvariantFailed)?
+            }
+        };
+
+        // Put the updated signer back into `self`
+        std::mem::swap(&mut updater, self);
+        Ok(())
+    }
 }
 
 /// Input for the interactive signing protocol.
@@ -98,16 +163,19 @@ impl ProtocolParticipant for InteractiveSignParticipant {
             message_digest,
             presign_input,
         } = input;
-        let partial_signing_input = (message_digest, presign_input.public_key_shares().to_vec());
+
+        let signing_material = SigningMaterial::PartialInput {
+            digest: message_digest,
+            public_keys: presign_input.public_key_shares().to_vec(),
+        };
 
         // Validation note: the presign participant will make sure the presign input and
         // public key shares are correctly formed (e.g. there's one per party)
         let presigner = PresignParticipant::new(sid, id, other_participant_ids, presign_input)?;
 
         Ok(Self {
-            partial_signing_input,
+            signing_material,
             presigner,
-            signer: None,
             signing_message_storage: MessageQueue::default(),
         })
     }
@@ -160,9 +228,9 @@ impl ProtocolParticipant for InteractiveSignParticipant {
         if !self.presigner.status().is_ready() {
             return &Status::NotReady;
         }
-        match &self.signer {
-            None => &Status::RunningPresign,
-            Some(signer) => match signer.status() {
+        match &self.signing_material {
+            SigningMaterial::PartialInput { .. } => &Status::RunningPresign,
+            SigningMaterial::Signer { signer } => match signer.status() {
                 Status::TerminatedSuccessfully => &Status::TerminatedSuccessfully,
                 _ => &Status::RunningSign,
             },
@@ -181,15 +249,15 @@ impl InteractiveSignParticipant {
         rng: &mut (impl CryptoRng + RngCore),
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        match &mut self.signer {
+        match &mut self.signing_material {
             // If we haven't started signing yet, store the message for later
-            None => {
+            SigningMaterial::PartialInput { .. } => {
                 self.signing_message_storage.store(message.clone())?;
                 Ok(ProcessOutcome::Incomplete)
             }
 
             // Otherwise, process the message
-            Some(signer) => signer.process_message(rng, message),
+            SigningMaterial::Signer { signer } => signer.process_message(rng, message),
         }
     }
 
@@ -202,29 +270,18 @@ impl InteractiveSignParticipant {
         let outcome = self.presigner.process_message(rng, message)?;
         let (maybe_record, presign_messages) = outcome.into_parts();
 
-        // State check -- make sure we haven't already gotten a signer
-        if self.signer.is_some() {
-            error!("Presign is still running but we already created a signer, somehow");
-            Err(InternalError::InternalInvariantFailed)?
-        }
-
         // If presigning didn't finish, stop here.
         let record = match maybe_record {
             None => return Ok(ProcessOutcome::from(None, presign_messages)),
             Some(record) => record,
         };
 
-        // Otherwise, presigning is done, so create the signer...
-        let (digest, public_key_shares) = self.partial_signing_input.clone();
-        let signing_input = sign::Input::new(digest, record, public_key_shares);
-        let mut signer = SignParticipant::new(
-            self.sid(),
-            self.id(),
-            self.other_ids().to_vec(),
-            signing_input,
-        )?;
+        // Otherwise, presigning is done, so retrieve the input for sign and create the
+        // signer
+        self.signing_material
+            .update(record, self.id(), self.other_ids().to_vec(), self.sid())?;
 
-        // ...form the ready message...
+        // Then, form the ready message...
         let empty: [u8; 0] = [];
         let ready_message = Message::new(
             MessageType::Sign(SignMessageType::Ready),
@@ -234,13 +291,21 @@ impl InteractiveSignParticipant {
             &empty,
         )?;
 
+        let signer = match &mut self.signing_material {
+            SigningMaterial::PartialInput { .. } => {
+                error!(
+                    "We literally just created the signer, but now it's back to being the input"
+                );
+                Err(InternalError::InternalInvariantFailed)?
+            }
+            SigningMaterial::Signer { signer } => signer,
+        };
+
         // ...and process the ready message + any signing messages we already received.
         let signing_outcomes = std::iter::once(ready_message)
             .chain(self.signing_message_storage.retrieve_all())
             .map(|message| signer.process_message(rng, &message))
             .collect::<Result<_>>()?;
-
-        self.signer = Some(signer);
 
         // Return any final presign messages + the outcomes from processing the sign
         // messages
