@@ -3,6 +3,10 @@ on:
   push:
     branches:
       - main
+  
+  # This is only here to test that the changes work. Should not be merged to main.
+  pull_request:
+    types: [opened]
 
 jobs:
   test:
@@ -12,15 +16,10 @@ jobs:
     name: ignored tests
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          # Set Rust version here!
-          toolchain: 1.69.0
-          override: true
+        uses: IronCoreLabs/rust-toolchain@v1
 
       # Caching for Rust files. Must be called after installing Rust toolchain.
       # See https://github.com/Swatinem/rust-cache for more information.
