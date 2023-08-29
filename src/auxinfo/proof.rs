@@ -147,13 +147,33 @@ impl AuxInfoProof {
 mod tests {
     use super::*;
     use crate::{paillier::prime_gen, protocol::SharedContext, utils::testing::init_testing};
-    use rand::{random, Rng};
+    use rand::Rng;
+
+    fn random_auxinfo_proof() -> Result<AuxInfoProof> {
+        let mut rng = init_testing();
+        let sid = Identifier::random(&mut rng);
+        let rho = rng.gen();
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
+        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let modulus = &p * &q;
+        let shared_context = SharedContext::random(&mut rng);
+        AuxInfoProof::prove(
+            &mut rng,
+            &shared_context,
+            sid,
+            rho,
+            &setup_params,
+            &modulus,
+            &p,
+            &q,
+        )
+    }
 
     #[test]
     fn auxinfo_proof_verifies() -> Result<()> {
         let mut rng = init_testing();
         let sid = Identifier::random(&mut rng);
-        let rho = random();
+        let rho = rng.gen();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
@@ -244,11 +264,22 @@ mod tests {
         assert!(proof2
             .verify(shared_context1, sid1, rho1, &setup_params1, &modulus1)
             .is_err());
-        let proof3 = AuxInfoProof {
-            pimod: pimod1,
-            pifac,
+        let proof1: AuxInfoProof = random_auxinfo_proof()?;
+        let proof2: AuxInfoProof = random_auxinfo_proof()?;
+
+        let mix_one = AuxInfoProof {
+            pifac: proof1.pifac,
+            pimod: proof2.pimod,
         };
-        assert!(proof3
+
+        let mix_two = AuxInfoProof {
+            pifac: proof2.pifac,
+            pimod: proof1.pimod,
+        };
+        assert!(mix_one
+            .verify(shared_context1, sid1, rho1, &setup_params1, &modulus1)
+            .is_err());
+        assert!(mix_two
             .verify(shared_context1, sid1, rho1, &setup_params1, &modulus1)
             .is_err());
         Ok(())
@@ -258,7 +289,7 @@ mod tests {
     fn modulus_factors_must_be_correct() -> Result<()> {
         let mut rng = init_testing();
         let sid = Identifier::random(&mut rng);
-        let rho = random();
+        let rho = rng.gen();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let (p1, q1) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
@@ -286,7 +317,7 @@ mod tests {
     fn context_must_be_correct() -> Result<()> {
         let mut rng = init_testing();
         let sid = Identifier::random(&mut rng);
-        let rho = random();
+        let rho = rng.gen();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
