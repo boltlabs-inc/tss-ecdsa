@@ -193,7 +193,7 @@ impl ProtocolParticipant for SignParticipant {
     {
         let config = ParticipantConfig::new(id, &other_participant_ids)?;
 
-        // The input must contain exactly one public key per particpant ID.
+        // The input must contain exactly one public key per participant ID.
         let public_key_pids = input
             .public_key_shares
             .iter()

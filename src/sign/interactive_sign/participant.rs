@@ -6,7 +6,7 @@
 // of this source tree.
 
 use rand::{CryptoRng, RngCore};
-use sha2::{Digest, Sha256};
+use sha2::Sha256;
 use tracing::{error, info};
 
 use crate::{
@@ -83,6 +83,13 @@ enum SigningMaterial {
 }
 
 impl SigningMaterial {
+    fn new_partial_input(digest: Sha256, public_keys: Vec<KeySharePublic>) -> Self {
+        Self::PartialInput {
+            digest,
+            public_keys,
+        }
+    }
+
     /// Update from `PartialInput` to `Signer`.
     fn update(
         &mut self,
@@ -94,10 +101,7 @@ impl SigningMaterial {
         // Take the original self and replace it with a placeholder value.
         let signing_material = std::mem::replace(
             self,
-            SigningMaterial::PartialInput {
-                digest: Default::default(),
-                public_keys: vec![],
-            },
+            SigningMaterial::new_partial_input(Default::default(), vec![]),
         );
 
         match signing_material {
@@ -106,6 +110,9 @@ impl SigningMaterial {
                 public_keys,
             } => {
                 let signing_input = sign::Input::new(digest, record, public_keys);
+                // Note: this shouldn't throw an error because the only failure case should have
+                // also been checked by the presign constructor, and computation
+                // halted far before we reach this point.
                 let signer = Box::new(SignParticipant::new(sid, id, other_ids, signing_input)?);
                 *self = SigningMaterial::Signer { signer };
                 Ok(())
@@ -123,14 +130,16 @@ impl SigningMaterial {
     fn as_mut_signer(&mut self) -> Result<&mut SignParticipant> {
         match self {
             SigningMaterial::Signer { ref mut signer } => Ok(signer),
-            _ => todo!("Return error"),
+            _ => {
+                error!("Tried to access the signer, but it doesn't exist yet");
+                Err(InternalError::InternalInvariantFailed)
+            }
         }
     }
 }
 
 /// Input for the interactive signing protocol.
 #[derive(Debug)]
-#[allow(unused)]
 pub struct Input {
     message_digest: Sha256,
     presign_input: presign::Input,
@@ -159,10 +168,10 @@ impl ProtocolParticipant for InteractiveSignParticipant {
             presign_input,
         } = input;
 
-        let signing_material = SigningMaterial::PartialInput {
-            digest: message_digest,
-            public_keys: presign_input.public_key_shares().to_vec(),
-        };
+        let signing_material = SigningMaterial::new_partial_input(
+            message_digest,
+            presign_input.public_key_shares().to_vec(),
+        );
 
         // Validation note: the presign participant will make sure the presign input and
         // public key shares are correctly formed (e.g. there's one per party)
