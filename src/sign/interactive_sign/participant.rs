@@ -295,8 +295,8 @@ impl InteractiveSignParticipant {
             &empty,
         )?;
 
-        let signer = self.signing_material.as_mut_signer()?;
         // ...and process the ready message + any signing messages we already received.
+        let signer = self.signing_material.as_mut_signer()?;
         let signing_outcomes = std::iter::once(ready_message)
             .chain(self.signing_message_storage.retrieve_all())
             .map(|message| signer.process_message(rng, &message))
