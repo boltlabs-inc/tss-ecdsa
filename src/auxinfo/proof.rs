@@ -15,9 +15,8 @@ use crate::{
     Identifier,
 };
 
-use crate::zkp::{pifac, pimod, Proof, ProofContext};
+use crate::zkp::{pifac, pimod, Proof2, ProofContext};
 
-use crate::zkp::Proof2;
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
@@ -68,8 +67,8 @@ impl AuxInfoProof {
         let mut transcript = Self::new_transcript();
         Self::append_pimod_transcript(&mut transcript, context, sid, rho)?;
         let pimod = pimod::PiModProof::prove(
-            &pimod::CommonInput::new(N),
-            &pimod::ProverSecret::new(p, q),
+            pimod::CommonInput::new(N),
+            pimod::ProverSecret::new(p, q),
             context,
             &mut transcript,
             rng,
@@ -103,7 +102,7 @@ impl AuxInfoProof {
         let mut transcript = Self::new_transcript();
         Self::append_pimod_transcript(&mut transcript, context, sid, rho)?;
         self.pimod
-            .verify(&pimod::CommonInput::new(N), context, &mut transcript)?;
+            .verify(pimod::CommonInput::new(N), context, &mut transcript)?;
         Self::append_pifac_transcript(&mut transcript, context, sid, rho)?;
         self.pifac.verify(
             pifac::CommonInput::new(verifier_params, N),
