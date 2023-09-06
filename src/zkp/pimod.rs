@@ -473,7 +473,7 @@ fn y_prime_combinations(
 
 #[cfg(test)]
 mod tests {
-    use rand::{random, rngs::StdRng};
+    use rand::{rngs::StdRng, Rng};
 
     use super::*;
     use crate::{
@@ -865,7 +865,7 @@ mod tests {
 
             // Sign exponent must be correct
             let mut bad_proof = proof.clone();
-            let new_sign_exponent: usize = random(); // TODO: take out these `random`s, they break our reproducibility
+            let new_sign_exponent: usize = rng.gen();
             if let Some(first_element) = bad_proof.elements.get_mut(0) {
                 first_element.sign_exponent = new_sign_exponent;
             } else {
@@ -877,7 +877,7 @@ mod tests {
 
             // Jacobi exponent must be correct
             let mut bad_proof = proof.clone();
-            let new_jacobi_exponent: usize = random();
+            let new_jacobi_exponent: usize = rng.gen();
             if let Some(first_element) = bad_proof.elements.get_mut(0) {
                 first_element.sign_exponent = new_jacobi_exponent;
             } else {
