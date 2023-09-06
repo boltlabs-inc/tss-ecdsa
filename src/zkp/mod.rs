@@ -55,30 +55,6 @@ impl ProofContext for BadContext {
 /// the prover and verifier, and the associated type [`Proof::ProverSecret`]
 /// denotes the data known only to the prover.
 pub(crate) trait Proof: Sized + Serialize + DeserializeOwned {
-    type CommonInput;
-    type ProverSecret;
-
-    /// Constructs a zero knowledge proof over [`Proof::ProverSecret`] and
-    /// [`Proof::CommonInput`] using the provided [`Transcript`].
-    fn prove<R: RngCore + CryptoRng>(
-        input: &Self::CommonInput,
-        secret: &Self::ProverSecret,
-        context: &impl ProofContext,
-        transcript: &mut Transcript,
-        rng: &mut R,
-    ) -> Result<Self>;
-
-    /// Verifies a zero knowledge proof using the provided
-    /// [`Proof::CommonInput`] and [`Transcript`].
-    fn verify(
-        &self,
-        input: &Self::CommonInput,
-        context: &impl ProofContext,
-        transcript: &mut Transcript,
-    ) -> Result<()>;
-}
-
-pub(crate) trait Proof2: Sized + Serialize + DeserializeOwned {
     type CommonInput<'a>;
     type ProverSecret<'a>;
 

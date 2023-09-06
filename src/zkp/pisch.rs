@@ -30,7 +30,7 @@ use crate::{
     errors::*,
     messages::{KeygenMessageType, Message, MessageType},
     utils::{self, k256_order, positive_challenge_from_transcript, random_positive_bn},
-    zkp::{Proof2, ProofContext},
+    zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -109,7 +109,7 @@ impl<'a> ProverSecret<'a> {
     }
 }
 
-impl Proof2 for PiSchProof {
+impl Proof for PiSchProof {
     type CommonInput<'a> = CommonInput<'a>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiSchProof"))]

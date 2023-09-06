@@ -25,7 +25,7 @@ use crate::{
     run_only_once,
     zkp::{
         pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
-        Proof2,
+        Proof,
     },
     Identifier,
 };

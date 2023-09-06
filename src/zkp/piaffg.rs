@@ -46,7 +46,7 @@ use crate::{
     utils::{
         self, plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size,
     },
-    zkp::{Proof2, ProofContext},
+    zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -197,7 +197,7 @@ impl<'a> PiAffgSecret<'a> {
     }
 }
 
-impl Proof2 for PiAffgProof {
+impl Proof for PiAffgProof {
     type CommonInput<'a> = PiAffgInput<'a>;
     type ProverSecret<'b> = PiAffgSecret<'b>;
 

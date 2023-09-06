@@ -31,7 +31,7 @@ use crate::{
     parameters::{ELL, EPSILON},
     ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
     utils::{plusminus_challenge_from_transcript, random_plusminus_by_size},
-    zkp::{Proof2, ProofContext},
+    zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -124,7 +124,7 @@ impl<'a> PiEncSecret<'a> {
     }
 }
 
-impl Proof2 for PiEncProof {
+impl Proof for PiEncProof {
     type CommonInput<'a> = PiEncInput<'a>;
     type ProverSecret<'b> = PiEncSecret<'b>;
     #[cfg_attr(feature = "flame_it", flame("PiEncProof"))]

@@ -17,7 +17,7 @@ use crate::{
     utils::CurvePoint,
     zkp::{
         pilog::{CommonInput, PiLogProof},
-        Proof2, ProofContext,
+        Proof, ProofContext,
     },
 };
 use k256::Scalar;

@@ -17,7 +17,7 @@ use crate::{
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof},
         pilog::{CommonInput, PiLogProof},
-        Proof2, ProofContext,
+        Proof, ProofContext,
     },
 };
 use libpaillier::unknown_order::BigNumber;

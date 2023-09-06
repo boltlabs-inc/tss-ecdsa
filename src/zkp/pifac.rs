@@ -22,7 +22,7 @@ use crate::{
     parameters::{ELL, EPSILON},
     ring_pedersen::{Commitment, CommitmentRandomness, MaskedRandomness, VerifiedRingPedersen},
     utils::{plusminus_challenge_from_transcript, random_plusminus_scaled},
-    zkp::{Proof2, ProofContext},
+    zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -114,7 +114,7 @@ impl<'a> ProverSecret<'a> {
     }
 }
 
-impl Proof2 for PiFacProof {
+impl Proof for PiFacProof {
     type CommonInput<'a> = CommonInput<'a>;
     type ProverSecret<'a> = ProverSecret<'a>;
 

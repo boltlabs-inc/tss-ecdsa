@@ -13,7 +13,7 @@ use crate::{
     ring_pedersen::VerifiedRingPedersen,
     zkp::{
         pienc::{PiEncInput, PiEncProof},
-        Proof2, ProofContext,
+        Proof, ProofContext,
     },
 };
 use libpaillier::unknown_order::BigNumber;

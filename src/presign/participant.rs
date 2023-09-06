@@ -29,7 +29,7 @@ use crate::{
         piaffg::{PiAffgInput, PiAffgProof, PiAffgSecret},
         pienc::{PiEncInput, PiEncProof, PiEncSecret},
         pilog::{CommonInput, PiLogProof, ProverSecret},
-        Proof2, ProofContext,
+        Proof, ProofContext,
     },
     Identifier,
 };

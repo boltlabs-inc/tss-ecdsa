@@ -25,7 +25,7 @@ use crate::{
     utils::{
         self, plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size,
     },
-    zkp::{Proof2, ProofContext},
+    zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -163,7 +163,7 @@ fn generate_challenge(
     Ok(challenge)
 }
 
-impl Proof2 for PiLogProof {
+impl Proof for PiLogProof {
     type CommonInput<'a> = CommonInput<'a>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiLogProof"))]

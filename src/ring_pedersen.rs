@@ -17,7 +17,7 @@ use crate::{
     utils::{modpow, random_plusminus_scaled, random_positive_bn},
     zkp::{
         piprm::{PiPrmProof, PiPrmSecret},
-        Proof2, ProofContext,
+        Proof, ProofContext,
     },
 };
 use bytemuck::TransparentWrapper;

@@ -26,7 +26,7 @@ use crate::{
     errors::*,
     ring_pedersen::RingPedersen,
     utils::*,
-    zkp::{Proof2, ProofContext},
+    zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -96,7 +96,7 @@ fn generate_challenge_bytes(
     Ok(challenges.into())
 }
 
-impl Proof2 for PiPrmProof {
+impl Proof for PiPrmProof {
     type CommonInput<'a> = &'a RingPedersen;
     type ProverSecret<'a> = PiPrmSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiPrmProof"))]

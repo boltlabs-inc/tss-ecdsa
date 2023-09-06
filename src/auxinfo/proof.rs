@@ -15,7 +15,7 @@ use crate::{
     Identifier,
 };
 
-use crate::zkp::{pifac, pimod, Proof2, ProofContext};
+use crate::zkp::{pifac, pimod, Proof, ProofContext};
 
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
