@@ -32,15 +32,17 @@
 //! and Application of Cryptology and Information Security, Kobe, Japan,
 //! December 8-12, 2019, Proceedings, Part III, pages 700–727, 2019.
 
-use crate::{errors::*, utils::*, zkp::ProofContext};
+use crate::{
+    errors::*,
+    utils::*,
+    zkp::{Proof, ProofContext},
+};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, fmt::Debug};
 use tracing::error;
-
-use super::Proof;
 
 // Soundness parameter lambda
 static LAMBDA: usize = crate::parameters::SOUNDNESS_PARAMETER;
@@ -67,7 +69,11 @@ pub(crate) struct PiModProofElements {
     challenge: BigNumber,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+/// Common input known to both prover and verifier.
+///
+/// Copying/Cloning references is harmless and sometimes necessary. So we
+/// implement Clone and Copy for this type.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 pub(crate) struct CommonInput<'a> {
     modulus: &'a BigNumber,
 }
@@ -79,9 +85,6 @@ impl<'a> CommonInput<'a> {
 }
 
 /// Secret inputs known only to the prover.
-///
-/// Copying/Cloning references is harmless and sometimes necessary. So we
-/// implement Clone and Copy for this type.
 pub(crate) struct ProverSecret<'a> {
     p: &'a BigNumber,
     q: &'a BigNumber,
@@ -794,7 +797,7 @@ mod tests {
         };
         let secret = ProverSecret { p: &p, q: &q };
 
-        let proof_result = PiModProof::prove(input.clone(), secret, &(), &mut transcript(), rng);
+        let proof_result = PiModProof::prove(input, secret, &(), &mut transcript(), rng);
         assert!(proof_result.is_ok());
 
         test_code(proof_result.unwrap(), input, rng)
@@ -812,7 +815,7 @@ mod tests {
         // If the modulus is incorrect as it does not depend on the prime factors,
         // either the proving or the verifying should fail and we need not distinguish
         // between the two cases
-        match PiModProof::prove(input.clone(), bad_secret, &(), &mut transcript(), &mut rng) {
+        match PiModProof::prove(input, bad_secret, &(), &mut transcript(), &mut rng) {
             Ok(proof) => assert!(proof.verify(input, &(), &mut transcript()).is_err()),
             Err(_) => return Ok(()),
         };
@@ -859,9 +862,7 @@ mod tests {
             } else {
                 panic!("No element found");
             }
-            assert!(bad_proof
-                .verify(input.clone(), &(), &mut transcript())
-                .is_err());
+            assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
             // Sign exponent must be correct
             let mut bad_proof = proof.clone();
@@ -871,9 +872,7 @@ mod tests {
             } else {
                 panic!("No element found");
             }
-            assert!(bad_proof
-                .verify(input.clone(), &(), &mut transcript())
-                .is_err());
+            assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
             // Jacobi exponent must be correct
             let mut bad_proof = proof.clone();
@@ -883,9 +882,7 @@ mod tests {
             } else {
                 panic!("No element found");
             }
-            assert!(bad_proof
-                .verify(input.clone(), &(), &mut transcript())
-                .is_err());
+            assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
             // Fourth root must be correct
             let new_fourth_root = random_positive_bn(&mut rng, &k256_order());
@@ -967,12 +964,8 @@ mod tests {
             };
             let (short_proof, long_proof) = transform(&proof);
 
-            assert!(short_proof
-                .verify(input.clone(), &(), &mut transcript())
-                .is_err());
-            assert!(long_proof
-                .verify(input.clone(), &(), &mut transcript())
-                .is_err());
+            assert!(short_proof.verify(input, &(), &mut transcript()).is_err());
+            assert!(long_proof.verify(input, &(), &mut transcript()).is_err());
             assert!(proof.verify(input, &(), &mut transcript()).is_ok());
             Ok(())
         };
