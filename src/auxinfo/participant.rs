@@ -13,7 +13,7 @@ use crate::{
     auxinfo::{
         auxinfo_commit::{Commitment, CommitmentScheme},
         info::{AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses},
-        proof::AuxInfoProof,
+        proof::{AuxInfoProof, CommonInput},
         Output,
     },
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
@@ -552,15 +552,17 @@ impl AuxInfoParticipant {
         let my_public = self.local_storage.retrieve::<storage::Public>(self.id)?;
 
         let proof = AuxInfoProof::from_message(message)?;
-        // Verify the public parameters for the given participant. Note that
-        // this verification verifies _both_ the `𝚷[mod]` and `𝚷[fac]` proofs.
-        proof.verify(
-            &self.retrieve_context(),
+        let shared_context = &self.retrieve_context();
+        let common_input = CommonInput::new(
+            shared_context,
             message.id(),
             *global_rid,
             my_public.params(),
             auxinfo_pub.pk().modulus(),
-        )?;
+        );
+        // Verify the public parameters for the given participant. Note that
+        // this verification verifies _both_ the `𝚷[mod]` and `𝚷[fac]` proofs.
+        proof.verify(&common_input)?;
 
         self.local_storage
             .store::<storage::Public>(message.from(), auxinfo_pub);

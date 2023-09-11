@@ -11,8 +11,9 @@ use crate::{
     errors::Result,
     messages::{AuxinfoMessageType, Message, MessageType},
     participant::InnerProtocolParticipant,
+    protocol::SharedContext,
     ring_pedersen::VerifiedRingPedersen,
-    Identifier, protocol::SharedContext,
+    Identifier,
 };
 
 use crate::zkp::{pifac, pimod, Proof, ProofContext};
@@ -32,23 +33,23 @@ pub(crate) struct AuxInfoProof {
 }
 
 /// Common input and setup parameters known to both the prover and the verifier.
-pub(crate) struct CommonInput<'a>  {
+pub(crate) struct CommonInput<'a> {
     shared_context: &'a SharedContext,
-    sid: Identifier, 
+    sid: Identifier,
     rho: [u8; 32],
     setup_parameters: &'a VerifiedRingPedersen,
     modulus: &'a BigNumber,
 }
 
-impl<'a> CommonInput<'a>  {
-    /// Collect common parameters for proving or verifying a [`PiLogProof`]
+impl<'a> CommonInput<'a> {
+    /// Collect common parameters for proving or verifying a [`AuxInfoProof`]
     pub(crate) fn new(
         shared_context: &'a SharedContext,
         sid: Identifier,
         rho: [u8; 32],
         setup_parameters: &'a VerifiedRingPedersen,
         modulus: &'a BigNumber,
-    ) -> CommonInput<'a>  {
+    ) -> CommonInput<'a> {
         Self {
             shared_context,
             sid,
@@ -119,36 +120,25 @@ impl AuxInfoProof {
     ///
     /// Note: The [`VerifiedRingPedersen`] argument **must be** provided by the
     /// verifier!
-    /*pub(crate) fn verify(
-        self,
-        context: &<AuxInfoParticipant as InnerProtocolParticipant>::Context,
-        sid: Identifier,
-        rho: [u8; 32],
-        verifier_params: &VerifiedRingPedersen,
-        N: &BigNumber,
-    ) -> Result<()> {
+    pub(crate) fn verify(self, common_input: &CommonInput) -> Result<()> {
         let mut transcript = Self::new_transcript();
-        Self::append_pimod_transcript(&mut transcript, context, sid, rho)?;
-        self.pimod
-            .verify(pimod::CommonInput::new(N), context, &mut transcript)?;
-        Self::append_pifac_transcript(&mut transcript, context, sid, rho)?;
-        self.pifac.verify(
-            pifac::CommonInput::new(verifier_params, N),
-            context,
+        Self::append_pimod_transcript(
+            &mut transcript,
+            common_input.shared_context,
+            common_input.sid,
+            common_input.rho,
+        )?;
+        self.pimod.verify(
+            pimod::CommonInput::new(common_input.modulus),
+            common_input.shared_context,
             &mut transcript,
         )?;
-        Ok(())
-    }*/
-
-    pub(crate) fn verify(
-        self,
-        common_input: CommonInput
-    ) -> Result<()> {
-        let mut transcript = Self::new_transcript();
-        Self::append_pimod_transcript(&mut transcript, common_input.shared_context, common_input.sid, common_input.rho)?;
-        self.pimod
-            .verify(&pimod::CommonInput::new(common_input.modulus), common_input.shared_context, &mut transcript)?;
-        Self::append_pifac_transcript(&mut transcript, common_input.shared_context, common_input.sid, common_input.rho)?;
+        Self::append_pifac_transcript(
+            &mut transcript,
+            common_input.shared_context,
+            common_input.sid,
+            common_input.rho,
+        )?;
         self.pifac.verify(
             pifac::CommonInput::new(common_input.setup_parameters, common_input.modulus),
             common_input.shared_context,
@@ -234,9 +224,7 @@ mod tests {
             &q,
         )?;
         let common_input = CommonInput::new(&shared_context, sid, rho, &setup_params, &modulus);
-        assert!(proof
-            .verify(common_input)
-            .is_ok());
+        assert!(proof.verify(&common_input).is_ok());
         Ok(())
     }
 
@@ -252,8 +240,8 @@ mod tests {
         let mut transcript = AuxInfoProof::new_transcript();
         AuxInfoProof::append_pimod_transcript(&mut transcript, shared_context, sid, rho)?;
         let pimod = pimod::PiModProof::prove(
-            &pimod::CommonInput::new(&modulus),
-            &pimod::ProverSecret::new(&p, &q),
+            pimod::CommonInput::new(&modulus),
+            pimod::ProverSecret::new(&p, &q),
             shared_context,
             &mut transcript,
             &mut rng,
@@ -271,46 +259,7 @@ mod tests {
             pifac: pifac.clone(),
         };
         let common_input = CommonInput::new(shared_context, sid, rho, &setup_params, &modulus);
-        assert!(proof
-            .verify(common_input)
-            .is_ok());
-        let sid1 = Identifier::random(&mut rng);
-        let rho1: [u8; 32] = rng.gen();
-        let setup_params1 = VerifiedRingPedersen::gen(&mut rng, &())?;
-        let (p1, q1) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
-        let modulus1 = &p1 * &q1;
-        let shared_context1 = &SharedContext::random(&mut rng);
-        let mut transcript1 = AuxInfoProof::new_transcript();
-        AuxInfoProof::append_pimod_transcript(&mut transcript1, shared_context1, sid1, rho1)?;
-        let pimod1 = pimod::PiModProof::prove(
-            &pimod::CommonInput::new(&modulus1),
-            &pimod::ProverSecret::new(&p1, &q1),
-            shared_context1,
-            &mut transcript1,
-            &mut rng,
-        )?;
-        AuxInfoProof::append_pifac_transcript(&mut transcript1, shared_context1, sid1, rho1)?;
-        let pifac1 = pifac::PiFacProof::prove(
-            pifac::CommonInput::new(&setup_params1, &modulus1),
-            pifac::ProverSecret::new(&p1, &q1),
-            shared_context1,
-            &mut transcript1,
-            &mut rng,
-        )?;
-        let proof1 = AuxInfoProof {
-            pimod: pimod1.clone(),
-            pifac: pifac1.clone(),
-        };
-        assert!(proof1
-            .verify(common_input)
-            .is_ok());
-        let proof2 = AuxInfoProof {
-            pimod,
-            pifac: pifac1,
-        };
-        assert!(proof2
-            .verify(common_input)
-            .is_err());
+        assert!(proof.verify(&common_input).is_ok());
         let proof1: AuxInfoProof = random_auxinfo_proof()?;
         let proof2: AuxInfoProof = random_auxinfo_proof()?;
 
@@ -323,12 +272,8 @@ mod tests {
             pifac: proof2.pifac,
             pimod: proof1.pimod,
         };
-        assert!(mix_one
-            .verify(common_input)
-            .is_err());
-        assert!(mix_two
-            .verify(common_input)
-            .is_err());
+        assert!(mix_one.verify(&common_input).is_err());
+        assert!(mix_two.verify(&common_input).is_err());
         Ok(())
     }
 
@@ -353,9 +298,7 @@ mod tests {
             &p1,
             &q1,
         ) {
-            Ok(proof) => assert!(proof
-                .verify(common_input)
-                .is_err()),
+            Ok(proof) => assert!(proof.verify(&common_input).is_err()),
             Err(_) => return Ok(()),
         }
         Ok(())
@@ -371,7 +314,13 @@ mod tests {
         let modulus = &p * &q;
         let shared_context = &SharedContext::random(&mut rng);
         let bad_shared_context = &SharedContext::random(&mut rng);
-        let common_input = CommonInput{shared_context: bad_shared_context, sid, rho, setup_parameters: &setup_params, modulus: &modulus};
+        let common_input = CommonInput {
+            shared_context: bad_shared_context,
+            sid,
+            rho,
+            setup_parameters: &setup_params,
+            modulus: &modulus,
+        };
         match AuxInfoProof::prove(
             &mut rng,
             shared_context,
@@ -382,9 +331,7 @@ mod tests {
             &p,
             &q,
         ) {
-            Ok(proof) => assert!(proof
-                .verify(common_input)
-                .is_err()),
+            Ok(proof) => assert!(proof.verify(&common_input).is_err()),
             Err(_) => return Ok(()),
         }
         Ok(())
