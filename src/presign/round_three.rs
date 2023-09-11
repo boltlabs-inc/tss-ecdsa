@@ -14,16 +14,17 @@ use crate::{
         round_one::PublicBroadcast as RoundOnePublicBroadcast,
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
     },
-    utils::CurvePoint,
+    utils::{CurvePoint, k256_order},
     zkp::{
         pilog::{CommonInput, PiLogProof},
         Proof, ProofContext,
     },
 };
-use k256::Scalar;
+use k256::{Scalar, elliptic_curve::{Curve, PrimeField}};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 use std::fmt::Debug;
 use zeroize::ZeroizeOnDrop;
 
@@ -100,11 +101,14 @@ impl TryFrom<&Message> for Public {
     fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {
         message.check_type(MessageType::Presign(PresignMessageType::RoundThree))?;
         let public: Self = deserialize!(&message.unverified_bytes)?;
-        // TODO #369: This should check the validity of `delta` (namely that it
-        // is less than `k256_order()`). However, we are currently using an
-        // older version of the `k256` library that doesn't support comparisons,
-        // making doing this check difficult. Add this check once the `k256`
-        // library has been updated.
+
+        // Normal `Scalar` deserialization doesn't check that the value is in range.
+        // Here we convert to bytes and back, using the checked `from_repr` method to
+        // make sure the value is a valid, canonical Scalar.
+        if Scalar::from_repr(public.delta.to_bytes()).is_none().into() {
+            error!("Deserialized round 3 message `delta` field is out of range");
+            Err(InternalError::ProtocolError)?
+        }
         Ok(public)
     }
 }
