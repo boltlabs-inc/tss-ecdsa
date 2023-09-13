@@ -493,23 +493,18 @@ impl AuxInfoParticipant {
 
         let witness = self.local_storage.retrieve::<storage::Witnesses>(self.id)?;
         let product = &witness.p * &witness.q;
-
         self.other_participant_ids
             .iter()
             .map(|&pid| {
                 // Grab the other participant's decommitment record from storage...
                 let verifier_decommit = self.local_storage.retrieve::<storage::Decommit>(pid)?;
+                let setup_params = verifier_decommit.clone().into_public();
+                let params = setup_params.params();
+                let shared_context = &self.retrieve_context();
                 // ... and use its setup parameters in the proof.
-                let proof = AuxInfoProof::prove(
-                    rng,
-                    &self.retrieve_context(),
-                    sid,
-                    global_rid,
-                    verifier_decommit.clone().into_public().params(),
-                    &product,
-                    &witness.p,
-                    &witness.q,
-                )?;
+                let common_input =
+                    CommonInput::new(shared_context, sid, global_rid, params, &product);
+                let proof = AuxInfoProof::prove(rng, &common_input, &witness.p, &witness.q)?;
                 Message::new(
                     MessageType::Auxinfo(AuxinfoMessageType::R3Proof),
                     sid,

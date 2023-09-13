@@ -11,7 +11,6 @@ use crate::{
     errors::Result,
     messages::{AuxinfoMessageType, Message, MessageType},
     participant::InnerProtocolParticipant,
-    protocol::SharedContext,
     ring_pedersen::VerifiedRingPedersen,
     Identifier,
 };
@@ -34,7 +33,7 @@ pub(crate) struct AuxInfoProof {
 
 /// Common input and setup parameters known to both the prover and the verifier.
 pub(crate) struct CommonInput<'a> {
-    shared_context: &'a SharedContext,
+    shared_context: &'a <AuxInfoParticipant as InnerProtocolParticipant>::Context,
     sid: Identifier,
     rho: [u8; 32],
     setup_parameters: &'a VerifiedRingPedersen,
@@ -44,17 +43,17 @@ pub(crate) struct CommonInput<'a> {
 impl<'a> CommonInput<'a> {
     /// Collect common parameters for proving or verifying a [`AuxInfoProof`]
     pub(crate) fn new(
-        shared_context: &'a SharedContext,
+        shared_context: &'a <AuxInfoParticipant as InnerProtocolParticipant>::Context,
         sid: Identifier,
         rho: [u8; 32],
-        setup_parameters: &'a VerifiedRingPedersen,
+        verifier_setup_parameters: &'a VerifiedRingPedersen,
         modulus: &'a BigNumber,
     ) -> CommonInput<'a> {
         Self {
             shared_context,
             sid,
             rho,
-            setup_parameters,
+            setup_parameters: verifier_setup_parameters,
             modulus,
         }
     }
@@ -85,28 +84,34 @@ impl AuxInfoProof {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn prove<R: RngCore + CryptoRng>(
         rng: &mut R,
-        context: &<AuxInfoParticipant as InnerProtocolParticipant>::Context,
-        sid: Identifier,
-        rho: [u8; 32],
-        verifier_params: &VerifiedRingPedersen,
-        N: &BigNumber,
+        common_input: &CommonInput,
         p: &BigNumber,
         q: &BigNumber,
     ) -> Result<Self> {
         let mut transcript = Self::new_transcript();
-        Self::append_pimod_transcript(&mut transcript, context, sid, rho)?;
+        Self::append_pimod_transcript(
+            &mut transcript,
+            common_input.shared_context,
+            common_input.sid,
+            common_input.rho,
+        )?;
         let pimod = pimod::PiModProof::prove(
-            pimod::CommonInput::new(N),
+            pimod::CommonInput::new(common_input.modulus),
             pimod::ProverSecret::new(p, q),
-            context,
+            common_input.shared_context,
             &mut transcript,
             rng,
         )?;
-        Self::append_pifac_transcript(&mut transcript, context, sid, rho)?;
+        Self::append_pifac_transcript(
+            &mut transcript,
+            common_input.shared_context,
+            common_input.sid,
+            common_input.rho,
+        )?;
         let pifac = pifac::PiFacProof::prove(
-            pifac::CommonInput::new(verifier_params, N),
+            pifac::CommonInput::new(common_input.setup_parameters, common_input.modulus),
             pifac::ProverSecret::new(p, q),
-            context,
+            common_input.shared_context,
             &mut transcript,
             rng,
         )?;
@@ -192,16 +197,8 @@ mod tests {
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
         let shared_context = SharedContext::random(&mut rng);
-        AuxInfoProof::prove(
-            &mut rng,
-            &shared_context,
-            sid,
-            rho,
-            &setup_params,
-            &modulus,
-            &p,
-            &q,
-        )
+        let common_input = CommonInput::new(&shared_context, sid, rho, &setup_params, &modulus);
+        AuxInfoProof::prove(&mut rng, &common_input, &p, &q)
     }
 
     #[test]
@@ -213,16 +210,8 @@ mod tests {
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
         let shared_context = SharedContext::random(&mut rng);
-        let proof = AuxInfoProof::prove(
-            &mut rng,
-            &shared_context,
-            sid,
-            rho,
-            &setup_params,
-            &modulus,
-            &p,
-            &q,
-        )?;
+        let common_input = CommonInput::new(&shared_context, sid, rho, &setup_params, &modulus);
+        let proof = AuxInfoProof::prove(&mut rng, &common_input, &p, &q)?;
         let common_input = CommonInput::new(&shared_context, sid, rho, &setup_params, &modulus);
         assert!(proof.verify(&common_input).is_ok());
         Ok(())
@@ -288,16 +277,7 @@ mod tests {
         let modulus = &p * &q;
         let shared_context = &SharedContext::random(&mut rng);
         let common_input = CommonInput::new(shared_context, sid, rho, &setup_params, &modulus);
-        match AuxInfoProof::prove(
-            &mut rng,
-            shared_context,
-            sid,
-            rho,
-            &setup_params,
-            &modulus,
-            &p1,
-            &q1,
-        ) {
+        match AuxInfoProof::prove(&mut rng, &common_input, &p1, &q1) {
             Ok(proof) => assert!(proof.verify(&common_input).is_err()),
             Err(_) => return Ok(()),
         }
@@ -312,7 +292,6 @@ mod tests {
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
-        let shared_context = &SharedContext::random(&mut rng);
         let bad_shared_context = &SharedContext::random(&mut rng);
         let common_input = CommonInput {
             shared_context: bad_shared_context,
@@ -321,16 +300,7 @@ mod tests {
             setup_parameters: &setup_params,
             modulus: &modulus,
         };
-        match AuxInfoProof::prove(
-            &mut rng,
-            shared_context,
-            sid,
-            rho,
-            &setup_params,
-            &modulus,
-            &p,
-            &q,
-        ) {
+        match AuxInfoProof::prove(&mut rng, &common_input, &p, &q) {
             Ok(proof) => assert!(proof.verify(&common_input).is_err()),
             Err(_) => return Ok(()),
         }
