@@ -38,6 +38,39 @@
 //! generated in this threshold manner are indistinguishable from signatures
 //! generated using a normal ECDSA signing method.
 //!
+//! # Usage
+//! The [`Participant`] type is the main driver for protocol execution. A given
+//! `Participant` is parameterized by the subprotocol that it runs:
+//! [`keygen`](`keygen::KeygenParticipant`),
+//! [`auxinfo`](auxinfo::AuxInfoParticipant),
+//! [`presign`](presign::PresignParticipant), or
+//! [`sign`](sign::InteractiveSignParticipant).
+//!
+//! The public API is not currently complete: we provide an interface to call
+//! interactive signing (e.g. running the presign and sign protocols from
+//! Canetti et al. in sequence), but not for non-interactive signing. You can
+//! run presigning alone and generate individual [`SignatureShare`]s, but you
+//! must then manually combine those shares to create the generated signature;
+//! this does not provide the same security guarantees as the protocol.
+//!
+//! A valid protocol run requires a lot of setup so we won't try to provide a
+//! code example here; please see the examples directory. At a high level,
+//! though, the user can run a protocol as follows:
+//! 1. Create a new [`Participant`], parameterized by the
+//!    [`ProtocolParticipant`] describing the protocol you want to run.
+//! 2. Initialize the `Participant` by calling
+//!    [`initialize_message()`](Participant::initialize_message()) and passing
+//!    the result to
+//!    [`process_single_message`](Participant::process_single_message()).
+//! 3. Processing a message returns an optional output and a (possibly empty)
+//!    set of messages. Send any messages to the other participants. If there's
+//!    an output, the protocol is complete for this party.
+//! 4. On receiving a message from another participant, call
+//!    `process_single_message`. Repeat 3 and 4.
+//!
+//! Note that a `Participant` can receive messages before it has been
+//! initialized. They will be stored and processed after initialization.
+//!
 //! # 🔒 Requirements of the calling application
 //! This library **does not** implement the complete protocol. There are several
 //! security-critical steps that must be handled by the calling application. We

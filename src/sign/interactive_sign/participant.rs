@@ -182,7 +182,7 @@ impl ProtocolParticipant for InteractiveSignParticipant {
     }
 
     fn protocol_type() -> ProtocolType {
-        todo!()
+        ProtocolType::InteractiveSign
     }
 
     fn new(

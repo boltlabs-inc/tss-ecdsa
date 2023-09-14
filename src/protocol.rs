@@ -39,6 +39,7 @@ pub enum ProtocolType {
     AuxInfo,
     Presign,
     Broadcast,
+    InteractiveSign,
 }
 
 /// The driver for a party executing a sub-protocol of the threshold signing
@@ -60,8 +61,10 @@ pub enum ProtocolType {
 /// [`Participant`] in order to begin the protocol execution.
 /// 2. Receiving messages sent by other participants, and passing
 /// them to the participant by calling
-/// [`Participant::process_single_message()`]. 3. Sending all messages generated
-/// by [`Participant::process_single_message()`] to the correct recipient.
+/// [`process_single_message()`](Participant::process_single_message()).
+/// 3. Sending all messages generated
+/// by [`process_single_message()`](Participant::process_single_message()) to
+/// the correct recipient.
 ///
 /// [`Message`]s contain a `to: ParticipantIdentifier` field which specifies the
 /// recipient of a message. The calling application is responsible for
@@ -164,7 +167,10 @@ impl<P: ProtocolParticipant> Participant<P> {
         match (message.message_type(), P::protocol_type()) {
             (MessageType::Auxinfo(_), ProtocolType::AuxInfo)
             | (MessageType::Keygen(_), ProtocolType::Keygen)
-            | (MessageType::Presign(_), ProtocolType::Presign) => {}
+            | (MessageType::Presign(_), ProtocolType::Presign)
+            // Interactive sign runs presign and sign in sequence, so we allow both message types
+            | (MessageType::Presign(_), ProtocolType::InteractiveSign)
+            | (MessageType::Sign(_), ProtocolType::InteractiveSign) => {}
             _ => {
                 error!(
                     "Message type did not match type of this participant: got {:?}, expected {:?}",
@@ -650,8 +656,13 @@ impl std::fmt::Display for Identifier {
 mod tests {
     use super::*;
     use crate::{
-        auxinfo::AuxInfoParticipant, keygen::KeygenParticipant, participant::Status, presign,
-        utils::testing::init_testing, PresignParticipant,
+        auxinfo::AuxInfoParticipant,
+        keygen::KeygenParticipant,
+        participant::Status,
+        presign,
+        sign::{self, InteractiveSignParticipant},
+        utils::testing::init_testing,
+        PresignParticipant,
     };
     use k256::ecdsa::signature::{DigestVerifier, Verifier};
     use rand::seq::IteratorRandom;
@@ -1011,6 +1022,189 @@ mod tests {
 
         #[cfg(feature = "flame_it")]
         flame::dump_html(&mut std::fs::File::create("dev/flame-graph.html").unwrap()).unwrap();
+        Ok(())
+    }
+
+    #[test]
+    fn full_protocol_execution_with_interactive_signing_works() -> Result<()> {
+        let rng = &mut init_testing();
+        let QUORUM_SIZE = 4;
+        // Set GLOBAL config for participants
+        let configs = ParticipantConfig::random_quorum(QUORUM_SIZE, rng)?;
+        let mut inboxes = Vec::new();
+
+        // Set up keygen participants
+        let keygen_sid = Identifier::random(rng);
+        let mut keygen_quorum = configs
+            .clone()
+            .into_iter()
+            .map(|config| {
+                Participant::<KeygenParticipant>::from_config(config, keygen_sid, ()).unwrap()
+            })
+            .collect::<Vec<_>>();
+        let mut keygen_outputs: HashMap<
+            ParticipantIdentifier,
+            <KeygenParticipant as ProtocolParticipant>::Output,
+        > = HashMap::new();
+
+        // Initialize keygen for all participants
+        for participant in &keygen_quorum {
+            inboxes.push(participant.initialize_message()?);
+        }
+
+        // Run keygen until all parties have outputs
+        while keygen_outputs.len() < QUORUM_SIZE {
+            assert!(
+                !inboxes.is_empty(),
+                "No more messages but we're not done with keygen"
+            );
+
+            // Pick a random message to process
+            let message = inboxes.swap_remove(rng.gen_range(0..inboxes.len()));
+            let participant = keygen_quorum
+                .iter_mut()
+                .find(|p| p.id() == message.to())
+                .unwrap();
+            let (output, messages) = participant.process_single_message(&message, rng)?;
+
+            // Save any outgoing messages and the output
+            inboxes.extend(messages);
+            if let Some(output) = output {
+                // Save the output, and make sure this participant didn't already return an
+                // output.
+                assert!(keygen_outputs.insert(participant.id(), output).is_none());
+            }
+        }
+
+        // Keygen is done! Make sure there are no more messages and that everyone
+        // finished
+        assert!(inboxes.is_empty());
+        assert!(keygen_quorum
+            .iter()
+            .all(|p| *p.status() == Status::TerminatedSuccessfully));
+
+        // Save the public key for later
+        let saved_public_key = keygen_outputs[&configs[0].id()].public_key()?;
+
+        // Set up auxinfo participants
+        let auxinfo_sid = Identifier::random(rng);
+        let mut auxinfo_quorum = configs
+            .clone()
+            .into_iter()
+            .map(|config| {
+                Participant::<AuxInfoParticipant>::from_config(config, auxinfo_sid, ()).unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        let mut auxinfo_outputs: HashMap<
+            ParticipantIdentifier,
+            <AuxInfoParticipant as ProtocolParticipant>::Output,
+        > = HashMap::new();
+
+        // Initialize auxinfo for all parties
+        for participant in &auxinfo_quorum {
+            inboxes.push(participant.initialize_message()?);
+        }
+
+        // Run auxinfo until all parties have outputs
+        while auxinfo_outputs.len() < QUORUM_SIZE {
+            assert!(
+                !inboxes.is_empty(),
+                "No more messages but we're not done with auxinfo"
+            );
+
+            // Pick a random message to process
+            let message = inboxes.swap_remove(rng.gen_range(0..inboxes.len()));
+            let participant = auxinfo_quorum
+                .iter_mut()
+                .find(|p| p.id() == message.to())
+                .unwrap();
+            let (output, messages) = participant.process_single_message(&message, rng)?;
+
+            // Save any outgoing messages and the output
+            inboxes.extend(messages);
+            if let Some(output) = output {
+                // Save the output, and make sure this participant didn't already return an
+                // output.
+                assert!(auxinfo_outputs.insert(participant.id(), output).is_none());
+            }
+        }
+
+        // Auxinfo is done! Make sure there are no more messages.
+        assert!(inboxes.is_empty());
+        // And make sure all participants have successfully terminated.
+        assert!(auxinfo_quorum
+            .iter()
+            .all(|p| *p.status() == Status::TerminatedSuccessfully));
+
+        // Prepare inputs for sign
+        let message = b"Signing a message to test full protocol execution with interactive sign";
+        let sign_inputs = configs
+            .iter()
+            .map(|config| {
+                (
+                    auxinfo_outputs.remove(&config.id()).unwrap(),
+                    keygen_outputs.remove(&config.id()).unwrap(),
+                )
+            })
+            .map(|(auxinfo_output, keygen_output)| {
+                sign::InteractiveInput::new(message, keygen_output, auxinfo_output)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // Set up signing participants
+        let sign_sid = Identifier::random(rng);
+        let mut sign_quorum = std::iter::zip(configs, sign_inputs)
+            .map(|(config, input)| {
+                Participant::<InteractiveSignParticipant>::from_config(config, sign_sid, input)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let mut sign_outputs = Vec::new();
+
+        // Initialize signing for all parties
+        for participant in &sign_quorum {
+            inboxes.push(participant.initialize_message()?);
+        }
+
+        // Run sign until all parties have outputs
+        while sign_outputs.len() < QUORUM_SIZE {
+            assert!(
+                !inboxes.is_empty(),
+                "No more messages but we're not done with signing"
+            );
+
+            // Pick a random message to process
+            let message = inboxes.swap_remove(rng.gen_range(0..inboxes.len()));
+            let participant = sign_quorum
+                .iter_mut()
+                .find(|p| p.id() == message.to())
+                .unwrap();
+            let (output, messages) = participant.process_single_message(&message, rng)?;
+
+            // Save any outgoing messages and the output
+            inboxes.extend(messages);
+            if let Some(output) = output {
+                // Save the output, and make sure this participant didn't already return an
+                // output.
+                sign_outputs.push(output);
+            }
+        }
+
+        // Make sure all messages sent and every party finished
+        assert!(inboxes.is_empty());
+        assert!(sign_quorum
+            .iter()
+            .all(|p| *p.status() == Status::TerminatedSuccessfully));
+
+        // Validate output: everyone should get the same signature...
+        assert!(sign_outputs.windows(2).all(|sig| sig[0] == sig[1]));
+
+        // ...and the signature should be valid under the public key we saved
+        assert!(saved_public_key
+            .verify(message, sign_outputs[0].as_ref())
+            .is_ok());
+
         Ok(())
     }
 }
