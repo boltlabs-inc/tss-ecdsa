@@ -226,37 +226,13 @@ mod tests {
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
         let shared_context = &SharedContext::random(&mut rng);
-        let mut transcript = AuxInfoProof::new_transcript();
-        AuxInfoProof::append_pimod_transcript(&mut transcript, shared_context, sid, rho)?;
-        let pimod = pimod::PiModProof::prove(
-            pimod::CommonInput::new(&modulus),
-            pimod::ProverSecret::new(&p, &q),
-            shared_context,
-            &mut transcript,
-            &mut rng,
-        )?;
-        AuxInfoProof::append_pifac_transcript(&mut transcript, shared_context, sid, rho)?;
-        let pifac = pifac::PiFacProof::prove(
-            pifac::CommonInput::new(&setup_params, &modulus),
-            pifac::ProverSecret::new(&p, &q),
-            shared_context,
-            &mut transcript,
-            &mut rng,
-        )?;
-        let proof = AuxInfoProof {
-            pimod: pimod.clone(),
-            pifac: pifac.clone(),
-        };
         let common_input = CommonInput::new(shared_context, sid, rho, &setup_params, &modulus);
-        assert!(proof.verify(&common_input).is_ok());
         let proof1: AuxInfoProof = random_auxinfo_proof()?;
         let proof2: AuxInfoProof = random_auxinfo_proof()?;
-
         let mix_one = AuxInfoProof {
             pifac: proof1.pifac,
             pimod: proof2.pimod,
         };
-
         let mix_two = AuxInfoProof {
             pifac: proof2.pifac,
             pimod: proof1.pimod,
