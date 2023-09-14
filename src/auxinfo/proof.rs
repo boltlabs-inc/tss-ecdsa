@@ -292,8 +292,16 @@ mod tests {
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
+        let shared_context = &SharedContext::random(&mut rng);
         let bad_shared_context = &SharedContext::random(&mut rng);
         let common_input = CommonInput {
+            shared_context,
+            sid,
+            rho,
+            setup_parameters: &setup_params,
+            modulus: &modulus,
+        };
+        let bad_common_input = CommonInput {
             shared_context: bad_shared_context,
             sid,
             rho,
@@ -301,7 +309,7 @@ mod tests {
             modulus: &modulus,
         };
         match AuxInfoProof::prove(&mut rng, &common_input, &p, &q) {
-            Ok(proof) => assert!(proof.verify(&common_input).is_err()),
+            Ok(proof) => assert!(proof.verify(&bad_common_input).is_err()),
             Err(_) => return Ok(()),
         }
         Ok(())
