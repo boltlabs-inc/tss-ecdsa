@@ -14,18 +14,18 @@ use crate::{
         round_one::PublicBroadcast as RoundOnePublicBroadcast,
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
     },
-    utils::{CurvePoint, k256_order},
+    utils::CurvePoint,
     zkp::{
         pilog::{CommonInput, PiLogProof},
         Proof, ProofContext,
     },
 };
-use k256::{Scalar, elliptic_curve::{Curve, PrimeField}};
+use k256::{elliptic_curve::PrimeField, Scalar};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use tracing::error;
 use std::fmt::Debug;
+use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
 #[derive(Clone, ZeroizeOnDrop)]
