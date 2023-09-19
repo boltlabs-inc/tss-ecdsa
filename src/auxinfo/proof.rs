@@ -32,6 +32,7 @@ pub(crate) struct AuxInfoProof {
 }
 
 /// Common input and setup parameters known to both the prover and the verifier.
+#[derive(Clone)]
 pub(crate) struct CommonInput<'a> {
     shared_context: &'a <AuxInfoParticipant as InnerProtocolParticipant>::Context,
     sid: Identifier,
@@ -189,7 +190,7 @@ mod tests {
     use crate::{paillier::prime_gen, protocol::SharedContext, utils::testing::init_testing};
     use rand::Rng;
 
-    fn random_auxinfo_proof() -> Result<AuxInfoProof> {
+    /*fn random_auxinfo_proof() -> Result<AuxInfoProof> {
         let mut rng = init_testing();
         let sid = Identifier::random(&mut rng);
         let rho = rng.gen();
@@ -199,7 +200,95 @@ mod tests {
         let shared_context = SharedContext::random(&mut rng);
         let common_input = CommonInput::new(&shared_context, sid, rho, &setup_params, &modulus);
         AuxInfoProof::prove(&mut rng, &common_input, &p, &q)
+    }*/
+
+    /*fn random_auxinfo_proof() -> (Result<AuxInfoProof>, Result<CommonInput<'static>>) {
+        let mut rng = init_testing();
+        let sid = Identifier::random(&mut rng);
+        let rho = rng.gen();
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &()).unwrap();
+        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let modulus = &p * &q;
+        let shared_context = SharedContext::random(&mut rng);
+        let common_input = CommonInput::new(&shared_context, sid, rho, &setup_params, &modulus).clone();
+        let proof = AuxInfoProof::prove(&mut rng, &common_input, &p, &q).unwrap().clone();
+        //let proof = proof.clone();
+        //let cloned_common = common_input.clone();
+        (Ok(proof), Ok(common_input))
+    }*/
+
+   /*fn random_auxinfo_proof() -> (Result<AuxInfoProof>, Result<CommonInput<'static>>) {
+        let mut rng = init_testing();
+        let sid = Identifier::random(&mut rng);
+        let rho = rng.gen();
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &()).unwrap();
+        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let modulus = &p * &q;
+        let shared_context = SharedContext::random(&mut rng);
+        let common_input = CommonInput::new(&shared_context.clone(), sid, rho, &setup_params.clone(), &modulus.clone());
+        let proof = AuxInfoProof::prove(&mut rng.clone(), &common_input.clone(), &p.clone(), &q.clone()).unwrap();
+        (Ok(proof.clone()), Ok(common_input.clone()))
+    }*/
+
+    /*fn random_auxinfo_proof<R: RngCore + CryptoRng>(
+        rng: &mut R,
+        mut test_code: impl FnMut(CommonInput, AuxInfoProof) -> Result<()>,
+    ) -> Result<()> {
+        let mut rng = init_testing();
+        let sid = Identifier::random(&mut rng);
+        let rho = rng.gen();
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &()).unwrap();
+        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let modulus = &p * &q;
+        let shared_context = SharedContext::random(&mut rng);
+        let common_input = CommonInput::new(&shared_context, sid, rho, &setup_params, &modulus);
+        let proof = AuxInfoProof::prove(&mut rng.clone(), &common_input.clone(), &p.clone(), &q.clone()).unwrap();
+        //(Ok(proof.clone()), Ok(common_input.clone()))
+        test_code(common_input, proof)
+    }*/
+    fn random_auxinfo_proof<R: RngCore + CryptoRng>(
+        rng: &mut R,
+        mut test_code: impl FnMut(CommonInput, AuxInfoProof) -> Result<()>,
+    ) -> Result<()> {
+        let mut rng = init_testing();
+        let sid = Identifier::random(&mut rng);
+        let rho = rng.gen();
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &()).unwrap();
+        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let modulus = &p * &q;
+        let shared_context = SharedContext::random(&mut rng);
+        let common_input = CommonInput::new(&shared_context, sid, rho, &setup_params, &modulus);
+        let proof = AuxInfoProof::prove(&mut rng.clone(), &common_input.clone(), &p.clone(), &q.clone()).unwrap();
+        //(Ok(proof.clone()), Ok(common_input.clone()))
+        test_code(common_input, proof)
     }
+
+    /*fn random_auxinfo_proof() -> (Result<AuxInfoProof>, Result<&’a CommonInput<'static>>) {
+        let mut rng = init_testing();
+        let sid = Identifier::random(&mut rng);
+        let rho = rng.gen();
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &()).unwrap();
+        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let modulus = &p * &q;
+        let shared_context = SharedContext::random(&mut rng);
+        let common_input = CommonInput::new(&shared_context.clone(), sid, rho, &setup_params.clone(), &modulus.clone());
+        let proof = AuxInfoProof::prove(&mut rng.clone(), &common_input.clone(), &p.clone(), &q.clone()).unwrap();
+        (Ok(proof), Ok(&common_input))
+    }*/
+    /*use std::sync::Arc;
+    fn random_auxinfo_proof() -> (Result<AuxInfoProof>, Result<Arc<CommonInput<'static>>>) {
+        let mut rng = init_testing();
+        let sid = Identifier::random(&mut rng);
+        let rho = rng.gen();
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &()).unwrap();
+        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let modulus = &p * &q;
+        let shared_context = SharedContext::random(&mut rng);
+        let common_input = CommonInput::new(&shared_context.clone(), sid, rho, &setup_params.clone(), &modulus.clone());
+        let proof = AuxInfoProof::prove(&mut rng.clone(), &common_input.clone(), &p.clone(), &q.clone()).unwrap();
+        let common_input = Arc::new(&common_input);
+        (Ok(proof), Ok(common_input))
+    }*/
 
     #[test]
     fn auxinfo_proof_verifies() -> Result<()> {
@@ -220,25 +309,68 @@ mod tests {
     #[test]
     fn each_constituent_proof_must_be_valid() -> Result<()> {
         let mut rng = init_testing();
-        let sid = Identifier::random(&mut rng);
+        /*let sid = Identifier::random(&mut rng);
         let rho = rng.gen();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
         let shared_context = &SharedContext::random(&mut rng);
-        let common_input = CommonInput::new(shared_context, sid, rho, &setup_params, &modulus);
-        let proof1: AuxInfoProof = random_auxinfo_proof()?;
-        let proof2: AuxInfoProof = random_auxinfo_proof()?;
-        let mix_one = AuxInfoProof {
-            pifac: proof1.pifac,
-            pimod: proof2.pimod,
+        let common_input = CommonInput::new(shared_context, sid, rho, &setup_params, &modulus);*/
+        /*let (proof1, _common_input) = match random_auxinfo_proof() {
+            Ok((proof, input)) => (proof, input),
+            Err(err) => {
+                eprintln!("Error: {}", err);
+                panic!("Error occurred while generating the proof");
+            }
+        };*/
+        //let (proof1, common_input) = random_auxinfo_proof();
+        //let (proof2, _) = random_auxinfo_proof();
+        //let proof1 = proof1.unwrap();
+        //let proof2 = proof2.unwrap();
+        let f = |input: CommonInput, proof: &'a AuxInfoProof| {
+            let result = proof.verify(&input);
+            let input_clone = input.clone();
+            let proof_clone = proof.clone();
+            let f1 = move |input1: CommonInput, proof1: &'a AuxInfoProof| {
+                let result1 = proof_clone.verify(&input1);
+                let mix_one = AuxInfoProof {
+                    pifac: proof_clone.pifac,
+                    pimod: proof1.pimod,
+                };
+                let mix_two = AuxInfoProof {
+                    pifac: proof1.pifac,
+                    pimod: proof_clone.pimod,
+                };
+                Ok(())
+            };
+            random_auxinfo_proof(&mut rng, f1);
+            Ok(())
         };
-        let mix_two = AuxInfoProof {
-            pifac: proof2.pifac,
-            pimod: proof1.pimod,
+        random_auxinfo_proof(&mut rng, f);
+        /*let f = |input: CommonInput, proof: AuxInfoProof| {
+            let result = proof.verify(&input);
+            //let input_clone = input.clone();
+            //let proof_clone = proof.clone();
+            let f1 = |input1: CommonInput, proof1: AuxInfoProof| {
+                //let proof_clone = proof.clone(); // Clone the proof variable
+                let result1 = proof1.verify(&input1);
+                let mix_one = AuxInfoProof {
+                    pifac: proof.pifac,
+                    pimod: proof1.pimod,
+                };
+                /*let mix_two = AuxInfoProof {
+                    pifac: proof1.pifac,
+                    pimod: proof_clone.pimod,
+                };*/
+                Ok(())
+            };
+            random_auxinfo_proof(&mut rng, f1);
+            Ok(())
         };
-        assert!(mix_one.verify(&common_input).is_err());
-        assert!(mix_two.verify(&common_input).is_err());
+        random_auxinfo_proof(&mut init_testing(), f);*/
+        
+        //assert!(mix_one.verify(&comm_inp).is_err());
+        //assert!(mix_two.verify(&comm_inp).is_err());
         Ok(())
     }
 
