@@ -43,15 +43,13 @@
 //! `Participant` is parameterized by the subprotocol that it runs:
 //! [`keygen`](`keygen::KeygenParticipant`),
 //! [`auxinfo`](auxinfo::AuxInfoParticipant),
-//! [`presign`](presign::PresignParticipant), or
-//! [`sign`](sign::InteractiveSignParticipant).
-//!
-//! The public API is not currently complete: we provide an interface to call
-//! interactive signing (e.g. running the presign and sign protocols from
-//! Canetti et al. in sequence), but not for non-interactive signing. You can
-//! run presigning alone and generate individual [`SignatureShare`]s, but you
-//! must then manually combine those shares to create the generated signature;
-//! this does not provide the same security guarantees as the protocol.
+//! [`presign`](presign::PresignParticipant),
+//! [`sign`](sign::SignParticipant) or
+//! [`interactive_sign`](sign::InteractiveSignParticipant).
+//! As in the paper, interactive signing is equivalent to running presign and
+//! sign back-to-back; you only have to generate one session ID and don't have
+//! to handle secure storage of presign records, but don't get the benefit of
+//! being able to "cache" message-independent records.
 //!
 //! A valid protocol run requires a lot of setup so we won't try to provide a
 //! code example here; please see the examples directory. At a high level,
