@@ -87,12 +87,28 @@ impl Input {
     /// The `public_key_shares` should be the same ones used to generate the
     /// [`PresignRecord`].
     pub fn new(
-        digest: Sha256,
+        message: &[u8],
         record: PresignRecord,
         public_key_shares: Vec<KeySharePublic>,
     ) -> Self {
         Self {
-            message_digest: digest,
+            message_digest: Sha256::new().chain_update(message),
+            presign_record: record,
+            public_key_shares,
+        }
+    }
+
+    /// Internal-only method to create an input from a pre-existing digest.
+    ///
+    /// This exists so that interactive signing can hash the message as soon as
+    /// they receive it, rather that waiting until presigning completes.
+    pub(crate) fn new_from_digest(
+        message_digest: Sha256,
+        record: PresignRecord,
+        public_key_shares: Vec<KeySharePublic>,
+    ) -> Self {
+        Self {
+            message_digest,
             presign_record: record,
             public_key_shares,
         }
@@ -179,7 +195,7 @@ impl ProtocolParticipant for SignParticipant {
     }
 
     fn protocol_type() -> ProtocolType {
-        todo!()
+        ProtocolType::Sign
     }
 
     fn new(
@@ -522,7 +538,6 @@ mod test {
         let presign_records = PresignRecord::simulate_set(&keygen_outputs, rng);
 
         let message = b"the quick brown fox jumped over the lazy dog";
-        let message_digest = sha2::Sha256::new().chain_update(message);
 
         // Save some things for later -- a signature constructucted from the records and
         // the public key
@@ -532,11 +547,7 @@ mod test {
 
         // Form signing inputs and participants
         let inputs = std::iter::zip(keygen_outputs, presign_records).map(|(keygen, record)| {
-            sign::Input::new(
-                message_digest.clone(),
-                record,
-                keygen.public_key_shares().to_vec(),
-            )
+            sign::Input::new(message, record, keygen.public_key_shares().to_vec())
         });
         let mut quorum = std::iter::zip(configs, inputs)
             .map(|(config, input)| {

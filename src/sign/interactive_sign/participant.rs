@@ -110,7 +110,7 @@ impl SigningMaterial {
                 digest,
                 public_keys,
             } => {
-                let signing_input = sign::Input::new(digest, record, public_keys);
+                let signing_input = sign::Input::new_from_digest(digest, record, public_keys);
                 // Note: this shouldn't throw an error because the only failure case should have
                 // also been checked by the presign constructor, and computation
                 // halted far before we reach this point.

@@ -39,6 +39,7 @@ pub enum ProtocolType {
     AuxInfo,
     Presign,
     Broadcast,
+    Sign,
     InteractiveSign,
 }
 
@@ -168,6 +169,7 @@ impl<P: ProtocolParticipant> Participant<P> {
             (MessageType::Auxinfo(_), ProtocolType::AuxInfo)
             | (MessageType::Keygen(_), ProtocolType::Keygen)
             | (MessageType::Presign(_), ProtocolType::Presign)
+            | (MessageType::Sign(_), ProtocolType::Sign)
             // Interactive sign runs presign and sign in sequence, so we allow both message types
             | (MessageType::Presign(_), ProtocolType::InteractiveSign)
             | (MessageType::Sign(_), ProtocolType::InteractiveSign) => {}
@@ -660,13 +662,12 @@ mod tests {
         keygen::KeygenParticipant,
         participant::Status,
         presign,
-        sign::{self, InteractiveSignParticipant},
+        sign::{self, InteractiveSignParticipant, SignParticipant},
         utils::testing::init_testing,
         PresignParticipant,
     };
-    use k256::ecdsa::signature::{DigestVerifier, Verifier};
+    use k256::ecdsa::signature::Verifier;
     use rand::seq::IteratorRandom;
-    use sha2::{Digest, Sha256};
     use std::collections::HashMap;
     use tracing::debug;
 
@@ -858,7 +859,7 @@ mod tests {
 
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
-    fn full_protocol_execution_works() -> Result<()> {
+    fn full_protocol_execution_with_noninteractive_signing_works() -> Result<()> {
         let mut rng = init_testing();
         let QUORUM_SIZE = 3;
         // Set GLOBAL config for participants
@@ -948,7 +949,12 @@ mod tests {
             .iter()
             .all(|p| *p.status() == Status::TerminatedSuccessfully));
 
-        // Save the public key for later
+        // Save the public key and key shares for later
+        let public_key_shares = keygen_outputs
+            .get(&configs.get(0).unwrap().id())
+            .unwrap()
+            .public_key_shares()
+            .to_vec();
         let saved_public_key = keygen_outputs
             .get(&configs.get(0).unwrap().id())
             .unwrap()
@@ -972,6 +978,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let mut presign_quorum = configs
+            .clone()
             .into_iter()
             .zip(presign_inputs)
             .map(|(config, input)| {
@@ -1005,19 +1012,47 @@ mod tests {
             .iter()
             .all(|p| *p.status() == Status::TerminatedSuccessfully));
 
-        // Now, produce a valid signature
-        let mut hasher = Sha256::new();
-        hasher.update(b"some test message");
+        // Make signing participants
+        let message = b"testing full protocol execution with non-interactive signing protocol";
 
-        let shares = presign_outputs
-            .into_values()
-            .map(|record| record.sign(hasher.clone()).unwrap());
-        let signature = SignatureShare::into_signature(shares)?;
+        let sign_sid = Identifier::random(&mut rng);
+        let mut sign_quorum = configs
+            .into_iter()
+            .map(|config| {
+                let record = presign_outputs.remove(&config.id()).unwrap();
+                let input = sign::Input::new(message, record, public_key_shares.clone());
+                Participant::<SignParticipant>::from_config(config, sign_sid, input)
+            })
+            .collect::<Result<Vec<_>>>()?;
 
-        // Moment of truth, does the signature verify?
-        assert!(saved_public_key.verify_digest(hasher, &signature).is_ok());
+        let mut sign_outputs = Vec::with_capacity(QUORUM_SIZE);
+
+        for participant in &mut sign_quorum {
+            let inbox = inboxes.get_mut(&participant.id).unwrap();
+            inbox.push(participant.initialize_message()?);
+        }
+
+        while sign_outputs.len() < QUORUM_SIZE {
+            let output = process_messages(&mut sign_quorum, &mut inboxes, &mut rng)?;
+
+            if let Some((_pid, output)) = output {
+                sign_outputs.push(output);
+            }
+        }
+
+        // Presigning is done! Make sure there are no more messages.
+        assert!(inboxes_are_empty(&inboxes));
+        // And make sure all participants have successfully terminated.
+        assert!(sign_quorum
+            .iter()
+            .all(|p| *p.status() == Status::TerminatedSuccessfully));
+
+        // Validate output: everyone should get the same signature...
+        assert!(sign_outputs.windows(2).all(|sig| sig[0] == sig[1]));
+
+        // ...and the signature should be valid under the public key we saved
         assert!(saved_public_key
-            .verify(b"some test message", &signature)
+            .verify(message, sign_outputs[0].as_ref())
             .is_ok());
 
         #[cfg(feature = "flame_it")]
