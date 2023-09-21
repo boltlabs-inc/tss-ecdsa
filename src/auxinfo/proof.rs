@@ -247,10 +247,10 @@ mod tests {
                 assert!(mix_two.verify(&input1).is_err());
                 Ok(())
             };
-            let _ = random_auxinfo_proof(&mut rng_clone, f1);
+            random_auxinfo_proof(&mut rng_clone, f1)?;
             Ok(())
         };
-        let _ = random_auxinfo_proof(&mut rng, f);
+        random_auxinfo_proof(&mut rng, f)?;
         Ok(())
     }
 
