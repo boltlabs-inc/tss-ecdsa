@@ -209,7 +209,6 @@ mod tests {
             &q.clone(),
         )
         .unwrap();
-        //(Ok(proof.clone()), Ok(common_input.clone()))
         test_code(common_input, proof)
     }
 
@@ -224,7 +223,6 @@ mod tests {
         let shared_context = SharedContext::random(&mut rng);
         let common_input = CommonInput::new(&shared_context, sid, rho, &setup_params, &modulus);
         let proof = AuxInfoProof::prove(&mut rng, &common_input, &p, &q)?;
-        let common_input = CommonInput::new(&shared_context, sid, rho, &setup_params, &modulus);
         assert!(proof.verify(&common_input).is_ok());
         Ok(())
     }
