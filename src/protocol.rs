@@ -513,7 +513,7 @@ impl ProofContext for SharedContext {
 impl SharedContext {
     /// This function should not be used outside of the tests.
     #[cfg(test)]
-    pub fn random(rng: &mut rand::rngs::StdRng) -> Self {
+    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         let sid = Identifier::random(rng);
         let participant = ParticipantIdentifier::random(rng);
         let participant2 = ParticipantIdentifier::random(rng);

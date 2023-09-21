@@ -191,24 +191,18 @@ mod tests {
     use rand::Rng;
 
     fn random_auxinfo_proof<R: RngCore + CryptoRng>(
-        _rng: &mut R,
+        rng: &mut R,
         test_code: impl FnOnce(CommonInput, AuxInfoProof) -> Result<()>,
     ) -> Result<()> {
-        let mut rng = init_testing();
-        let sid = Identifier::random(&mut rng);
+        let sid = Identifier::random(rng);
         let rho = rng.gen();
-        let setup_params = VerifiedRingPedersen::gen(&mut rng, &()).unwrap();
-        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
+        let setup_params = VerifiedRingPedersen::gen(rng, &()).unwrap();
+        let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(rng).unwrap();
         let modulus = &p * &q;
-        let shared_context = SharedContext::random(&mut rng);
+        let shared_context = SharedContext::random(rng);
         let common_input = CommonInput::new(&shared_context, sid, rho, &setup_params, &modulus);
-        let proof = AuxInfoProof::prove(
-            &mut rng.clone(),
-            &common_input.clone(),
-            &p.clone(),
-            &q.clone(),
-        )
-        .unwrap();
+        let proof =
+            AuxInfoProof::prove(rng, &common_input.clone(), &p.clone(), &q.clone()).unwrap();
         test_code(common_input, proof)
     }
 
