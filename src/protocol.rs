@@ -821,11 +821,15 @@ mod tests {
         }
     }
 
-    fn process_messages<R: RngCore + CryptoRng, P: ProtocolParticipant>(
+    fn process_random_message<R: RngCore + CryptoRng, P: ProtocolParticipant>(
         quorum: &mut [Participant<P>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
     ) -> Result<Option<(ParticipantIdentifier, P::Output)>> {
+        if inboxes_are_empty(inboxes) {
+            panic!("No more messages but the protocol isn't done!")
+        }
+
         // Pick a random participant to process
         let participant = quorum.iter_mut().choose(rng).unwrap();
 
@@ -895,7 +899,7 @@ mod tests {
 
         // Run auxinfo until all parties have outputs
         while auxinfo_outputs.len() < QUORUM_SIZE {
-            let output = process_messages(&mut auxinfo_quorum, &mut inboxes, &mut rng)?;
+            let output = process_random_message(&mut auxinfo_quorum, &mut inboxes, &mut rng)?;
 
             if let Some((pid, output)) = output {
                 // Save the output, and make sure this participant didn't already return an
@@ -933,7 +937,7 @@ mod tests {
 
         // Run keygen until all parties have outputs
         while keygen_outputs.len() < QUORUM_SIZE {
-            let output = process_messages(&mut keygen_quorum, &mut inboxes, &mut rng)?;
+            let output = process_random_message(&mut keygen_quorum, &mut inboxes, &mut rng)?;
 
             if let Some((pid, output)) = output {
                 // Save the output, and make sure this participant didn't already return an
@@ -996,7 +1000,7 @@ mod tests {
         }
 
         while presign_outputs.len() < QUORUM_SIZE {
-            let output = process_messages(&mut presign_quorum, &mut inboxes, &mut rng)?;
+            let output = process_random_message(&mut presign_quorum, &mut inboxes, &mut rng)?;
 
             if let Some((pid, output)) = output {
                 // Save the output, and make sure this participant didn't already return an
@@ -1012,10 +1016,11 @@ mod tests {
             .iter()
             .all(|p| *p.status() == Status::TerminatedSuccessfully));
 
-        // Make signing participants
-        let message = b"testing full protocol execution with non-interactive signing protocol";
-
+        // Set the message and SID
+        let message = b"Testing full protocol execution with non-interactive signing protocol";
         let sign_sid = Identifier::random(&mut rng);
+
+        // Make signing participants
         let mut sign_quorum = configs
             .into_iter()
             .map(|config| {
@@ -1025,22 +1030,23 @@ mod tests {
             })
             .collect::<Result<Vec<_>>>()?;
 
+        // Prepare output storage and initial "ready" messages
         let mut sign_outputs = Vec::with_capacity(QUORUM_SIZE);
-
         for participant in &mut sign_quorum {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(participant.initialize_message()?);
         }
 
+        // Run signing protocol
         while sign_outputs.len() < QUORUM_SIZE {
-            let output = process_messages(&mut sign_quorum, &mut inboxes, &mut rng)?;
+            let output = process_random_message(&mut sign_quorum, &mut inboxes, &mut rng)?;
 
             if let Some((_pid, output)) = output {
                 sign_outputs.push(output);
             }
         }
 
-        // Presigning is done! Make sure there are no more messages.
+        // Signing is done! Make sure there are no more messages.
         assert!(inboxes_are_empty(&inboxes));
         // And make sure all participants have successfully terminated.
         assert!(sign_quorum
