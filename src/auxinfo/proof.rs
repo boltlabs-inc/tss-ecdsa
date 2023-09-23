@@ -188,7 +188,7 @@ impl AuxInfoProof {
 mod tests {
     use super::*;
     use crate::{paillier::prime_gen, protocol::SharedContext, utils::testing::init_testing};
-    use rand::Rng;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
 
     fn random_auxinfo_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn each_constituent_proof_must_be_valid() -> Result<()> {
         let mut rng = init_testing();
-        let mut rng_clone = rng.clone();
+        let mut rng2 = StdRng::from_rng(&mut rng).unwrap();
         let f = |input: CommonInput, proof: AuxInfoProof| {
             let f1 = |input1: CommonInput, proof1: AuxInfoProof| {
                 let mix_one = AuxInfoProof {
@@ -239,7 +239,7 @@ mod tests {
                 assert!(mix_two.verify(&input1).is_err());
                 Ok(())
             };
-            random_auxinfo_proof(&mut rng_clone, f1)?;
+            random_auxinfo_proof(&mut rng2, f1)?;
             Ok(())
         };
         random_auxinfo_proof(&mut rng, f)?;
