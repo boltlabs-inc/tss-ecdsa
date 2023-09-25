@@ -201,8 +201,7 @@ mod tests {
         let modulus = &p * &q;
         let shared_context = SharedContext::random(rng);
         let common_input = CommonInput::new(&shared_context, sid, rho, &setup_params, &modulus);
-        let proof =
-            AuxInfoProof::prove(rng, &common_input.clone(), &p.clone(), &q.clone()).unwrap();
+        let proof = AuxInfoProof::prove(rng, &common_input, &p, &q).unwrap();
         test_code(common_input, proof)
     }
 
