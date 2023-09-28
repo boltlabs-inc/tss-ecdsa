@@ -121,7 +121,6 @@ impl PresignRecord {
     /// Compute the x-projection of the randomly-selected point `R` from the
     /// [`PresignRecord`].
     pub(crate) fn x_projection(&self) -> Result<Scalar> {
-        //let x_projection = self.R.0.to_affine().x();
         let x_projection = self.R.get_zero().to_affine().x();
 
         // Note: I don't think this is a foolproof transformation. The `from_repr`
@@ -300,7 +299,6 @@ mod tests {
         /// testing.
         fn simulate(rng: &mut StdRng) -> PresignRecord {
             let mask_point = CurvePoint::new(ProjectivePoint::random(StdRng::from_seed(rng.gen())));
-            //let mask_point = ProjectivePoint::random(StdRng::from_seed(rng.gen()));
             let mask_share = Scalar::random(StdRng::from_seed(rng.gen()));
             let masked_key_share = Scalar::random(rng);
 
