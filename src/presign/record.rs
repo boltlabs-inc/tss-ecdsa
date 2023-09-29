@@ -277,10 +277,7 @@ impl PresignRecord {
 
 #[cfg(test)]
 mod tests {
-    use k256::{
-        elliptic_curve::{Field, Group},
-        ProjectivePoint, Scalar,
-    };
+    use k256::{elliptic_curve::Field, Scalar};
     use rand::{rngs::StdRng, CryptoRng, Rng, RngCore, SeedableRng};
 
     use crate::{
@@ -298,8 +295,7 @@ mod tests {
         /// Simulate creation of a random presign record. Do not use outside of
         /// testing.
         fn simulate(rng: &mut StdRng) -> PresignRecord {
-            let mask_point =
-                CurvePoint::random(ProjectivePoint::random(StdRng::from_seed(rng.gen())));
+            let mask_point = CurvePoint::random(rng.clone());
             let mask_share = Scalar::random(StdRng::from_seed(rng.gen()));
             let masked_key_share = Scalar::random(rng);
 

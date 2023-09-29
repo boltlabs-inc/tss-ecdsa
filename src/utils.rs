@@ -16,7 +16,6 @@ use k256::{
     },
     EncodedPoint, ProjectivePoint, Scalar, Secp256k1,
 };
-
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, Rng, RngCore};
@@ -53,9 +52,10 @@ impl CurvePoint {
         self.0
     }
     #[cfg(test)]
-    pub(crate) fn random(point: ProjectivePoint) -> Self {
-        //let random_point = ProjectivePoint::random(StdRng::from_seed(rng.gen()));
-        CurvePoint(point)
+    pub(crate) fn random(rng: impl RngCore) -> Self {
+        use k256::elliptic_curve::Group;
+        let random_point = ProjectivePoint::random(rng);
+        CurvePoint(random_point)
     }
     pub(crate) const GENERATOR: Self = CurvePoint(k256::ProjectivePoint::GENERATOR);
     /// The identity point, used to initialize the aggregation of a verification
