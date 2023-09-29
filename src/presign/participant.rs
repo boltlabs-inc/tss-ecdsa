@@ -1189,7 +1189,7 @@ mod test {
         messages::{Message, MessageType, PresignMessageType},
         participant::{ProcessOutcome, Status},
         presign::{Input, PresignRecord},
-        utils::{self, testing::init_testing},
+        utils::{self, testing::init_testing, CurvePoint},
         Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
     };
 
@@ -1252,8 +1252,8 @@ mod test {
             .fold(Scalar::ZERO, |sum, mask_share| sum + mask_share);
         let inverse: Scalar = Option::from(mask.invert()).unwrap();
         assert_eq!(
-            mask_point.get_zero(),
-            k256::ProjectivePoint::GENERATOR * inverse
+            mask_point,
+            &CurvePoint::GENERATOR.multiply_by_scalar(&inverse)
         );
 
         // The masked key `Chi` is correctly formed with respect to the mask `k` and

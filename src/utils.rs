@@ -16,6 +16,7 @@ use k256::{
     },
     EncodedPoint, ProjectivePoint, Scalar, Secp256k1,
 };
+
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, Rng, RngCore};
@@ -52,7 +53,8 @@ impl CurvePoint {
         self.0
     }
     #[cfg(test)]
-    pub(crate) fn new(point: ProjectivePoint) -> Self {
+    pub(crate) fn random(point: ProjectivePoint) -> Self {
+        //let random_point = ProjectivePoint::random(StdRng::from_seed(rng.gen()));
         CurvePoint(point)
     }
     pub(crate) const GENERATOR: Self = CurvePoint(k256::ProjectivePoint::GENERATOR);
