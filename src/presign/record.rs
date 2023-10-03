@@ -118,7 +118,7 @@ impl PresignRecord {
     /// Compute the x-projection of the randomly-selected point `R` from the
     /// [`PresignRecord`].
     pub(crate) fn x_projection(&self) -> Result<Scalar> {
-        let x_projection = self.R.convert_to_projective_point();
+        let x_projection = self.R.create_curvepoint_affine_projection();
 
         // Note: I don't think this is a foolproof transformation. The `from_repr`
         // method expects a scalar in the range `[0, q)`, but there's no
@@ -292,7 +292,7 @@ mod tests {
         /// Simulate creation of a random presign record. Do not use outside of
         /// testing.
         fn simulate(rng: &mut StdRng) -> PresignRecord {
-            let mask_point = CurvePoint::random(rng.clone());
+            let mask_point = CurvePoint::random(StdRng::from_seed(rng.gen()));
             let mask_share = Scalar::random(StdRng::from_seed(rng.gen()));
             let masked_key_share = Scalar::random(rng);
 
