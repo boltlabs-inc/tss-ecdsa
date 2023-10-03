@@ -12,9 +12,10 @@ use k256::{
     elliptic_curve::{
         bigint::Encoding,
         group::{ff::PrimeField, GroupEncoding},
+        point::AffineCoordinates,
         AffinePoint, Curve,
     },
-    EncodedPoint, ProjectivePoint, Scalar, Secp256k1,
+    EncodedPoint, FieldBytes, Scalar, Secp256k1,
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -48,12 +49,12 @@ impl AsRef<CurvePoint> for CurvePoint {
 }
 
 impl CurvePoint {
-    pub(crate) fn get_zero(&self) -> ProjectivePoint {
-        self.0
+    pub fn convert_to_projective_point(&self) -> FieldBytes {
+        self.0.to_affine().x()
     }
     #[cfg(test)]
     pub(crate) fn random(rng: impl RngCore) -> Self {
-        use k256::elliptic_curve::Group;
+        use k256::{elliptic_curve::Group, ProjectivePoint};
         let random_point = ProjectivePoint::random(rng);
         CurvePoint(random_point)
     }

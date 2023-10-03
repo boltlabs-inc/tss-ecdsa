@@ -16,10 +16,7 @@ use crate::{
     protocol::SignatureShare,
     utils::{bn_to_scalar, CurvePoint, ParseBytes},
 };
-use k256::{
-    elliptic_curve::{point::AffineCoordinates, PrimeField},
-    Scalar,
-};
+use k256::{elliptic_curve::PrimeField, Scalar};
 use sha2::{Digest, Sha256};
 use std::fmt::Debug;
 use tracing::{error, info, instrument};
@@ -121,7 +118,7 @@ impl PresignRecord {
     /// Compute the x-projection of the randomly-selected point `R` from the
     /// [`PresignRecord`].
     pub(crate) fn x_projection(&self) -> Result<Scalar> {
-        let x_projection = self.R.get_zero().to_affine().x();
+        let x_projection = self.R.convert_to_projective_point();
 
         // Note: I don't think this is a foolproof transformation. The `from_repr`
         // method expects a scalar in the range `[0, q)`, but there's no
