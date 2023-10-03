@@ -118,7 +118,7 @@ impl PresignRecord {
     /// Compute the x-projection of the randomly-selected point `R` from the
     /// [`PresignRecord`].
     pub(crate) fn x_projection(&self) -> Result<Scalar> {
-        let x_projection = self.R.create_curvepoint_affine_projection();
+        let x_projection = self.R.x_affine();
 
         // Note: I don't think this is a foolproof transformation. The `from_repr`
         // method expects a scalar in the range `[0, q)`, but there's no

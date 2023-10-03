@@ -49,7 +49,7 @@ impl AsRef<CurvePoint> for CurvePoint {
 }
 
 impl CurvePoint {
-    pub fn create_curvepoint_affine_projection(&self) -> FieldBytes {
+    pub fn x_affine(&self) -> FieldBytes {
         self.0.to_affine().x()
     }
     #[cfg(test)]
