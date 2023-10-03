@@ -135,7 +135,7 @@ impl CommitmentScheme {
                 scheme.pid,
                 scheme.public_key.participant(),
             );
-            return Err(InternalError::ProtocolError(Some(scheme.pid)));
+            return Err(InternalError::ProtocolError(Some(message.from())));
         }
         if scheme.pid != message.from() {
             error!(
@@ -143,7 +143,7 @@ impl CommitmentScheme {
                 scheme.pid,
                 message.from()
             );
-            return Err(InternalError::ProtocolError(Some(scheme.pid)));
+            return Err(InternalError::ProtocolError(Some(message.from())));
         }
 
         // Session ID must be correct
@@ -188,21 +188,21 @@ impl CommitmentScheme {
                 "Decommitment has the wrong session ID. Got {}, expected {}.",
                 self.sid, sid
             );
-            return Err(InternalError::ProtocolError(Some(self.pid)));
+            return Err(InternalError::ProtocolError(Some(*sender)));
         }
         if *sender != self.pid {
             error!(
                 "Decommitment has the wrong sender ID. Got {}, expected {}.",
                 self.pid, sender
             );
-            return Err(InternalError::ProtocolError(Some(self.pid)));
+            return Err(InternalError::ProtocolError(Some(*sender)));
         }
 
         let rebuilt_com = self.commit()?;
 
         if rebuilt_com != *com {
             error!("Commitment verification failed; does not match commitment. Commitment scheme: {:?}. Commitment: {:?}", self, com);
-            return Err(InternalError::ProtocolError(Some(self.pid)));
+            return Err(InternalError::ProtocolError(Some(*sender)));
         }
 
         Ok(())
