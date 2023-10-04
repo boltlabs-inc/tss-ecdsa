@@ -125,7 +125,10 @@ impl CommitmentScheme {
         // Public parameters in this decommit must be consistent with each other
         scheme.clone().public_key.verify(context)?;
 
+        //let lower_bound = BigNumber::one() << ELL;
         let lower_bound = BigNumber::one() << ELL;
+        //let lower_bound = scheme.public_key.params().scheme().modulus();
+        //assert_eq!(scheme.public_key.params().scheme().modulus(), &lower_bound);
         assert!(scheme.public_key.params().scheme().modulus() >= &lower_bound);
 
         // Owner must be consistent across message, public keys, and decommit
