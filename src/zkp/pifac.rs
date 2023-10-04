@@ -443,9 +443,6 @@ mod tests {
             // Factors must be in the valid range (e.g. large enough).
             let small_p = BigNumber::from(7u64);
             let small_q = BigNumber::from(11u64);
-            let setup_params = VerifiedRingPedersen::gen(&mut rng2, &())?;
-            let modulus = &small_p * &small_q;
-            let small_input = CommonInput::new(&setup_params, &modulus);
             let small_proof = PiFacProof::prove(
                 input,
                 ProverSecret::new(&small_p, &small_q),
@@ -454,13 +451,9 @@ mod tests {
                 &mut rng2,
             )?;
 
-            assert!(small_proof
-                .verify(small_input, &(), &mut transcript())
-                .is_err());
+            assert!(small_proof.verify(input, &(), &mut transcript()).is_err());
 
             let regular_sized_q = prime_gen::try_get_prime_from_pool_insecure(&mut rng2).unwrap();
-            let modulus = &small_p * &regular_sized_q;
-            let mixed_input = CommonInput::new(&setup_params, &modulus);
             let mixed_proof = PiFacProof::prove(
                 input,
                 ProverSecret::new(&small_p, &regular_sized_q),
@@ -469,13 +462,9 @@ mod tests {
                 &mut rng2,
             )?;
 
-            assert!(mixed_proof
-                .verify(mixed_input, &(), &mut transcript())
-                .is_err());
+            assert!(mixed_proof.verify(input, &(), &mut transcript()).is_err());
 
             let regular_sized_p = prime_gen::try_get_prime_from_pool_insecure(&mut rng2).unwrap();
-            let modulus = &regular_sized_p * &small_q;
-            let mixed_input = CommonInput::new(&setup_params, &modulus);
             let mixed_proof = PiFacProof::prove(
                 input,
                 ProverSecret::new(&regular_sized_p, &small_q),
@@ -484,9 +473,7 @@ mod tests {
                 &mut rng2,
             )?;
 
-            assert!(mixed_proof
-                .verify(mixed_input, &(), &mut transcript())
-                .is_err());
+            assert!(mixed_proof.verify(input, &(), &mut transcript()).is_err());
 
             Ok(())
         };
