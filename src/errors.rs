@@ -22,7 +22,7 @@ pub enum InternalError {
     CallingApplicationMistake(#[from] CallerError),
     #[error("Serialization Error")]
     Serialization,
-    #[error("Some player sent a message which does not match the protocol specification")]
+    #[error("Some player sent a message which does not match the protocol specification: {0:?}")]
     ProtocolError(Option<ParticipantIdentifier>),
     #[error("Represents some code assumption that was checked at runtime but failed to be true")]
     InternalInvariantFailed,

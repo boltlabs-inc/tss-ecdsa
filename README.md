@@ -52,6 +52,8 @@ Furthermore, the Key Refreshing portion of Auxiliary Info & Key Refresh (CGGMP20
 
 While some thought has been put into handling invalid messages (duplicate messages are ignored, as are some malformed ones), this has not been evaluated fully. Additionally, message authenticity (i.e. that a given message is actually coming from the sender in the "sender" field) is currently assumed to be handled outside of the protocol, by whatever networking code is shuttling messages around.
 
+The current state of identifiable abort is not complete. We sometimes report blame when it is easily attributable but we miss many cases and users should not rely on that field to be complete at this point. 
+
 
 ## How to Build and Run
 
