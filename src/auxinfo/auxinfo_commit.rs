@@ -10,11 +10,9 @@ use crate::{
     auxinfo::{info::AuxInfoPublic, participant::AuxInfoParticipant},
     errors::{InternalError, Result},
     messages::{AuxinfoMessageType, Message, MessageType},
-    parameters::ELL,
     participant::{InnerProtocolParticipant, ProtocolParticipant},
     protocol::{Identifier, ParticipantIdentifier},
 };
-use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -124,9 +122,6 @@ impl CommitmentScheme {
 
         // Public parameters in this decommit must be consistent with each other
         scheme.clone().public_key.verify(context)?;
-
-        let lower_bound = BigNumber::one() << ELL;
-        assert!(scheme.public_key.params().scheme().modulus() >= &lower_bound);
 
         // Owner must be consistent across message, public keys, and decommit
         if scheme.public_key.participant() != scheme.pid {
