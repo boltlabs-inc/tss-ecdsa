@@ -18,7 +18,6 @@ use crate::{
     utils::{k256_order, CurvePoint},
     zkp::ProofContext,
 };
-use k256::elliptic_curve::scalar::IsHigh;
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -215,86 +214,6 @@ impl<P: ProtocolParticipant> Participant<P> {
     /// Return the protocol status.
     pub fn status(&self) -> &Status {
         self.participant.status()
-    }
-}
-
-/// A share of the ECDSA signature.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct SignatureShare {
-    /// The x-projection of `R` from the [`PresignRecord`](crate::PresignRecord)
-    /// (`r` in the paper).
-    ///
-    /// Note: The paper does _not_ include this as part of the share, and
-    /// instead, a signature share is just the `σ` value. We include this value
-    /// here in order to allow any party, not necessarily one of the
-    /// participants who created a share, to be able to reconstruct the
-    /// signature.
-    r: k256::Scalar,
-    /// The digest masked by components from
-    /// [`PresignRecord`](crate::PresignRecord) (`σ` in the paper).
-    s: k256::Scalar,
-}
-
-impl SignatureShare {
-    /// Creates a new [`SignatureShare`].
-    pub(crate) fn new(r: k256::Scalar, s: k256::Scalar) -> Self {
-        SignatureShare { r, s }
-    }
-
-    /// Turn a vector of [`SignatureShare`]s into an ECDSA
-    /// [`Signature`](k256::ecdsa::Signature).
-    ///
-    ///
-    /// Note: This method does _not_ validate the signature. This deviates from
-    /// the protocol as written, which validates the signature once is has been
-    /// created from the signature shares. By not including this step we lose
-    /// the ability to preform identifiable abort, as specified in the protocol
-    /// description.
-    pub fn into_signature(
-        shares: impl Iterator<Item = SignatureShare>,
-    ) -> Result<k256::ecdsa::Signature> {
-        shares
-            .into_iter()
-            // Currently, because `chain` returns `Result`, we need to wrap all
-            // items in `Ok` for the `reduce` call below to work. This is ugly!
-            // If we change `chain` to not be able to fail we can remove this
-            // extra `map`.
-            .map(Ok)
-            .reduce(|acc, share| acc?.chain(share?))
-            .ok_or_else(|| {
-                error!("Zero length iterator provided as input");
-                InternalError::InternalInvariantFailed
-            })??
-            .finish()
-    }
-
-    /// Can be used to combine [`SignatureShare`]s.
-    fn chain(&self, share: Self) -> Result<Self> {
-        if self.r != share.r {
-            error!(
-                "Failed to chain signature shares together because 
-                        r-values were different. Got {:?}, expected {:?}.",
-                &self.r, share.r
-            );
-            return Err(InternalError::InternalInvariantFailed);
-        }
-
-        // Keep the same r, add in the s value
-        Ok(Self::new(self.r, self.s + share.s))
-    }
-
-    /// Convert the [`SignatureShare`] into an ECDSA signature.
-    #[instrument(skip_all err(Debug))]
-    fn finish(self) -> Result<k256::ecdsa::Signature> {
-        info!("Converting signature share into a signature.");
-        let mut s = self.s;
-        if bool::from(s.is_high()) {
-            s = s.negate();
-        }
-        k256::ecdsa::Signature::from_scalars(self.r, s).map_err(|_| {
-            error!("Unable to create ECDSA signature from provided r and s");
-            InternalError::InternalInvariantFailed
-        })
     }
 }
 

@@ -2,7 +2,7 @@ The threshold ECDSA library breaks down the tss-ecdsa protocol by Canetti et. al
 
 # Benchmarks
 
-These benchmarks evaluate the keygen, aux-info, and pre-signing  protocols. We did not evaluate the signing step because it’s virtually instantaneous. Each protocol was run 100 times using the criterion Rust package.
+These benchmarks evaluate the keygen, aux-info, and pre-signing  protocols. We did not evaluate the signing protocol, in either its interactive or non-interactive form, because it’s usually fast. Each protocol was run 100 times using the criterion Rust package.
 
 The benchmarking software runs all parties serially; it randomly selects a party, processes any messages it has waiting, and repeats until the protocol is complete. The results reported try to capture per-party runtime: the total benchmark time divided by the number of parties.
 

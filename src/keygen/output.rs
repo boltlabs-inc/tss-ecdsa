@@ -41,7 +41,8 @@ impl Output {
         })
     }
 
-    pub(crate) fn public_key_shares(&self) -> &[KeySharePublic] {
+    /// Get the individual shares of the public key.
+    pub fn public_key_shares(&self) -> &[KeySharePublic] {
         &self.public_key_shares
     }
 

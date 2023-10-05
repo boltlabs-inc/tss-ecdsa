@@ -225,7 +225,6 @@ mod zkstar;
 pub use participant::ProtocolParticipant;
 pub use protocol::{
     participant_config::ParticipantConfig, Identifier, Participant, ParticipantIdentifier,
-    SignatureShare,
 };
 
 use crate::presign::*;

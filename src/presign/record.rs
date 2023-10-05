@@ -13,13 +13,11 @@ use crate::{
         Result,
     },
     presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
-    protocol::SignatureShare,
     utils::{bn_to_scalar, CurvePoint, ParseBytes},
 };
 use k256::{elliptic_curve::PrimeField, Scalar};
-use sha2::{Digest, Sha256};
 use std::fmt::Debug;
-use tracing::{error, info, instrument};
+use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub(crate) struct RecordPair {
@@ -127,29 +125,6 @@ impl PresignRecord {
             error!("Unable to compute x-projection of curve point: failed to convert x coord to `Scalar`");
             InternalInvariantFailed
         })
-    }
-    /// Generate a signature share for the given [`Sha256`] instance.
-    ///
-    /// This method consumes the [`PresignRecord`] since it must only be used
-    /// for a single signature.
-    #[instrument(skip_all, err(Debug))]
-    pub fn sign(self, hasher: Sha256) -> Result<SignatureShare> {
-        info!("Issuing signature with presign record.");
-        // Compute the x-projection of `R` (`r` in the paper).
-        let x_projection = self.x_projection()?;
-
-        // Compute the digest (as a `Scalar`) of the message provided in
-        // `hasher` (`m` in the paper).
-        let digest =
-            Option::<Scalar>::from(Scalar::from_repr(hasher.finalize())).ok_or_else(|| {
-                error!(
-                    "Unable to compute message digest: failed to convert bytestring to `Scalar`"
-                );
-                InternalInvariantFailed
-            })?;
-        // Produce a ECDSA signature share of the digest (`σ` in the paper).
-        let signature_share = self.k * digest + x_projection * self.chi;
-        Ok(SignatureShare::new(x_projection, signature_share))
     }
 
     /// Convert private material into bytes.

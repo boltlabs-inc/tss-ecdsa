@@ -26,7 +26,6 @@ mod utils;
 
 use clap::{command, Parser};
 use rand::{rngs::StdRng, thread_rng, SeedableRng};
-use sha2::{Digest, Sha256};
 use std::{
     any::Any,
     collections::HashMap,
@@ -41,6 +40,7 @@ use tss_ecdsa::{
     keygen::{KeygenParticipant, Output},
     messages::Message,
     presign::{self, PresignParticipant},
+    sign::{self, SignParticipant},
     Identifier, Participant, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
 };
 use utils::{MessageFromWorker, SubProtocol};
@@ -325,6 +325,8 @@ struct Worker {
     aux_info: StoredOutput<AuxInfoParticipant>,
     /// Outputs of successful presign.
     presign_records: StoredOutput<PresignParticipant>,
+    /// Signatures generated from successful signing runs.
+    signatures: StoredOutput<SignParticipant>,
     /// Channel for sending messages to the coordinator.
     outgoing: Sender<MessageFromWorker>,
 }
@@ -338,6 +340,7 @@ impl Worker {
             key_gen_material: StoredOutput::new(),
             aux_info: StoredOutput::new(),
             presign_records: StoredOutput::new(),
+            signatures: StoredOutput::new(),
             outgoing,
         }
     }
@@ -366,18 +369,6 @@ impl Worker {
         Ok(())
     }
 
-    /// Sign a message using the specified key.
-    /// TODO: We should be signing a message, not a digest. See Issue #363
-    fn sign(&mut self, key_id: KeyId) -> anyhow::Result<()> {
-        let presign_record = self.presign_records.take(&key_id);
-        let signature = presign_record.sign(message_to_sign())?;
-
-        info!("Computed signature: {:?}", signature);
-
-        self.outgoing.send(MessageFromWorker::SubProtocolEnded)?;
-        Ok(())
-    }
-
     // Process a message from another worker to make progress on our sub-protocol.
     //
     // This is an associated function instead of a method (does not take `self`) to
@@ -401,7 +392,7 @@ impl Worker {
 
         // Note: `output` is `Some(_)` only when sub-protocol is done.
         if let Some(output) = output {
-            debug!("Completed subprotocol successfully. Storing outputs.!");
+            debug!("Completed subprotocol successfully. Storing outputs!");
             // Store our outputs in storage.
             stored_output.store(key_id, output);
             outgoing.send(MessageFromWorker::SubProtocolEnded)?;
@@ -425,11 +416,19 @@ impl Worker {
     }
 
     fn new_presign(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
-        let key_shares = self.key_gen_material.take(&key_id);
-        let auxinfo_output = self.aux_info.take(&key_id);
+        let key_shares = self.key_gen_material.retrieve(&key_id);
+        let auxinfo_output = self.aux_info.retrieve(&key_id);
 
-        let inputs = presign::Input::new(auxinfo_output, key_shares)?;
+        let inputs = presign::Input::new(auxinfo_output.clone(), key_shares.clone())?;
         self.new_sub_protocol::<PresignParticipant>(sid, inputs, key_id)
+    }
+
+    fn new_sign(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
+        let key_shares = self.key_gen_material.retrieve(&key_id).public_key_shares();
+        let record = self.presign_records.take(&key_id);
+
+        let inputs = sign::Input::new(b"hello world", record, key_shares.to_vec());
+        self.new_sub_protocol::<SignParticipant>(sid, inputs, key_id)
     }
 }
 
@@ -461,6 +460,11 @@ impl Worker {
             &self.outgoing,
         )
     }
+
+    fn process_sign(&mut self, sid: SessionId, incoming: Message) -> anyhow::Result<()> {
+        let (p, key_id) = self.participants.get_mut::<SignParticipant>(&sid);
+        Self::process_message(p, key_id, incoming, &mut self.signatures, &self.outgoing)
+    }
 }
 
 /// Function to drive work for the workers. These workers execute in their
@@ -490,9 +494,7 @@ fn participant_worker(
                         worker.process_auxinfo(sid, message)?;
                     }
                     SubProtocol::Presign => worker.process_presign(sid, message)?,
-                    SubProtocol::Sign => {
-                        panic!("Unexpected sign message.");
-                    }
+                    SubProtocol::Sign => worker.process_sign(sid, message)?,
                 }
             }
             // Message from coordinator asking us to start a new sub-protocol.
@@ -510,7 +512,7 @@ fn participant_worker(
                         worker.new_presign(sid, key_id)?;
                     }
                     SubProtocol::Sign => {
-                        worker.sign(key_id)?;
+                        worker.new_sign(sid, key_id)?;
                     }
                 }
             }
@@ -518,10 +520,4 @@ fn participant_worker(
     }
 
     Ok(())
-}
-
-fn message_to_sign() -> Sha256 {
-    let mut hasher = Sha256::new();
-    hasher.update(b"hello world");
-    hasher
 }
