@@ -10,7 +10,7 @@ use crate::{
     auxinfo::{info::AuxInfoPublic, participant::AuxInfoParticipant},
     errors::{InternalError, Result},
     messages::{AuxinfoMessageType, Message, MessageType},
-    parameters::ELL,
+    parameters::PRIME_BITS,
     participant::{InnerProtocolParticipant, ProtocolParticipant},
     protocol::{Identifier, ParticipantIdentifier},
 };
@@ -126,10 +126,16 @@ impl CommitmentScheme {
         scheme.clone().public_key.verify(context)?;
 
         //let lower_bound = BigNumber::one() << ELL;
-        let lower_bound = BigNumber::one() << ELL;
+        let lower_bound = BigNumber::one() << (2 * PRIME_BITS - 1);
         //let lower_bound = scheme.public_key.params().scheme().modulus();
         //assert_eq!(scheme.public_key.params().scheme().modulus(), &lower_bound);
-        assert!(scheme.public_key.params().scheme().modulus() >= &lower_bound);
+        //let lower_bound = lower_bound + 1;
+        assert_eq!(
+            scheme.public_key.params().scheme().modulus(),
+            &(lower_bound + 1)
+        );
+        error!(scheme.public_key.params().scheme().modulus());
+        //assert!(scheme.public_key.params().scheme().modulus() >= &lower_bound);
 
         // Owner must be consistent across message, public keys, and decommit
         if scheme.public_key.participant() != scheme.pid {
