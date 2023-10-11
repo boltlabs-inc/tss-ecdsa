@@ -421,7 +421,7 @@ mod tests {
     }
 
     #[test]
-    fn test_no_small_factors_proof_negative_cases() -> Result<()> {
+    fn test_secret_input_factors_not_correct_factors_of_modulus() -> Result<()> {
         let mut rng = init_testing();
         // `rng` will be borrowed. We make another rng to be captured by the closure.
         let mut rng2 = StdRng::from_seed(rng.gen());
@@ -440,7 +440,7 @@ mod tests {
                 .verify(input, &(), &mut transcript())
                 .is_err());
 
-            // Factors must be in the valid range (e.g. large enough).
+            // Factors cannot be smaller than the regular range.
             let small_p = BigNumber::from(7u64);
             let small_q = BigNumber::from(11u64);
             let small_proof = PiFacProof::prove(
@@ -453,6 +453,8 @@ mod tests {
 
             assert!(small_proof.verify(input, &(), &mut transcript()).is_err());
 
+            // Both of the factors must correspond to the modulus and cannot be smaller than
+            // the regular range.
             let regular_sized_q = prime_gen::try_get_prime_from_pool_insecure(&mut rng2).unwrap();
             let mixed_proof = PiFacProof::prove(
                 input,
