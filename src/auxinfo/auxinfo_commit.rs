@@ -122,20 +122,17 @@ impl CommitmentScheme {
         message.check_type(MessageType::Auxinfo(AuxinfoMessageType::R2Decommit))?;
         let scheme: CommitmentScheme = deserialize!(&message.unverified_bytes)?;
 
-        // Public parameters in this decommit must be consistent with each other
+        // Public parameters in this decommit must be consistent with each other...
         scheme.clone().public_key.verify(context)?;
 
-        //let lower_bound = BigNumber::one() << ELL;
-        let lower_bound = BigNumber::one() << (2 * PRIME_BITS - 1);
-        //let lower_bound = scheme.public_key.params().scheme().modulus();
-        //assert_eq!(scheme.public_key.params().scheme().modulus(), &lower_bound);
-        //let lower_bound = lower_bound + 1;
-        assert_eq!(
-            scheme.public_key.params().scheme().modulus(),
-            &(lower_bound + 1)
-        );
-        error!(scheme.public_key.params().scheme().modulus());
-        //assert!(scheme.public_key.params().scheme().modulus() >= &lower_bound);
+        // ...and the (shared) modulus must be of the expected length
+        if scheme.modulus().bit_length() != 2 * PRIME_BITS {
+            error!(
+                "Expected a commitment scheme with a modulus of {} bits, but got {} bits",
+                2 * PRIME_BITS,
+                scheme.modulus().bit_length()
+            )
+        }
 
         // Owner must be consistent across message, public keys, and decommit
         if scheme.public_key.participant() != scheme.pid {
@@ -174,6 +171,12 @@ impl CommitmentScheme {
 
     pub(crate) fn into_public(self) -> AuxInfoPublic {
         self.public_key
+    }
+
+    fn modulus(&self) -> &BigNumber {
+        // Note: by construction, this should be the same as the modulus in
+        // `self.public_key.scheme()`.
+        self.public_key.pk().modulus()
     }
 
     pub(crate) fn commit(&self) -> Result<Commitment> {
