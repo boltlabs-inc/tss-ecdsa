@@ -25,7 +25,7 @@ use crate::{
 /// A participant that runs the interactive signing protocol in
 /// Figure 3 of Canetti et al[^cite].
 ///
-/// As described in the paper, this runs the [`presign`](crate::presign) phase,
+/// As described in the paper, this runs the [`presign`] phase,
 /// followed by the [non-interactive signing](crate::sign::SignParticipant)
 /// phase.
 ///
@@ -33,15 +33,14 @@ use crate::{
 /// The protocol takes several fields as input:
 /// - a message digest, which is the hash of the message to be signed. This
 ///   library expects a 256-bit digest (e.g. produced by SHA3-256 (Keccak)).
-/// - The [`Output`](crate::keygen::Output) of a [`keygen`](crate::keygen)
-///   protocol execution
+/// - The [`Output`](crate::keygen::Output) of a [`keygen`] protocol execution
 ///   - A list of [public key shares](crate::keygen::KeySharePublic), one for
 ///     each participant (including this participant);
 ///   - A single [private key share](crate::keygen::KeySharePrivate) for this
 ///     participant; and
 ///   - A random value, agreed on by all participants.
-/// - The [`Output`](crate::auxinfo::Output) of an [`auxinfo`](crate::auxinfo)
-///   protocol execution
+/// - The [`Output`](crate::auxinfo::Output) of an [`auxinfo`] protocol
+///   execution
 ///   - A list of [public auxiliary information](crate::auxinfo::AuxInfoPublic),
 ///     one for each participant (including this participant), and
 ///   - A single set of [private auxiliary

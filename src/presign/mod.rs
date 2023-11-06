@@ -8,7 +8,7 @@
 
 //! This module implements the presign protocol defined in Figure 7 of
 //! CGGMP21[^cite]. See
-//! [`PresignParticipant`](crate::presign::participant::PresignParticipant) for
+//! [`PresignParticipant`] for
 //! more details.
 //!
 //! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos

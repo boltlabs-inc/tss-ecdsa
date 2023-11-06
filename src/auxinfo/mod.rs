@@ -8,7 +8,7 @@
 
 //! This module implements the auxiliary information protocol defined in Figure
 //! 6 of CGGMP21[^cite]. See
-//! [`AuxInfoParticipant`](crate::auxinfo::AuxInfoParticipant) for
+//! [`AuxInfoParticipant`] for
 //! more details.
 //!
 //! [^cite]: Ran Canetti, Rosario Gennaro, Steven Goldfeder, Nikolaos
