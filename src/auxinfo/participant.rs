@@ -9,6 +9,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use std::collections::HashSet;
+
 use crate::{
     auxinfo::{
         auxinfo_commit::{Commitment, CommitmentScheme},
@@ -573,7 +575,7 @@ impl AuxInfoParticipant {
                 .all_participants()
                 .iter()
                 .map(|pid| self.local_storage.remove::<storage::Public>(*pid))
-                .collect::<Result<Vec<_>>>()?;
+                .collect::<Result<HashSet<_>>>()?;
             let auxinfo_private = self.local_storage.remove::<storage::Private>(self.id)?;
 
             // The normal error type of this method is `CallerError::BadInput` because it's

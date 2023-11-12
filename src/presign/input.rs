@@ -146,7 +146,11 @@ impl Input {
     /// Returns a copy of the [`AuxInfoPublic`]s associated with all the
     /// participants (including this participant).
     pub(crate) fn to_public_auxinfo(&self) -> Vec<AuxInfoPublic> {
-        self.auxinfo_output.public_auxinfo().to_vec()
+        self.auxinfo_output
+            .public_auxinfo()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
     }
 }
 

@@ -17,7 +17,7 @@ use rand::{CryptoRng, RngCore};
 /// and an [`AuxInfoPrivate`] for participant that receives this output.
 #[derive(Debug, Clone)]
 pub struct Output {
-    public_auxinfo: Vec<AuxInfoPublic>,
+    public_auxinfo: HashSet<AuxInfoPublic>,
     private_auxinfo: AuxInfoPrivate,
 }
 
@@ -28,7 +28,7 @@ impl Output {
     /// - the public components should be from a unique set of participants;
     /// - the private component should have a corresponding public component.
     pub fn from_parts(
-        public_auxinfo: Vec<AuxInfoPublic>,
+        public_auxinfo: HashSet<AuxInfoPublic>,
         private_auxinfo: AuxInfoPrivate,
     ) -> Result<Self> {
         let pids = public_auxinfo
@@ -65,11 +65,11 @@ impl Output {
     /// after it's securely stored.
     ///
     /// The public components can be stored in the clear.
-    pub fn into_parts(self) -> (Vec<AuxInfoPublic>, AuxInfoPrivate) {
+    pub fn into_parts(self) -> (HashSet<AuxInfoPublic>, AuxInfoPrivate) {
         (self.public_auxinfo, self.private_auxinfo)
     }
 
-    pub(crate) fn public_auxinfo(&self) -> &[AuxInfoPublic] {
+    pub(crate) fn public_auxinfo(&self) -> &HashSet<AuxInfoPublic> {
         &self.public_auxinfo
     }
 
@@ -117,7 +117,7 @@ mod tests {
             pids: &[ParticipantIdentifier],
             rng: &mut (impl CryptoRng + RngCore),
         ) -> Self {
-            let (mut private_auxinfo, public_auxinfo): (Vec<_>, Vec<_>) = pids
+            let (mut private_auxinfo, public_auxinfo): (Vec<_>, HashSet<_>) = pids
                 .iter()
                 .map(|&pid| {
                     let (key, _, _) = DecryptionKey::new(rng).unwrap();
@@ -147,7 +147,7 @@ mod tests {
             configs: &[ParticipantConfig],
             rng: &mut (impl CryptoRng + RngCore),
         ) -> Vec<Self> {
-            let (public_auxinfo, private_auxinfo): (Vec<_>, Vec<_>) = configs
+            let (public_auxinfo, private_auxinfo): (HashSet<_>, Vec<_>) = configs
                 .iter()
                 .map(|config| {
                     let (key, _, _) = DecryptionKey::new(rng).unwrap();
@@ -194,7 +194,7 @@ mod tests {
         // Duplicate one of the PIDs
         pids.push(pids[4]);
 
-        let (mut private_auxinfo, public_auxinfo): (Vec<_>, Vec<_>) = pids
+        let (mut private_auxinfo, public_auxinfo): (Vec<_>, HashSet<_>) = pids
             .iter()
             .map(|&pid| {
                 let (key, _, _) = DecryptionKey::new(rng).unwrap();
