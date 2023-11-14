@@ -598,7 +598,7 @@ mod tests {
         keygen::KeygenParticipant,
         participant::Status,
         presign,
-        sign::{self, InteractiveSignParticipant, SignParticipant},
+        sign::{self, InteractiveSignParticipant, SignParticipant, Signature},
         utils::testing::init_testing,
         PresignParticipant,
     };
@@ -1137,7 +1137,7 @@ mod tests {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let mut sign_outputs = Vec::new();
+        let mut sign_outputs: Vec<Signature> = Vec::new();
 
         // Initialize signing for all parties
         for participant in &sign_quorum {
@@ -1181,7 +1181,6 @@ mod tests {
         assert!(saved_public_key
             .verify(message, sign_outputs[0].as_ref())
             .is_ok());
-
         Ok(())
     }
 }

@@ -23,10 +23,15 @@ use k256::Scalar;
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
+pub use interactive_sign::participant::{Input as InteractiveInput, InteractiveSignParticipant};
+use k256::ecdsa::VerifyingKey;
+pub use non_interactive_sign::participant::{Input, SignParticipant};
+
 use crate::errors::{InternalError, Result};
 
-pub use interactive_sign::participant::{Input as InteractiveInput, InteractiveSignParticipant};
-pub use non_interactive_sign::participant::{Input, SignParticipant};
+use k256::ecdsa::signature::{digest::MacError, DigestVerifier};
+use sha2::Sha256;
+use std::fmt::Debug;
 
 /// ECDSA signature on a message.
 ///
@@ -44,10 +49,76 @@ impl Signature {
             })?
         ))
     }
+    pub(super) fn verify_signature(
+        &self,
+        public_key: &VerifyingKey,
+        message: Sha256,
+    ) -> std::result::Result<(), MacError> {
+        let result1 = public_key.verify_digest(message, self.as_ref());
+        result1.map_err(|_k256_error| MacError)
+    }
 }
 
 impl AsRef<k256::ecdsa::Signature> for Signature {
     fn as_ref(&self) -> &k256::ecdsa::Signature {
         &self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use k256::ecdsa::{
+        signature::{digest::Digest, Signer},
+        SigningKey,
+    };
+
+    fn generate_test_keypair() -> (VerifyingKey, SigningKey) {
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let verifying_key = VerifyingKey::from(&signing_key);
+        (verifying_key, signing_key)
+    }
+    #[test]
+    fn test_verify_signature() {
+        let (verifying_key, signing_key) = generate_test_keypair();
+        let message = b"Hello, world!";
+
+        let (signature, _recovery_id) = signing_key
+            .try_sign(message)
+            .expect("Failed to sign message");
+        let result = Signature::try_from_scalars(*signature.r(), *signature.s())
+            .map_err(|error| {
+                eprintln!("Error during signature conversion: {:?}", error);
+                InternalError::InternalInvariantFailed
+            })
+            .and_then(|sig| {
+                sig.verify_signature(&verifying_key, Sha256::new().chain_update(message))
+                    .map_err(|error| {
+                        eprintln!("Error during signature verification: {:?}", error);
+                        InternalError::InternalInvariantFailed
+                    })
+            });
+        assert!(result.is_ok(), "Signature verification failed");
+    }
+
+    #[test]
+    fn test_verify_signature_negative() {
+        let (verifying_key, signing_key) = generate_test_keypair();
+        let message = b"Hello, world!";
+
+        let (signature, _recovery_id) = signing_key
+            .try_sign(message)
+            .expect("Failed to sign message");
+
+        let invalid_signature = Signature::try_from_scalars(*signature.r(), Scalar::ONE);
+
+        let result = invalid_signature.and_then(|sig| {
+            sig.verify_signature(&verifying_key, Sha256::new().chain_update(message))
+                .map_err(|error| {
+                    eprintln!("Error during signature verification: {:?}", error);
+                    InternalError::InternalInvariantFailed
+                })
+        });
+        assert!(result.is_err(), "Invalid signature passed verification");
     }
 }
