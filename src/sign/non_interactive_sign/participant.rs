@@ -9,7 +9,7 @@ use std::collections::HashSet;
 
 use generic_array::{typenum::U32, GenericArray};
 use k256::{
-    ecdsa::{signature::DigestVerifier, VerifyingKey},
+    ecdsa::VerifyingKey,
     elliptic_curve::{ops::Reduce, scalar::IsHigh, subtle::ConditionallySelectable},
     Scalar, U256,
 };
@@ -412,9 +412,8 @@ impl SignParticipant {
         let signature = Signature::try_from_scalars(x_projection, sum)?;
 
         // Verify signature
-        self.input
-            .public_key()?
-            .verify_digest(self.input.message_digest.clone(), signature.as_ref())
+        signature
+            .verify_signature(&self.input.public_key()?, self.input.message_digest.clone())
             .map_err(|e| {
                 error!("Failed to verify signature {:?}", e);
                 InternalError::ProtocolError(None)
