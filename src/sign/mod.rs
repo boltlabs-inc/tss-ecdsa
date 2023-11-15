@@ -54,8 +54,8 @@ impl Signature {
         public_key: &VerifyingKey,
         message: Sha256,
     ) -> std::result::Result<(), MacError> {
-        let result1 = public_key.verify_digest(message, self.as_ref());
-        result1.map_err(|_k256_error| MacError)
+        let result = public_key.verify_digest(message, self.as_ref());
+        result.map_err(|_k256_error| MacError)
     }
 }
 
