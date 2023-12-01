@@ -22,10 +22,12 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use zeroize::ZeroizeOnDrop;
 
+use super::round_three::SecretBigNumber;
+
 /// Private data used in round one of the presign protocol.
 #[derive(ZeroizeOnDrop)]
 pub(crate) struct Private {
-    pub k: BigNumber,
+    pub k: SecretBigNumber,
     pub rho: Nonce,
     pub gamma: BigNumber,
     pub nu: Nonce,

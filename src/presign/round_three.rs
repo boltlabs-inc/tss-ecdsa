@@ -28,16 +28,27 @@ use std::fmt::Debug;
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
-#[derive(Clone, ZeroizeOnDrop)]
+#[derive(Clone)]
 pub(crate) struct Private {
-    pub k: BigNumber,
+    pub k: SecretBigNumber,
     pub chi: Scalar,
-    #[zeroize(skip)]
     pub Gamma: CurvePoint,
-    #[zeroize(skip)]
     pub delta: Scalar,
-    #[zeroize(skip)]
     pub Delta: CurvePoint,
+}
+#[derive(Clone, ZeroizeOnDrop)]
+pub(crate) struct SecretBigNumber(BigNumber);
+
+impl From<BigNumber> for SecretBigNumber {
+    fn from(big_number: BigNumber) -> Self {
+        SecretBigNumber(big_number)
+    }
+}
+
+impl From<SecretBigNumber> for BigNumber {
+    fn from(secret_big_number: SecretBigNumber) -> Self {
+        secret_big_number.0.clone()
+    }
 }
 
 impl Debug for Private {

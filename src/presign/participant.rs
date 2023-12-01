@@ -926,7 +926,7 @@ impl PresignKeyShareAndInfo {
         };
 
         let r1_private = round_one::Private {
-            k,
+            k: k.into(),
             rho,
             gamma,
             nu,
@@ -1082,11 +1082,13 @@ impl PresignKeyShareAndInfo {
         let order = k256_order();
         let g = CurvePoint::GENERATOR;
 
-        let mut delta: BigNumber = sender_r1_priv.gamma.modmul(&sender_r1_priv.k, &order);
+        let mut delta: BigNumber = sender_r1_priv
+            .gamma
+            .modmul(&sender_r1_priv.k.clone().into(), &order);
         let mut chi: BigNumber = self
             .keyshare_private
             .as_ref()
-            .modmul(&sender_r1_priv.k, &order);
+            .modmul(&sender_r1_priv.k.clone().into(), &order);
         let mut Gamma = g.multiply_by_bignum(&sender_r1_priv.gamma)?;
 
         for round_three_input in other_participant_inputs.values() {
@@ -1125,7 +1127,7 @@ impl PresignKeyShareAndInfo {
             Gamma = Gamma + r2_pub_j.Gamma;
         }
 
-        let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k)?;
+        let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k.clone().into())?;
 
         let delta_scalar = bn_to_scalar(&delta)?;
         let chi_scalar = bn_to_scalar(&chi)?;
@@ -1141,7 +1143,7 @@ impl PresignKeyShareAndInfo {
                     self.aux_info_public.pk(),
                     &Gamma,
                 ),
-                ProverSecret::new(&sender_r1_priv.k, &sender_r1_priv.rho),
+                ProverSecret::new(&sender_r1_priv.k.clone().into(), &sender_r1_priv.rho),
                 context,
                 &mut transcript,
                 rng,
