@@ -1163,7 +1163,7 @@ impl PresignKeyShareAndInfo {
             Gamma,
             // These last two fields can be public, but for convenience
             // are stored in this party's private component
-            delta: delta_scalar,
+            delta: delta_scalar.into(),
             Delta,
         };
 

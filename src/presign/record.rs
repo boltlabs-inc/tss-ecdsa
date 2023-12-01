@@ -79,12 +79,12 @@ impl TryFrom<RecordPair> for PresignRecord {
         let mut delta = private.delta;
         let mut Delta = private.Delta;
         for p in publics {
-            delta += &p.delta;
+            delta += &p.delta.into();
             Delta = Delta + p.Delta;
         }
 
         let g = CurvePoint::GENERATOR;
-        if g.multiply_by_scalar(&delta) != Delta {
+        if g.multiply_by_scalar(&delta.into()) != Delta {
             error!("Could not create PresignRecord: mismatch between calculated private and public deltas");
             return Err(ProtocolError(None));
         }

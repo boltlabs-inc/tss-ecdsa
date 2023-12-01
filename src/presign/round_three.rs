@@ -24,23 +24,43 @@ use k256::{elliptic_curve::PrimeField, Scalar};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{
+    fmt::Debug,
+    ops::{AddAssign, Deref},
+};
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
+//use libpaillier::unknown_order::CtOption;
 
 #[derive(Clone)]
 pub(crate) struct Private {
     pub k: SecretBigNumber,
     pub chi: SecretScalar,
     pub Gamma: CurvePoint,
-    pub delta: Scalar,
+    pub delta: SecretScalar,
     pub Delta: CurvePoint,
 }
 #[derive(Clone, ZeroizeOnDrop)]
 pub(crate) struct SecretBigNumber(BigNumber);
 
-#[derive(Clone, ZeroizeOnDrop)]
+#[derive(Clone, ZeroizeOnDrop, Debug)]
 pub(crate) struct SecretScalar(Scalar);
+
+impl Deref for SecretScalar {
+    type Target = Scalar;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl SecretScalar {
+    pub fn invert(&self) -> Option<SecretScalar> {
+        let inverted = self.0.invert();
+        let scalar = inverted.into_option()?;
+        Some(scalar)
+    }
+}
 
 impl From<Scalar> for SecretScalar {
     fn from(scalar: Scalar) -> Self {
@@ -51,6 +71,12 @@ impl From<Scalar> for SecretScalar {
 impl From<SecretScalar> for Scalar {
     fn from(secret_scalar: SecretScalar) -> Self {
         secret_scalar.0
+    }
+}
+
+impl AddAssign<&SecretScalar> for SecretScalar {
+    fn add_assign(&mut self, other: &SecretScalar) {
+        self.0 += &other.0;
     }
 }
 
