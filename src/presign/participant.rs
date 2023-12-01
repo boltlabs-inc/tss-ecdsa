@@ -1159,7 +1159,7 @@ impl PresignKeyShareAndInfo {
 
         let private = round_three::Private {
             k: sender_r1_priv.k.clone(),
-            chi: chi_scalar,
+            chi: chi_scalar.into(),
             Gamma,
             // These last two fields can be public, but for convenience
             // are stored in this party's private component

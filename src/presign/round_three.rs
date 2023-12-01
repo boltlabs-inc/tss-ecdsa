@@ -31,13 +31,28 @@ use zeroize::ZeroizeOnDrop;
 #[derive(Clone)]
 pub(crate) struct Private {
     pub k: SecretBigNumber,
-    pub chi: Scalar,
+    pub chi: SecretScalar,
     pub Gamma: CurvePoint,
     pub delta: Scalar,
     pub Delta: CurvePoint,
 }
 #[derive(Clone, ZeroizeOnDrop)]
 pub(crate) struct SecretBigNumber(BigNumber);
+
+#[derive(Clone, ZeroizeOnDrop)]
+pub(crate) struct SecretScalar(Scalar);
+
+impl From<Scalar> for SecretScalar {
+    fn from(scalar: Scalar) -> Self {
+        SecretScalar(scalar)
+    }
+}
+
+impl From<SecretScalar> for Scalar {
+    fn from(secret_scalar: SecretScalar) -> Self {
+        secret_scalar.0
+    }
+}
 
 impl From<BigNumber> for SecretBigNumber {
     fn from(big_number: BigNumber) -> Self {

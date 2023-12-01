@@ -98,7 +98,7 @@ impl TryFrom<RecordPair> for PresignRecord {
         Ok(PresignRecord {
             R,
             k: bn_to_scalar(&private.k.into())?,
-            chi: private.chi,
+            chi: private.chi.into(),
         })
     }
 }
