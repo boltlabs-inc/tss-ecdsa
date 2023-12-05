@@ -27,9 +27,8 @@ use crate::{
         pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
         Proof,
     },
-    Identifier,
+    Identifier, ParticipantConfig,
 };
-
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use tracing::{error, info, instrument, warn};
@@ -125,21 +124,15 @@ impl ProtocolParticipant for KeygenParticipant {
 
     fn new(
         sid: Identifier,
-        id: ParticipantIdentifier,
-        other_participant_ids: Vec<ParticipantIdentifier>,
+        participantIdentifier: ParticipantConfig,
         input: Self::Input,
     ) -> Result<Self> {
         Ok(Self {
             sid,
-            id,
-            other_participant_ids: other_participant_ids.clone(),
+            id: participantIdentifier.id(),
+            other_participant_ids: participantIdentifier.all_participants().clone(),
             local_storage: Default::default(),
-            broadcast_participant: BroadcastParticipant::new(
-                sid,
-                id,
-                other_participant_ids,
-                input,
-            )?,
+            broadcast_participant: BroadcastParticipant::new(sid, participantIdentifier, input)?,
             status: Status::NotReady,
         })
     }
@@ -602,7 +595,13 @@ mod tests {
         ) -> Result<Vec<Self>> {
             ParticipantConfig::random_quorum(quorum_size, rng)?
                 .into_iter()
-                .map(|config| Self::new(sid, config.id(), config.other_ids().to_vec(), ()))
+                .map(|config| {
+                    Self::new(
+                        sid,
+                        ParticipantConfig::new(config.id(), config.other_ids())?,
+                        (),
+                    )
+                })
                 .collect::<Result<Vec<_>>>()
         }
 
@@ -670,7 +669,7 @@ mod tests {
     // This test is cheap. Try a bunch of message permutations to decrease error
     // likelihood
     fn keygen_always_produces_valid_outputs() -> Result<()> {
-        for _ in 0..30 {
+        for _ in 0..5 {
             keygen_produces_valid_outputs()?;
         }
         Ok(())

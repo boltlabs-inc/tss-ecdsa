@@ -236,8 +236,7 @@ mod test {
 
         let result = PresignParticipant::new(
             Identifier::random(rng),
-            config.id(),
-            config.other_ids().to_vec(),
+            ParticipantConfig::new(config.id(), config.other_ids())?,
             input,
         );
         assert!(result.is_err());

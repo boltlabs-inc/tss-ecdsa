@@ -8,7 +8,6 @@
 // LICENSE-MIT file in the root directory of this source tree and the Apache
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
-
 use crate::{
     auxinfo::{
         auxinfo_commit::{Commitment, CommitmentScheme},
@@ -26,8 +25,9 @@ use crate::{
     },
     protocol::{Identifier, ParticipantIdentifier, ProtocolType, SharedContext},
     ring_pedersen::VerifiedRingPedersen,
-    run_only_once,
+    run_only_once, ParticipantConfig,
 };
+
 use rand::{CryptoRng, RngCore};
 use tracing::{debug, error, info, instrument};
 
@@ -134,21 +134,15 @@ impl ProtocolParticipant for AuxInfoParticipant {
 
     fn new(
         sid: Identifier,
-        id: ParticipantIdentifier,
-        other_participant_ids: Vec<ParticipantIdentifier>,
+        participantIdentifier: ParticipantConfig,
         input: Self::Input,
     ) -> Result<Self> {
         Ok(Self {
             sid,
-            id,
-            other_participant_ids: other_participant_ids.clone(),
+            id: participantIdentifier.id(),
+            other_participant_ids: participantIdentifier.all_participants().clone(),
             local_storage: Default::default(),
-            broadcast_participant: BroadcastParticipant::new(
-                sid,
-                id,
-                other_participant_ids,
-                input,
-            )?,
+            broadcast_participant: BroadcastParticipant::new(sid, participantIdentifier, input)?,
             status: Status::NotReady,
         })
     }
@@ -630,7 +624,13 @@ mod tests {
         ) -> Result<Vec<Self>> {
             ParticipantConfig::random_quorum(quorum_size, rng)?
                 .into_iter()
-                .map(|config| Self::new(sid, config.id(), config.other_ids().to_vec(), input))
+                .map(|config| {
+                    Self::new(
+                        sid,
+                        ParticipantConfig::new(config.id(), config.other_ids())?,
+                        input,
+                    )
+                })
                 .collect::<Result<Vec<_>>>()
         }
 

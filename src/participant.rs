@@ -15,7 +15,7 @@ use crate::{
     local_storage::{storage as local_storage, LocalStorage, TypeTag},
     messages::{Message, MessageType},
     protocol::{ParticipantIdentifier, ProtocolType},
-    Identifier,
+    Identifier, ParticipantConfig,
 };
 use rand::{CryptoRng, RngCore};
 use serde::Serialize;
@@ -191,14 +191,23 @@ pub trait ProtocolParticipant {
     /// constraints on its type and its relationship to the participant set
     /// (for example, it may check that the input contains one field for
     /// each participant).
+
+    /* sunil changes */
     fn new(
         sid: Identifier,
-        id: ParticipantIdentifier,
-        other_participant_ids: Vec<ParticipantIdentifier>,
+        participantIdentifier: ParticipantConfig,
         input: Self::Input,
     ) -> Result<Self>
     where
         Self: Sized;
+    // fn new(
+    //     sid: Identifier,
+    //     id: ParticipantIdentifier,
+    //     other_participant_ids: Vec<ParticipantIdentifier>,
+    //     input: Self::Input,
+    // ) -> Result<Self>
+    // where
+    //     Self: Sized;
 
     /// Return the participant id
     fn id(&self) -> ParticipantIdentifier;

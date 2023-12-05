@@ -13,7 +13,7 @@ use crate::{
     messages::{BroadcastMessageType, Message, MessageType},
     participant::{InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant},
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
-    run_only_once_per_tag, Identifier,
+    run_only_once_per_tag, Identifier, ParticipantConfig,
 };
 
 use crate::participant::Status;
@@ -88,14 +88,13 @@ impl ProtocolParticipant for BroadcastParticipant {
 
     fn new(
         sid: Identifier,
-        id: ParticipantIdentifier,
-        other_participant_ids: Vec<ParticipantIdentifier>,
+        participantIdentifier: ParticipantConfig,
         _input: Self::Input,
     ) -> Result<Self> {
         Ok(Self {
             sid,
-            id,
-            other_participant_ids,
+            id: participantIdentifier.id(),
+            other_participant_ids: participantIdentifier.all_participants(),
             local_storage: Default::default(),
             status: Status::Initialized,
         })

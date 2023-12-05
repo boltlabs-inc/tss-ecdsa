@@ -31,7 +31,7 @@ use crate::{
         pilog::{CommonInput, PiLogProof, ProverSecret},
         Proof, ProofContext,
     },
-    Identifier,
+    Identifier, ParticipantConfig,
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -221,18 +221,17 @@ impl ProtocolParticipant for PresignParticipant {
 
     fn new(
         sid: Identifier,
-        id: ParticipantIdentifier,
-        other_participant_ids: Vec<ParticipantIdentifier>,
+        participantIdentifier: ParticipantConfig,
         input: Self::Input,
     ) -> Result<Self> {
         let input_participants = input.participants();
 
         // Check that we have the expected number of inputs
-        if input_participants.len() != other_participant_ids.len() + 1 {
+        if input_participants.len() != participantIdentifier.all_participants().len() + 1 {
             error!(
                 "Size of the input ({}) doesn't match size of the participant set ({})",
                 input_participants.len(),
-                other_participant_ids.len() + 1
+                participantIdentifier.all_participants().len() + 1
             );
             Err(CallerError::BadInput)?;
         }
@@ -240,8 +239,10 @@ impl ProtocolParticipant for PresignParticipant {
         // Make sure the inputs belong to the specified participant set: first define
         // the two sets...
         let input_set = HashSet::<&ParticipantIdentifier>::from_iter(input_participants.iter());
-        let mut participants = HashSet::from_iter(other_participant_ids.iter());
-        let _inserted = participants.insert(&id);
+        let binding = participantIdentifier.all_participants();
+        let mut participants = HashSet::from_iter(binding.iter());
+        let binding = participantIdentifier.id();
+        let _inserted = participants.insert(&binding);
 
         // ...then make sure they match.
         if participants != input_set {
@@ -252,10 +253,10 @@ impl ProtocolParticipant for PresignParticipant {
         Ok(Self {
             sid,
             input,
-            id,
-            other_participant_ids: other_participant_ids.clone(),
+            id: participantIdentifier.id(),
+            other_participant_ids: participantIdentifier.all_participants().clone(),
             local_storage: Default::default(),
-            broadcast_participant: BroadcastParticipant::new(sid, id, other_participant_ids, ())?,
+            broadcast_participant: BroadcastParticipant::new(sid, participantIdentifier, ())?,
             status: Status::NotReady,
         })
     }
@@ -1287,7 +1288,11 @@ mod test {
         let mut quorum = zip(configs, zip(keygen_outputs.clone(), auxinfo_outputs))
             .map(|(config, (keygen_output, auxinfo_output))| {
                 let input = Input::new(auxinfo_output, keygen_output)?;
-                PresignParticipant::new(sid, config.id(), config.other_ids().to_vec(), input)
+                PresignParticipant::new(
+                    sid,
+                    ParticipantConfig::new(config.id(), config.other_ids())?,
+                    input,
+                )
             })
             .collect::<Result<Vec<_>>>()?;
 

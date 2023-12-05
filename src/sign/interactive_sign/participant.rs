@@ -19,9 +19,8 @@ use crate::{
     presign::{self, PresignParticipant, PresignRecord},
     protocol::ProtocolType,
     sign::{self, non_interactive_sign::participant::SignParticipant, Signature},
-    Identifier, ParticipantIdentifier, ProtocolParticipant,
+    Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
 };
-
 /// A participant that runs the interactive signing protocol in
 /// Figure 3 of Canetti et al[^cite].
 ///
@@ -113,7 +112,12 @@ impl SigningMaterial {
                 // Note: this shouldn't throw an error because the only failure case should have
                 // also been checked by the presign constructor, and computation
                 // halted far before we reach this point.
-                let signer = Box::new(SignParticipant::new(sid, id, other_ids, signing_input)?);
+                let participant_config = ParticipantConfig::new(id, &other_ids)?;
+                let signer = Box::new(SignParticipant::new(
+                    sid,
+                    participant_config,
+                    signing_input,
+                )?);
                 *self = SigningMaterial::Signer { signer };
                 Ok(())
             }
@@ -186,8 +190,7 @@ impl ProtocolParticipant for InteractiveSignParticipant {
 
     fn new(
         sid: Identifier,
-        id: ParticipantIdentifier,
-        other_participant_ids: Vec<ParticipantIdentifier>,
+        participantIdentifier: ParticipantConfig,
         input: Self::Input,
     ) -> Result<Self> {
         let Input {
@@ -202,7 +205,7 @@ impl ProtocolParticipant for InteractiveSignParticipant {
 
         // Validation note: the presign participant will make sure the presign input and
         // public key shares are correctly formed (e.g. there's one per party)
-        let presigner = PresignParticipant::new(sid, id, other_participant_ids, presign_input)?;
+        let presigner = PresignParticipant::new(sid, participantIdentifier, presign_input)?;
 
         Ok(Self {
             signing_material,
@@ -423,8 +426,7 @@ mod tests {
             .map(|(config, input)| {
                 InteractiveSignParticipant::new(
                     sid,
-                    config.id(),
-                    config.other_ids().to_vec(),
+                    ParticipantConfig::new(config.id(), config.other_ids())?,
                     input,
                 )
             })

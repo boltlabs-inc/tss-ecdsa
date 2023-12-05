@@ -118,11 +118,9 @@ impl<P: ProtocolParticipant> Participant<P> {
     ) -> Result<Self> {
         info!("Initializing participant from config.");
 
-        let (id, other_ids) = config.into_parts();
-
         Ok(Participant {
-            id,
-            participant: P::new(sid, id, other_ids, input)?,
+            id: config.id(),
+            participant: P::new(sid, config, input)?,
         })
     }
 
@@ -253,10 +251,6 @@ pub(crate) mod participant_config {
         /// (both other and self).
         pub fn count(&self) -> usize {
             self.other_ids.len() + 1
-        }
-
-        pub(crate) fn into_parts(self) -> (ParticipantIdentifier, Vec<ParticipantIdentifier>) {
-            (self.id, self.other_ids)
         }
 
         /// Create a new [`ParticipantConfig`].

@@ -200,23 +200,24 @@ impl ProtocolParticipant for SignParticipant {
 
     fn new(
         sid: Identifier,
-        id: ParticipantIdentifier,
-        other_participant_ids: Vec<ParticipantIdentifier>,
+        participantIdentifier: ParticipantConfig,
         input: Self::Input,
     ) -> Result<Self>
     where
         Self: Sized,
     {
-        let config = ParticipantConfig::new(id, &other_participant_ids)?;
-
+        let config = ParticipantConfig::new(
+            participantIdentifier.id(),
+            &participantIdentifier.all_participants(),
+        )?;
         // The input must contain exactly one public key per participant ID.
         let public_key_pids = input
             .public_key_shares
             .iter()
             .map(|share| share.participant())
             .collect::<HashSet<_>>();
-        let pids = std::iter::once(id)
-            .chain(other_participant_ids)
+        let pids = std::iter::once(participantIdentifier.id())
+            .chain(participantIdentifier.all_participants())
             .collect::<HashSet<_>>();
         if public_key_pids != pids || config.count() != input.public_key_shares.len() {
             Err(CallerError::BadInput)?
@@ -551,7 +552,11 @@ mod test {
         });
         let mut quorum = std::iter::zip(configs, inputs)
             .map(|(config, input)| {
-                SignParticipant::new(sid, config.id(), config.other_ids().to_vec(), input)
+                SignParticipant::new(
+                    sid,
+                    ParticipantConfig::new(config.id(), config.other_ids())?,
+                    input,
+                )
             })
             .collect::<Result<Vec<_>>>()?;
 
