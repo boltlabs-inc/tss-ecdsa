@@ -927,9 +927,9 @@ impl PresignKeyShareAndInfo {
 
         let r1_private = round_one::Private {
             k: k.into(),
-            rho,
+            rho: rho.into(),
             gamma,
-            nu,
+            nu: nu.into(),
             G,
             K,
         };
@@ -1037,7 +1037,7 @@ impl PresignKeyShareAndInfo {
             rng,
         )?;
         let mut transcript = Transcript::new(b"PiLogProof");
-        let secret = ProverSecret::new(&sender_r1_priv.gamma, &sender_r1_priv.nu);
+        let secret = ProverSecret::new(&sender_r1_priv.gamma, &sender_r1_priv.nu.into());
         let psi_prime = PiLogProof::prove(
             CommonInput::new(
                 &sender_r1_priv.G,
@@ -1143,7 +1143,7 @@ impl PresignKeyShareAndInfo {
                     self.aux_info_public.pk(),
                     &Gamma,
                 ),
-                ProverSecret::new(&sender_r1_priv.k.clone().into(), &sender_r1_priv.rho),
+                ProverSecret::new(&sender_r1_priv.k.clone().into(), &sender_r1_priv.rho.into()),
                 context,
                 &mut transcript,
                 rng,

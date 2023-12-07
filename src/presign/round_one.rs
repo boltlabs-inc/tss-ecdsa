@@ -24,16 +24,31 @@ use zeroize::ZeroizeOnDrop;
 
 use super::round_three::SecretBigNumber;
 
+#[derive(Clone, ZeroizeOnDrop)]
+pub(crate) struct SecretNonce(Nonce);
+
+impl From<Nonce> for SecretNonce {
+    fn from(nonce: Nonce) -> Self {
+        SecretNonce(nonce)
+    }
+}
+
+impl From<SecretNonce> for Nonce {
+    fn from(secret_nonce: SecretNonce) -> Self {
+        secret_nonce.0
+    }
+}
+
 /// Private data used in round one of the presign protocol.
-#[derive(ZeroizeOnDrop)]
+//#[derive(ZeroizeOnDrop)]
 pub(crate) struct Private {
     pub k: SecretBigNumber,
-    pub rho: Nonce,
+    pub rho: SecretNonce,
     pub gamma: BigNumber,
-    pub nu: Nonce,
-    #[zeroize(skip)]
+    pub nu: SecretNonce,
+    //#[zeroize(skip)]
     pub G: Ciphertext, // Technically can be public but is only one per party
-    #[zeroize(skip)]
+    //#[zeroize(skip)]
     pub K: Ciphertext, // Technically can be public but is only one per party
 }
 
