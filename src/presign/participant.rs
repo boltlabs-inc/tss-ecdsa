@@ -1053,7 +1053,10 @@ impl PresignKeyShareAndInfo {
         )?;
 
         Ok((
-            round_two::Private { beta, beta_hat },
+            round_two::Private {
+                beta: beta.into(),
+                beta_hat: beta_hat.into(),
+            },
             round_two::Public {
                 D,
                 D_hat,
@@ -1122,8 +1125,11 @@ impl PresignKeyShareAndInfo {
             // in round two we did _not_ encrypt the negation of these as
             // specified in the protocol. See comment in `round_two` for the
             // reasoning.
-            delta = delta.modadd(&alpha.modsub(&r2_priv_j.beta, &order), &order);
-            chi = chi.modadd(&alpha_hat.modsub(&r2_priv_j.beta_hat, &order), &order);
+            delta = delta.modadd(&alpha.modsub(&r2_priv_j.beta.into(), &order), &order);
+            chi = chi.modadd(
+                &alpha_hat.modsub(&r2_priv_j.beta_hat.into(), &order),
+                &order,
+            );
             Gamma = Gamma + r2_pub_j.Gamma;
         }
 
