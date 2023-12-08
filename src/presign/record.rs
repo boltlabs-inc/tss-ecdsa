@@ -12,7 +12,9 @@ use crate::{
         InternalError::{InternalInvariantFailed, ProtocolError},
         Result,
     },
-    presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
+    presign::round_three::{
+        Private as RoundThreePrivate, Public as RoundThreePublic, SecretScalar,
+    },
     utils::{bn_to_scalar, CurvePoint, ParseBytes},
 };
 use k256::{elliptic_curve::PrimeField, Scalar};
@@ -84,20 +86,23 @@ impl TryFrom<RecordPair> for PresignRecord {
         }
 
         let g = CurvePoint::GENERATOR;
-        if g.multiply_by_scalar(&delta.into()) != Delta {
+        if g.multiply_by_scalar(&delta.get_secret()) != Delta {
             error!("Could not create PresignRecord: mismatch between calculated private and public deltas");
             return Err(ProtocolError(None));
         }
 
-        let delta_inv = Option::<Scalar>::from(delta.invert()).ok_or_else(|| {
+        let delta_inv: SecretScalar = Option::from(delta.invert()).ok_or_else(|| {
             error!("Could not invert delta as it is 0. Either you got profoundly unlucky or more likely there's a bug");
             InternalInvariantFailed
         })?;
-        let R = private.Gamma.multiply_by_scalar(&delta_inv);
+        let R = private.Gamma.multiply_by_scalar(delta_inv.get_secret());
 
         Ok(PresignRecord {
             R,
             k: bn_to_scalar(&private.k.into())?,
+            // To get this to compile, you should make `chi` also a SecretScalar.
+            // Calling `.into()` just calls your From impl, but then there is no
+            // guarantee `chi` in PresignRecord gets ZeroizedOnDrop later.
             chi: private.chi.into(),
         })
     }

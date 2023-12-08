@@ -21,7 +21,7 @@ displaydoc = { version = "0.2", default-features = false }
 flame = { version = "0.2", optional = true }
 flamer = { version = "0.3", optional = true }
 generic-array = "0.14"
-gmp-mpfr-sys = { version = "1.5", features = ["force-cross", "use-system-libs"] }
+#gmp-mpfr-sys = { version = "1.5", features = ["force-cross", "use-system-libs"] }
 hex = "0.4"
 k256 = { version = "0.13", features = ["arithmetic", "sha256", "ecdsa", "serde"] }
 lazy_static = "1"

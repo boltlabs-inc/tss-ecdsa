@@ -1087,7 +1087,24 @@ impl PresignKeyShareAndInfo {
 
         let mut delta: BigNumber = sender_r1_priv
             .gamma
+            // This in an example of somewhere where you are leaking secret data:
             .modmul(&sender_r1_priv.k.clone().into(), &order);
+        // 1) `sender_r1_priv.k` is a SecretBigNumber
+        // 2) `sender_r1_priv.k.clone()` cloning a secret is not always bad, sometimes
+        //    it is needed
+        // but in this example, this extra copy is not really needed.
+        // 3) `sender_r1_priv.k.clone().into()` this converts our SecretBigNumber ->
+        //    BigNumber.
+        // Whenever you do this you have to make sure the non-secret version gets
+        // cleaned up (this is why I don't think we should allow this
+        // conversion).
+        // 4) `&sender_r1_priv.k.clone().into()` then you take a reference, which is
+        //    fine, but then why create a copy?
+        // I would rewrite the line above as:
+        // .modmul(sender_r1_priv.k.expose_secret(), &order);
+        // In this version we merely pass a reference to our data, but no copy is ever
+        // made.
+
         let mut chi: BigNumber = self
             .keyshare_private
             .as_ref()
@@ -1149,7 +1166,11 @@ impl PresignKeyShareAndInfo {
                     self.aux_info_public.pk(),
                     &Gamma,
                 ),
-                ProverSecret::new(&sender_r1_priv.k.clone().into(), &sender_r1_priv.rho.into()),
+                // I'm getting errors here because it expects a `Nonce` but we are giving
+                // it a `SecretNonce` this is the kind of scenario where we need to figure out
+                // if ProverSecret should have its `nonce` field be `SecretNonce`. "Should
+                // we propagate the secret?"
+                ProverSecret::new(&sender_r1_priv.k.clone().into(), &sender_r1_priv.rho),
                 context,
                 &mut transcript,
                 rng,

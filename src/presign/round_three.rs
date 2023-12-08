@@ -20,14 +20,14 @@ use crate::{
         Proof, ProofContext,
     },
 };
-use k256::{elliptic_curve::PrimeField, Scalar};
+use k256::{
+    elliptic_curve::{subtle::CtOption, PrimeField},
+    Scalar,
+};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt::Debug,
-    ops::{AddAssign, Deref},
-};
+use std::{fmt::Debug, ops::AddAssign};
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
 //use libpaillier::unknown_order::CtOption;
@@ -40,25 +40,41 @@ pub(crate) struct Private {
     pub delta: SecretScalar,
     pub Delta: CurvePoint,
 }
+
 #[derive(Clone, ZeroizeOnDrop)]
 pub(crate) struct SecretBigNumber(BigNumber);
 
-#[derive(Clone, ZeroizeOnDrop, Debug)]
-pub(crate) struct SecretScalar(Scalar);
-
-impl Deref for SecretScalar {
-    type Target = Scalar;
-
-    fn deref(&self) -> &Self::Target {
+impl SecretBigNumber {
+    // Allow access to underlying data by returning a read-only copy.
+    // The returned value should NOT be cloned, you will leak a secret.
+    pub fn expose_secret(&self) -> &BigNumber {
         &self.0
     }
 }
 
+#[derive(ZeroizeOnDrop, Clone, Debug)]
+pub(crate) struct SecretScalar(Scalar);
+
+// I take back what I said about implementing Deref.
+// I no longer think this is a good way to do this.
+// impl Deref for SecretScalar {
+//     type Target = Scalar;
+//
+//     fn deref(&self) -> &Self::Target {
+//         &self.0
+//     }
+// }
+
 impl SecretScalar {
-    pub fn invert(&self) -> Option<SecretScalar> {
-        let inverted = self.0.invert();
-        let scalar = inverted.into_option()?;
-        Some(scalar)
+    // This version works :)
+    pub fn invert(&self) -> CtOption<SecretScalar> {
+        self.0.invert().map(SecretScalar)
+    }
+
+    // I think this is the best way to expose the underlying type:
+    // by returning a reference.
+    pub fn get_secret(&self) -> &Scalar {
+        &self.0
     }
 }
 
@@ -68,11 +84,18 @@ impl From<Scalar> for SecretScalar {
     }
 }
 
-impl From<SecretScalar> for Scalar {
-    fn from(secret_scalar: SecretScalar) -> Self {
-        secret_scalar.0
-    }
-}
+// Omar: I would avoid implementing from instances like this one.
+// `From` is too easy to use and this implementation converts
+// from a Secret to a non secret. To access the secret, I prefer the method
+// `get_secret` above.
+//
+// It is always okay to turn a Scalar -> SecretScalar, but not the other way
+// around!
+// impl From<SecretScalar> for Scalar {
+//     fn from(secret_scalar: SecretScalar) -> Self {
+//         secret_scalar.0
+//     }
+// }
 
 impl AddAssign<&SecretScalar> for SecretScalar {
     fn add_assign(&mut self, other: &SecretScalar) {
@@ -86,11 +109,14 @@ impl From<BigNumber> for SecretBigNumber {
     }
 }
 
-impl From<SecretBigNumber> for BigNumber {
-    fn from(secret_big_number: SecretBigNumber) -> Self {
-        secret_big_number.0.clone()
-    }
-}
+// Similar comment as the one above. This impl makes it too easy to copy a
+// SecretBigNumber, and then there is nothing to guarantee the original
+// BigNumber gets zeroized!
+// impl From<SecretBigNumber> for BigNumber {
+//     fn from(secret_big_number: SecretBigNumber) -> Self {
+//         secret_big_number.0.clone()
+//     }
+// }
 
 impl Debug for Private {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
