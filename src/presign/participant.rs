@@ -1087,11 +1087,11 @@ impl PresignKeyShareAndInfo {
 
         let mut delta: BigNumber = sender_r1_priv
             .gamma
-            .modmul(&sender_r1_priv.k.clone().into(), &order);
+            .modmul(&sender_r1_priv.k.into(), &order);
         let mut chi: BigNumber = self
             .keyshare_private
             .as_ref()
-            .modmul(&sender_r1_priv.k.clone().into(), &order);
+            .modmul(&sender_r1_priv.k.into(), &order);
         let mut Gamma = g.multiply_by_bignum(&sender_r1_priv.gamma)?;
 
         for round_three_input in other_participant_inputs.values() {

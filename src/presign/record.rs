@@ -19,6 +19,7 @@ use k256::{elliptic_curve::PrimeField, Scalar};
 use std::fmt::Debug;
 use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
+use crate::presign::round_three::SecretScalar;
 
 pub(crate) struct RecordPair {
     pub(crate) private: RoundThreePrivate,
@@ -89,7 +90,7 @@ impl TryFrom<RecordPair> for PresignRecord {
             return Err(ProtocolError(None));
         }
 
-        let delta_inv = Option::<Scalar>::from(delta.invert()).ok_or_else(|| {
+        let delta_inv: SecretScalar = Option::from(delta.invert()).ok_or_else(|| {
             error!("Could not invert delta as it is 0. Either you got profoundly unlucky or more likely there's a bug");
             InternalInvariantFailed
         })?;

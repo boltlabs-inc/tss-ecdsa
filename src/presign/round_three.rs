@@ -20,7 +20,10 @@ use crate::{
         Proof, ProofContext,
     },
 };
-use k256::{elliptic_curve::PrimeField, Scalar};
+use k256::{
+    elliptic_curve::{subtle::CtOption, PrimeField},
+    Scalar,
+};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
@@ -55,10 +58,12 @@ impl Deref for SecretScalar {
 }
 
 impl SecretScalar {
-    pub fn invert(&self) -> Option<SecretScalar> {
-        let inverted = self.0.invert();
-        let scalar = inverted.into_option()?;
-        Some(scalar)
+    pub fn invert(&self) -> CtOption<SecretScalar> {
+        self.0.invert().map(SecretScalar)
+    }
+
+    pub fn get_secret(&self) -> &Scalar {
+        &self.0
     }
 }
 
