@@ -27,17 +27,23 @@ use super::round_three::SecretBigNumber;
 #[derive(Clone, ZeroizeOnDrop)]
 pub(crate) struct SecretNonce(Nonce);
 
+impl SecretNonce{
+    pub fn get_nonce(&self) -> &Nonce {
+        &self.0
+    }
+}
+
 impl From<Nonce> for SecretNonce {
     fn from(nonce: Nonce) -> Self {
         SecretNonce(nonce)
     }
 }
 
-impl From<SecretNonce> for Nonce {
+/*impl From<SecretNonce> for Nonce {
     fn from(secret_nonce: SecretNonce) -> Self {
-        secret_nonce.0
+        secret_nonce.clone().get_nonce()
     }
-}
+}*/
 
 /// Private data used in round one of the presign protocol.
 //#[derive(ZeroizeOnDrop)]
