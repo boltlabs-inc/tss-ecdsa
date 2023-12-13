@@ -27,7 +27,7 @@ use super::round_three::SecretBigNumber;
 #[derive(Clone, ZeroizeOnDrop)]
 pub(crate) struct SecretNonce(Nonce);
 
-impl SecretNonce{
+impl SecretNonce {
     pub fn get_nonce(&self) -> &Nonce {
         &self.0
     }

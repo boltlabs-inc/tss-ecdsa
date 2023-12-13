@@ -1037,7 +1037,8 @@ impl PresignKeyShareAndInfo {
             rng,
         )?;
         let mut transcript = Transcript::new(b"PiLogProof");
-        let secret = ProverSecret::new(&sender_r1_priv.gamma, &sender_r1_priv.nu.get_nonce());
+        let nonce_clone = &sender_r1_priv.nu.get_nonce().clone();
+        let secret = ProverSecret::new(&sender_r1_priv.gamma, nonce_clone);
         let psi_prime = PiLogProof::prove(
             CommonInput::new(
                 &sender_r1_priv.G,
@@ -1125,7 +1126,10 @@ impl PresignKeyShareAndInfo {
             // in round two we did _not_ encrypt the negation of these as
             // specified in the protocol. See comment in `round_two` for the
             // reasoning.
-            delta = delta.modadd(&alpha.modsub(&r2_priv_j.beta.clone().into(), &order), &order);
+            delta = delta.modadd(
+                &alpha.modsub(&r2_priv_j.beta.clone().into(), &order),
+                &order,
+            );
             chi = chi.modadd(
                 &alpha_hat.modsub(&r2_priv_j.beta_hat.clone().into(), &order),
                 &order,
@@ -1133,7 +1137,7 @@ impl PresignKeyShareAndInfo {
             Gamma = Gamma + r2_pub_j.Gamma;
         }
 
-        let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k.clone().into())?;
+        let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k.get_bignumber().clone())?;
 
         let delta_scalar = bn_to_scalar(&delta)?;
         let chi_scalar = bn_to_scalar(&chi)?;
@@ -1149,7 +1153,10 @@ impl PresignKeyShareAndInfo {
                     self.aux_info_public.pk(),
                     &Gamma,
                 ),
-                ProverSecret::new(&sender_r1_priv.k.clone().into(), &sender_r1_priv.rho.get_nonce()),
+                ProverSecret::new(
+                    &sender_r1_priv.k.get_bignumber().clone(),
+                    &sender_r1_priv.rho.get_nonce().clone(),
+                ),
                 context,
                 &mut transcript,
                 rng,

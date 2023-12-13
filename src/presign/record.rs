@@ -12,14 +12,15 @@ use crate::{
         InternalError::{InternalInvariantFailed, ProtocolError},
         Result,
     },
-    presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
+    presign::round_three::{
+        Private as RoundThreePrivate, Public as RoundThreePublic, SecretScalar,
+    },
     utils::{bn_to_scalar, CurvePoint, ParseBytes},
 };
 use k256::{elliptic_curve::PrimeField, Scalar};
 use std::fmt::Debug;
 use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
-use crate::presign::round_three::SecretScalar;
 
 pub(crate) struct RecordPair {
     pub(crate) private: RoundThreePrivate,
@@ -85,12 +86,12 @@ impl TryFrom<RecordPair> for PresignRecord {
         }
 
         let g = CurvePoint::GENERATOR;
-        if g.multiply_by_scalar(&delta.into()) != Delta {
+        if g.multiply_by_scalar(&delta.clone().into()) != Delta {
             error!("Could not create PresignRecord: mismatch between calculated private and public deltas");
             return Err(ProtocolError(None));
         }
 
-        let delta_inv: SecretScalar = Option::from(delta.invert()).ok_or_else(|| {
+        let delta_inv: SecretScalar = Option::from(delta.clone().invert()).ok_or_else(|| {
             error!("Could not invert delta as it is 0. Either you got profoundly unlucky or more likely there's a bug");
             InternalInvariantFailed
         })?;

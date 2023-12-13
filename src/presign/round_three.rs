@@ -46,6 +46,12 @@ pub(crate) struct Private {
 #[derive(Clone, ZeroizeOnDrop)]
 pub(crate) struct SecretBigNumber(BigNumber);
 
+impl SecretBigNumber {
+    pub fn get_bignumber(&self) -> &BigNumber {
+        &self.0
+    }
+}
+
 #[derive(Clone, ZeroizeOnDrop, Debug)]
 pub(crate) struct SecretScalar(Scalar);
 
@@ -59,7 +65,7 @@ impl Deref for SecretScalar {
 
 impl SecretScalar {
     pub fn invert(&self) -> CtOption<SecretScalar> {
-        self.0.invert().map(SecretScalar)
+        self.get_secret().invert().map(SecretScalar)
     }
 
     pub fn get_secret(&self) -> &Scalar {
