@@ -86,7 +86,7 @@ impl TryFrom<RecordPair> for PresignRecord {
         }
 
         let g = CurvePoint::GENERATOR;
-        if g.multiply_by_scalar(&delta.clone().into()) != Delta {
+        if g.multiply_by_scalar(delta.get_secret()) != Delta {
             error!("Could not create PresignRecord: mismatch between calculated private and public deltas");
             return Err(ProtocolError(None));
         }
@@ -100,7 +100,7 @@ impl TryFrom<RecordPair> for PresignRecord {
         Ok(PresignRecord {
             R,
             k: bn_to_scalar(&private.k.into())?,
-            chi: private.chi.into(),
+            chi: *private.chi.get_secret(),
         })
     }
 }
