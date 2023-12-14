@@ -27,10 +27,7 @@ use k256::{
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt::Debug,
-    ops::{AddAssign, Deref},
-};
+use std::{fmt::Debug, ops::AddAssign};
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
 //use libpaillier::unknown_order::CtOption;
@@ -58,13 +55,13 @@ impl SecretBigNumber {
 #[derive(Clone, ZeroizeOnDrop, Debug)]
 pub(crate) struct SecretScalar(Scalar);
 
-impl Deref for SecretScalar {
+/*impl Deref for SecretScalar {
     type Target = Scalar;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
-}
+}*/
 
 impl SecretScalar {
     pub fn invert(&self) -> CtOption<SecretScalar> {

@@ -95,7 +95,7 @@ impl TryFrom<RecordPair> for PresignRecord {
             error!("Could not invert delta as it is 0. Either you got profoundly unlucky or more likely there's a bug");
             InternalInvariantFailed
         })?;
-        let R = private.Gamma.multiply_by_scalar(&delta_inv);
+        let R = private.Gamma.multiply_by_scalar(delta_inv.get_secret());
 
         Ok(PresignRecord {
             R,
