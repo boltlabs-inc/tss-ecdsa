@@ -79,12 +79,6 @@ impl From<Scalar> for SecretScalar {
     }
 }
 
-impl From<SecretScalar> for Scalar {
-    fn from(secret_scalar: SecretScalar) -> Self {
-        secret_scalar.0
-    }
-}
-
 impl AddAssign<&SecretScalar> for SecretScalar {
     fn add_assign(&mut self, other: &SecretScalar) {
         self.0 += &other.0;
