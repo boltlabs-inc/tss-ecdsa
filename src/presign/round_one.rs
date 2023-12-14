@@ -39,12 +39,6 @@ impl From<Nonce> for SecretNonce {
     }
 }
 
-/*impl From<SecretNonce> for Nonce {
-    fn from(secret_nonce: SecretNonce) -> Self {
-        secret_nonce.clone().get_nonce()
-    }
-}*/
-
 /// Private data used in round one of the presign protocol.
 //#[derive(ZeroizeOnDrop)]
 pub(crate) struct Private {

@@ -47,6 +47,9 @@ pub(crate) struct Private {
 pub(crate) struct SecretBigNumber(BigNumber);
 
 impl SecretBigNumber {
+    /*pub fn from_number(bn: BigNumber) -> SecretBigNumber {
+        SecretBigNumber(bn)
+    }*/
     pub fn get_bignumber(&self) -> &BigNumber {
         &self.0
     }
