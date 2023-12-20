@@ -86,7 +86,7 @@ impl TryFrom<RecordPair> for PresignRecord {
         }
 
         let g = CurvePoint::GENERATOR;
-        if g.multiply_by_scalar(delta.get_secret()) != Delta {
+        if g.multiply_by_scalar(delta.get_scalar_secret()) != Delta {
             error!("Could not create PresignRecord: mismatch between calculated private and public deltas");
             return Err(ProtocolError(None));
         }
@@ -95,12 +95,14 @@ impl TryFrom<RecordPair> for PresignRecord {
             error!("Could not invert delta as it is 0. Either you got profoundly unlucky or more likely there's a bug");
             InternalInvariantFailed
         })?;
-        let R = private.Gamma.multiply_by_scalar(delta_inv.get_secret());
+        let R = private
+            .Gamma
+            .multiply_by_scalar(delta_inv.get_scalar_secret());
 
         Ok(PresignRecord {
             R,
             k: bn_to_scalar(&private.k.into())?,
-            chi: *private.chi.get_secret(),
+            chi: *private.chi.get_scalar_secret(),
         })
     }
 }

@@ -1041,7 +1041,7 @@ impl PresignKeyShareAndInfo {
             rng,
         )?;
         let mut transcript = Transcript::new(b"PiLogProof");
-        let nonce_clone = &sender_r1_priv.nu.get_nonce().clone();
+        let nonce_clone = &sender_r1_priv.nu.get_nonce_secret().clone();
         let secret = ProverSecret::new(&sender_r1_priv.gamma, nonce_clone);
         let psi_prime = PiLogProof::prove(
             CommonInput::new(
@@ -1092,11 +1092,11 @@ impl PresignKeyShareAndInfo {
 
         let mut delta: BigNumber = sender_r1_priv
             .gamma
-            .modmul(&sender_r1_priv.k.clone().into(), &order);
+            .modmul(sender_r1_priv.k.get_bignumber_secret(), &order);
         let mut chi: BigNumber = self
             .keyshare_private
             .as_ref()
-            .modmul(&sender_r1_priv.k.clone().into(), &order);
+            .modmul(sender_r1_priv.k.get_bignumber_secret(), &order);
         let mut Gamma = g.multiply_by_bignum(&sender_r1_priv.gamma)?;
 
         for round_three_input in other_participant_inputs.values() {
@@ -1141,7 +1141,7 @@ impl PresignKeyShareAndInfo {
             Gamma = Gamma + r2_pub_j.Gamma;
         }
 
-        let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k.get_bignumber().clone())?;
+        let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k.get_bignumber_secret().clone())?;
 
         let delta_scalar = bn_to_scalar(&delta)?;
         let chi_scalar = bn_to_scalar(&chi)?;
@@ -1158,8 +1158,8 @@ impl PresignKeyShareAndInfo {
                     &Gamma,
                 ),
                 ProverSecret::new(
-                    &sender_r1_priv.k.get_bignumber().clone(),
-                    &sender_r1_priv.rho.get_nonce().clone(),
+                    &sender_r1_priv.k.get_bignumber_secret().clone(),
+                    &sender_r1_priv.rho.get_nonce_secret().clone(),
                 ),
                 context,
                 &mut transcript,

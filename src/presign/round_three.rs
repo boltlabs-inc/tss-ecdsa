@@ -30,14 +30,15 @@ use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, ops::AddAssign};
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
-//use libpaillier::unknown_order::CtOption;
 
 #[derive(Clone)]
 pub(crate) struct Private {
     pub k: SecretBigNumber,
     pub chi: SecretScalar,
+    /// Gamma is not secret and does not need to be zeroized.
     pub Gamma: CurvePoint,
     pub delta: SecretScalar,
+    /// Delta is not secret and does not need to be zeroized.
     pub Delta: CurvePoint,
 }
 #[derive(Clone, ZeroizeOnDrop)]
@@ -47,7 +48,9 @@ impl SecretBigNumber {
     pub fn from_number(bn: BigNumber) -> SecretBigNumber {
         SecretBigNumber(bn)
     }
-    pub fn get_bignumber(&self) -> &BigNumber {
+    /// This method gives you access to the underlying secret bignumber. We
+    /// should be careful about cloning the returned reference.
+    pub fn get_bignumber_secret(&self) -> &BigNumber {
         &self.0
     }
 }
@@ -55,33 +58,21 @@ impl SecretBigNumber {
 #[derive(Clone, ZeroizeOnDrop, Debug)]
 pub(crate) struct SecretScalar(Scalar);
 
-/*impl Deref for SecretScalar {
-    type Target = Scalar;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}*/
-
 impl SecretScalar {
     pub fn from_scalar(scalar: Scalar) -> SecretScalar {
         SecretScalar(scalar)
     }
 
     pub fn invert(&self) -> CtOption<SecretScalar> {
-        self.get_secret().invert().map(SecretScalar)
+        self.get_scalar_secret().invert().map(SecretScalar)
     }
 
-    pub fn get_secret(&self) -> &Scalar {
+    /// This method gives you access to the underlying secret scalar. We should
+    /// be careful about cloning the returned reference.
+    pub fn get_scalar_secret(&self) -> &Scalar {
         &self.0
     }
 }
-
-/*impl From<Scalar> for SecretScalar {
-    fn from(scalar: Scalar) -> Self {
-        SecretScalar(scalar)
-    }
-}*/
 
 impl AddAssign<&SecretScalar> for SecretScalar {
     fn add_assign(&mut self, other: &SecretScalar) {

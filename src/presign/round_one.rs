@@ -31,16 +31,12 @@ impl SecretNonce {
     pub fn from_nonce(nonce: Nonce) -> SecretNonce {
         SecretNonce(nonce)
     }
-    pub fn get_nonce(&self) -> &Nonce {
+    /// This method gives you access to the underlying secret nonce. We should
+    /// be careful about cloning the returned reference.
+    pub fn get_nonce_secret(&self) -> &Nonce {
         &self.0
     }
 }
-
-/*impl From<Nonce> for SecretNonce {
-    fn from(nonce: Nonce) -> Self {
-        SecretNonce(nonce)
-    }
-}*/
 
 /// Private data used in round one of the presign protocol.
 //#[derive(ZeroizeOnDrop)]

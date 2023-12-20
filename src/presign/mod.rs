@@ -19,8 +19,8 @@
 mod input;
 mod participant;
 mod record;
-mod round_one;
-mod round_three;
+pub(crate) mod round_one;
+pub(crate) mod round_three;
 mod round_two;
 
 pub use input::Input;
