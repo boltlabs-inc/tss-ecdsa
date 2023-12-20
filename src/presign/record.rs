@@ -81,7 +81,7 @@ impl TryFrom<RecordPair> for PresignRecord {
         let mut delta = private.delta;
         let mut Delta = private.Delta;
         for p in publics {
-            delta += &p.delta.into();
+            delta += &SecretScalar::from_scalar(p.delta);
             Delta = Delta + p.Delta;
         }
 

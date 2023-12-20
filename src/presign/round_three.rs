@@ -44,9 +44,9 @@ pub(crate) struct Private {
 pub(crate) struct SecretBigNumber(BigNumber);
 
 impl SecretBigNumber {
-    /*pub fn from_number(bn: BigNumber) -> SecretBigNumber {
+    pub fn from_number(bn: BigNumber) -> SecretBigNumber {
         SecretBigNumber(bn)
-    }*/
+    }
     pub fn get_bignumber(&self) -> &BigNumber {
         &self.0
     }
@@ -64,6 +64,10 @@ pub(crate) struct SecretScalar(Scalar);
 }*/
 
 impl SecretScalar {
+    pub fn from_scalar(scalar: Scalar) -> SecretScalar {
+        SecretScalar(scalar)
+    }
+
     pub fn invert(&self) -> CtOption<SecretScalar> {
         self.get_secret().invert().map(SecretScalar)
     }
@@ -73,11 +77,11 @@ impl SecretScalar {
     }
 }
 
-impl From<Scalar> for SecretScalar {
+/*impl From<Scalar> for SecretScalar {
     fn from(scalar: Scalar) -> Self {
         SecretScalar(scalar)
     }
-}
+}*/
 
 impl AddAssign<&SecretScalar> for SecretScalar {
     fn add_assign(&mut self, other: &SecretScalar) {

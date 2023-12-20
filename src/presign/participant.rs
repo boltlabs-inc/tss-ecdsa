@@ -20,7 +20,11 @@ use crate::{
     presign::{
         input::Input,
         record::{PresignRecord, RecordPair},
-        round_one, round_three, round_two,
+        round_one,
+        round_one::SecretNonce,
+        round_three,
+        round_three::SecretScalar,
+        round_two,
     },
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
@@ -926,10 +930,10 @@ impl PresignKeyShareAndInfo {
         };
 
         let r1_private = round_one::Private {
-            k: k.into(),
-            rho: rho.into(),
+            k: SecretBigNumber::from_number(k),
+            rho: SecretNonce::from_nonce(rho),
             gamma,
-            nu: nu.into(),
+            nu: SecretNonce::from_nonce(nu),
             G,
             K,
         };
@@ -1172,11 +1176,11 @@ impl PresignKeyShareAndInfo {
 
         let private = round_three::Private {
             k: sender_r1_priv.k.clone(),
-            chi: chi_scalar.into(),
+            chi: SecretScalar::from_scalar(chi_scalar),
             Gamma,
             // These last two fields can be public, but for convenience
             // are stored in this party's private component
-            delta: delta_scalar.into(),
+            delta: SecretScalar::from_scalar(delta_scalar),
             Delta,
         };
 
@@ -1187,6 +1191,8 @@ impl PresignKeyShareAndInfo {
 use crate::participant::Status;
 #[cfg(test)]
 pub(super) use test::presign_record_set_is_valid;
+
+use super::round_three::SecretBigNumber;
 
 #[cfg(test)]
 mod test {

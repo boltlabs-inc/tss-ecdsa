@@ -9,6 +9,7 @@ use crate::{
     parameters::PRIME_BITS,
     utils::{modpow, random_bn_in_z_star, CRYPTOGRAPHIC_RETRY_MAX},
 };
+//use crate::presign::round_three::SecretBigNumber;
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -134,6 +135,7 @@ impl EncryptionKey {
         // `encrypt_with_nonce`.
         let nonce =
             random_bn_in_z_star(rng, self.modulus()).map_err(|_| PaillierError::RetryFailed)?;
+        //let secretnonce = SecretBigNumber(nonce);
         let c = self.encrypt_with_nonce(x, &MaskedNonce(nonce.clone()))?;
         Ok((c, Nonce(nonce)))
     }
