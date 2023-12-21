@@ -101,7 +101,7 @@ impl TryFrom<RecordPair> for PresignRecord {
 
         Ok(PresignRecord {
             R,
-            k: bn_to_scalar(&private.k.into())?,
+            k: bn_to_scalar(private.k.get_bignumber_secret())?,
             chi: *private.chi.get_scalar_secret(),
         })
     }

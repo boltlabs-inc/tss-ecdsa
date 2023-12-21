@@ -80,18 +80,6 @@ impl AddAssign<&SecretScalar> for SecretScalar {
     }
 }
 
-impl From<BigNumber> for SecretBigNumber {
-    fn from(big_number: BigNumber) -> Self {
-        SecretBigNumber(big_number)
-    }
-}
-
-impl From<SecretBigNumber> for BigNumber {
-    fn from(secret_big_number: SecretBigNumber) -> Self {
-        secret_big_number.0.clone()
-    }
-}
-
 impl Debug for Private {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Note: delta, Gamma, and Delta are all sent over the network to other

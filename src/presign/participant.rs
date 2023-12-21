@@ -1059,8 +1059,8 @@ impl PresignKeyShareAndInfo {
 
         Ok((
             round_two::Private {
-                beta: beta.into(),
-                beta_hat: beta_hat.into(),
+                beta: SecretBigNumber::from_number(beta),
+                beta_hat: SecretBigNumber::from_number(beta_hat),
             },
             round_two::Public {
                 D,
@@ -1131,17 +1131,17 @@ impl PresignKeyShareAndInfo {
             // specified in the protocol. See comment in `round_two` for the
             // reasoning.
             delta = delta.modadd(
-                &alpha.modsub(&r2_priv_j.beta.clone().into(), &order),
+                &alpha.modsub(r2_priv_j.beta.get_bignumber_secret(), &order),
                 &order,
             );
             chi = chi.modadd(
-                &alpha_hat.modsub(&r2_priv_j.beta_hat.clone().into(), &order),
+                &alpha_hat.modsub(r2_priv_j.beta_hat.get_bignumber_secret(), &order),
                 &order,
             );
             Gamma = Gamma + r2_pub_j.Gamma;
         }
 
-        let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k.get_bignumber_secret().clone())?;
+        let Delta = Gamma.multiply_by_bignum(sender_r1_priv.k.get_bignumber_secret())?;
 
         let delta_scalar = bn_to_scalar(&delta)?;
         let chi_scalar = bn_to_scalar(&chi)?;
