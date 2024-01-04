@@ -20,7 +20,6 @@ use crate::{
         Proof, ProofContext,
     },
 };
-//use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;

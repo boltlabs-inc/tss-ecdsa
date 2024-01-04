@@ -1149,6 +1149,7 @@ impl PresignKeyShareAndInfo {
         let mut ret_publics = HashMap::new();
         for (other_id, round_three_input) in other_participant_inputs {
             let mut transcript = Transcript::new(b"PiLogProof");
+            // We are copying the underlying secret to a non-secret for k and rho.
             let psi_double_prime = PiLogProof::prove(
                 CommonInput::new(
                     &sender_r1_priv.K,

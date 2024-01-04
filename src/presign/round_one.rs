@@ -45,9 +45,7 @@ pub(crate) struct Private {
     pub rho: SecretNonce,
     pub gamma: BigNumber,
     pub nu: SecretNonce,
-    //#[zeroize(skip)]
     pub G: Ciphertext, // Technically can be public but is only one per party
-    //#[zeroize(skip)]
     pub K: Ciphertext, // Technically can be public but is only one per party
 }
 
