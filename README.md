@@ -70,3 +70,32 @@ This library also includes a Makefile with our full set of continuous integratio
 ## Benchmarks
 
 The benchmarks are found in the benches folder. Please refer to the benches/README.md file for information on how to run and obtain the benchmarks, as well as how to generate a flame graph showing relative costs of some function calls.
+
+## Examples
+
+This library contains a CLI example you can use to test out the complete tss-ecdsa workflow: key generation, aux-info generation, pre-sign record generation, and signing.
+From the root directory, you can run: `cargo run --example threaded_example -- --help`. This command will print the CLI interface:
+```
+Multi-party ECDSA signing
+
+Usage: threaded_example --number-of-workers <NUMBER_OF_WORKERS> --protocol-executions <PROTOCOL_EXECUTIONS>
+
+Options:
+-n, --number-of-workers <NUMBER_OF_WORKERS>
+Number of participant worker threads to use
+-p, --protocol-executions <PROTOCOL_EXECUTIONS>
+Number of times to perform each sub-protocol of tss-ecdsa. protocol_executions > 1 useful for computing meaningful average execution times
+-h, --help
+Print help
+-V, --version
+Print version
+```
+For example, `cargo run --example threaded_example -- --number-of-workers 3 --protocol-executions 1` will execute this example using three workers (participants).
+**Note** please pay attention to the `--` in the middle of the command. This is necessary to separate arguments to the `cargo run` command from arguments to this
+CLI example.
+
+This CLI example supports logging via the tracing crate. You can set the env var `RUST_LOG` to a verbosity level to execute with logging turned on:
+For example:
+```shell
+RUST_LOG=info cargo run --example threaded_example -- --number-of-workers 2 --protocol-executions 1
+```

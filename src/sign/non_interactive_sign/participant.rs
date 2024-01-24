@@ -431,7 +431,10 @@ mod test {
     use std::collections::HashMap;
 
     use k256::{
-        ecdsa::signature::{DigestVerifier, Verifier},
+        ecdsa::{
+            signature::{DigestVerifier, Verifier},
+            VerifyingKey,
+        },
         elliptic_curve::{ops::Reduce, scalar::IsHigh, subtle::ConditionallySelectable},
         Scalar, U256,
     };
@@ -626,6 +629,22 @@ mod test {
                 distributed_sig.as_ref()
             )
             .is_ok());
+
+        // Check we are able to create a recoverable signature.
+        let recovery_id = distributed_sig
+            .recovery_id(message, public_key)
+            .expect("Recovery ID failed");
+
+        // Re-derive the public key from the recoverable ID and ensure it matches the
+        // original public key.
+        let recovered_pk =
+            VerifyingKey::recover_from_msg(message, distributed_sig.as_ref(), recovery_id).unwrap();
+
+        assert_eq!(
+            recovered_pk, *public_key,
+            "Recovered public key does not match original one."
+        );
+
         Ok(())
     }
 }

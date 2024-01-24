@@ -15,6 +15,8 @@
 //! Makriyannis, and Udi Peled. UC Non-Interactive, Proactive, Threshold ECDSA
 //! with Identifiable Aborts. [EPrint archive,
 //! 2021](https://eprint.iacr.org/2021/060.pdf).
+//!
+//! We expose our signature type in terms of the [`k256`] crate.
 
 mod interactive_sign;
 mod non_interactive_sign;
@@ -23,7 +25,7 @@ use k256::Scalar;
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
-use crate::errors::{InternalError, Result};
+use crate::errors::{CallerError, InternalError, Result};
 
 pub use interactive_sign::participant::{Input as InteractiveInput, InteractiveSignParticipant};
 pub use non_interactive_sign::participant::{Input, SignParticipant};
@@ -43,6 +45,25 @@ impl Signature {
                 InternalError::InternalInvariantFailed
             })?
         ))
+    }
+
+    /// Compute the recovery ID of this signature using "trial recovery".
+    /// This allows us to support Ethereum recoverable signatures.
+    ///
+    /// The correct message and public key corresponding to this signature must
+    /// be used for this to succeed.
+    pub fn recovery_id(
+        &self,
+        message: &[u8],
+        public_key: &k256::ecdsa::VerifyingKey,
+    ) -> Result<k256::ecdsa::RecoveryId> {
+        let recover_id =
+            k256::ecdsa::RecoveryId::trial_recovery_from_msg(public_key, message, &self.0)
+                .map_err(|e| {
+                    error!("Failed to compute recovery ID for signature. Reason: {e:?}");
+                    CallerError::SignatureTrialRecoveryFailed
+                })?;
+        Ok(recover_id)
     }
 }
 

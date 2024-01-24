@@ -35,7 +35,7 @@ pub enum InternalError {
 /// These are triggered when the calling application incorrectly
 /// routes a message to the
 /// [`process_single_message()`](crate::Participant::process_single_message())
-/// method.
+/// method OR some other caller error.
 #[derive(Clone, Eq, PartialEq, Error, Debug)]
 #[allow(missing_docs)]
 pub enum CallerError {
@@ -57,6 +57,8 @@ pub enum CallerError {
     BadInput,
     #[error("Failed to deserialize bytes into the expected type")]
     DeserializationFailed,
+    #[error("Failed to compute recovery ID for signature")]
+    SignatureTrialRecoveryFailed,
 }
 
 macro_rules! serialize {
