@@ -25,7 +25,7 @@ use std::fmt::Debug;
 use tracing::error;
 use zeroize::Zeroize;
 
-pub(crate) const CRYPTOGRAPHIC_RETRY_MAX: usize = 500usize;
+pub(crate) const CRYPTOGRAPHIC_RETRY_MAX: usize = 500;
 
 /// Wrapper around k256::ProjectivePoint so that we can define our own
 /// serialization/deserialization for it
@@ -219,24 +219,30 @@ pub(crate) fn modpow(a: &BigNumber, e: &BigNumber, n: &BigNumber) -> BigNumber {
 /// Sample a number uniformly at random from the range [0, n). This can be used
 /// for sampling from a prime field `F_p` or the integers modulo `n` (for any
 /// `n`).
+/// TODO: Try getting rid of this and using SecretBigNumber version instead?
 pub(crate) fn random_positive_bn<R: RngCore + CryptoRng>(rng: &mut R, n: &BigNumber) -> BigNumber {
     BigNumber::from_rng(n, rng)
 }
 
 /// Sample a number uniformly at random from the range [-n, n].
+///
+/// TODO: Try getting rid of this and using SecretBigNumber version instead?
 pub(crate) fn random_plusminus<R: RngCore + CryptoRng>(rng: &mut R, n: &BigNumber) -> BigNumber {
     // `from_rng()` samples the _open_ interval, so add 1 to get the closed interval
     // for `n`
     let open_interval_max: BigNumber = n + 1;
     let val = BigNumber::from_rng(&open_interval_max, rng);
     let is_positive: bool = rng.gen();
-    match is_positive {
-        true => val,
-        false => -val,
+    if is_positive {
+        val
+    } else {
+        -val
     }
 }
 
 /// Sample a number uniformly at random from the range `[-2^n, 2^n]`.
+///
+/// TODO: Try getting rid of this and using SecretBigNumber version instead?
 pub(crate) fn random_plusminus_by_size<R: RngCore + CryptoRng>(rng: &mut R, n: usize) -> BigNumber {
     let range = BigNumber::one() << n;
     random_plusminus(rng, &range)
@@ -260,13 +266,12 @@ pub(crate) fn random_plusminus_by_size_with_minimum<R: RngCore + CryptoRng>(
     rng: &mut R,
     max: usize,
     min: usize,
-) -> crate::errors::Result<BigNumber> {
+) -> Result<BigNumber> {
     if min >= max {
-        tracing::error!(
+        error!(
             "Can't sample from specified range because lower bound is not smaller
              than upper bound. \nLower bound: {}\nUpper bound: {}",
-            min,
-            max
+            min, max
         );
         return Err(InternalError::InternalInvariantFailed);
     }

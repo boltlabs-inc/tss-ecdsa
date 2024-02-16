@@ -24,6 +24,7 @@ use crate::{
     },
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
+    secret_types::{SecretBigNumber, SecretNonce},
     utils::{bn_to_scalar, k256_order, random_plusminus_by_size, random_positive_bn, CurvePoint},
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof, PiAffgSecret},
@@ -890,13 +891,13 @@ impl PresignKeyShareAndInfo {
     )> {
         let order = k256_order();
 
-        let k = random_positive_bn(rng, &order);
+        let k = SecretBigNumber::random_positive_bn(rng, &order);
         let gamma = random_positive_bn(rng, &order);
 
         let (K, rho) = self
             .aux_info_public
             .pk()
-            .encrypt(rng, &k)
+            .encrypt_secret(rng, &k)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         let (G, nu) = self
             .aux_info_public
@@ -927,9 +928,9 @@ impl PresignKeyShareAndInfo {
 
         let r1_private = round_one::Private {
             k,
-            rho,
+            rho: SecretNonce::from_nonce(rho),
             gamma,
-            nu,
+            nu: SecretNonce::from_nonce(nu),
             G,
             K,
         };
@@ -947,8 +948,8 @@ impl PresignKeyShareAndInfo {
         sender_r1_priv: &round_one::Private,
         receiver_r1_pub_broadcast: &round_one::PublicBroadcast,
     ) -> Result<(round_two::Private, round_two::Public)> {
-        let beta = random_plusminus_by_size(rng, ELL_PRIME);
-        let beta_hat = random_plusminus_by_size(rng, ELL_PRIME);
+        let beta = SecretBigNumber::random_plusminus_by_size(rng, ELL_PRIME);
+        let beta_hat = SecretBigNumber::random_plusminus_by_size(rng, ELL_PRIME);
 
         // Note: The implementation specifies that we should encrypt the negative betas
         // here (see Figure 7, Round 2, #2, first two bullets) and add them when
@@ -964,11 +965,11 @@ impl PresignKeyShareAndInfo {
         // (Round 2 vs Round 3).
         let (beta_ciphertext, s) = receiver_aux_info
             .pk()
-            .encrypt(rng, &beta)
+            .encrypt_secret(rng, &beta)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         let (beta_hat_ciphertext, s_hat) = receiver_aux_info
             .pk()
-            .encrypt(rng, &beta_hat)
+            .encrypt_secret(rng, &beta_hat)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
 
         let D = receiver_aux_info
@@ -990,12 +991,12 @@ impl PresignKeyShareAndInfo {
         let (F, r) = self
             .aux_info_public
             .pk()
-            .encrypt(rng, &beta)
+            .encrypt_secret(rng, &beta)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         let (F_hat, r_hat) = self
             .aux_info_public
             .pk()
-            .encrypt(rng, &beta_hat)
+            .encrypt_secret(rng, &beta_hat)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
 
         let g = CurvePoint::GENERATOR;
@@ -1003,7 +1004,7 @@ impl PresignKeyShareAndInfo {
 
         // Generate the proofs.
         let mut transcript = Transcript::new(b"PiAffgProof");
-        let secret = PiAffgSecret::new(&sender_r1_priv.gamma, &beta, &s, &r);
+        let secret = PiAffgSecret::new(&sender_r1_priv.gamma, &beta.get_secret(), &s, &r);
         let psi = PiAffgProof::prove(
             PiAffgInput::new(
                 receiver_aux_info.params(),
@@ -1020,7 +1021,12 @@ impl PresignKeyShareAndInfo {
             rng,
         )?;
         let mut transcript = Transcript::new(b"PiAffgProof");
-        let secret = PiAffgSecret::new(self.keyshare_private.as_ref(), &beta_hat, &s_hat, &r_hat);
+        let secret = PiAffgSecret::new(
+            self.keyshare_private.as_ref(),
+            &beta_hat.get_secret(),
+            &s_hat,
+            &r_hat,
+        );
         let psi_hat = PiAffgProof::prove(
             PiAffgInput::new(
                 receiver_aux_info.params(),
@@ -1037,7 +1043,9 @@ impl PresignKeyShareAndInfo {
             rng,
         )?;
         let mut transcript = Transcript::new(b"PiLogProof");
-        let secret = ProverSecret::new(&sender_r1_priv.gamma, &sender_r1_priv.nu);
+
+        let secret =
+            ProverSecret::new(&sender_r1_priv.gamma, &sender_r1_priv.nu.get_nonce_secret());
         let psi_prime = PiLogProof::prove(
             CommonInput::new(
                 &sender_r1_priv.G,
@@ -1053,7 +1061,10 @@ impl PresignKeyShareAndInfo {
         )?;
 
         Ok((
-            round_two::Private { beta, beta_hat },
+            round_two::Private {
+                beta,
+                beta_hat: beta_hat,
+            },
             round_two::Public {
                 D,
                 D_hat,
@@ -1082,11 +1093,13 @@ impl PresignKeyShareAndInfo {
         let order = k256_order();
         let g = CurvePoint::GENERATOR;
 
-        let mut delta: BigNumber = sender_r1_priv.gamma.modmul(&sender_r1_priv.k, &order);
+        let mut delta: BigNumber = sender_r1_priv
+            .gamma
+            .modmul(sender_r1_priv.k.get_secret(), &order);
         let mut chi: BigNumber = self
             .keyshare_private
             .as_ref()
-            .modmul(&sender_r1_priv.k, &order);
+            .modmul(sender_r1_priv.k.get_secret(), &order);
         let mut Gamma = g.multiply_by_bignum(&sender_r1_priv.gamma)?;
 
         for round_three_input in other_participant_inputs.values() {
@@ -1120,12 +1133,15 @@ impl PresignKeyShareAndInfo {
             // in round two we did _not_ encrypt the negation of these as
             // specified in the protocol. See comment in `round_two` for the
             // reasoning.
-            delta = delta.modadd(&alpha.modsub(&r2_priv_j.beta, &order), &order);
-            chi = chi.modadd(&alpha_hat.modsub(&r2_priv_j.beta_hat, &order), &order);
+            delta = delta.modadd(&alpha.modsub(r2_priv_j.beta.get_secret(), &order), &order);
+            chi = chi.modadd(
+                &alpha_hat.modsub(r2_priv_j.beta_hat.get_secret(), &order),
+                &order,
+            );
             Gamma = Gamma + r2_pub_j.Gamma;
         }
 
-        let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k)?;
+        let Delta = Gamma.multiply_by_bignum(sender_r1_priv.k.get_secret())?;
 
         let delta_scalar = bn_to_scalar(&delta)?;
         let chi_scalar = bn_to_scalar(&chi)?;
@@ -1141,7 +1157,10 @@ impl PresignKeyShareAndInfo {
                     self.aux_info_public.pk(),
                     &Gamma,
                 ),
-                ProverSecret::new(&sender_r1_priv.k, &sender_r1_priv.rho),
+                ProverSecret::new(
+                    &sender_r1_priv.k.get_secret(),
+                    &sender_r1_priv.rho.get_nonce_secret(),
+                ),
                 context,
                 &mut transcript,
                 rng,

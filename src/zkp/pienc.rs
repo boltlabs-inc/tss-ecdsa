@@ -30,6 +30,7 @@ use crate::{
     paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce},
     parameters::{ELL, EPSILON},
     ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
+    secret_types::SecretBigNumber,
     utils::{plusminus_challenge_from_transcript, random_plusminus_by_size},
     zkp::{Proof, ProofContext},
 };
@@ -101,7 +102,7 @@ impl<'a> PiEncInput<'a> {
 /// implement Clone and Copy for this type.
 #[derive(Copy, Clone)]
 pub(crate) struct PiEncSecret<'a> {
-    plaintext: &'a BigNumber,
+    plaintext: &'a SecretBigNumber,
     nonce: &'a Nonce,
 }
 
@@ -119,7 +120,7 @@ impl<'a> PiEncSecret<'a> {
     ///
     /// The `(plaintext, nonce)` tuple here corresponds to the values `(k, rho)`
     /// in the paper.
-    pub(crate) fn new(plaintext: &'a BigNumber, nonce: &'a Nonce) -> PiEncSecret<'a> {
+    pub(crate) fn new(plaintext: &'a SecretBigNumber, nonce: &'a Nonce) -> PiEncSecret<'a> {
         Self { plaintext, nonce }
     }
 }
@@ -127,6 +128,7 @@ impl<'a> PiEncSecret<'a> {
 impl Proof for PiEncProof {
     type CommonInput<'a> = PiEncInput<'a>;
     type ProverSecret<'b> = PiEncSecret<'b>;
+
     #[cfg_attr(feature = "flame_it", flame("PiEncProof"))]
     fn prove<R: RngCore + CryptoRng>(
         input: Self::CommonInput<'_>,
@@ -139,10 +141,11 @@ impl Proof for PiEncProof {
         let plaintext_mask = random_plusminus_by_size(rng, ELL + EPSILON);
 
         // Commit to the plaintext (aka `S`)
-        let (plaintext_commit, mu) = input
-            .setup_params
-            .scheme()
-            .commit(secret.plaintext, ELL, rng);
+        let (plaintext_commit, mu) =
+            input
+                .setup_params
+                .scheme()
+                .commit(secret.plaintext.get_secret(), ELL, rng);
         // Encrypt the mask for the plaintext (aka `A, r`)
         let (ciphertext_mask, nonce_mask) = input
             .encryption_key
@@ -170,7 +173,7 @@ impl Proof for PiEncProof {
 
         // Form proof responses. Each combines one secret value with its mask and the
         // challenge (aka `z1`, `z2`, `z3` respectively)
-        let plaintext_response = &plaintext_mask + &challenge * secret.plaintext;
+        let plaintext_response = &plaintext_mask + &challenge * secret.plaintext.get_secret();
         let nonce_response = input
             .encryption_key
             .mask(secret.nonce, &nonce_mask, &challenge);
@@ -294,10 +297,7 @@ mod tests {
     use super::*;
     use crate::{
         paillier::DecryptionKey,
-        utils::{
-            k256_order, random_plusminus, random_plusminus_by_size_with_minimum,
-            random_positive_bn, testing::init_testing,
-        },
+        utils::{k256_order, random_plusminus, random_positive_bn, testing::init_testing},
         zkp::BadContext,
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -314,13 +314,13 @@ mod tests {
     /// `test_code` closure.
     fn with_random_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
-        plaintext: BigNumber,
+        plaintext: SecretBigNumber,
         mut test_code: impl FnMut(PiEncProof, PiEncInput) -> Result<()>,
     ) -> Result<()> {
         let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
         let encryption_key = decryption_key.encryption_key();
 
-        let (ciphertext, nonce) = encryption_key.encrypt(rng, &plaintext).unwrap();
+        let (ciphertext, nonce) = encryption_key.encrypt_secret(rng, &plaintext).unwrap();
         let setup_params = VerifiedRingPedersen::gen(rng, &())?;
 
         let input = PiEncInput::new(&setup_params, &encryption_key, &ciphertext);
@@ -338,7 +338,7 @@ mod tests {
     fn pienc_proof_context_must_be_correct() -> Result<()> {
         let mut rng = init_testing();
 
-        let plaintext = random_plusminus_by_size(&mut rng, ELL);
+        let plaintext = SecretBigNumber::random_plusminus_by_size(&mut rng, ELL);
 
         let f: ProofTest = |proof, input| {
             let context = BadContext {};
@@ -354,7 +354,7 @@ mod tests {
     #[test]
     fn proof_serializes_correctly() -> Result<()> {
         let mut rng = init_testing();
-        let plaintext = random_plusminus_by_size(&mut rng, ELL);
+        let plaintext = SecretBigNumber::random_plusminus_by_size(&mut rng, ELL);
 
         let f: ProofTest = |proof, input| {
             let proof_bytes = bincode::serialize(&proof).unwrap();
@@ -389,13 +389,16 @@ mod tests {
         };
 
         // A plaintext in the range 2^ELL should always succeed
-        let in_range = random_plusminus_by_size(&mut rng, ELL);
+        let in_range = SecretBigNumber::random_plusminus_by_size(&mut rng, ELL);
         with_random_proof(&mut rng, in_range, test_code_is_ok)?;
 
         // A plaintext in range for encryption but larger (absolute value) than 2^ELL
         // should fail
-        let too_large =
-            random_plusminus_by_size_with_minimum(&mut rng2, ELL + EPSILON + 1, ELL + EPSILON)?;
+        let too_large = SecretBigNumber::random_plusminus_by_size_with_minimum(
+            &mut rng2,
+            ELL + EPSILON + 1,
+            ELL + EPSILON,
+        )?;
 
         with_random_proof(&mut rng2, too_large.clone(), test_code_is_err)?;
 
@@ -409,13 +412,13 @@ mod tests {
         // sometimes, so they're hard to test.
 
         // The lower edge case works (2^ELL))
-        let lower_bound = BigNumber::one() << ELL;
+        let lower_bound = SecretBigNumber::from_value(&(BigNumber::one() << ELL));
         with_random_proof(&mut rng2, lower_bound.clone(), test_code_is_ok)?;
 
         with_random_proof(&mut rng2, -lower_bound, test_code_is_ok)?;
 
         // The higher edge case fails (2^ELL+EPSILON)
-        let upper_bound = BigNumber::one() << (ELL + EPSILON);
+        let upper_bound = SecretBigNumber::from_value(&(BigNumber::one() << (ELL + EPSILON)));
         with_random_proof(&mut rng2, upper_bound.clone(), test_code_is_err)?;
 
         with_random_proof(&mut rng2, -upper_bound, test_code_is_err)?;
@@ -425,7 +428,7 @@ mod tests {
     #[test]
     fn every_proof_field_matters() {
         let rng = &mut init_testing();
-        let plaintext = random_plusminus_by_size(rng, ELL);
+        let plaintext = SecretBigNumber::random_plusminus_by_size(rng, ELL);
         // `rng` will be borrowed. We make another rng to be captured by the closure.
         let rng2 = &mut StdRng::from_seed(rng.gen());
 
@@ -440,7 +443,7 @@ mod tests {
             // Bad plaintext commitment (same value, wrong commitment randomness) fails
             {
                 let mut bad_proof = proof.clone();
-                bad_proof.plaintext_commit = scheme.commit(&plaintext, ELL, rng2).0;
+                bad_proof.plaintext_commit = scheme.commit(plaintext.get_secret(), ELL, rng2).0;
                 assert_ne!(&bad_proof.plaintext_commit, &proof.plaintext_commit);
                 assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
             }
@@ -514,8 +517,8 @@ mod tests {
         let encryption_key = decryption_key.encryption_key();
 
         // Form secret input
-        let plaintext = random_plusminus_by_size(rng, ELL);
-        let (ciphertext, nonce) = encryption_key.encrypt(rng, &plaintext).unwrap();
+        let plaintext = SecretBigNumber::random_plusminus_by_size(rng, ELL);
+        let (ciphertext, nonce) = encryption_key.encrypt_secret(rng, &plaintext).unwrap();
         let setup_params = VerifiedRingPedersen::extract(&decryption_key, &(), rng)?;
 
         let input = PiEncInput::new(&setup_params, &encryption_key, &ciphertext);
@@ -531,7 +534,7 @@ mod tests {
         assert!(proof.verify(input, &(), &mut transcript()).is_ok());
 
         // Forming with the wrong plaintext fails
-        let wrong_plaintext = random_plusminus_by_size(rng, ELL);
+        let wrong_plaintext = SecretBigNumber::random_plusminus_by_size(rng, ELL);
         assert_ne!(wrong_plaintext, plaintext);
         let proof = PiEncProof::prove(
             input,
@@ -543,7 +546,7 @@ mod tests {
         assert!(proof.verify(input, &(), &mut transcript()).is_err());
 
         // Forming with the wrong nonce fails
-        let (_, wrong_nonce) = encryption_key.encrypt(rng, &plaintext).unwrap();
+        let (_, wrong_nonce) = encryption_key.encrypt_secret(rng, &plaintext).unwrap();
         assert_ne!(wrong_nonce, nonce);
         let proof = PiEncProof::prove(
             input,
@@ -563,7 +566,7 @@ mod tests {
         let mut rng = init_testing();
         // `rng` will be borrowed. We make another rng to be captured by the closure.
         let rng2 = &mut StdRng::from_seed(rng.gen());
-        let plaintext = random_plusminus_by_size(&mut rng, ELL);
+        let plaintext = SecretBigNumber::random_plusminus_by_size(&mut rng, ELL);
 
         let verify_tests = |proof: PiEncProof, input: PiEncInput| {
             // Verification works on the original input
@@ -589,7 +592,10 @@ mod tests {
                 .is_err());
 
             // Verification fails with the wrong ciphertext
-            let (bad_ciphertext, _) = input.encryption_key.encrypt(rng2, &plaintext).unwrap();
+            let (bad_ciphertext, _) = input
+                .encryption_key
+                .encrypt_secret(rng2, &plaintext)
+                .unwrap();
             let new_input =
                 PiEncInput::new(input.setup_params, input.encryption_key, &bad_ciphertext);
             assert!(proof

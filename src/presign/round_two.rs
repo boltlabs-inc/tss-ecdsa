@@ -13,6 +13,7 @@ use crate::{
     messages::{Message, MessageType, PresignMessageType},
     paillier::Ciphertext,
     presign::round_one::{Private as RoundOnePrivate, PublicBroadcast as RoundOnePublicBroadcast},
+    secret_types::SecretBigNumber,
     utils::CurvePoint,
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof},
@@ -20,16 +21,14 @@ use crate::{
         Proof, ProofContext,
     },
 };
-use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use zeroize::ZeroizeOnDrop;
 
-#[derive(Clone, ZeroizeOnDrop)]
+#[derive(Clone)]
 pub(crate) struct Private {
-    pub beta: BigNumber,
-    pub beta_hat: BigNumber,
+    pub beta: SecretBigNumber,
+    pub beta_hat: SecretBigNumber,
 }
 
 impl Debug for Private {

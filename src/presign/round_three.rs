@@ -14,6 +14,7 @@ use crate::{
         round_one::PublicBroadcast as RoundOnePublicBroadcast,
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
     },
+    secret_types::SecretBigNumber,
     utils::CurvePoint,
     zkp::{
         pilog::{CommonInput, PiLogProof},
@@ -21,22 +22,23 @@ use crate::{
     },
 };
 use k256::{elliptic_curve::PrimeField, Scalar};
-use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
-use zeroize::ZeroizeOnDrop;
 
-#[derive(Clone, ZeroizeOnDrop)]
+/// Note: This type does not implement [`ZeroizeOnDrop`] but all
+/// secret constituent fields do.
+#[derive(Clone)]
 pub(crate) struct Private {
-    pub k: BigNumber,
+    pub k: SecretBigNumber,
+    // TODO: This should be a secret scalar.
     pub chi: Scalar,
-    #[zeroize(skip)]
+    /// Gamma is not secret and does not need to be zeroized.
     pub Gamma: CurvePoint,
-    #[zeroize(skip)]
+    // TODO: This should be a secret scalar.
     pub delta: Scalar,
-    #[zeroize(skip)]
+    /// Delta is not secret and does not need to be zeroized.
     pub Delta: CurvePoint,
 }
 

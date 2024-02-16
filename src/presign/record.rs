@@ -97,7 +97,7 @@ impl TryFrom<RecordPair> for PresignRecord {
 
         Ok(PresignRecord {
             R,
-            k: bn_to_scalar(&private.k)?,
+            k: bn_to_scalar(private.k.get_secret())?,
             chi: private.chi,
         })
     }

@@ -7,6 +7,7 @@
 
 use crate::{
     parameters::PRIME_BITS,
+    secret_types::SecretBigNumber,
     utils::{modpow, random_bn_in_z_star, CRYPTOGRAPHIC_RETRY_MAX},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -125,6 +126,8 @@ impl EncryptionKey {
     /// the modulus defined by the [`EncryptionKey`]. The expected format
     /// for these is the range `[-N/2, N/2]`. Encryption will fail if `x` is
     /// outside this range.
+    ///
+    /// Note: TODO Replace this function with secret variant below.
     pub(crate) fn encrypt<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
@@ -135,6 +138,28 @@ impl EncryptionKey {
         let nonce =
             random_bn_in_z_star(rng, self.modulus()).map_err(|_| PaillierError::RetryFailed)?;
         let c = self.encrypt_with_nonce(x, &MaskedNonce(nonce.clone()))?;
+        Ok((c, Nonce(nonce)))
+    }
+
+    /// Encrypt plaintext `x` under the encryption key, returning the resulting
+    /// [`Ciphertext`] and [`Nonce`].
+    ///
+    /// The plaintext must be an element of the integers mod `N`, where `N` is
+    /// the modulus defined by the [`EncryptionKey`]. The expected format
+    /// for these is the range `[-N/2, N/2]`. Encryption will fail if `x` is
+    /// outside this range.
+    ///
+    /// Note: `x` should be considered secret data!
+    pub(crate) fn encrypt_secret<R: RngCore + CryptoRng>(
+        &self,
+        rng: &mut R,
+        x: &SecretBigNumber,
+    ) -> Result<(Ciphertext, Nonce)> {
+        // Note: the check that `x` is in the proper range happens in
+        // `encrypt_with_nonce`.
+        let nonce =
+            random_bn_in_z_star(rng, self.modulus()).map_err(|_| PaillierError::RetryFailed)?;
+        let c = self.encrypt_with_nonce(x.get_secret(), &MaskedNonce(nonce.clone()))?;
         Ok((c, Nonce(nonce)))
     }
 

@@ -112,6 +112,7 @@ impl<'a> ProverSecret<'a> {
 impl Proof for PiSchProof {
     type CommonInput<'a> = CommonInput<'a>;
     type ProverSecret<'a> = ProverSecret<'a>;
+
     #[cfg_attr(feature = "flame_it", flame("PiSchProof"))]
     fn prove<R: RngCore + CryptoRng>(
         input: Self::CommonInput<'_>,

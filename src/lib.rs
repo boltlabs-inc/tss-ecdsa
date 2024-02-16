@@ -233,3 +233,4 @@ use crate::presign::*;
 mod safe_primes_1024;
 #[cfg(test)]
 mod safe_primes_512;
+mod secret_types;

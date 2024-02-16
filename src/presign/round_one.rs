@@ -9,8 +9,9 @@
 use crate::{
     errors::{InternalError, Result},
     messages::{Message, MessageType, PresignMessageType},
-    paillier::{Ciphertext, EncryptionKey, Nonce},
+    paillier::{Ciphertext, EncryptionKey},
     ring_pedersen::VerifiedRingPedersen,
+    secret_types::{SecretBigNumber, SecretNonce},
     zkp::{
         pienc::{PiEncInput, PiEncProof},
         Proof, ProofContext,
@@ -20,18 +21,18 @@ use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use zeroize::ZeroizeOnDrop;
 
 /// Private data used in round one of the presign protocol.
-#[derive(ZeroizeOnDrop)]
+///
+/// Note: This type does not implement [`ZeroizeOnDrop`] but all
+/// secret constituent fields do.
 pub(crate) struct Private {
-    pub k: BigNumber,
-    pub rho: Nonce,
+    pub k: SecretBigNumber,
+    pub rho: SecretNonce,
+    /// TODO: Should gamma be zeroized?
     pub gamma: BigNumber,
-    pub nu: Nonce,
-    #[zeroize(skip)]
+    pub nu: SecretNonce,
     pub G: Ciphertext, // Technically can be public but is only one per party
-    #[zeroize(skip)]
     pub K: Ciphertext, // Technically can be public but is only one per party
 }
 
