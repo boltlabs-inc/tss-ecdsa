@@ -676,7 +676,7 @@ mod tests {
     ///
     /// Returns None if there are no messages for the selected participant.
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut Vec<AuxInfoParticipant>,
+        quorum: &mut [AuxInfoParticipant],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
     ) -> Option<(usize, ProcessOutcome<Output>)> {

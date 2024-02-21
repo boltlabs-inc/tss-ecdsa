@@ -642,7 +642,7 @@ mod tests {
 
     #[allow(clippy::type_complexity)]
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut Vec<KeygenParticipant>,
+        quorum: &mut [KeygenParticipant],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
     ) -> Option<(usize, ProcessOutcome<Output>)> {

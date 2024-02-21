@@ -891,12 +891,12 @@ mod tests {
 
         // Save the public key and key shares for later
         let public_key_shares = keygen_outputs
-            .get(&configs.get(0).unwrap().id())
+            .get(&configs.first().unwrap().id())
             .unwrap()
             .public_key_shares()
             .to_vec();
         let saved_public_key = keygen_outputs
-            .get(&configs.get(0).unwrap().id())
+            .get(&configs.first().unwrap().id())
             .unwrap()
             .public_key()?;
 

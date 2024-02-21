@@ -15,7 +15,7 @@ This project relies on the `libpaillier` Rust crate using the GMP backend. GMP s
 
 ### Rust Dependencies and Versions
 
-The minimum supported stable Rust version is 1.72; the library has been tested up to 1.73.
+This library currently works with Rust compiler 1.76.
 
 This library has been tested with GMP version 6.2.1.
 

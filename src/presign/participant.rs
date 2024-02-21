@@ -468,7 +468,7 @@ impl PresignParticipant {
             );
             return Err(InternalError::ProtocolError(None));
         }
-        match retrieved_messages.get(0) {
+        match retrieved_messages.first() {
             Some(message) => self.handle_round_one_msg(rng, message),
             None => Ok(ProcessOutcome::Incomplete),
         }
@@ -1209,7 +1209,7 @@ mod test {
 
     #[allow(clippy::type_complexity)]
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut Vec<PresignParticipant>,
+        quorum: &mut [PresignParticipant],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
     ) -> Option<(usize, ProcessOutcome<PresignRecord>)> {
