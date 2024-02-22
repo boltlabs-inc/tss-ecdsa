@@ -602,8 +602,9 @@ mod tests {
         utils::testing::init_testing,
         PresignParticipant,
     };
-    use k256::ecdsa::signature::Verifier;
+    use k256::ecdsa::signature::DigestVerifier;
     use rand::seq::IteratorRandom;
+    use sha3::{Digest, Keccak256};
     use std::collections::HashMap;
     use tracing::debug;
 
@@ -994,7 +995,10 @@ mod tests {
 
         // ...and the signature should be valid under the public key we saved
         assert!(saved_public_key
-            .verify(message, sign_outputs[0].as_ref())
+            .verify_digest(
+                Keccak256::new_with_prefix(message),
+                sign_outputs[0].as_ref()
+            )
             .is_ok());
 
         #[cfg(feature = "flame_it")]
@@ -1179,7 +1183,10 @@ mod tests {
 
         // ...and the signature should be valid under the public key we saved
         assert!(saved_public_key
-            .verify(message, sign_outputs[0].as_ref())
+            .verify_digest(
+                Keccak256::new_with_prefix(message),
+                sign_outputs[0].as_ref()
+            )
             .is_ok());
 
         Ok(())

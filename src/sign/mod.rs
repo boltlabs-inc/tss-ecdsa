@@ -52,13 +52,15 @@ impl Signature {
     ///
     /// The correct message and public key corresponding to this signature must
     /// be used for this to succeed.
-    pub fn recovery_id(
+    ///
+    /// TODO: Hash.
+    pub fn trial_recovery_from_prehash(
         &self,
-        message: &[u8],
+        prehash: &[u8],
         public_key: &k256::ecdsa::VerifyingKey,
     ) -> Result<k256::ecdsa::RecoveryId> {
         let recover_id =
-            k256::ecdsa::RecoveryId::trial_recovery_from_msg(public_key, message, &self.0)
+            k256::ecdsa::RecoveryId::trial_recovery_from_prehash(public_key, prehash, &self.0)
                 .map_err(|e| {
                     error!("Failed to compute recovery ID for signature. Reason: {e:?}");
                     CallerError::SignatureTrialRecoveryFailed

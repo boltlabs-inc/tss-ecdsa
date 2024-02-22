@@ -5,8 +5,9 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use generic_array::{typenum::U32, GenericArray};
 use rand::{CryptoRng, RngCore};
-use sha2::{Digest, Sha256};
+use sha3::{Digest, Keccak256};
 use tracing::{error, info};
 
 use crate::{
@@ -74,7 +75,7 @@ enum SigningMaterial {
     /// When we create the `signer`, we'll need to pass this input, plus the
     /// output of `presign`.
     PartialInput {
-        digest: Sha256,
+        hashed_message: GenericArray<u8, U32>,
         public_keys: Vec<KeySharePublic>,
     },
     Signer {
@@ -83,9 +84,9 @@ enum SigningMaterial {
 }
 
 impl SigningMaterial {
-    fn new_partial_input(digest: Sha256, public_keys: Vec<KeySharePublic>) -> Self {
+    fn new_partial_input(digest: Keccak256, public_keys: Vec<KeySharePublic>) -> Self {
         Self::PartialInput {
-            digest,
+            hashed_message: digest.finalize(),
             public_keys,
         }
     }
@@ -106,10 +107,11 @@ impl SigningMaterial {
 
         match signing_material {
             SigningMaterial::PartialInput {
-                digest,
+                hashed_message,
                 public_keys,
             } => {
-                let signing_input = sign::Input::new_from_digest(digest, record, public_keys);
+                let signing_input =
+                    sign::Input::new_from_prehashed(hashed_message, record, public_keys);
                 // Note: this shouldn't throw an error because the only failure case should have
                 // also been checked by the presign constructor, and computation
                 // halted far before we reach this point.
@@ -141,7 +143,7 @@ impl SigningMaterial {
 /// Input for the interactive signing protocol.
 #[derive(Debug)]
 pub struct Input {
-    message_digest: Sha256,
+    message_digest: Keccak256,
     presign_input: presign::Input,
 }
 
@@ -163,8 +165,7 @@ impl Input {
         auxinfo_output: auxinfo::Output,
     ) -> Result<Self> {
         let presign_input = presign::Input::new(auxinfo_output, keygen_output)?;
-        let message_digest = Sha256::new().chain_update(message);
-
+        let message_digest = sha3::Keccak256::new_with_prefix(message);
         Ok(Self {
             message_digest,
             presign_input,
@@ -339,12 +340,9 @@ impl InteractiveSignParticipant {
 mod tests {
     use std::collections::HashMap;
 
-    use k256::ecdsa::{
-        signature::{DigestVerifier, Verifier},
-        VerifyingKey,
-    };
+    use k256::ecdsa::{signature::DigestVerifier, VerifyingKey};
     use rand::{rngs::StdRng, Rng};
-    use sha2::{Digest, Sha256};
+    use sha3::{Digest, Keccak256};
     use tracing::debug;
 
     use crate::{
@@ -412,6 +410,7 @@ mod tests {
         let auxinfo_outputs = auxinfo::Output::simulate_set(&configs, rng);
 
         let message = b"in an old house in paris all covered in vines lived 12 little girls";
+        let digest = Keccak256::new_with_prefix(message);
 
         // Save the public key for later
         let public_key = &keygen_outputs[0].public_key().unwrap();
@@ -483,23 +482,20 @@ mod tests {
         let distributed_sig = &signatures[0];
 
         // Verify that we have a valid signature under the public key for the `message`
-        assert!(public_key.verify(message, distributed_sig.as_ref()).is_ok());
         assert!(public_key
-            .verify_digest(
-                Sha256::new().chain_update(message),
-                distributed_sig.as_ref()
-            )
+            .verify_digest(digest.clone(), distributed_sig.as_ref())
             .is_ok());
 
         // Check we are able to create a recoverable signature.
         let recovery_id = distributed_sig
-            .recovery_id(message, public_key)
+            .trial_recovery_from_prehash(&digest.clone().finalize(), public_key)
             .expect("Recovery ID failed");
 
         // Re-derive the public key from the recoverable ID and ensure it matches the
         // original public key.
         let recovered_pk =
-            VerifyingKey::recover_from_msg(message, distributed_sig.as_ref(), recovery_id).unwrap();
+            VerifyingKey::recover_from_digest(digest, distributed_sig.as_ref(), recovery_id)
+                .unwrap();
 
         assert_eq!(
             recovered_pk, *public_key,
