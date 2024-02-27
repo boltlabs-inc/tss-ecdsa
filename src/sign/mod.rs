@@ -29,6 +29,7 @@ use crate::errors::{CallerError, InternalError, Result};
 
 pub use interactive_sign::participant::{Input as InteractiveInput, InteractiveSignParticipant};
 pub use non_interactive_sign::participant::{Input, SignParticipant};
+use sha3::{Digest, Keccak256};
 
 /// ECDSA signature on a message.
 ///
@@ -52,13 +53,16 @@ impl Signature {
     ///
     /// The correct message and public key corresponding to this signature must
     /// be used for this to succeed.
+    ///
+    /// **Note:** The message will be hashed with `keccak256`.
     pub fn recovery_id(
         &self,
         message: &[u8],
         public_key: &k256::ecdsa::VerifyingKey,
     ) -> Result<k256::ecdsa::RecoveryId> {
+        let digest = Keccak256::new_with_prefix(message);
         let recover_id =
-            k256::ecdsa::RecoveryId::trial_recovery_from_msg(public_key, message, &self.0)
+            k256::ecdsa::RecoveryId::trial_recovery_from_digest(public_key, digest, &self.0)
                 .map_err(|e| {
                     error!("Failed to compute recovery ID for signature. Reason: {e:?}");
                     CallerError::SignatureTrialRecoveryFailed

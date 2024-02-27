@@ -14,7 +14,7 @@ use k256::{
     Scalar, U256,
 };
 use rand::{CryptoRng, RngCore};
-use sha2::{Digest, Sha256};
+use sha3::{Digest, Keccak256};
 use tracing::{error, info};
 use zeroize::Zeroize;
 
@@ -76,7 +76,7 @@ pub struct SignParticipant {
 /// Input for the non-interactive signing protocol.
 #[derive(Debug)]
 pub struct Input {
-    message_digest: Sha256,
+    digest: Keccak256,
     presign_record: PresignRecord,
     public_key_shares: Vec<KeySharePublic>,
 }
@@ -92,7 +92,7 @@ impl Input {
         public_key_shares: Vec<KeySharePublic>,
     ) -> Self {
         Self {
-            message_digest: Sha256::new().chain_update(message),
+            digest: Keccak256::new_with_prefix(message),
             presign_record: record,
             public_key_shares,
         }
@@ -103,12 +103,12 @@ impl Input {
     /// This exists so that interactive signing can hash the message as soon as
     /// they receive it, rather that waiting until presigning completes.
     pub(crate) fn new_from_digest(
-        message_digest: Sha256,
+        digest: Keccak256,
         record: PresignRecord,
         public_key_shares: Vec<KeySharePublic>,
     ) -> Self {
         Self {
-            message_digest,
+            digest,
             presign_record: record,
             public_key_shares,
         }
@@ -119,10 +119,10 @@ impl Input {
         &self.presign_record
     }
 
-    /// Compute the digest. Note that this forces a clone of the `Sha256`
+    /// Compute the digest. Note that this forces a clone of the [`Keccak256`]
     /// object.
-    pub(crate) fn digest(&self) -> GenericArray<u8, U32> {
-        self.message_digest.clone().finalize()
+    pub(crate) fn digest_hash(&self) -> GenericArray<u8, U32> {
+        self.digest.clone().finalize()
     }
 
     pub(crate) fn public_key(&self) -> Result<k256::ecdsa::VerifyingKey> {
@@ -165,7 +165,7 @@ impl SignContext {
     pub(crate) fn collect(p: &SignParticipant) -> Self {
         Self {
             shared_context: SharedContext::collect(p),
-            message_digest: p.input.digest().into(),
+            message_digest: p.input.digest_hash().into(),
         }
     }
 }
@@ -339,7 +339,7 @@ impl SignParticipant {
 
         // Interpret the message digest as an integer mod `q`. This matches the way that
         // the k256 library converts a digest to a scalar.
-        let digest = <Scalar as Reduce<U256>>::reduce_bytes(&self.input.digest());
+        let digest = <Scalar as Reduce<U256>>::reduce_bytes(&self.input.digest_hash());
 
         // Compute the x-projection of `R` from the `PresignRecord`
         let x_projection = record.x_projection()?;
@@ -414,7 +414,7 @@ impl SignParticipant {
         // Verify signature
         self.input
             .public_key()?
-            .verify_digest(self.input.message_digest.clone(), signature.as_ref())
+            .verify_digest(self.input.digest.clone(), signature.as_ref())
             .map_err(|e| {
                 error!("Failed to verify signature {:?}", e);
                 InternalError::ProtocolError(None)
@@ -431,15 +431,12 @@ mod test {
     use std::collections::HashMap;
 
     use k256::{
-        ecdsa::{
-            signature::{DigestVerifier, Verifier},
-            VerifyingKey,
-        },
+        ecdsa::{signature::DigestVerifier, VerifyingKey},
         elliptic_curve::{ops::Reduce, scalar::IsHigh, subtle::ConditionallySelectable},
         Scalar, U256,
     };
     use rand::{CryptoRng, Rng, RngCore};
-    use sha2::{Digest, Sha256};
+    use sha3::{Digest, Keccak256};
     use tracing::debug;
 
     use crate::{
@@ -511,7 +508,7 @@ mod test {
 
         let r = records[0].x_projection().unwrap();
 
-        let m = <Scalar as Reduce<U256>>::reduce_bytes(&Sha256::digest(message));
+        let m = <Scalar as Reduce<U256>>::reduce_bytes(&Keccak256::digest(message));
 
         let mut s = k * (m + r * secret_key);
         s.conditional_assign(&s.negate(), s.is_high());
@@ -521,9 +518,8 @@ mod test {
         // These checks fail when the overall thing fails
         let public_key = keygen_outputs[0].public_key().unwrap();
 
-        assert!(public_key.verify(message, &signature).is_ok());
         assert!(public_key
-            .verify_digest(Sha256::new().chain_update(message), &signature)
+            .verify_digest(Keccak256::new_with_prefix(message), &signature)
             .is_ok());
         signature
     }
@@ -541,6 +537,7 @@ mod test {
         let presign_records = PresignRecord::simulate_set(&keygen_outputs, rng);
 
         let message = b"the quick brown fox jumped over the lazy dog";
+        let digest = Keccak256::new_with_prefix(message);
 
         // Save some things for later -- a signature constructucted from the records and
         // the public key
@@ -622,12 +619,8 @@ mod test {
         assert_eq!(distributed_sig.as_ref(), &non_distributed_sig);
 
         // Verify that we have a valid signature under the public key for the `message`
-        assert!(public_key.verify(message, distributed_sig.as_ref()).is_ok());
         assert!(public_key
-            .verify_digest(
-                Sha256::new().chain_update(message),
-                distributed_sig.as_ref()
-            )
+            .verify_digest(digest.clone(), distributed_sig.as_ref())
             .is_ok());
 
         // Check we are able to create a recoverable signature.
@@ -638,7 +631,8 @@ mod test {
         // Re-derive the public key from the recoverable ID and ensure it matches the
         // original public key.
         let recovered_pk =
-            VerifyingKey::recover_from_msg(message, distributed_sig.as_ref(), recovery_id).unwrap();
+            VerifyingKey::recover_from_digest(digest, distributed_sig.as_ref(), recovery_id)
+                .unwrap();
 
         assert_eq!(
             recovered_pk, *public_key,

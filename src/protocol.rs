@@ -602,8 +602,9 @@ mod tests {
         utils::testing::init_testing,
         PresignParticipant,
     };
-    use k256::ecdsa::signature::Verifier;
+    use k256::ecdsa::signature::DigestVerifier;
     use rand::seq::IteratorRandom;
+    use sha3::{Digest, Keccak256};
     use std::collections::HashMap;
     use tracing::debug;
 
@@ -954,6 +955,7 @@ mod tests {
 
         // Set the message and SID
         let message = b"Testing full protocol execution with non-interactive signing protocol";
+        let digest = Keccak256::new_with_prefix(message);
         let sign_sid = Identifier::random(&mut rng);
 
         // Make signing participants
@@ -994,7 +996,7 @@ mod tests {
 
         // ...and the signature should be valid under the public key we saved
         assert!(saved_public_key
-            .verify(message, sign_outputs[0].as_ref())
+            .verify_digest(digest, sign_outputs[0].as_ref())
             .is_ok());
 
         #[cfg(feature = "flame_it")]
@@ -1116,6 +1118,8 @@ mod tests {
 
         // Prepare inputs for sign
         let message = b"Signing a message to test full protocol execution with interactive sign";
+        let digest = Keccak256::new_with_prefix(message);
+
         let sign_inputs = configs
             .iter()
             .map(|config| {
@@ -1179,7 +1183,7 @@ mod tests {
 
         // ...and the signature should be valid under the public key we saved
         assert!(saved_public_key
-            .verify(message, sign_outputs[0].as_ref())
+            .verify_digest(digest, sign_outputs[0].as_ref())
             .is_ok());
 
         Ok(())
