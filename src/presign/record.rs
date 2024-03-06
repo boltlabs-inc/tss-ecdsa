@@ -51,7 +51,7 @@ pub(crate) struct RecordPair {
 /// d_A)`, which is exactly a valid (normal) ECDSA signature.
 ///
 /// [^cite]: [Wikipedia](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm#Signature_generation_algorithm)
-#[derive(Zeroize, ZeroizeOnDrop, PartialEq, Eq)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop, PartialEq, Eq)]
 pub struct PresignRecord {
     R: CurvePoint,
     k: Scalar,
@@ -113,6 +113,7 @@ impl PresignRecord {
     pub(crate) fn masked_key_share(&self) -> &Scalar {
         &self.chi
     }
+
     /// Compute the x-projection of the randomly-selected point `R` from the
     /// [`PresignRecord`].
     pub(crate) fn x_projection(&self) -> Result<Scalar> {

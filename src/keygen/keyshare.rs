@@ -25,7 +25,7 @@ const KEYSHARE_TAG: &[u8] = b"KeySharePrivate";
 ///
 /// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
-#[derive(Clone, ZeroizeOnDrop, PartialEq, Eq)]
+#[derive(Clone, ZeroizeOnDrop, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeySharePrivate {
     x: BigNumber, // in the range [1, q)
 }

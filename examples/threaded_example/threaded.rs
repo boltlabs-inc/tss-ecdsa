@@ -411,7 +411,25 @@ impl Worker {
     fn new_auxinfo(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
         // Note: Missing inputs to aux-info see issues
         // #242 and #243.
-        let _output: &Output = self.key_gen_material.retrieve(&key_id);
+        let output: Output = self.key_gen_material.retrieve(&key_id).clone();
+
+        let (public_key_shares, private_key_share, rid) = output.into_parts();
+
+        let serialized_pks = bincode::serialize(&public_key_shares)?;
+        println!(
+            "Key Generation | Public Key Shares: {} bytes",
+            serialized_pks.len()
+        );
+
+        let serialized_private = bincode::serialize(&private_key_share)?;
+        println!(
+            "Key Generation | Private Key Share: {} bytes",
+            serialized_private.len()
+        );
+
+        let serialized_rid = bincode::serialize(&rid)?;
+        println!("Key Generation | RID: {} bytes", serialized_rid.len());
+
         self.new_sub_protocol::<AuxInfoParticipant>(sid, (), key_id)
     }
 
@@ -419,15 +437,37 @@ impl Worker {
         let key_shares = self.key_gen_material.retrieve(&key_id);
         let auxinfo_output = self.aux_info.retrieve(&key_id);
 
+        let (aux_info_publics, aux_info_private) = auxinfo_output.clone().into_parts();
+
+        let serialized_publics = bincode::serialize(&aux_info_publics)?;
+        println!(
+            "Aux Info | Serialized Public Aux Info: {} bytes",
+            serialized_publics.len()
+        );
+
+        println!(
+            "Aux Info | Serialized Private Aux Info: {} bytes",
+            aux_info_private.into_bytes().len()
+        );
+
         let inputs = presign::Input::new(auxinfo_output.clone(), key_shares.clone())?;
         self.new_sub_protocol::<PresignParticipant>(sid, inputs, key_id)
     }
 
     fn new_sign(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
-        let key_shares = self.key_gen_material.retrieve(&key_id).public_key_shares();
+        let key_share_output = self.key_gen_material.retrieve(&key_id);
         let record = self.presign_records.take(&key_id);
 
-        let inputs = sign::Input::new(b"hello world", record, key_shares.to_vec());
+        println!(
+            "Presign Record | Record: {} bytes",
+            record.clone().into_bytes().len()
+        );
+
+        let inputs = sign::Input::new(
+            b"hello world",
+            record,
+            key_share_output.public_key_shares().to_vec(),
+        );
         self.new_sub_protocol::<SignParticipant>(sid, inputs, key_id)
     }
 }

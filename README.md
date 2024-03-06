@@ -1,5 +1,8 @@
 # tss-ecdsa
 
+NOTE: This branch implements additional code to print out the serialized sizes of the tss-ecdsa sub-protocol outputs.
+Command to execute: `cargo run --example threaded_example -- --number-of-workers 3 --protocol-executions 1`
+
 This repo is a work-in-progress implementation of Canetti et al.'s threshold ECDSA protocol described in
 
 [CGGMP20] R. Canetti, R. Gennaro, S. Goldfeder, N. Makriyannis, and U. Peled. UC non-interactive, proactive,  threshold ECDSA with identifiable aborts. In  ACM CCS 2020, pp. 1769–1787. ACM Press, 2020.
