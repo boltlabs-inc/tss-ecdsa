@@ -30,6 +30,8 @@ pub enum MessageType {
     Auxinfo(AuxinfoMessageType),
     /// Keygen messages
     Keygen(KeygenMessageType),
+    /// Keyrefresh messages
+    Keyrefresh(KeyrefreshMessageType),
     /// Presign messages
     Presign(PresignMessageType),
     /// Sign message
@@ -64,6 +66,21 @@ pub enum KeygenMessageType {
     /// A proof of knowledge of the discrete log of the value decommitted in
     /// Round 2
     R3Proof,
+}
+
+/// An enum consisting of all keyrefresh message types
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum KeyrefreshMessageType {
+    /// Signal to self that we're ready to run the protocol
+    Ready,
+    /// A hash commitment to the public keyshare and associated proofs
+    R1CommitHash,
+    /// The information committed to in Round 1
+    R2Decommit,
+    /// A proof of knowledge of the discrete log of the value decommitted in
+    /// Round 2
+    R3Proofs,
+    R3PrivateUpdate,
 }
 
 /// An enum consisting of all presign message types

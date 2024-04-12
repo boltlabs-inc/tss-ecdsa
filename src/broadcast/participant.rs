@@ -52,6 +52,7 @@ pub(crate) struct BroadcastParticipant {
 pub(crate) enum BroadcastTag {
     AuxinfoR1CommitHash,
     KeyGenR1CommitHash,
+    KeyRefreshR1CommitHash,
     PresignR1Ciphertexts,
 }
 

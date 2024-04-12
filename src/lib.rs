@@ -208,6 +208,7 @@ pub mod errors;
 pub mod auxinfo;
 mod broadcast;
 pub mod keygen;
+pub mod keyrefresh;
 mod local_storage;
 mod message_queue;
 pub mod messages;

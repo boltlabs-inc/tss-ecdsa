@@ -28,7 +28,7 @@
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 use crate::{
     errors::*,
-    messages::{KeygenMessageType, Message, MessageType},
+    messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType},
     utils::{self, k256_order, positive_challenge_from_transcript, random_positive_bn},
     zkp::{Proof, ProofContext},
 };
@@ -201,8 +201,40 @@ impl PiSchProof {
         };
         Ok(proof)
     }
+
+    /// Verify that the proof is valid and that it matches a precommitment.
+    pub fn verify_with_precommit(
+        self,
+        input: CommonInput,
+        context: &impl ProofContext,
+        transcript: &mut Transcript,
+        commitment: &CurvePoint,
+    ) -> Result<()> {
+        if commitment != &self.commitment {
+            return Err(InternalError::ProtocolError(None));
+        }
+        Self::verify(self, input, context, transcript)
+    }
+
+    // Deserialize multiple proofs from a single message.
+    pub(crate) fn from_message_multi(message: &Message) -> Result<Vec<Self>> {
+        message.check_type(MessageType::Keyrefresh(KeyrefreshMessageType::R3Proofs))?;
+
+        let pisch_proofs: Vec<PiSchProof> = deserialize!(&message.unverified_bytes)?;
+        for pisch_proof in &pisch_proofs {
+            if pisch_proof.challenge >= k256_order() {
+                return Err(InternalError::ProtocolError(None));
+            }
+            if pisch_proof.response >= k256_order() {
+                return Err(InternalError::ProtocolError(None));
+            }
+        }
+        Ok(pisch_proofs)
+    }
+
     pub(crate) fn from_message(message: &Message) -> Result<Self> {
         message.check_type(MessageType::Keygen(KeygenMessageType::R3Proof))?;
+
         let pisch_proof: PiSchProof = deserialize!(&message.unverified_bytes)?;
         if pisch_proof.challenge >= k256_order() {
             return Err(InternalError::ProtocolError(None));

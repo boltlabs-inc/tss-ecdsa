@@ -35,6 +35,7 @@ use tracing::{error, info, instrument, trace};
 #[derive(Debug)]
 pub enum ProtocolType {
     Keygen,
+    Keyrefresh,
     AuxInfo,
     Presign,
     Broadcast,
@@ -167,6 +168,7 @@ impl<P: ProtocolParticipant> Participant<P> {
         match (message.message_type(), P::protocol_type()) {
             (MessageType::Auxinfo(_), ProtocolType::AuxInfo)
             | (MessageType::Keygen(_), ProtocolType::Keygen)
+            | (MessageType::Keyrefresh(_), ProtocolType::Keyrefresh)
             | (MessageType::Presign(_), ProtocolType::Presign)
             | (MessageType::Sign(_), ProtocolType::Sign)
             // Interactive sign runs presign and sign in sequence, so we allow both message types
