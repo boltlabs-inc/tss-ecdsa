@@ -43,6 +43,13 @@ impl KeySharePrivate {
         KeySharePrivate { x: random_bn }
     }
 
+    /// Take a [`BigNumber`] as [`KeySharePrivate`].
+    pub(crate) fn from_bigint(mut x1: BigNumber) -> Self {
+        let x = x1.nmod(&k256_order());
+        x1.zeroize();
+        Self { x }
+    }
+
     /// Computes the "raw" curve point corresponding to this private key.
     pub(crate) fn public_share(&self) -> Result<CurvePoint> {
         CurvePoint::GENERATOR.multiply_by_bignum(&self.x)

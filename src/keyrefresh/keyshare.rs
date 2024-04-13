@@ -8,6 +8,7 @@
 
 use crate::{
     errors::{CallerError, InternalError, Result},
+    keygen::{KeySharePrivate, KeySharePublic},
     paillier::{Ciphertext, DecryptionKey, EncryptionKey},
     utils::{k256_order, CurvePoint, ParseBytes},
     ParticipantIdentifier,
@@ -95,6 +96,11 @@ impl KeyUpdatePrivate {
             .fold(BigNumber::zero(), |sum, o| sum + o.x.clone())
             .nmod(&k256_order());
         KeyUpdatePrivate { x: sum }
+    }
+
+    pub(crate) fn apply(self, current_sk: &KeySharePrivate) -> KeySharePrivate {
+        let sum = current_sk.as_ref() + &self.x;
+        KeySharePrivate::from_bigint(sum)
     }
 
     /// Computes the "raw" curve point corresponding to this private key.
@@ -230,6 +236,11 @@ impl KeyUpdatePublic {
             X: sum,
         }
     }
+
+    pub(crate) fn apply(&self, current_pk: &KeySharePublic) -> KeySharePublic {
+        let sum = *current_pk.as_ref() + self.X;
+        KeySharePublic::new(current_pk.participant(), sum)
+    }
 }
 
 impl AsRef<CurvePoint> for KeyUpdatePublic {
@@ -241,8 +252,9 @@ impl AsRef<CurvePoint> for KeyUpdatePublic {
 
 #[cfg(test)]
 mod tests {
+    use super::KeyUpdatePrivate;
     use crate::{
-        keyrefresh::{keyshare::KEYSHARE_TAG, KeyUpdatePrivate},
+        keyrefresh::keyshare::KEYSHARE_TAG,
         utils::{k256_order, testing::init_testing},
     };
 

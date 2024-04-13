@@ -14,7 +14,6 @@ use crate::{
     keyrefresh::{
         keyrefresh_commit::{KeyrefreshCommit, KeyrefreshDecommit},
         keyshare::{KeyUpdateEncrypted, KeyUpdatePrivate, KeyUpdatePublic},
-        output::Output,
     },
     local_storage::LocalStorage,
     messages::{KeyrefreshMessageType, Message, MessageType},
@@ -23,10 +22,7 @@ use crate::{
     },
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
-    zkp::{
-        pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
-        Proof,
-    },
+    zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
     Identifier,
 };
 
@@ -34,7 +30,7 @@ use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use tracing::{error, info, instrument, warn};
 
-use super::input::Input;
+use super::{input::Input, Output};
 
 mod storage {
     use super::*;
@@ -484,7 +480,7 @@ impl KeyrefreshParticipant {
             .local_storage
             .retrieve::<storage::Commit>(message.from())?;
         decom.verify(
-            message.id(),
+            message.id(), // Actually sid.
             message.from(),
             com,
             &self.all_participants(),
@@ -738,6 +734,21 @@ impl KeyrefreshParticipant {
             let all_public_updates =
                 Self::aggregate_public_updates(&self.all_participants(), &from_all_to_all_public);
 
+            // Apply the updates to everybody's public key shares.
+            let new_public_shares = self
+                .input
+                .public_key_shares()
+                .iter()
+                .map(|current_pk| {
+                    let pk_update = all_public_updates
+                        .iter()
+                        .find(|update| update.participant() == current_pk.participant())
+                        .ok_or(InternalError::InternalInvariantFailed)?;
+
+                    Ok(pk_update.apply(current_pk))
+                })
+                .collect::<Result<Vec<_>>>()?;
+
             // Compute the update to one's own private key share.
             let from_all_to_me_private = self
                 .all_participants()
@@ -749,7 +760,10 @@ impl KeyrefreshParticipant {
                 .collect::<Result<Vec<_>>>()?;
             let my_private_update = Self::aggregate_private_updates(&from_all_to_me_private);
 
-            let output = Output::from_parts(all_public_updates, my_private_update)?;
+            // Apply the update to my private key share.
+            let my_new_share = my_private_update.apply(self.input.private_key_share());
+
+            let output = Output::from_parts(new_public_shares, my_new_share, *self.input.rid())?;
             self.status = Status::TerminatedSuccessfully;
             Ok(ProcessOutcome::Terminated(output))
         } else {

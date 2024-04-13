@@ -111,6 +111,11 @@ impl Input {
             })
     }
 
+    /// Get the shared randomness generated during key generation.
+    pub(crate) fn rid(&self) -> &[u8; 32] {
+        self.keygen_output.rid()
+    }
+
     pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
         self.keygen_output.private_key_share()
     }

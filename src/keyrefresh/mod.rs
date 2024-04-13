@@ -7,12 +7,11 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+mod input;
 mod keyrefresh_commit;
 mod keyshare;
-mod input;
-mod output;
 mod participant;
 
-pub use keyshare::{KeyUpdatePrivate, KeyUpdatePublic};
-pub use output::Output;
 pub use participant::KeyrefreshParticipant;
+// Same output as KeyGen.
+pub use crate::keygen::Output;
