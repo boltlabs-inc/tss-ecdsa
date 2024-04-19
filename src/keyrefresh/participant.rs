@@ -23,7 +23,7 @@ use crate::{
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
     zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
-    Identifier,
+    Identifier, ParticipantConfig,
 };
 
 use merlin::Transcript;
@@ -134,6 +134,8 @@ impl ProtocolParticipant for KeyrefreshParticipant {
         other_participant_ids: Vec<ParticipantIdentifier>,
         input: Self::Input,
     ) -> Result<Self> {
+        input.check_participant_config(&ParticipantConfig::new(id, &other_participant_ids)?)?;
+
         Ok(Self {
             sid,
             input,
@@ -312,7 +314,7 @@ impl KeyrefreshParticipant {
         let decom = KeyrefreshDecommit::new(
             rng,
             &sid,
-            &self.id,
+            &self.id(),
             update_publics,
             sch_precoms
                 .iter()
@@ -322,30 +324,30 @@ impl KeyrefreshParticipant {
 
         // Store the beginning of our proofs so we can continue the proofs later.
         self.local_storage
-            .store::<storage::VecSchnorrPrecom>(self.id, sch_precoms);
+            .store::<storage::VecSchnorrPrecom>(self.id(), sch_precoms);
 
         // Mark our own public updates as verified.
         self.local_storage
-            .store::<storage::ValidPublicUpdates>(self.id, decom.update_publics.clone());
+            .store::<storage::ValidPublicUpdates>(self.id(), decom.update_publics.clone());
 
         // Store the private update from ourselves to ourselves.
         self.local_storage.store::<storage::ValidPrivateUpdate>(
-            self.id,
+            self.id(),
             update_privates[update_privates.len() - 1].clone(),
         );
 
         // Store the private updates from us to others so we can share them later.
         self.local_storage
-            .store::<storage::PrivateUpdatesForOthers>(self.id, update_privates);
+            .store::<storage::PrivateUpdatesForOthers>(self.id(), update_privates);
 
         // Mark our own commitment as ready. This corresponds to `V_i` in the paper.
         let com = decom.commit()?;
         let com_bytes = serialize!(&com)?;
-        self.local_storage.store::<storage::Commit>(self.id, com);
+        self.local_storage.store::<storage::Commit>(self.id(), com);
 
         // Store our committed values so we can open the commitment later.
         self.local_storage
-            .store::<storage::Decommit>(self.id, decom);
+            .store::<storage::Decommit>(self.id(), decom);
 
         let messages = self.broadcast(
             rng,
@@ -397,7 +399,7 @@ impl KeyrefreshParticipant {
         // type.
         let r1_done = self
             .local_storage
-            .contains_for_all_ids::<storage::Commit>(&self.other_participant_ids);
+            .contains_for_all_ids::<storage::Commit>(self.other_ids());
 
         if r1_done {
             // Finish round 1 by generating messages for round 2
@@ -438,12 +440,14 @@ impl KeyrefreshParticipant {
         // `PublicKeyshare` and `Decommit`). This check forces that behavior.
         // Without it we'll get a `InternalInvariantFailed` error when trying to
         // retrieve `Decommit` below.
-        if !self.local_storage.contains::<storage::Decommit>(self.id) {
+        if !self.local_storage.contains::<storage::Decommit>(self.id()) {
             let more_messages = run_only_once!(self.gen_round_one_msgs(rng, sid))?;
             messages.extend_from_slice(&more_messages);
         }
 
-        let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
+        let decom = self
+            .local_storage
+            .retrieve::<storage::Decommit>(self.id())?;
         let more_messages = self.message_for_other_participants(
             MessageType::Keyrefresh(KeyrefreshMessageType::R2Decommit),
             decom,
@@ -533,14 +537,13 @@ impl KeyrefreshParticipant {
     ) -> Result<Vec<Message>> {
         info!("Generating round three keyrefresh messages.");
 
-        // [TODO]: delete rid and global_rid logic here. Instead, use ssid.
         // Construct `global rid` out of each participant's `rid`s.
         let my_rid = self
             .local_storage
-            .retrieve::<storage::Decommit>(self.id)?
+            .retrieve::<storage::Decommit>(self.id())?
             .rid;
         let rids: Vec<[u8; 32]> = self
-            .other_participant_ids
+            .other_ids()
             .iter()
             .map(|&other_participant_id| {
                 let decom = self
@@ -550,29 +553,29 @@ impl KeyrefreshParticipant {
             })
             .collect::<Result<Vec<[u8; 32]>>>()?;
         let mut global_rid = my_rid;
-        // xor all the rids together. In principle, many different options for combining
-        // these should be okay
+        // xor all the rids together.
         for rid in rids.iter() {
             for i in 0..32 {
                 global_rid[i] ^= rid[i];
             }
         }
         self.local_storage
-            .store::<storage::GlobalRid>(self.id, global_rid);
-        // [/TODO]
+            .store::<storage::GlobalRid>(self.id(), global_rid);
 
-        let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
+        let decom = self
+            .local_storage
+            .retrieve::<storage::Decommit>(self.id())?;
 
-        let transcript = schnorr_proof_transcript(&global_rid)?;
+        let transcript = schnorr_proof_transcript(self.sid(), &global_rid, self.id())?;
 
         // Generate proofs for each update.
         let precoms = self
             .local_storage
-            .retrieve::<storage::VecSchnorrPrecom>(self.id)?;
+            .retrieve::<storage::VecSchnorrPrecom>(self.id())?;
 
         let private_updates = self
             .local_storage
-            .retrieve::<storage::PrivateUpdatesForOthers>(self.id)?;
+            .retrieve::<storage::PrivateUpdatesForOthers>(self.id())?;
 
         let mut proofs: Vec<PiSchProof> = vec![];
         for i in 0..precoms.len() {
@@ -640,12 +643,13 @@ impl KeyrefreshParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         info!("Handling round three keyrefresh message.");
 
-        if !self.local_storage.contains::<storage::GlobalRid>(self.id) {
+        if !self.local_storage.contains::<storage::GlobalRid>(self.id()) {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
-        // TODO: change to ssid.
-        let global_rid = *self.local_storage.retrieve::<storage::GlobalRid>(self.id)?;
+        let global_rid = *self
+            .local_storage
+            .retrieve::<storage::GlobalRid>(self.id())?;
 
         let proofs = PiSchProof::from_message_multi(message)?;
         let decom = self
@@ -663,7 +667,7 @@ impl KeyrefreshParticipant {
             .zip(decom.As.iter())
             .zip(decom.update_publics.iter())
         {
-            let mut transcript = schnorr_proof_transcript(&global_rid)?;
+            let mut transcript = schnorr_proof_transcript(self.sid(), &global_rid, message.from())?;
             proof.verify_with_precommit(
                 CommonInput::new(update_public),
                 &self.retrieve_context(),
@@ -763,7 +767,11 @@ impl KeyrefreshParticipant {
             // Apply the update to my private key share.
             let my_new_share = my_private_update.apply(self.input.private_key_share());
 
-            let output = Output::from_parts(new_public_shares, my_new_share, *self.input.rid())?;
+            // New rid generated along this key refresh.
+            let global_rid = self.local_storage.remove::<storage::GlobalRid>(self.id())?;
+
+            // Return the output and stop.
+            let output = Output::from_parts(new_public_shares, my_new_share, global_rid)?;
             self.status = Status::TerminatedSuccessfully;
             Ok(ProcessOutcome::Terminated(output))
         } else {
@@ -811,9 +819,15 @@ impl KeyrefreshParticipant {
 }
 
 /// Generate a [`Transcript`] for [`PiSchProof`].
-fn schnorr_proof_transcript(global_rid: &[u8; 32]) -> Result<Transcript> {
+fn schnorr_proof_transcript(
+    sid: Identifier,
+    global_rid: &[u8; 32],
+    sender_id: ParticipantIdentifier,
+) -> Result<Transcript> {
     let mut transcript = Transcript::new(b"keyrefresh schnorr");
+    transcript.append_message(b"sid", &serialize!(&sid)?);
     transcript.append_message(b"rid", &serialize!(global_rid)?);
+    transcript.append_message(b"sender_id", &serialize!(&sender_id)?);
     Ok(transcript)
 }
 
@@ -830,7 +844,10 @@ mod tests {
         Identifier, ParticipantConfig,
     };
     use rand::{CryptoRng, Rng, RngCore};
-    use std::{collections::HashMap, iter::zip};
+    use std::{
+        collections::{HashMap, HashSet},
+        iter::zip,
+    };
     use tracing::debug;
 
     impl KeyrefreshParticipant {
@@ -862,8 +879,8 @@ mod tests {
             Message::new(
                 MessageType::Keyrefresh(KeyrefreshMessageType::Ready),
                 keyrefresh_identifier,
-                self.id,
-                self.id,
+                self.id(),
+                self.id(),
                 &empty,
             )
         }
@@ -901,7 +918,7 @@ mod tests {
         let index = rng.gen_range(0..quorum.len());
         let participant = quorum.get_mut(index).unwrap();
 
-        let inbox = inboxes.get_mut(&participant.id).unwrap();
+        let inbox = inboxes.get_mut(&participant.id()).unwrap();
         if inbox.is_empty() {
             // No messages to process for this participant, so pick another participant
             return None;
@@ -909,7 +926,7 @@ mod tests {
         let message = inbox.remove(rng.gen_range(0..inbox.len()));
         debug!(
             "processing participant: {}, with message type: {:?} from {}",
-            &participant.id,
+            &participant.id(),
             &message.message_type(),
             &message.from(),
         );
@@ -918,34 +935,30 @@ mod tests {
 
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
-    // This test is cheap. Try a bunch of message permutations to decrease error
-    // likelihood
     fn keyrefresh_always_produces_valid_outputs() -> Result<()> {
-        for _ in 0..30 {
-            keyrefresh_produces_valid_outputs()?;
+        for size in 2..12 {
+            keyrefresh_produces_valid_outputs(size)?;
         }
         Ok(())
     }
 
-    #[test]
-    fn keyrefresh_produces_valid_outputs() -> Result<()> {
-        let QUORUM_SIZE = 3;
-        let mut rng = init_testing_with_seed([
-            13, 234, 3, 250, 203, 185, 214, 186, 120, 94, 15, 209, 189, 77, 87, 208, 13, 61, 186,
-            121, 200, 110, 105, 100, 23, 235, 160, 178, 143, 114, 187, 77,
-        ]);
+    fn keyrefresh_produces_valid_outputs(quorum_size: usize) -> Result<()> {
+        let mut rng = init_testing();
         let sid = Identifier::random(&mut rng);
-        let mut quorum = KeyrefreshParticipant::new_quorum(sid, QUORUM_SIZE, &mut rng)?;
+        let mut quorum = KeyrefreshParticipant::new_quorum(sid, quorum_size, &mut rng)?;
         let mut inboxes = HashMap::new();
         for participant in &quorum {
-            let _ = inboxes.insert(participant.id, vec![]);
+            let _ = inboxes.insert(participant.id(), vec![]);
         }
+
+        let inputs = quorum.iter().map(|p| p.input.clone()).collect::<Vec<_>>();
+
         let mut outputs = std::iter::repeat_with(|| None)
-            .take(QUORUM_SIZE)
+            .take(quorum_size)
             .collect::<Vec<_>>();
 
         for participant in &quorum {
-            let inbox = inboxes.get_mut(&participant.id).unwrap();
+            let inbox = inboxes.get_mut(&participant.id()).unwrap();
             inbox.push(participant.initialize_keyrefresh_message(sid)?);
         }
 
@@ -969,14 +982,14 @@ mod tests {
 
         // Make sure every player got an output
         let outputs: Vec<_> = outputs.into_iter().flatten().collect();
-        assert_eq!(outputs.len(), QUORUM_SIZE);
+        assert_eq!(outputs.len(), quorum_size);
 
         // Check returned outputs
         //
         // Every participant should have a public output from every other participant
         // and, for a given participant, they should be the same in every output
         for party in quorum.iter_mut() {
-            let pid = party.id;
+            let pid = party.id();
 
             // Collect the KeySharePublic associated with pid from every output
             let mut publics_for_pid = vec![];
@@ -998,7 +1011,7 @@ mod tests {
             if let Status::ParticipantCompletedBroadcast(participants) =
                 party.broadcast_participant().status()
             {
-                assert_eq!(participants.len(), party.other_participant_ids.len());
+                assert_eq!(participants.len(), party.other_ids().len());
             } else {
                 panic!("Broadcast not completed!");
             }
@@ -1019,6 +1032,32 @@ mod tests {
             let expected_public_share =
                 CurvePoint::GENERATOR.multiply_by_bignum(output.private_key_share().as_ref())?;
             assert_eq!(public_share.unwrap().as_ref(), &expected_public_share);
+        }
+
+        for (input, output) in inputs.iter().zip(outputs.iter()) {
+            // The public key of the quorum has not changed.
+            let pk_before = input.keygen_output().public_key()?;
+            let pk_after = output.public_key()?;
+            assert_eq!(pk_before, pk_after);
+
+            // All key shares have changed.
+            let public_shares_before = input
+                .public_key_shares()
+                .iter()
+                .map(|key_share| serialize!(key_share.as_ref()).unwrap())
+                .collect::<HashSet<_>>();
+
+            let public_shares_after = output
+                .public_key_shares()
+                .iter()
+                .map(|key_share| serialize!(key_share.as_ref()).unwrap())
+                .collect::<HashSet<_>>();
+
+            public_shares_before
+                .intersection(&public_shares_after)
+                .for_each(|x| {
+                    panic!("All public key shares must change.");
+                });
         }
 
         Ok(())

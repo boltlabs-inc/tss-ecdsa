@@ -12,7 +12,7 @@ use crate::{
     auxinfo::{self, AuxInfoPrivate, AuxInfoPublic},
     errors::{CallerError, InternalError, Result},
     keygen::{self, KeySharePrivate, KeySharePublic},
-    ParticipantIdentifier,
+    ParticipantConfig, ParticipantIdentifier,
 };
 
 /// Input needed for a
@@ -30,41 +30,6 @@ impl Input {
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
     pub fn new(auxinfo_output: auxinfo::Output, keygen_output: keygen::Output) -> Result<Self> {
-        if auxinfo_output.public_auxinfo().len() != keygen_output.public_key_shares().len() {
-            error!(
-                "Number of auxinfo ({:?}) and keyshare ({:?}) public entries is not equal",
-                auxinfo_output.public_auxinfo().len(),
-                keygen_output.public_key_shares().len()
-            );
-            Err(CallerError::BadInput)?
-        }
-
-        // The same set of participants must have produced the key shares and aux infos.
-        let aux_pids = auxinfo_output
-            .public_auxinfo()
-            .iter()
-            .map(AuxInfoPublic::participant)
-            .collect::<HashSet<_>>();
-        let key_pids = keygen_output
-            .public_key_shares()
-            .iter()
-            .map(KeySharePublic::participant)
-            .collect::<HashSet<_>>();
-        if aux_pids != key_pids {
-            error!("Public auxinfo and keyshare inputs to presign weren't from the same set of parties.");
-            Err(CallerError::BadInput)?
-        }
-
-        // There shouldn't be duplicates.
-        // This check is redundant, since it's also checked in the `auxinfo::Output` and
-        // `keygen::Output` constructors, so we actually don't test it below.
-        // Also, since we checked equality of the sets and the lengths already, checking
-        // for keygen also validates it for auxinfo
-        if key_pids.len() != keygen_output.public_key_shares().len() {
-            error!("Duplicate participant IDs appeared in AuxInfo and KeyShare public input.");
-            Err(CallerError::BadInput)?
-        }
-
         // The constructors for keygen and auxinfo output already check other important
         // properties, like that the private component maps to one of public
         // components for each one.
@@ -75,10 +40,58 @@ impl Input {
             Err(CallerError::BadInput)?
         }
 
-        Ok(Self {
+        let input = Self {
             auxinfo_output,
             keygen_output,
-        })
+        };
+
+        // The same set of participants must have produced the key shares and aux infos.
+        if input.auxinfo_pids() != input.keygen_pids() {
+            error!("Public auxinfo and keyshare inputs to presign weren't from the same set of parties.");
+            Err(CallerError::BadInput)?
+        }
+
+        Ok(input)
+    }
+
+    pub fn keygen_output(&self) -> &keygen::Output {
+        &self.keygen_output
+    }
+
+    fn auxinfo_pids(&self) -> HashSet<ParticipantIdentifier> {
+        self.auxinfo_output
+            .public_auxinfo()
+            .iter()
+            .map(AuxInfoPublic::participant)
+            .collect()
+    }
+
+    fn keygen_pids(&self) -> HashSet<ParticipantIdentifier> {
+        self.keygen_output
+            .public_key_shares()
+            .iter()
+            .map(KeySharePublic::participant)
+            .collect()
+    }
+
+    // Check the consistency of participant IDs.
+    pub(crate) fn check_participant_config(&self, config: &ParticipantConfig) -> Result<()> {
+        let config_pids = config
+            .all_participants()
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>();
+        if config_pids != self.keygen_pids() {
+            error!("Public auxinfo and participant inputs weren't from the same set of parties.");
+            Err(CallerError::BadInput)?
+        }
+
+        if config.id() != self.keygen_output.private_pid()? {
+            error!("Expected private keygen output and keyrefresh input to correspond to the same participant, but they didn't");
+            Err(CallerError::BadInput)?
+        }
+
+        Ok(())
     }
 
     pub(crate) fn public_key_shares(&self) -> &[KeySharePublic] {
@@ -171,9 +184,9 @@ mod test {
     fn inputs_must_be_same_length() {
         let rng = &mut init_testing();
 
-        let pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
-            .take(5)
-            .collect::<Vec<_>>();
+        let config = ParticipantConfig::random(5, rng);
+        let pids = config.all_participants();
+        assert_eq!(pids.last().unwrap(), &config.id());
         let keygen_output = keygen::Output::simulate(&pids, rng);
         let auxinfo_output = auxinfo::Output::simulate(&pids, rng);
 
@@ -204,11 +217,10 @@ mod test {
     fn inputs_must_have_same_participant_sets() {
         let rng = &mut init_testing();
 
-        let auxinfo_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
-            .take(5)
-            .collect::<Vec<_>>();
-        let auxinfo_output = auxinfo::Output::simulate(&auxinfo_pids, rng);
+        let config = ParticipantConfig::random(5, rng);
+        let auxinfo_output = auxinfo::Output::simulate(&config.all_participants(), rng);
 
+        // Use different pids by mistake.
         let keygen_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
@@ -228,12 +240,12 @@ mod test {
         let SIZE = 5;
 
         // Create valid input set with random PIDs
+        let config = ParticipantConfig::random(5, rng);
         let input_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(SIZE)
             .collect::<Vec<_>>();
-        let keygen_output = keygen::Output::simulate(&input_pids, rng);
-        let auxinfo_output = auxinfo::Output::simulate(&input_pids, rng);
-
+        let keygen_output = keygen::Output::simulate(&config.all_participants(), rng);
+        let auxinfo_output = auxinfo::Output::simulate(&config.all_participants(), rng);
         let input = Input::new(auxinfo_output, keygen_output)?;
 
         // Create valid config with PIDs independent of those used to make the input set

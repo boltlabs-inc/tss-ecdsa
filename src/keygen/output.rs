@@ -137,7 +137,7 @@ mod tests {
         /// participants.
         ///
         /// This should __never__ be called outside of tests! The given `pids`
-        /// must not contain duplicates.
+        /// must not contain duplicates. Self is the last participant in `pids`.
         pub(crate) fn simulate(
             pids: &[ParticipantIdentifier],
             rng: &mut (impl CryptoRng + RngCore),
