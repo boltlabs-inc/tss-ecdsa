@@ -479,16 +479,10 @@ impl KeyrefreshParticipant {
         }
         // Check that the decommitment contained in the message is valid against
         // the previously received commitment and protocol rules.
-        let decom = KeyrefreshDecommit::from_message(message)?;
         let com = self
             .local_storage
             .retrieve::<storage::Commit>(message.from())?;
-        decom.verify(
-            message.id(), // Actually sid.
-            message.from(),
-            com,
-            &self.all_participants(),
-        )?;
+        let decom = KeyrefreshDecommit::from_message(message, com, &self.all_participants())?;
         self.local_storage
             .store::<storage::Decommit>(message.from(), decom);
 
@@ -508,14 +502,14 @@ impl KeyrefreshParticipant {
                 .map(|msg| self.handle_round_three_msg(msg))
                 .collect::<Result<Vec<_>>>()?;
 
-            round_three_outcomes.extend(
-                self.fetch_messages(MessageType::Keyrefresh(
+            let outcomes_private = self
+                .fetch_messages(MessageType::Keyrefresh(
                     KeyrefreshMessageType::R3PrivateUpdate,
                 ))?
                 .iter()
                 .map(|msg| self.handle_round_three_msg_private(msg))
-                .collect::<Result<Vec<_>>>()?,
-            );
+                .collect::<Result<Vec<_>>>()?;
+            round_three_outcomes.extend(outcomes_private);
 
             ProcessOutcome::collect_with_messages(round_three_outcomes, round_three_messages)
         } else {
@@ -736,7 +730,7 @@ impl KeyrefreshParticipant {
                 })
                 .collect::<Result<Vec<_>>>()?;
             let all_public_updates =
-                Self::aggregate_public_updates(&self.all_participants(), &from_all_to_all_public);
+                Self::aggregate_public_updates(&self.all_participants(), &from_all_to_all_public)?;
 
             // Apply the updates to everybody's public key shares.
             let new_public_shares = self
@@ -787,14 +781,14 @@ impl KeyrefreshParticipant {
     fn aggregate_public_updates(
         participants: &[ParticipantIdentifier],
         from_all_to_all: &[Vec<KeyUpdatePublic>],
-    ) -> Vec<KeyUpdatePublic> {
+    ) -> Result<Vec<KeyUpdatePublic>> {
         participants
             .iter()
             .map(|p_i| {
-                let from_all_to_i = Self::find_updates_for_participant(*p_i, from_all_to_all);
+                let from_all_to_i = Self::find_updates_for_participant(*p_i, from_all_to_all)?;
 
                 let sum_for_i = KeyUpdatePublic::sum(*p_i, &from_all_to_i);
-                sum_for_i
+                Ok(sum_for_i)
             })
             .collect()
     }
@@ -802,15 +796,15 @@ impl KeyrefreshParticipant {
     fn find_updates_for_participant(
         p_i: ParticipantIdentifier,
         from_all_to_all: &[Vec<KeyUpdatePublic>],
-    ) -> Vec<KeyUpdatePublic> {
+    ) -> Result<Vec<KeyUpdatePublic>> {
         let from_all_to_i = from_all_to_all
             .iter()
             .map(|from_j_to_all| {
                 let from_j_to_i = from_j_to_all
                     .iter()
                     .find(|from_j_to_x| from_j_to_x.participant() == p_i)
-                    .unwrap() // TODO: error handling.
-                    .clone();
+                    .cloned()
+                    .ok_or(InternalError::InternalInvariantFailed);
                 from_j_to_i
             })
             .collect();

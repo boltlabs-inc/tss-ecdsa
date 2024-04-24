@@ -12,13 +12,13 @@ use crate::{
     messages::{KeyrefreshMessageType, Message, MessageType},
     protocol::{Identifier, ParticipantIdentifier},
     utils::CurvePoint,
-    zkp::pisch::PiSchPrecommit,
 };
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use tracing::{error, instrument};
+use tracing::error;
 
+/// Public commitment to `KeyrefreshDecommit` in round 1.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct KeyrefreshCommit {
     hash: [u8; 32],
@@ -31,13 +31,13 @@ impl KeyrefreshCommit {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+/// Decommitment published in round 2.
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct KeyrefreshDecommit {
-    ///`sid` corresponds to a unique session identifier.
-    pub sid: Identifier,
-    pub sender: ParticipantIdentifier,
-    pub rid: [u8; 32], // TODO: not "rid" but "rho".
-    pub u_i: [u8; 32],
+    sid: Identifier,
+    sender: ParticipantIdentifier,
+    u_i: [u8; 32], // The blinding factor is never read but it is included in the commitment.
+    pub rid: [u8; 32],
     pub update_publics: Vec<KeyUpdatePublic>,
     pub As: Vec<CurvePoint>,
 }
@@ -65,9 +65,14 @@ impl KeyrefreshDecommit {
         }
     }
 
-    pub(crate) fn from_message(message: &Message) -> Result<Self> {
+    pub(crate) fn from_message(
+        message: &Message,
+        com: &KeyrefreshCommit,
+        participant_ids: &[ParticipantIdentifier],
+    ) -> Result<Self> {
         message.check_type(MessageType::Keyrefresh(KeyrefreshMessageType::R2Decommit))?;
         let keyrefresh_decommit: KeyrefreshDecommit = deserialize!(&message.unverified_bytes)?;
+        keyrefresh_decommit.verify(message.id(), message.from(), com, participant_ids)?;
         Ok(keyrefresh_decommit)
     }
 
@@ -79,9 +84,8 @@ impl KeyrefreshDecommit {
         Ok(KeyrefreshCommit { hash })
     }
 
-    #[instrument(skip_all, err(Debug))]
     /// Verify this KeyrefreshDecommit against a commitment and expected content.
-    pub(crate) fn verify(
+    fn verify(
         &self,
         sid: Identifier,
         sender: ParticipantIdentifier,
@@ -131,5 +135,16 @@ impl KeyrefreshDecommit {
         }
 
         Ok(())
+    }
+}
+
+// Implement custom Debug to avoid leaking secret information.
+impl std::fmt::Debug for KeyrefreshDecommit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KeyrefreshDecommit")
+            .field("sid", &self.sid)
+            .field("sender", &self.sender)
+            .field("...", &"[redacted]")
+            .finish()
     }
 }

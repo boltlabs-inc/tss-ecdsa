@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-const KEYSHARE_TAG: &[u8] = b"KeySharePrivate";
+const KEY_UPDATE_TAG: &[u8] = b"KeyUpdatePrivate";
 
 /// Encrypted [`KeyUpdatePrivate`].
 #[derive(Clone, Serialize, Deserialize)]
@@ -34,7 +34,6 @@ impl KeyUpdateEncrypted {
         pk: &EncryptionKey,
         rng: &mut R,
     ) -> Result<Self> {
-        // TODO: Add this requirement in AuxInfo.
         if &(k256_order() * 2) >= pk.modulus() {
             error!("KeyUpdateEncrypted encryption failed, pk.modulus() is too small");
             Err(InternalError::InternalInvariantFailed)?;
@@ -53,6 +52,7 @@ impl KeyUpdateEncrypted {
             CallerError::DeserializationFailed
         })?;
         if x >= k256_order() || x < BigNumber::one() {
+            error!("KeyUpdateEncrypted decryption failed, plaintext out of range");
             Err(CallerError::DeserializationFailed)?;
         }
         Ok(KeyUpdatePrivate { x })
@@ -60,9 +60,6 @@ impl KeyUpdateEncrypted {
 }
 
 /// Private update corresponding to a given [`Participant`](crate::Participant)'s.
-///
-/// # 🔒 Storage requirements
-/// This type must be stored securely by the calling application.
 #[derive(Clone, ZeroizeOnDrop, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyUpdatePrivate {
     x: BigNumber, // in the range [1, q)
@@ -70,7 +67,7 @@ pub struct KeyUpdatePrivate {
 
 impl Debug for KeyUpdatePrivate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("KeySharePrivate([redacted])")
+        f.write_str("KeyUpdatePrivate([redacted])")
     }
 }
 
@@ -99,90 +96,15 @@ impl KeyUpdatePrivate {
     }
 
     pub(crate) fn apply(self, current_sk: &KeySharePrivate) -> KeySharePrivate {
-        let sum = current_sk.as_ref() + &self.x;
-        KeySharePrivate::from_bigint(sum)
+        let mut sum = current_sk.as_ref() + &self.x;
+        let share = KeySharePrivate::from_bigint(&sum);
+        sum.zeroize();
+        share
     }
 
     /// Computes the "raw" curve point corresponding to this private key.
     pub(crate) fn public_share(&self) -> Result<CurvePoint> {
         CurvePoint::GENERATOR.multiply_by_bignum(&self.x)
-    }
-
-    /// Convert private material into bytes.
-    ///
-    /// 🔒 This is intended for use by the calling application for secure
-    /// storage. The output of this function should be handled with care.
-    pub fn into_bytes(self) -> Vec<u8> {
-        // Format:
-        // KEYSHARE_TAG | key_len in bytes | key (big endian bytes)
-        //              | 8 bytes          | key_len bytes
-
-        let mut share = self.x.to_bytes();
-        let share_len = share.len().to_le_bytes();
-
-        let bytes = [KEYSHARE_TAG, &share_len, &share].concat();
-        share.zeroize();
-        bytes
-    }
-
-    /// Convert bytes into private material.
-    ///
-    /// 🔒 This is intended for use by the calling application for secure
-    /// storage. Do not use this method to create arbitrary instances of
-    /// [`KeySharePrivate`].
-    pub fn try_from_bytes(bytes: Vec<u8>) -> Result<Self> {
-        // Expected format:
-        // KEYSHARE_TAG | key_len in bytes | key (big endian bytes)
-        //              | 8 bytes          | key_len bytes
-
-        let mut parser = ParseBytes::new(bytes);
-
-        // This little function ensures that
-        // 1. We can zeroize out the potentially-sensitive input bytes regardless of
-        //    whether parsing succeeded; and
-        // 2. We can log the error message once at the end, rather than duplicating it
-        //    across all the parsing code
-        let mut parse = || {
-            // Make sure the KEYSHARE_TAG is correct.
-            let actual_tag = parser.take_bytes(KEYSHARE_TAG.len())?;
-            if actual_tag != KEYSHARE_TAG {
-                Err(CallerError::DeserializationFailed)?
-            }
-
-            // Extract the length of the key share
-            let share_len = parser.take_len()?;
-
-            let share_bytes = parser.take_rest()?;
-            if share_bytes.len() != share_len {
-                Err(CallerError::DeserializationFailed)?
-            }
-
-            // Check that the share itself is valid
-            let share = BigNumber::from_slice(share_bytes);
-            if share > k256_order() || share < BigNumber::one() {
-                Err(CallerError::DeserializationFailed)?
-            }
-
-            Ok(Self { x: share })
-        };
-
-        let result = parse();
-
-        // During parsing, we copy all the bytes we need into the appropriate types.
-        // Here, we delete the original copy.
-        parser.zeroize();
-
-        // Log a message in case of error
-        if result.is_err() {
-            error!(
-                "Failed to deserialize `KeySharePrivate. Expected format:
-                        {:?} | share_len | share
-                        where `share_len` is a little-endian encoded usize
-                        and `share` is exactly `share_len` bytes long.",
-                KEYSHARE_TAG
-            );
-        }
-        result
     }
 }
 
@@ -252,110 +174,73 @@ impl AsRef<CurvePoint> for KeyUpdatePublic {
 
 #[cfg(test)]
 mod tests {
-    use super::KeyUpdatePrivate;
+    use rand::rngs::StdRng;
+    use rocket::form::name::Key;
+
+    use super::*;
     use crate::{
-        keyrefresh::keyshare::KEYSHARE_TAG,
+        auxinfo,
         utils::{k256_order, testing::init_testing},
     };
 
+    /// Generate an encryption key pair.
+    fn setup() -> (StdRng, EncryptionKey, DecryptionKey) {
+        let mut rng = init_testing();
+        let pid = ParticipantIdentifier::random(&mut rng);
+        let auxinfo = auxinfo::Output::simulate(&[pid], &mut rng);
+        let dk = auxinfo.private_auxinfo().decryption_key();
+        let pk = auxinfo.find_public(pid).unwrap().pk();
+        assert!(
+            &(k256_order() * 2) < pk.modulus(),
+            "the Paillier modulus is supposed to be much larger than the k256 order"
+        );
+        (rng, pk.clone(), dk.clone())
+    }
+
     #[test]
-    fn keyshare_private_bytes_conversion_works() {
-        let rng = &mut init_testing();
+    fn key_update_encryption_works() {
+        let (mut rng, pk, dk) = setup();
+        let rng = &mut rng;
+
+        // Encryption round-trip.
         let share = KeyUpdatePrivate::random(rng);
+        let encrypted = KeyUpdateEncrypted::encrypt(&share, &pk, rng).expect("encryption failed");
+        let decrypted = encrypted.decrypt(&dk).expect("decryption failed");
 
-        let bytes = share.clone().into_bytes();
-        let reconstructed = KeyUpdatePrivate::try_from_bytes(bytes);
-
-        assert!(reconstructed.is_ok());
-        assert_eq!(reconstructed.unwrap(), share);
+        assert_eq!(decrypted, share);
     }
 
     #[test]
-    fn keyshare_private_bytes_must_be_in_range() {
-        // Share must be < k256_order()
-        let too_big = KeyUpdatePrivate {
-            x: k256_order() + 1,
-        };
-        let bytes = too_big.into_bytes();
-        assert!(KeyUpdatePrivate::try_from_bytes(bytes).is_err());
+    fn key_update_decrypt_out_of_range() {
+        let (mut rng, pk, dk) = setup();
+        let rng = &mut rng;
 
-        // Note: I tried testing the negative case but it seems like the
-        // unknown_order crate's `from_bytes` method always interprets
-        // numbers as positive. Unfortunately the crate does not
-        // document the expected representation only noting that it
-        // takes a big-endian byte sequence.
+        // Encrypt invalid shares.
+        for x in [BigNumber::zero(), -BigNumber::one(), k256_order()].iter() {
+            let share = KeyUpdatePrivate { x: x.clone() };
+            let encrypted =
+                KeyUpdateEncrypted::encrypt(&share, &pk, rng).expect("encryption failed");
+            // Decryption reports an error.
+            let decrypt_result = encrypted.decrypt(&dk);
+            assert!(decrypt_result.is_err());
+        }
     }
 
     #[test]
-    fn deserialized_keyshare_private_tag_must_be_correct() {
+    fn key_update_private_zero_sum_works() {
+        // Random shares do not sum to zero.
         let rng = &mut init_testing();
-        let key_share = KeyUpdatePrivate::random(rng);
+        let mut shares = (0..5)
+            .map(|_| KeyUpdatePrivate::random(rng))
+            .collect::<Vec<_>>();
+        assert_ne!(KeyUpdatePrivate::sum(&shares).x, BigNumber::zero());
 
-        // Cut out the tag from the serialized bytes for convenience.
-        let share_bytes = &key_share.into_bytes()[KEYSHARE_TAG.len()..];
+        // Balance the sum to zero.
+        let balance_share = KeyUpdatePrivate::zero_sum(&shares);
+        assert_ne!(balance_share.x, BigNumber::zero());
+        shares.push(balance_share);
 
-        // Tag must have correct content
-        let wrong_tag = b"NotTheRightTag!";
-        assert_eq!(wrong_tag.len(), KEYSHARE_TAG.len());
-        let bad_bytes = [wrong_tag.as_slice(), share_bytes].concat();
-        assert!(KeyUpdatePrivate::try_from_bytes(bad_bytes).is_err());
-
-        // Tag must be correct length (too short, too long)
-        let short_tag = &KEYSHARE_TAG[..5];
-        let bad_bytes = [short_tag, share_bytes].concat();
-        assert!(KeyUpdatePrivate::try_from_bytes(bad_bytes).is_err());
-
-        let bad_bytes = [KEYSHARE_TAG, b"TAG EXTENSION!", share_bytes].concat();
-        assert!(KeyUpdatePrivate::try_from_bytes(bad_bytes).is_err());
-
-        // Normal serialization works
-        let bytes = [KEYSHARE_TAG, share_bytes].concat();
-        assert!(KeyUpdatePrivate::try_from_bytes(bytes).is_ok());
-    }
-
-    #[test]
-    fn deserialized_keyshare_private_length_field_must_be_correct() {
-        let rng = &mut init_testing();
-        let share_bytes = KeyUpdatePrivate::random(rng).x.to_bytes();
-
-        // Length must be specified
-        let bad_bytes = [KEYSHARE_TAG, &share_bytes].concat();
-        assert!(KeyUpdatePrivate::try_from_bytes(bad_bytes).is_err());
-
-        // Length must be little endian
-        let share_len = share_bytes.len().to_be_bytes();
-        let bad_bytes = [KEYSHARE_TAG, &share_len, &share_bytes].concat();
-        assert!(KeyUpdatePrivate::try_from_bytes(bad_bytes).is_err());
-
-        // Length must be correct (too long, too short)
-        let too_short = (share_bytes.len() - 5).to_le_bytes();
-        let bad_bytes = [KEYSHARE_TAG, &too_short, &share_bytes].concat();
-        assert!(KeyUpdatePrivate::try_from_bytes(bad_bytes).is_err());
-
-        let too_long = (share_bytes.len() + 5).to_le_bytes();
-        let bad_bytes = [KEYSHARE_TAG, &too_long, &share_bytes].concat();
-        assert!(KeyUpdatePrivate::try_from_bytes(bad_bytes).is_err());
-
-        // Correct length works
-        let share_len = share_bytes.len().to_le_bytes();
-        let bytes = [KEYSHARE_TAG, &share_len, &share_bytes].concat();
-        assert!(KeyUpdatePrivate::try_from_bytes(bytes).is_ok());
-    }
-
-    #[test]
-    fn deserialized_keyshare_private_requires_all_fields() {
-        // Part of a tag or the whole tag alone doesn't pass
-        let bytes = &KEYSHARE_TAG[..3];
-        assert!(KeyUpdatePrivate::try_from_bytes(bytes.to_vec()).is_err());
-        assert!(KeyUpdatePrivate::try_from_bytes(KEYSHARE_TAG.to_vec()).is_err());
-
-        // Length with no secret following doesn't pass
-        let share_len = k256_order().bit_length() / 8;
-        let bytes = [KEYSHARE_TAG, &share_len.to_le_bytes()].concat();
-        assert!(KeyUpdatePrivate::try_from_bytes(bytes).is_err());
-
-        // Zero-length doesn't pass
-        let bytes = [KEYSHARE_TAG, &0usize.to_le_bytes()].concat();
-        assert!(KeyUpdatePrivate::try_from_bytes(bytes).is_err());
+        // Check that the sum is zero now.
+        assert_eq!(KeyUpdatePrivate::sum(&shares).x, BigNumber::zero());
     }
 }

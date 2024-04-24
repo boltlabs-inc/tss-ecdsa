@@ -211,6 +211,7 @@ impl PiSchProof {
         commitment: &CurvePoint,
     ) -> Result<()> {
         if commitment != &self.commitment {
+            error!("the proof does not match the previous commitment");
             return Err(InternalError::ProtocolError(None));
         }
         Self::verify(self, input, context, transcript)
@@ -223,9 +224,11 @@ impl PiSchProof {
         let pisch_proofs: Vec<PiSchProof> = deserialize!(&message.unverified_bytes)?;
         for pisch_proof in &pisch_proofs {
             if pisch_proof.challenge >= k256_order() {
+                error!("the challenge is not in the field");
                 return Err(InternalError::ProtocolError(None));
             }
             if pisch_proof.response >= k256_order() {
+                error!("the response is not in the field");
                 return Err(InternalError::ProtocolError(None));
             }
         }
@@ -237,9 +240,11 @@ impl PiSchProof {
 
         let pisch_proof: PiSchProof = deserialize!(&message.unverified_bytes)?;
         if pisch_proof.challenge >= k256_order() {
+            error!("the challenge is not in the field");
             return Err(InternalError::ProtocolError(None));
         }
         if pisch_proof.response >= k256_order() {
+            error!("the response is not in the field");
             return Err(InternalError::ProtocolError(None));
         }
         Ok(pisch_proof)
