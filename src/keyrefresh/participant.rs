@@ -299,7 +299,7 @@ impl KeyrefreshParticipant {
             // Compute one's own update such that the sum of updates is 0.
             let my_update_private = KeyUpdatePrivate::zero_sum(&privates);
             let my_update_public =
-                KeyUpdatePublic::new(self.id(), my_update_private.public_share()?);
+                KeyUpdatePublic::new(self.id(), my_update_private.public_point()?);
             privates.push(my_update_private);
             publics.push(my_update_public);
 
@@ -626,6 +626,11 @@ impl KeyrefreshParticipant {
         Ok(messages)
     }
 
+    /// Handle round three messages only after our own `gen_round_three_msgs`.
+    fn can_handle_round_three_msg(&self) -> bool {
+        self.local_storage.contains::<storage::GlobalRid>(self.id())
+    }
+
     /// Handle the protocol's round three public messages.
     ///
     /// Here we validate the Schnorr proofs from each participant.
@@ -635,12 +640,13 @@ impl KeyrefreshParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        info!("Handling round three keyrefresh message.");
-
-        if !self.local_storage.contains::<storage::GlobalRid>(self.id()) {
+        if !self.can_handle_round_three_msg() {
+            info!("Not yet ready to handle round three keyrefresh broadcast message.");
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
+        info!("Handling round three keyrefresh broadcast message.");
+
         let global_rid = *self
             .local_storage
             .retrieve::<storage::GlobalRid>(self.id())?;
@@ -686,6 +692,11 @@ impl KeyrefreshParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
+        if !self.can_handle_round_three_msg() {
+            info!("Not yet ready to handle round three keyrefresh private message.");
+            self.stash_message(message)?;
+            return Ok(ProcessOutcome::Incomplete);
+        }
         info!("Handling round three keyrefresh private message.");
 
         message.check_type(MessageType::Keyrefresh(
@@ -699,7 +710,21 @@ impl KeyrefreshParticipant {
         // Decrypt the private update.
         let update_private = encrypted_update.decrypt(my_dk)?;
 
-        // TODO: check that this private share matches our public share in decom.update_publics.
+        // Check that this private share matches our public share in KeyrefreshDecommit from this participant.
+        let implied_public = update_private.public_point()?;
+        let decom = self
+            .local_storage
+            .retrieve::<storage::Decommit>(message.from())?;
+        let expected_public = decom
+            .update_publics
+            .iter()
+            .find(|kup| kup.participant() == self.id())
+            .ok_or(InternalError::InternalInvariantFailed)?
+            .as_ref();
+        if &implied_public != expected_public {
+            error!("the private update does not match the public update");
+            return Err(InternalError::ProtocolError(Some(message.from())));
+        }
 
         self.local_storage
             .store::<storage::ValidPrivateUpdate>(message.from(), update_private);
@@ -766,6 +791,16 @@ impl KeyrefreshParticipant {
 
             // Return the output and stop.
             let output = Output::from_parts(new_public_shares, my_new_share, global_rid)?;
+
+            // Final validation that the public key of the quorum has not changed. This should never fail because this is already
+            // verified in round 2 by `KeyrefreshDecommit::from_message`.
+            let pk_before = self.input.keygen_output().public_key()?;
+            let pk_after = output.public_key()?;
+            if pk_before != pk_after {
+                error!("Keyrefresh output did not preserve the quorum public key.");
+                return Err(InternalError::InternalInvariantFailed);
+            }
+
             self.status = Status::TerminatedSuccessfully;
             Ok(ProcessOutcome::Terminated(output))
         } else {

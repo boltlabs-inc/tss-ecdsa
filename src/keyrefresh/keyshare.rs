@@ -103,7 +103,7 @@ impl KeyUpdatePrivate {
     }
 
     /// Computes the "raw" curve point corresponding to this private key.
-    pub(crate) fn public_share(&self) -> Result<CurvePoint> {
+    pub(crate) fn public_point(&self) -> Result<CurvePoint> {
         CurvePoint::GENERATOR.multiply_by_bignum(&self.x)
     }
 }
@@ -143,7 +143,7 @@ impl KeyUpdatePublic {
         rng: &mut R,
     ) -> Result<(KeyUpdatePrivate, KeyUpdatePublic)> {
         let private_share = KeyUpdatePrivate::random(rng);
-        let public_share = private_share.public_share()?;
+        let public_share = private_share.public_point()?;
 
         Ok((
             private_share,
