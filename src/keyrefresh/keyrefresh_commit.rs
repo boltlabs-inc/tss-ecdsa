@@ -84,7 +84,8 @@ impl KeyrefreshDecommit {
         Ok(KeyrefreshCommit { hash })
     }
 
-    /// Verify this KeyrefreshDecommit against a commitment and expected content.
+    /// Verify this KeyrefreshDecommit against a commitment and expected
+    /// content.
     fn verify(
         &self,
         sid: Identifier,
@@ -127,7 +128,8 @@ impl KeyrefreshDecommit {
             }
         }
 
-        // Check that the sum of key updates is identity, i.e. it will not change our public key.
+        // Check that the sum of key updates is identity, i.e. it will not change our
+        // public key.
         let sum = KeyUpdatePublic::sum(sender, &self.update_publics);
         if sum.as_ref() != &CurvePoint::IDENTITY {
             error!("Sum of key updates is not identity");

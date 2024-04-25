@@ -98,18 +98,6 @@ impl Input {
         self.keygen_output.public_key_shares()
     }
 
-    /// Get the set of participants that contributed to the input.
-    ///
-    /// By construction, this must be the same for the auxinfo and key share
-    /// lists.
-    pub(crate) fn participants(&self) -> Vec<ParticipantIdentifier> {
-        self.keygen_output
-            .public_key_shares()
-            .iter()
-            .map(KeySharePublic::participant)
-            .collect()
-    }
-
     pub(crate) fn private_auxinfo(&self) -> &AuxInfoPrivate {
         self.auxinfo_output.private_auxinfo()
     }
@@ -124,47 +112,8 @@ impl Input {
             })
     }
 
-    /// Get the shared randomness generated during key generation.
-    pub(crate) fn rid(&self) -> &[u8; 32] {
-        self.keygen_output.rid()
-    }
-
     pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
         self.keygen_output.private_key_share()
-    }
-
-    /// Returns the [`KeySharePublic`] associated with the given
-    /// [`ParticipantIdentifier`].
-    pub(crate) fn find_keyshare_public(
-        &self,
-        pid: ParticipantIdentifier,
-    ) -> Result<&KeySharePublic> {
-        self.keygen_output
-            .public_key_shares()
-            .iter()
-            .find(|item| item.participant() == pid)
-            .ok_or_else(|| {
-                error!("Presign input doesn't contain a public keyshare for {}, even though we checked for it at construction.", pid);
-                InternalError::InternalInvariantFailed
-            })
-    }
-
-    /// Returns the [`AuxInfoPublic`]s associated with all the participants
-    /// _except_ the given [`ParticipantIdentifier`].
-    pub(crate) fn all_but_one_auxinfo_public(
-        &self,
-        pid: ParticipantIdentifier,
-    ) -> Vec<&AuxInfoPublic> {
-        self.auxinfo_output
-            .public_auxinfo()
-            .iter()
-            .filter(|item| item.participant() != pid)
-            .collect()
-    }
-    /// Returns a copy of the [`AuxInfoPublic`]s associated with all the
-    /// participants (including this participant).
-    pub(crate) fn to_public_auxinfo(&self) -> Vec<AuxInfoPublic> {
-        self.auxinfo_output.public_auxinfo().to_vec()
     }
 }
 
@@ -241,9 +190,6 @@ mod test {
 
         // Create valid input set with random PIDs
         let config = ParticipantConfig::random(5, rng);
-        let input_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
-            .take(SIZE)
-            .collect::<Vec<_>>();
         let keygen_output = keygen::Output::simulate(&config.all_participants(), rng);
         let auxinfo_output = auxinfo::Output::simulate(&config.all_participants(), rng);
         let input = Input::new(auxinfo_output, keygen_output)?;

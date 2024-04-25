@@ -43,7 +43,8 @@ impl KeySharePrivate {
         KeySharePrivate { x: random_bn }
     }
 
-    /// Take a [`BigNumber`] as [`KeySharePrivate`]. `x_int` will be reduced modulo `q`.
+    /// Take a [`BigNumber`] as [`KeySharePrivate`]. `x_int` will be reduced
+    /// modulo `q`.
     pub(crate) fn from_bigint(x_int: &BigNumber) -> Self {
         let x = x_int.nmod(&k256_order());
         Self { x }

@@ -710,7 +710,8 @@ impl KeyrefreshParticipant {
         // Decrypt the private update.
         let update_private = encrypted_update.decrypt(my_dk)?;
 
-        // Check that this private share matches our public share in KeyrefreshDecommit from this participant.
+        // Check that this private share matches our public share in KeyrefreshDecommit
+        // from this participant.
         let implied_public = update_private.public_point()?;
         let decom = self
             .local_storage
@@ -792,8 +793,9 @@ impl KeyrefreshParticipant {
             // Return the output and stop.
             let output = Output::from_parts(new_public_shares, my_new_share, global_rid)?;
 
-            // Final validation that the public key of the quorum has not changed. This should never fail because this is already
-            // verified in round 2 by `KeyrefreshDecommit::from_message`.
+            // Final validation that the public key of the quorum has not changed. This
+            // should never fail because this is already verified in round 2 by
+            // `KeyrefreshDecommit::from_message`.
             let pk_before = self.input.keygen_output().public_key()?;
             let pk_after = output.public_key()?;
             if pk_before != pk_after {
@@ -810,7 +812,7 @@ impl KeyrefreshParticipant {
     }
 
     fn aggregate_private_updates(update_privates: &[KeyUpdatePrivate]) -> KeyUpdatePrivate {
-        return KeyUpdatePrivate::sum(update_privates);
+        KeyUpdatePrivate::sum(update_privates)
     }
 
     fn aggregate_public_updates(
@@ -866,10 +868,7 @@ mod tests {
     use crate::{
         auxinfo, keygen,
         keyrefresh::input::Input,
-        utils::{
-            testing::{init_testing, init_testing_with_seed},
-            CurvePoint,
-        },
+        utils::{testing::init_testing, CurvePoint},
         Identifier, ParticipantConfig,
     };
     use rand::{CryptoRng, Rng, RngCore};
@@ -885,8 +884,8 @@ mod tests {
             quorum_size: usize,
             rng: &mut R,
         ) -> Result<Vec<Self>> {
-            // Prepare prereqs for making KeyRefreshParticipant's. Assume all the simulations
-            // are stable (e.g. keep config order)
+            // Prepare prereqs for making KeyRefreshParticipant's. Assume all the
+            // simulations are stable (e.g. keep config order)
             let configs = ParticipantConfig::random_quorum(quorum_size, rng)?;
             let keygen_outputs = keygen::Output::simulate_set(&configs, rng);
             let auxinfo_outputs = auxinfo::Output::simulate_set(&configs, rng);
@@ -1084,7 +1083,7 @@ mod tests {
 
             public_shares_before
                 .intersection(&public_shares_after)
-                .for_each(|x| {
+                .for_each(|_| {
                     panic!("All public key shares must change.");
                 });
         }

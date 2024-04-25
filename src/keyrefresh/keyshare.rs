@@ -10,7 +10,7 @@ use crate::{
     errors::{CallerError, InternalError, Result},
     keygen::{KeySharePrivate, KeySharePublic},
     paillier::{Ciphertext, DecryptionKey, EncryptionKey},
-    utils::{k256_order, CurvePoint, ParseBytes},
+    utils::{k256_order, CurvePoint},
     ParticipantIdentifier,
 };
 use libpaillier::unknown_order::BigNumber;
@@ -19,8 +19,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
-
-const KEY_UPDATE_TAG: &[u8] = b"KeyUpdatePrivate";
 
 /// Encrypted [`KeyUpdatePrivate`].
 #[derive(Clone, Serialize, Deserialize)]
@@ -59,7 +57,8 @@ impl KeyUpdateEncrypted {
     }
 }
 
-/// Private update corresponding to a given [`Participant`](crate::Participant)'s.
+/// Private update corresponding to a given
+/// [`Participant`](crate::Participant)'s.
 #[derive(Clone, ZeroizeOnDrop, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyUpdatePrivate {
     x: BigNumber, // in the range [1, q)
@@ -78,7 +77,8 @@ impl KeyUpdatePrivate {
         KeyUpdatePrivate { x: random_bn }
     }
 
-    /// Compute a private key share such that the sum of all shares equals 0 mod q.
+    /// Compute a private key share such that the sum of all shares equals 0 mod
+    /// q.
     pub(crate) fn zero_sum(others: &[Self]) -> Self {
         let sum = others
             .iter()
@@ -174,14 +174,12 @@ impl AsRef<CurvePoint> for KeyUpdatePublic {
 
 #[cfg(test)]
 mod tests {
-    use rand::rngs::StdRng;
-    use rocket::form::name::Key;
-
     use super::*;
     use crate::{
         auxinfo,
         utils::{k256_order, testing::init_testing},
     };
+    use rand::rngs::StdRng;
 
     /// Generate an encryption key pair.
     fn setup() -> (StdRng, EncryptionKey, DecryptionKey) {

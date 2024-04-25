@@ -80,6 +80,7 @@ pub enum KeyrefreshMessageType {
     /// A proof of knowledge of the discrete log of the value decommitted in
     /// Round 2
     R3Proofs,
+    /// The encrypted private share from a participant to another.
     R3PrivateUpdate,
 }
 
