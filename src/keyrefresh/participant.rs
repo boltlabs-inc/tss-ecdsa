@@ -372,12 +372,20 @@ impl KeyrefreshParticipant {
         rng: &mut R,
         broadcast_message: BroadcastOutput,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
+        let message = broadcast_message.into_message(BroadcastTag::KeyRefreshR1CommitHash)?;
+
+        if self
+            .local_storage
+            .contains::<storage::Commit>(message.from())
+        {
+            warn!(
+                "Received duplicate round one keyrefresh message from {:?}.",
+                message.from()
+            );
+            return Ok(ProcessOutcome::Incomplete);
+        }
         info!("Handling round one keyrefresh message.");
 
-        // XXX should we have a check that we haven't recieved a round one
-        // message _after_ round one is complete? Likewise for all other rounds.
-
-        let message = broadcast_message.into_message(BroadcastTag::KeyRefreshR1CommitHash)?;
         let keyrefresh_commit = KeyrefreshCommit::from_message(&message)?;
         self.local_storage
             .store::<storage::Commit>(message.from(), keyrefresh_commit);
@@ -466,7 +474,18 @@ impl KeyrefreshParticipant {
         rng: &mut R,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
+        if self
+            .local_storage
+            .contains::<storage::Decommit>(message.from())
+        {
+            warn!(
+                "Received duplicate round two keyrefresh message from {:?}.",
+                message.from()
+            );
+            return Ok(ProcessOutcome::Incomplete);
+        }
         info!("Handling round two keyrefresh message.");
+
         // We must receive all commitments in round 1 before we start processing
         // decommits in round 2.
         let r1_done = self
@@ -640,6 +659,16 @@ impl KeyrefreshParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
+        if self
+            .local_storage
+            .contains::<storage::ValidPublicUpdates>(message.from())
+        {
+            warn!(
+                "Received duplicate round three keyrefresh broadcast message from {:?}.",
+                message.from()
+            );
+            return Ok(ProcessOutcome::Incomplete);
+        }
         if !self.can_handle_round_three_msg() {
             info!("Not yet ready to handle round three keyrefresh broadcast message.");
             self.stash_message(message)?;
@@ -692,6 +721,16 @@ impl KeyrefreshParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
+        if self
+            .local_storage
+            .contains::<storage::ValidPrivateUpdate>(message.from())
+        {
+            warn!(
+                "Received duplicate round three keyrefresh private message from {:?}.",
+                message.from()
+            );
+            return Ok(ProcessOutcome::Incomplete);
+        }
         if !self.can_handle_round_three_msg() {
             info!("Not yet ready to handle round three keyrefresh private message.");
             self.stash_message(message)?;
