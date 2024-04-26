@@ -80,7 +80,7 @@ includes:
 - A single *updated* private key share for this participant.
 
 # 🔒 Storage requirements
-The [private key share](KeySharePrivate) in the output requires secure
+The [private key share](crate::keygen::KeySharePrivate) in the output requires secure
 persistent storage.
 
 # High-level protocol description
@@ -273,7 +273,7 @@ impl KeyrefreshParticipant {
     /// Generate the protocol's round one message.
     ///
     /// The outcome is a broadcast message containing a commitment to:
-    /// - updates [`KeySharePublic`] X_ij for all other participants,
+    /// - updates [`KeyUpdatePublic`] X_ij for all other participants,
     /// - a "pre-commitment" A to a Schnorr proof.
     #[cfg_attr(feature = "flame_it", flame("keyrefresh"))]
     #[instrument(skip_all, err(Debug))]
@@ -826,11 +826,9 @@ impl KeyrefreshParticipant {
             // Apply the update to my private key share.
             let my_new_share = my_private_update.apply(self.input.private_key_share());
 
-            // New rid generated along this key refresh.
-            let global_rid = self.local_storage.remove::<storage::GlobalRid>(self.id())?;
-
             // Return the output and stop.
-            let output = Output::from_parts(new_public_shares, my_new_share, global_rid)?;
+            let rid_before = *self.input.keygen_output().rid();
+            let output = Output::from_parts(new_public_shares, my_new_share, rid_before)?;
 
             // Final validation that the public key of the quorum has not changed. This
             // should never fail because this is already verified in round 2 by
@@ -1125,6 +1123,9 @@ mod tests {
                 .for_each(|_| {
                     panic!("All public key shares must change.");
                 });
+
+            // The rid has not changed.
+            assert_eq!(input.keygen_output().rid(), output.rid());
         }
 
         Ok(())

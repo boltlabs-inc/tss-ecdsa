@@ -68,7 +68,6 @@ impl Output {
     }
 
     /// Get the shared randomness generated during key generation.
-    #[cfg(test)]
     pub(crate) fn rid(&self) -> &[u8; 32] {
         &self.rid
     }
