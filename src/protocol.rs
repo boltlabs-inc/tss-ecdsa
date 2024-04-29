@@ -412,6 +412,13 @@ impl ParticipantIdentifier {
         trace!("Created new Participant Identifier({random_bytes})");
         Self(random_bytes)
     }
+
+    /// Note: This method is for convenience only. The `id` value is still
+    /// expected to be generated from a cryptographically secure generator,
+    /// for example [`Self::random`].
+    pub fn from_u128(id: u128) -> Self {
+        Self(id)
+    }
 }
 
 /// The `SharedContext` contains fixed known parameters across the entire
@@ -423,6 +430,7 @@ pub(crate) struct SharedContext {
     generator: CurvePoint,
     order: BigNumber,
 }
+
 impl ProofContext for SharedContext {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
@@ -492,7 +500,6 @@ impl std::fmt::Display for ParticipantIdentifier {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-
 /// A session [`Identifier`] uniquely identifies a single
 /// instance of a protocol and all messages associated with it.
 ///
