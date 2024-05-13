@@ -65,9 +65,11 @@ impl KeygenDecommit {
         }
     }
 
-    pub(crate) fn from_message(message: &Message) -> Result<Self> {
+    /// Deserialize a KeygenDecommit from a message and verify it.
+    pub(crate) fn from_message(message: &Message, com: &KeygenCommit) -> Result<Self> {
         message.check_type(MessageType::Keygen(KeygenMessageType::R2Decommit))?;
         let keygen_decommit: KeygenDecommit = deserialize!(&message.unverified_bytes)?;
+        keygen_decommit.verify(message.id(), message.from(), com)?;
         Ok(keygen_decommit)
     }
 
@@ -84,27 +86,33 @@ impl KeygenDecommit {
     }
 
     #[instrument(skip_all, err(Debug))]
-    /// `sid` is a unique session identifier.
-    pub(crate) fn verify(
+    /// Verify this KeygenDecommit against a commitment and expected content.
+    fn verify(
         &self,
-        sid: &Identifier,
-        sender: &ParticipantIdentifier,
+        sid: Identifier,
+        sender: ParticipantIdentifier,
         com: &KeygenCommit,
     ) -> Result<()> {
-        let mut transcript = Transcript::new(b"KeyGenR1");
-        let decom = &mut self.clone();
-        decom.sid = *sid;
-        decom.sender = *sender;
-        transcript.append_message(b"decom", &serialize!(&decom)?);
-        let mut hash = [0u8; 32];
-        transcript.challenge_bytes(b"hashing r1", &mut hash);
-        let rebuilt_com = KeygenCommit { hash };
-
-        if rebuilt_com == *com {
-            Ok(())
-        } else {
+        // Check the commitment.
+        let rebuilt_com = self.commit()?;
+        if &rebuilt_com != com {
             error!("decommitment does not match original commitment");
-            Err(InternalError::ProtocolError(Some(*sender)))
+            return Err(InternalError::ProtocolError(Some(sender)));
         }
+
+        // Check the session ID and sender ID.
+        if self.sid != sid {
+            error!("Incorrect session ID");
+            return Err(InternalError::ProtocolError(Some(sender)));
+        }
+        if self.sender != sender {
+            error!("Incorrect sender ID");
+            return Err(InternalError::ProtocolError(Some(sender)));
+        }
+        if self.pk.participant() != sender {
+            error!("Incorrect public key ID");
+            return Err(InternalError::ProtocolError(Some(sender)));
+        }
+        Ok(())
     }
 }

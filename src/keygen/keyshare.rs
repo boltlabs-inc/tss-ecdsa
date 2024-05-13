@@ -106,7 +106,7 @@ impl KeySharePrivate {
 
             // Check that the share itself is valid
             let share = BigNumber::from_slice(share_bytes);
-            if share > k256_order() || share < BigNumber::one() {
+            if share >= k256_order() || share < BigNumber::one() {
                 Err(CallerError::DeserializationFailed)?
             }
 
@@ -206,9 +206,7 @@ mod tests {
     #[test]
     fn keyshare_private_bytes_must_be_in_range() {
         // Share must be < k256_order()
-        let too_big = KeySharePrivate {
-            x: k256_order() + 1,
-        };
+        let too_big = KeySharePrivate { x: k256_order() };
         let bytes = too_big.into_bytes();
         assert!(KeySharePrivate::try_from_bytes(bytes).is_err());
 

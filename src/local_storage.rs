@@ -19,7 +19,10 @@ use crate::{
 };
 use std::{
     any::{Any, TypeId},
-    collections::HashMap,
+    collections::{
+        hash_map::Entry::{Occupied, Vacant},
+        HashMap,
+    },
 };
 
 /// A type implementing `TypeTag` can be used to store and retrieve
@@ -60,6 +63,29 @@ impl LocalStorage {
         let _ = self
             .storage
             .insert((participant_id, TypeId::of::<T>()), Box::new(value));
+    }
+
+    /// Stores `value` via a [`TypeTag`] and
+    /// [`ParticipantIdentifier`] tuple. Fails if a value exists.
+    pub(crate) fn store_once<T: TypeTag>(
+        &mut self,
+        participant_id: ParticipantIdentifier,
+        value: T::Value,
+    ) -> Result<()> {
+        match self.storage.entry((participant_id, TypeId::of::<T>())) {
+            Vacant(entry) => {
+                let _ = entry.insert(Box::new(value));
+                Ok(())
+            }
+            Occupied(_) => {
+                error!(
+                    "Storage entry already exists. Type: {:?}, participant_id: {}",
+                    std::any::type_name::<T::Value>(),
+                    participant_id
+                );
+                Err(InternalError::InternalInvariantFailed)
+            }
+        }
     }
 
     /// Retrieves a reference to a value via its [`TypeTag`] and
@@ -156,5 +182,28 @@ impl LocalStorage {
     pub(crate) fn contains<T: TypeTag>(&self, participant_id: ParticipantIdentifier) -> bool {
         self.storage
             .contains_key(&(participant_id, TypeId::of::<T>()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{message_queue::MessageQueue, utils::testing::init_testing};
+
+    #[test]
+    fn local_storage_store_once() -> Result<()> {
+        let rng = &mut init_testing();
+        let pid = ParticipantIdentifier::random(rng);
+
+        let mut storage = LocalStorage::default();
+        storage.store_once::<storage::MessageQueue>(pid, MessageQueue::default())?;
+
+        assert!(storage.contains::<storage::MessageQueue>(pid));
+        assert!(storage.retrieve::<storage::MessageQueue>(pid).is_ok());
+
+        let store_again = storage.store_once::<storage::MessageQueue>(pid, MessageQueue::default());
+        assert!(store_again.is_err());
+
+        Ok(())
     }
 }

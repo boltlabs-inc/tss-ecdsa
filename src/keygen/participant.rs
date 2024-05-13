@@ -23,10 +23,7 @@ use crate::{
     },
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
-    zkp::{
-        pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
-        Proof,
-    },
+    zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
     Identifier,
 };
 
@@ -317,15 +314,23 @@ impl KeygenParticipant {
         rng: &mut R,
         broadcast_message: BroadcastOutput,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
+        let message = broadcast_message.into_message(BroadcastTag::KeyGenR1CommitHash)?;
+
+        if self
+            .local_storage
+            .contains::<storage::Commit>(message.from())
+        {
+            warn!(
+                "Received duplicate round one keygen message from {:?}.",
+                message.from()
+            );
+            return Ok(ProcessOutcome::Incomplete);
+        }
         info!("Handling round one keygen message.");
 
-        // XXX should we have a check that we haven't recieved a round one
-        // message _after_ round one is complete? Likewise for all other rounds.
-
-        let message = broadcast_message.into_message(BroadcastTag::KeyGenR1CommitHash)?;
         let keygen_commit = KeygenCommit::from_message(&message)?;
         self.local_storage
-            .store::<storage::Commit>(message.from(), keygen_commit);
+            .store_once::<storage::Commit>(message.from(), keygen_commit)?;
 
         // Check if we've received all the commits, which signals an end to
         // round one.
@@ -411,7 +416,18 @@ impl KeygenParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
+        if self
+            .local_storage
+            .contains::<storage::Decommit>(message.from())
+        {
+            warn!(
+                "Received duplicate round two keygen message from {:?}.",
+                message.from()
+            );
+            return Ok(ProcessOutcome::Incomplete);
+        }
         info!("Handling round two keygen message.");
+
         // We must receive all commitments in round 1 before we start processing
         // decommits in round 2.
         let r1_done = self
@@ -424,13 +440,12 @@ impl KeygenParticipant {
         }
         // Check that the decommitment contained in the message is valid for the
         // previously received commitment.
-        let decom = KeygenDecommit::from_message(message)?;
         let com = self
             .local_storage
             .retrieve::<storage::Commit>(message.from())?;
-        decom.verify(&message.id(), &message.from(), com)?;
+        let decom = KeygenDecommit::from_message(message, com)?;
         self.local_storage
-            .store::<storage::Decommit>(message.from(), decom);
+            .store_once::<storage::Decommit>(message.from(), decom)?;
 
         // Check if we've received all the decommits
         let r2_done = self
@@ -486,7 +501,7 @@ impl KeygenParticipant {
         }
         self.local_storage
             .store::<storage::GlobalRid>(self.id, global_rid);
-        let transcript = schnorr_proof_transcript(&global_rid)?;
+        let transcript = schnorr_proof_transcript(self.sid(), &global_rid, self.id())?;
 
         let precom = self
             .local_storage
@@ -527,6 +542,16 @@ impl KeygenParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
+        if self
+            .local_storage
+            .contains::<storage::PublicKeyshare>(message.from())
+        {
+            warn!(
+                "Received duplicate round three keygen message from {:?}.",
+                message.from()
+            );
+            return Ok(ProcessOutcome::Incomplete);
+        }
         info!("Handling round three keygen message.");
 
         if !self.local_storage.contains::<storage::GlobalRid>(self.id) {
@@ -538,17 +563,18 @@ impl KeygenParticipant {
         let decom = self
             .local_storage
             .retrieve::<storage::Decommit>(message.from())?;
+        let precommit = &decom.A;
 
         let input = CommonInput::new(&decom.pk);
 
-        let mut transcript = schnorr_proof_transcript(&global_rid)?;
-        proof.verify(input, &self.retrieve_context(), &mut transcript)?;
+        let mut transcript = schnorr_proof_transcript(self.sid(), &global_rid, message.from())?;
+        proof.verify_with_precommit(input, &self.retrieve_context(), &mut transcript, precommit)?;
 
         // Only if the proof verifies do we store the participant's public key
         // share. This signals the end of the protocol for the participant.
         let keyshare = decom.get_keyshare();
         self.local_storage
-            .store::<storage::PublicKeyshare>(message.from(), keyshare.clone());
+            .store_once::<storage::PublicKeyshare>(message.from(), keyshare.clone())?;
 
         //check if we've stored all the public keyshares
         let keyshare_done = self
@@ -577,9 +603,15 @@ impl KeygenParticipant {
 }
 
 /// Generate a [`Transcript`] for [`PiSchProof`].
-fn schnorr_proof_transcript(global_rid: &[u8; 32]) -> Result<Transcript> {
+fn schnorr_proof_transcript(
+    sid: Identifier,
+    global_rid: &[u8; 32],
+    sender_id: ParticipantIdentifier,
+) -> Result<Transcript> {
     let mut transcript = Transcript::new(b"keygen schnorr");
+    transcript.append_message(b"sid", &serialize!(&sid)?);
     transcript.append_message(b"rid", &serialize!(global_rid)?);
+    transcript.append_message(b"sender_id", &serialize!(&sender_id)?);
     Ok(transcript)
 }
 

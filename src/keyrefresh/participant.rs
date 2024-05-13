@@ -388,7 +388,7 @@ impl KeyrefreshParticipant {
 
         let keyrefresh_commit = KeyrefreshCommit::from_message(&message)?;
         self.local_storage
-            .store::<storage::Commit>(message.from(), keyrefresh_commit);
+            .store_once::<storage::Commit>(message.from(), keyrefresh_commit)?;
 
         // Check if we've received all the commits, which signals an end to
         // round one.
@@ -503,7 +503,7 @@ impl KeyrefreshParticipant {
             .retrieve::<storage::Commit>(message.from())?;
         let decom = KeyrefreshDecommit::from_message(message, com, &self.all_participants())?;
         self.local_storage
-            .store::<storage::Decommit>(message.from(), decom);
+            .store_once::<storage::Decommit>(message.from(), decom)?;
 
         // Check if we've received all the decommits
         let r2_done = self
@@ -707,7 +707,10 @@ impl KeyrefreshParticipant {
 
         // Only if the proof verifies do we store the participant's updates.
         self.local_storage
-            .store::<storage::ValidPublicUpdates>(message.from(), decom.update_publics.clone());
+            .store_once::<storage::ValidPublicUpdates>(
+                message.from(),
+                decom.update_publics.clone(),
+            )?;
 
         self.maybe_finish()
     }

@@ -65,6 +65,7 @@ impl KeyrefreshDecommit {
         }
     }
 
+    /// Deserialize a KeyrefreshDecommit from a message and verify it.
     pub(crate) fn from_message(
         message: &Message,
         com: &KeyrefreshCommit,
