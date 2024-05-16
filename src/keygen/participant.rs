@@ -316,16 +316,7 @@ impl KeygenParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         let message = broadcast_message.into_message(BroadcastTag::KeyGenR1CommitHash)?;
 
-        if self
-            .local_storage
-            .contains::<storage::Commit>(message.from())
-        {
-            warn!(
-                "Received duplicate round one keygen message from {:?}.",
-                message.from()
-            );
-            return Ok(ProcessOutcome::Incomplete);
-        }
+        self.check_for_duplicate_msg::<storage::Commit>(message.from())?;
         info!("Handling round one keygen message.");
 
         let keygen_commit = KeygenCommit::from_message(&message)?;
@@ -416,16 +407,7 @@ impl KeygenParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        if self
-            .local_storage
-            .contains::<storage::Decommit>(message.from())
-        {
-            warn!(
-                "Received duplicate round two keygen message from {:?}.",
-                message.from()
-            );
-            return Ok(ProcessOutcome::Incomplete);
-        }
+        self.check_for_duplicate_msg::<storage::Decommit>(message.from())?;
         info!("Handling round two keygen message.");
 
         // We must receive all commitments in round 1 before we start processing
@@ -542,16 +524,7 @@ impl KeygenParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        if self
-            .local_storage
-            .contains::<storage::PublicKeyshare>(message.from())
-        {
-            warn!(
-                "Received duplicate round three keygen message from {:?}.",
-                message.from()
-            );
-            return Ok(ProcessOutcome::Incomplete);
-        }
+        self.check_for_duplicate_msg::<storage::PublicKeyshare>(message.from())?;
         info!("Handling round three keygen message.");
 
         if !self.local_storage.contains::<storage::GlobalRid>(self.id) {

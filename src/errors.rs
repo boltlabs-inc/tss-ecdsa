@@ -24,6 +24,8 @@ pub enum InternalError {
     Serialization,
     #[error("Some player sent a message which does not match the protocol specification: {0:?}")]
     ProtocolError(Option<ParticipantIdentifier>),
+    #[error("Some player sent more than one message of the same type: {0:?}")]
+    DuplicateMessage(ParticipantIdentifier),
     #[error("Represents some code assumption that was checked at runtime but failed to be true")]
     InternalInvariantFailed,
     #[error("Unexpected state: {0:?} for protocol participant's status")]

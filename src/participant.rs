@@ -20,7 +20,7 @@ use crate::{
 use rand::{CryptoRng, RngCore};
 use serde::Serialize;
 use std::fmt::Debug;
-use tracing::error;
+use tracing::{error, warn};
 
 /// Possible outcomes from processing one or more messages.
 ///
@@ -371,6 +371,19 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
     ) -> Result<Vec<Message>> {
         let message_storage = self.get_from_storage::<local_storage::MessageQueue>()?;
         Ok(message_storage.retrieve(message_type, sender))
+    }
+
+    fn check_for_duplicate_msg<T: TypeTag>(&self, from: ParticipantIdentifier) -> Result<()> {
+        if self.local_storage().contains::<T>(from) {
+            warn!(
+                "Received duplicate message from {:?} of type {}",
+                from,
+                std::any::type_name::<T>()
+            );
+            Err(InternalError::DuplicateMessage(from))
+        } else {
+            Ok(())
+        }
     }
 
     fn write_progress(&mut self, func_name: String) -> Result<()> {
