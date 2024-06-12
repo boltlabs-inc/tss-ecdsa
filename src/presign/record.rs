@@ -12,7 +12,9 @@ use crate::{
         InternalError::{InternalInvariantFailed, ProtocolError},
         Result,
     },
-    presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
+    presign::round_three::{
+        Private as RoundThreePrivate, Public as RoundThreePublic, SecretScalar,
+    },
     utils::{bn_to_scalar, CurvePoint, ParseBytes},
 };
 use k256::{elliptic_curve::PrimeField, Scalar};
@@ -79,26 +81,28 @@ impl TryFrom<RecordPair> for PresignRecord {
         let mut delta = private.delta;
         let mut Delta = private.Delta;
         for p in publics {
-            delta += &p.delta;
+            delta += &SecretScalar::from_scalar(p.delta);
             Delta = Delta + p.Delta;
         }
 
         let g = CurvePoint::GENERATOR;
-        if g.multiply_by_scalar(&delta) != Delta {
+        if g.multiply_by_scalar(delta.get_scalar_secret()) != Delta {
             error!("Could not create PresignRecord: mismatch between calculated private and public deltas");
             return Err(ProtocolError(None));
         }
 
-        let delta_inv = Option::<Scalar>::from(delta.invert()).ok_or_else(|| {
+        let delta_inv: SecretScalar = Option::from(delta.clone().invert()).ok_or_else(|| {
             error!("Could not invert delta as it is 0. Either you got profoundly unlucky or more likely there's a bug");
             InternalInvariantFailed
         })?;
-        let R = private.Gamma.multiply_by_scalar(&delta_inv);
+        let R = private
+            .Gamma
+            .multiply_by_scalar(delta_inv.get_scalar_secret());
 
         Ok(PresignRecord {
             R,
-            k: bn_to_scalar(&private.k)?,
-            chi: private.chi,
+            k: bn_to_scalar(private.k.get_bignumber_secret())?,
+            chi: *private.chi.get_scalar_secret(),
         })
     }
 }

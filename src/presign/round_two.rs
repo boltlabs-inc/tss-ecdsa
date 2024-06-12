@@ -23,16 +23,17 @@ use crate::{
         Proof,
     },
 };
-use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use zeroize::ZeroizeOnDrop;
 
+use super::round_three::SecretBigNumber;
+
 #[derive(Clone, ZeroizeOnDrop)]
 pub(crate) struct Private {
-    pub beta: BigNumber,
-    pub beta_hat: BigNumber,
+    pub beta: SecretBigNumber,
+    pub beta_hat: SecretBigNumber,
 }
 
 impl Debug for Private {
