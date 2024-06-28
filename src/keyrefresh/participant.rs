@@ -11,6 +11,7 @@
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::{CallerError, InternalError, Result},
+    gmp_zeroize::setup_zeroize,
     keyrefresh::{
         keyrefresh_commit::{KeyrefreshCommit, KeyrefreshDecommit},
         keyshare::{KeyUpdateEncrypted, KeyUpdatePrivate, KeyUpdatePublic},
@@ -134,6 +135,7 @@ impl ProtocolParticipant for KeyrefreshParticipant {
         other_participant_ids: Vec<ParticipantIdentifier>,
         input: Self::Input,
     ) -> Result<Self> {
+        setup_zeroize();
         input.check_participant_config(&ParticipantConfig::new(id, &other_participant_ids)?)?;
 
         Ok(Self {

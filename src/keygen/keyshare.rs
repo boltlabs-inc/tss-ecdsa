@@ -16,7 +16,7 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
 const KEYSHARE_TAG: &[u8] = b"KeySharePrivate";
 
@@ -25,7 +25,7 @@ const KEYSHARE_TAG: &[u8] = b"KeySharePrivate";
 ///
 /// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
-#[derive(Clone, ZeroizeOnDrop, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct KeySharePrivate {
     x: BigNumber, // in the range [1, q)
 }
@@ -288,5 +288,72 @@ mod tests {
         // Zero-length doesn't pass
         let bytes = [KEYSHARE_TAG, &0usize.to_le_bytes()].concat();
         assert!(KeySharePrivate::try_from_bytes(bytes).is_err());
+    }
+    use gmp_mpfr_sys::gmp;
+    use libpaillier::unknown_order;
+    use rand::{rngs::StdRng, SeedableRng};
+    use std::{
+        mem::{align_of, size_of},
+        slice,
+    };
+
+    use crate::gmp_zeroize::setup_zeroize;
+
+    #[allow(warnings)]
+    #[test]
+    fn zeroize_works() {
+        // Set up automatic zeroization of GMP memory.
+        setup_zeroize();
+
+        // Generate a secret.
+        let rng = &mut StdRng::from_seed([0; 32]);
+        let mut share = KeySharePrivate::random(rng);
+
+        // Pre-hack validation.
+        assert!(
+            size_of::<unknown_order::BigNumber>() == size_of::<gmp::mpz_t>() &&
+            align_of::<unknown_order::BigNumber>() == align_of::<gmp::mpz_t>(),
+            "unknown_order::BigNumber and rug::Integer should be a transparent wrapper of gmp::mpz_t."
+        );
+
+        // Dig down the stack of wrappers to get to the actual storage.
+        let limb_size = size_of::<gmp::limb_t>();
+        let data = unsafe {
+            let mpz = &*(&share.x as *const unknown_order::BigNumber as *const gmp::mpz_t);
+            slice::from_raw_parts(mpz.d.as_ptr() as *const u8, limb_size * mpz.size as usize)
+        };
+
+        // Post-hack validation.
+        let expected_data = {
+            let mut x = share.x.to_bytes();
+            x.reverse(); // To little-endian.
+            x.resize(x.len().div_ceil(limb_size) * limb_size, 0); // To complete limbs.
+            x
+        };
+        assert_eq!(
+            data,
+            &expected_data[..],
+            "Failed to locate the secret data."
+        );
+
+        // Prepare memory snapshots.
+        let snapshot1 = &Vec::from(data) as &[u8];
+        let snapshot2 = &mut Vec::from(data) as &mut [u8];
+
+        // Dropping the secret should zeroize the underlying memory.
+        drop(share);
+        // Snapshot the memory again.
+        snapshot2.copy_from_slice(&data);
+
+        let unchanged_bytes_count = snapshot1
+            .iter()
+            .zip(snapshot2.iter())
+            .filter(|(a, b)| a == b)
+            .count();
+
+        assert!(
+            unchanged_bytes_count <= 4, // A few bytes can be equal by chance.
+            "The secret should have been erased."
+        );
     }
 }

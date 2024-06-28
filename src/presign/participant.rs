@@ -12,6 +12,7 @@ use crate::{
     auxinfo::{AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::{CallerError, InternalError, Result},
+    gmp_zeroize::setup_zeroize,
     keygen::{KeySharePrivate, KeySharePublic},
     local_storage::LocalStorage,
     messages::{Message, MessageType, PresignMessageType},
@@ -248,6 +249,8 @@ impl ProtocolParticipant for PresignParticipant {
         other_participant_ids: Vec<ParticipantIdentifier>,
         input: Self::Input,
     ) -> Result<Self> {
+        setup_zeroize();
+
         let input_participants = input.participants();
 
         // Check that we have the expected number of inputs
