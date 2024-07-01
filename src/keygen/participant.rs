@@ -11,6 +11,7 @@
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::{CallerError, InternalError, Result},
+    gmp_zeroize::setup_zeroize,
     keygen::{
         keygen_commit::{KeygenCommit, KeygenDecommit},
         keyshare::{KeySharePrivate, KeySharePublic},
@@ -126,6 +127,8 @@ impl ProtocolParticipant for KeygenParticipant {
         other_participant_ids: Vec<ParticipantIdentifier>,
         input: Self::Input,
     ) -> Result<Self> {
+        setup_zeroize();
+
         Ok(Self {
             sid,
             id,

@@ -207,6 +207,7 @@ pub mod errors;
 
 pub mod auxinfo;
 mod broadcast;
+mod gmp_zeroize;
 pub mod keygen;
 pub mod keyrefresh;
 mod local_storage;

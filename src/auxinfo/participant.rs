@@ -18,6 +18,7 @@ use crate::{
     },
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     errors::{CallerError, InternalError, Result},
+    gmp_zeroize::setup_zeroize,
     local_storage::LocalStorage,
     messages::{AuxinfoMessageType, Message, MessageType},
     paillier::DecryptionKey,
@@ -138,6 +139,8 @@ impl ProtocolParticipant for AuxInfoParticipant {
         other_participant_ids: Vec<ParticipantIdentifier>,
         input: Self::Input,
     ) -> Result<Self> {
+        setup_zeroize();
+
         Ok(Self {
             sid,
             id,

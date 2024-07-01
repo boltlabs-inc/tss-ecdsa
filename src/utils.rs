@@ -23,7 +23,7 @@ use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::Debug;
 use tracing::error;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 pub(crate) const CRYPTOGRAPHIC_RETRY_MAX: usize = 500usize;
 
@@ -71,7 +71,9 @@ impl CurvePoint {
     /// converting it. This may be insecure if the point contains private
     /// data.
     pub(crate) fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
-        Ok(self.multiply_by_scalar(&bn_to_scalar(point)?))
+        let s = Zeroizing::new(bn_to_scalar(point)?);
+        let p = self.multiply_by_scalar(&s);
+        Ok(p)
     }
 
     pub(crate) fn multiply_by_scalar(&self, point: &Scalar) -> Self {
@@ -350,10 +352,11 @@ pub(crate) fn bn_to_scalar(x: &BigNumber) -> Result<k256::Scalar> {
     let order = k256_order();
 
     let x_modded = x % order;
-    let bytes = x_modded.to_bytes();
 
-    let mut slice = vec![0u8; 32 - bytes.len()];
+    let bytes = Zeroizing::new(x_modded.to_bytes());
+    let mut slice = Zeroizing::new(vec![0u8; 32 - bytes.len()]);
     slice.extend_from_slice(&bytes);
+
     let mut ret: k256::Scalar = Option::from(k256::Scalar::from_repr(
         GenericArray::clone_from_slice(&slice),
     ))
