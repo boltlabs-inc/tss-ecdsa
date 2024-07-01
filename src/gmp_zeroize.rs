@@ -8,7 +8,7 @@ use zeroize::Zeroize;
 static ONCE: Once = Once::new();
 
 pub fn setup_zeroize() {
-    ONCE.call_once(|| do_setup_gmp_zeroize());
+    ONCE.call_once(do_setup_gmp_zeroize);
 }
 
 fn do_setup_gmp_zeroize() {
