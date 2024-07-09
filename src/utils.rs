@@ -8,21 +8,9 @@
 
 use crate::curve_point::k256_order;
 use crate::errors::{CallerError, InternalError, Result};
-use generic_array::GenericArray;
-use k256::{
-    elliptic_curve::{
-        bigint::Encoding,
-        group::{ff::PrimeField, GroupEncoding},
-        point::AffineCoordinates,
-        AffinePoint, Curve,
-    },
-    EncodedPoint, FieldBytes, Scalar, Secp256k1,
-};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, Rng, RngCore};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::fmt::Debug;
 use tracing::error;
 use zeroize::Zeroize;
 

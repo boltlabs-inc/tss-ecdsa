@@ -19,8 +19,7 @@ use k256::{
     EncodedPoint, FieldBytes, Scalar, Secp256k1,
 };
 use libpaillier::unknown_order::BigNumber;
-use merlin::Transcript;
-use rand::{CryptoRng, Rng, RngCore};
+use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::Debug;
 use tracing::error;

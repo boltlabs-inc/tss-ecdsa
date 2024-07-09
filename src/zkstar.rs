@@ -1,4 +1,4 @@
-use crate::{curve_point, errors::InternalError, utils};
+use crate::{curve_point, errors::InternalError};
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};

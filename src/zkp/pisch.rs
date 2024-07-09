@@ -30,7 +30,7 @@ use crate::{
     errors::*,
     messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType},
     curve_point::k256_order,
-    utils::{self, positive_challenge_from_transcript, random_positive_bn},
+    utils::{positive_challenge_from_transcript, random_positive_bn},
     zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
