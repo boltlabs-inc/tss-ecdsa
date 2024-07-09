@@ -24,7 +24,8 @@ use crate::{
     },
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
-    utils::{bn_to_scalar, k256_order, random_plusminus_by_size, random_positive_bn, CurvePoint},
+    curve_point::{bn_to_scalar, k256_order, CurvePoint},
+    utils::{random_plusminus_by_size, random_positive_bn},
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof, PiAffgSecret},
         pienc::{PiEncInput, PiEncProof, PiEncSecret},
@@ -1229,7 +1230,7 @@ mod test {
         messages::{Message, MessageType, PresignMessageType},
         participant::{ProcessOutcome, Status},
         presign::{Input, PresignRecord},
-        utils::{self, testing::init_testing, CurvePoint},
+        curve_point::{self, testing::init_testing, CurvePoint},
         Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
     };
 
@@ -1307,7 +1308,7 @@ mod test {
             .map(|output| output.private_key_share())
             .fold(BigNumber::zero(), |sum, key_share| sum + key_share.as_ref());
         // Converting to scalars automatically gets us the mod q
-        assert_eq!(masked_key, utils::bn_to_scalar(&secret_key).unwrap() * mask);
+        assert_eq!(masked_key, curve_point::bn_to_scalar(&secret_key).unwrap() * mask);
     }
 
     #[test]

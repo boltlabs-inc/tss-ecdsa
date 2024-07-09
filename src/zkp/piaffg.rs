@@ -54,7 +54,7 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
-use utils::CurvePoint;
+use crate::curve_point::CurvePoint;
 
 /// Zero-knowledge proof of knowledge of a Paillier affine operation with a
 /// group commitment where the encrypted and committed values are in a given
@@ -549,10 +549,8 @@ mod tests {
     use super::*;
     use crate::{
         paillier::DecryptionKey,
-        utils::{
-            k256_order, random_plusminus, random_plusminus_by_size_with_minimum,
-            testing::init_testing,
-        },
+        curve_point::{k256_order, testing::init_testing},
+        utils::{random_plusminus, random_plusminus_by_size_with_minimum},
         zkp::BadContext,
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};

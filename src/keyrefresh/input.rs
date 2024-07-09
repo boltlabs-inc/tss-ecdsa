@@ -125,7 +125,7 @@ mod test {
         errors::{CallerError, InternalError, Result},
         keygen,
         keyrefresh::KeyrefreshParticipant,
-        utils::testing::init_testing,
+        curve_point::testing::init_testing,
         Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
     };
 

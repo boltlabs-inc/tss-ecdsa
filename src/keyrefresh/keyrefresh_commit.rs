@@ -11,7 +11,7 @@ use crate::{
     keyrefresh::keyshare::KeyUpdatePublic,
     messages::{KeyrefreshMessageType, Message, MessageType},
     protocol::{Identifier, ParticipantIdentifier},
-    utils::CurvePoint,
+    curve_point::CurvePoint,
 };
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};

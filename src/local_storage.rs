@@ -188,7 +188,7 @@ impl LocalStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{message_queue::MessageQueue, utils::testing::init_testing};
+    use crate::{message_queue::MessageQueue, curve_point::testing::init_testing};
 
     #[test]
     fn local_storage_store_once() -> Result<()> {

@@ -10,7 +10,7 @@ use std::collections::HashSet;
 use crate::{
     errors::{CallerError, InternalError, Result},
     keygen::keyshare::{KeySharePrivate, KeySharePublic},
-    utils::CurvePoint,
+    curve_point::CurvePoint,
     ParticipantIdentifier,
 };
 
@@ -129,7 +129,8 @@ impl Output {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::testing::init_testing, ParticipantConfig, ParticipantIdentifier};
+    use crate::curve_point::testing::init_testing;
+    use crate::{ParticipantConfig, ParticipantIdentifier};
     use rand::{CryptoRng, Rng, RngCore};
 
     impl Output {

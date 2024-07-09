@@ -476,13 +476,14 @@ fn y_prime_combinations(
 
 #[cfg(test)]
 mod tests {
+    use crate::curve_point::k256_order;
     use rand::{rngs::StdRng, Rng};
 
     use super::*;
     use crate::{
         paillier::{prime_gen, DecryptionKey},
         parameters::SOUNDNESS_PARAMETER,
-        utils::testing::init_testing,
+        curve_point::testing::init_testing,
         zkp::BadContext,
     };
 

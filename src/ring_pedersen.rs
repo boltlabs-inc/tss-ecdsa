@@ -330,7 +330,8 @@ impl RingPedersen {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::{random_plusminus_by_size, testing::init_testing};
+    use crate::curve_point::testing::init_testing;
+    use crate::utils::random_plusminus_by_size;
 
     use super::*;
 

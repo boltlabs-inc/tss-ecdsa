@@ -29,7 +29,8 @@
 use crate::{
     errors::*,
     messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType},
-    utils::{self, k256_order, positive_challenge_from_transcript, random_positive_bn},
+    curve_point::k256_order,
+    utils::{self, positive_challenge_from_transcript, random_positive_bn},
     zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -38,7 +39,7 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::{convert::AsRef, fmt::Debug};
 use tracing::error;
-use utils::CurvePoint;
+use crate::curve_point::CurvePoint;
 
 /// Proof of knowledge of discrete logarithm of a group element which is the
 /// commitment to the secret.
@@ -265,7 +266,7 @@ impl PiSchProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::testing::init_testing, zkp::BadContext};
+    use crate::{curve_point::testing::init_testing, zkp::BadContext};
     fn transcript() -> Transcript {
         Transcript::new(b"PiSchProof Test")
     }

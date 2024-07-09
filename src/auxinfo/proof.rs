@@ -198,7 +198,7 @@ impl AuxInfoProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{paillier::prime_gen, protocol::SharedContext, utils::testing::init_testing};
+    use crate::{paillier::prime_gen, protocol::SharedContext, curve_point::testing::init_testing};
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
     fn random_auxinfo_proof<R: RngCore + CryptoRng>(

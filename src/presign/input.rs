@@ -161,7 +161,7 @@ mod test {
         auxinfo,
         errors::{CallerError, InternalError, Result},
         keygen,
-        utils::testing::init_testing,
+        curve_point::testing::init_testing,
         Identifier, ParticipantConfig, ParticipantIdentifier, PresignParticipant,
         ProtocolParticipant,
     };

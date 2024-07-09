@@ -874,7 +874,7 @@ mod tests {
     use crate::{
         auxinfo, keygen,
         keyrefresh::input::Input,
-        utils::{testing::init_testing, CurvePoint},
+        curve_point::{testing::init_testing, CurvePoint},
         Identifier, ParticipantConfig,
     };
     use rand::{CryptoRng, Rng, RngCore};

@@ -15,7 +15,7 @@ use crate::{
     messages::{Message, MessageType},
     participant::{InnerProtocolParticipant, ProtocolParticipant, Status},
     protocol::participant_config::ParticipantConfig,
-    utils::{k256_order, CurvePoint},
+    curve_point::{k256_order, CurvePoint},
     zkp::ProofContext,
 };
 use libpaillier::unknown_order::BigNumber;
@@ -336,7 +336,7 @@ pub(crate) mod participant_config {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::utils::testing::init_testing;
+        use crate::curve_point::testing::init_testing;
 
         #[test]
         fn participant_config_must_have_at_least_two_participants() {
@@ -608,7 +608,7 @@ mod tests {
         participant::Status,
         presign,
         sign::{self, InteractiveSignParticipant, SignParticipant},
-        utils::testing::init_testing,
+        curve_point::testing::init_testing,
         PresignParticipant,
     };
     use k256::ecdsa::signature::DigestVerifier;

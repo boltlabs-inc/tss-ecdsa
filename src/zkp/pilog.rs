@@ -33,7 +33,7 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
-use utils::CurvePoint;
+use crate::curve_point::CurvePoint;
 
 /// Proof of knowledge that:
 /// 1. the committed value in a discrete log commitment and the plaintext value
@@ -354,7 +354,8 @@ mod tests {
     use crate::{
         paillier::{DecryptionKey, Nonce},
         ring_pedersen::VerifiedRingPedersen,
-        utils::{random_plusminus_by_size_with_minimum, testing::init_testing},
+        curve_point::testing::init_testing,
+        utils::random_plusminus_by_size_with_minimum,
         zkp::BadContext,
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};

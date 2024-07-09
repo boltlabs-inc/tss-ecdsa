@@ -10,7 +10,7 @@ use crate::{
     errors::{CallerError, InternalError, Result},
     keygen::{KeySharePrivate, KeySharePublic},
     paillier::{Ciphertext, DecryptionKey, EncryptionKey},
-    utils::{k256_order, CurvePoint},
+    curve_point::{k256_order, CurvePoint},
     ParticipantIdentifier,
 };
 use libpaillier::unknown_order::BigNumber;
@@ -177,7 +177,7 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo,
-        utils::{k256_order, testing::init_testing},
+        curve_point::{k256_order, testing::init_testing},
     };
     use rand::rngs::StdRng;
 

@@ -333,7 +333,8 @@ fn sqrt(num: &BigNumber) -> BigNumber {
 mod tests {
     use crate::{
         paillier::prime_gen,
-        utils::{k256_order, random_positive_bn, testing::init_testing},
+        curve_point::{k256_order, testing::init_testing},
+        utils::random_positive_bn,
         zkp::BadContext,
     };
     use rand::{prelude::StdRng, Rng, SeedableRng};

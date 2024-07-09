@@ -8,7 +8,9 @@
 
 use crate::{
     errors::{CallerError, Result},
-    utils::{k256_order, CurvePoint, ParseBytes},
+    curve_point::k256_order,
+    curve_point::CurvePoint,
+    utils::ParseBytes,
     ParticipantIdentifier,
 };
 use libpaillier::unknown_order::BigNumber;
@@ -188,7 +190,7 @@ impl AsRef<CurvePoint> for KeySharePublic {
 mod tests {
     use crate::{
         keygen::{keyshare::KEYSHARE_TAG, KeySharePrivate},
-        utils::{k256_order, testing::init_testing},
+        curve_point::{k256_order, testing::init_testing},
     };
 
     #[test]

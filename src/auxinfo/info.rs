@@ -210,7 +210,7 @@ impl Debug for AuxInfoWitnesses {
 
 #[cfg(test)]
 mod tests {
-    use crate::{paillier::DecryptionKey, utils::testing::init_testing};
+    use crate::{paillier::DecryptionKey, curve_point::testing::init_testing};
 
     use super::{AuxInfoPrivate, AUXINFO_TAG};
 
