@@ -224,6 +224,7 @@ mod utils;
 mod zkp;
 mod zkstar;
 
+pub use gmp_zeroize::enable_zeroize;
 pub use participant::ProtocolParticipant;
 pub use protocol::{
     participant_config::ParticipantConfig, Identifier, Participant, ParticipantIdentifier,

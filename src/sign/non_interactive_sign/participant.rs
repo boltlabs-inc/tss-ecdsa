@@ -20,7 +20,6 @@ use zeroize::Zeroize;
 
 use crate::{
     errors::{CallerError, InternalError, Result},
-    gmp_zeroize::setup_zeroize,
     keygen::KeySharePublic,
     local_storage::LocalStorage,
     messages::{Message, MessageType, SignMessageType},
@@ -208,8 +207,6 @@ impl ProtocolParticipant for SignParticipant {
     where
         Self: Sized,
     {
-        setup_zeroize();
-
         let config = ParticipantConfig::new(id, &other_participant_ids)?;
 
         // The input must contain exactly one public key per participant ID.

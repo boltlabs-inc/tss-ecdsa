@@ -289,6 +289,8 @@ mod tests {
         let bytes = [KEYSHARE_TAG, &0usize.to_le_bytes()].concat();
         assert!(KeySharePrivate::try_from_bytes(bytes).is_err());
     }
+
+    use crate::enable_zeroize;
     use gmp_mpfr_sys::gmp;
     use libpaillier::unknown_order;
     use rand::{rngs::StdRng, SeedableRng};
@@ -297,13 +299,11 @@ mod tests {
         slice,
     };
 
-    use crate::gmp_zeroize::setup_zeroize;
-
     #[allow(warnings)]
     #[test]
     fn zeroize_works() {
         // Set up automatic zeroization of GMP memory.
-        setup_zeroize();
+        enable_zeroize();
 
         // Generate a secret.
         let rng = &mut StdRng::from_seed([0; 32]);
