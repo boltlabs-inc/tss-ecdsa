@@ -7,23 +7,20 @@
 // of this source tree.
 
 use crate::{
-    errors::{
+    curve_point::{bn_to_scalar, CurvePoint, CurveTrait}, errors::{
         CallerError,
         InternalError::{InternalInvariantFailed, ProtocolError},
         Result,
-    },
-    presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
-    curve_point::{bn_to_scalar, CurvePoint},
-    utils::ParseBytes,
+    }, presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic}, utils::ParseBytes
 };
 use k256::{elliptic_curve::PrimeField, Scalar};
 use std::fmt::Debug;
 use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-pub(crate) struct RecordPair {
+pub(crate) struct RecordPair<C: CurveTrait> {
     pub(crate) private: RoundThreePrivate,
-    pub(crate) publics: Vec<RoundThreePublic>,
+    pub(crate) publics: Vec<RoundThreePublic<C>>,
 }
 
 /// The precomputation used to create a partial signature.
@@ -74,9 +71,9 @@ impl Debug for PresignRecord {
     }
 }
 
-impl TryFrom<RecordPair> for PresignRecord {
+impl<C> TryFrom<RecordPair<C>> for PresignRecord {
     type Error = crate::errors::InternalError;
-    fn try_from(RecordPair { private, publics }: RecordPair) -> Result<Self> {
+    fn try_from(RecordPair::<C> { private, publics }: RecordPair<C>) -> Result<Self> {
         let mut delta = private.delta;
         let mut Delta = private.Delta;
         for p in publics {
@@ -98,7 +95,7 @@ impl TryFrom<RecordPair> for PresignRecord {
 
         Ok(PresignRecord {
             R,
-            k: bn_to_scalar(&private.k)?,
+            k: bn_to_scalar::<CurvePoint>(&private.k)?,
             chi: private.chi,
         })
     }
@@ -302,7 +299,7 @@ mod tests {
             // Compute the masked key shares as (secret_key_share * mask)
             let masked_key_shares = keygen_outputs
                 .iter()
-                .map(|output| bn_to_scalar(output.private_key_share().as_ref()).unwrap())
+                .map(|output| bn_to_scalar::<CurvePoint>(output.private_key_share().as_ref()).unwrap())
                 .map(|secret_key_share| secret_key_share * mask);
 
             assert_eq!(masked_key_shares.len(), keygen_outputs.len());

@@ -11,12 +11,7 @@
 //! This module includes the main [`Participant`] driver.
 
 use crate::{
-    errors::{CallerError, InternalError, Result},
-    messages::{Message, MessageType},
-    participant::{InnerProtocolParticipant, ProtocolParticipant, Status},
-    protocol::participant_config::ParticipantConfig,
-    curve_point::{k256_order, CurvePoint},
-    zkp::ProofContext,
+    curve_point::{k256_order, CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, messages::{Message, MessageType}, participant::{InnerProtocolParticipant, ProtocolParticipant, Status}, protocol::participant_config::ParticipantConfig, zkp::ProofContext
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, Rng, RngCore};
@@ -424,10 +419,10 @@ impl ParticipantIdentifier {
 /// The `SharedContext` contains fixed known parameters across the entire
 /// protocol. It does not however contain the entire protocol context.
 #[derive(Debug, Clone)]
-pub(crate) struct SharedContext {
+pub(crate) struct SharedContext<C: CurveTrait> {
     sid: Identifier,
     participants: Vec<ParticipantIdentifier>,
-    generator: CurvePoint,
+    generator: C,
     order: BigNumber,
 }
 

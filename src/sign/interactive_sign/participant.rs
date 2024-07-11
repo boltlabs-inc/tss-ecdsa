@@ -10,16 +10,7 @@ use sha3::{Digest, Keccak256};
 use tracing::{error, info};
 
 use crate::{
-    auxinfo,
-    errors::{CallerError, InternalError, Result},
-    keygen::{self, KeySharePublic},
-    message_queue::MessageQueue,
-    messages::{Message, MessageType, SignMessageType},
-    participant::{ProcessOutcome, Status},
-    presign::{self, PresignParticipant, PresignRecord},
-    protocol::ProtocolType,
-    sign::{self, non_interactive_sign::participant::SignParticipant, Signature},
-    Identifier, ParticipantIdentifier, ProtocolParticipant,
+    auxinfo, curve_point::CurveTrait, errors::{CallerError, InternalError, Result}, keygen::{self, KeySharePublic}, message_queue::MessageQueue, messages::{Message, MessageType, SignMessageType}, participant::{ProcessOutcome, Status}, presign::{self, PresignParticipant, PresignRecord}, protocol::ProtocolType, sign::{self, non_interactive_sign::participant::SignParticipant, Signature}, Identifier, ParticipantIdentifier, ProtocolParticipant
 };
 
 /// A participant that runs the interactive signing protocol in
@@ -59,9 +50,9 @@ use crate::{
 /// with Identifiable Aborts. [EPrint archive,
 /// 2021](https://eprint.iacr.org/2021/060.pdf).
 #[derive(Debug)]
-pub struct InteractiveSignParticipant {
+pub struct InteractiveSignParticipant<C: CurveTrait> {
     signing_material: SigningMaterial,
-    presigner: PresignParticipant,
+    presigner: PresignParticipant<C>,
     signing_message_storage: MessageQueue,
 }
 
@@ -173,7 +164,7 @@ impl Input {
     }
 }
 
-impl ProtocolParticipant for InteractiveSignParticipant {
+impl<C> ProtocolParticipant for InteractiveSignParticipant<C> {
     type Input = Input;
     type Output = Signature;
 
@@ -275,7 +266,7 @@ impl ProtocolParticipant for InteractiveSignParticipant {
     }
 }
 
-impl InteractiveSignParticipant {
+impl<C> InteractiveSignParticipant<C> {
     fn handle_sign_message(
         &mut self,
         rng: &mut (impl CryptoRng + RngCore),
@@ -372,11 +363,11 @@ mod tests {
 
     /// Pick a random incoming message and have the correct participant process
     /// it.
-    fn process_messages<'a>(
-        quorum: &'a mut [InteractiveSignParticipant],
+    fn process_messages<'a, C>(
+        quorum: &'a mut [InteractiveSignParticipant<C>],
         inbox: &mut Vec<Message>,
         rng: &mut StdRng,
-    ) -> (&'a InteractiveSignParticipant, ProcessOutcome<Signature>) {
+    ) -> (&'a InteractiveSignParticipant<C>, ProcessOutcome<Signature>) {
         // Make sure test doesn't loop forever if we have a control flow problem
         if inbox.is_empty() {
             panic!("Protocol isn't done but there are no more messages!")

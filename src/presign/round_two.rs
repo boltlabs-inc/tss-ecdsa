@@ -7,21 +7,14 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::AuxInfoPublic,
-    errors::{InternalError, Result},
-    keygen::KeySharePublic,
-    messages::{Message, MessageType, PresignMessageType},
-    paillier::Ciphertext,
-    presign::{
+    auxinfo::AuxInfoPublic, curve_point::{CurvePoint, CurveTrait}, errors::{InternalError, Result}, keygen::KeySharePublic, messages::{Message, MessageType, PresignMessageType}, paillier::Ciphertext, presign::{
         participant::ParticipantPresignContext,
         round_one::{Private as RoundOnePrivate, PublicBroadcast as RoundOnePublicBroadcast},
-    },
-    curve_point::CurvePoint,
-    zkp::{
+    }, zkp::{
         piaffg::{PiAffgInput, PiAffgProof},
         pilog::{CommonInput, PiLogProof},
         Proof,
-    },
+    }
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -51,7 +44,7 @@ impl Debug for Private {
 /// necessarily valid (i.e., that all the components are valid with respect to
 /// each other); use [`Public::verify`] to check this latter condition.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct Public {
+pub(crate) struct Public<C: CurveTrait> {
     pub D: Ciphertext,
     pub D_hat: Ciphertext,
     pub F: Ciphertext,
@@ -62,13 +55,13 @@ pub(crate) struct Public {
     pub psi_prime: PiLogProof,
 }
 
-impl Public {
+impl<C> Public<C> {
     /// Verify the validity of [`Public`] against the sender's
     /// [`AuxInfoPublic`], [`KeySharePublic`], and
     /// [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast) values.
     pub(crate) fn verify(
         self,
-        context: &ParticipantPresignContext,
+        context: &ParticipantPresignContext<C>,
         verifier_auxinfo_public: &AuxInfoPublic,
         verifier_r1_private: &RoundOnePrivate,
         prover_auxinfo_public: &AuxInfoPublic,
@@ -121,7 +114,7 @@ impl Public {
     }
 }
 
-impl TryFrom<&Message> for Public {
+impl<C> TryFrom<&Message> for Public<C> {
     type Error = InternalError;
 
     fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {

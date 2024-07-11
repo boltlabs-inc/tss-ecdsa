@@ -15,18 +15,9 @@ use crate::{
         info::{AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses},
         proof::{AuxInfoProof, CommonInput},
         Output,
-    },
-    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    errors::{CallerError, InternalError, Result},
-    local_storage::LocalStorage,
-    messages::{AuxinfoMessageType, Message, MessageType},
-    paillier::DecryptionKey,
-    participant::{
+    }, broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::CurveTrait, errors::{CallerError, InternalError, Result}, local_storage::LocalStorage, messages::{AuxinfoMessageType, Message, MessageType}, paillier::DecryptionKey, participant::{
         Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant, Status,
-    },
-    protocol::{Identifier, ParticipantIdentifier, ProtocolType, SharedContext},
-    ring_pedersen::VerifiedRingPedersen,
-    run_only_once,
+    }, protocol::{Identifier, ParticipantIdentifier, ProtocolType, SharedContext}, ring_pedersen::VerifiedRingPedersen, run_only_once
 };
 use rand::{CryptoRng, RngCore};
 use tracing::{debug, error, info, instrument};
@@ -220,8 +211,8 @@ impl ProtocolParticipant for AuxInfoParticipant {
     }
 }
 
-impl InnerProtocolParticipant for AuxInfoParticipant {
-    type Context = SharedContext;
+impl<C> InnerProtocolParticipant for AuxInfoParticipant<C> {
+    type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
         SharedContext::collect(self)

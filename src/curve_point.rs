@@ -69,7 +69,7 @@ impl CurvePoint {
     /// converting it. This may be insecure if the point contains private
     /// data.
     pub(crate) fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
-        Ok(self.multiply_by_scalar(&bn_to_scalar(point)?))
+        Ok(self.multiply_by_scalar(&bn_to_scalar::<CurvePoint>(point)?))
     }
 
     pub(crate) fn multiply_by_scalar(&self, point: &Scalar) -> Self {
@@ -175,10 +175,35 @@ pub(crate) fn random_bn_in_z_star<R: RngCore + CryptoRng>(
         ))
 }
 
+pub(crate) trait CurveTrait {
+    fn generator() -> CurvePoint;
+    fn identity() -> CurvePoint;
+
+    /// return the order of the curve
+    fn curve_order() -> BigNumber;
+}
+
+/// Implement the CurveTrait for the CurvePoint
+impl CurveTrait for CurvePoint {
+    fn generator() -> CurvePoint {
+        CurvePoint::GENERATOR
+    }
+
+    fn identity() -> CurvePoint {
+        CurvePoint::IDENTITY
+    }
+
+    fn curve_order() -> BigNumber {
+        k256_order()
+    }
+}
+
 // Returns x: BigNumber as a k256::Scalar mod k256_order
-pub(crate) fn bn_to_scalar(x: &BigNumber) -> Result<k256::Scalar> {
+pub(crate) fn bn_to_scalar<C: CurveTrait>(x: &BigNumber) -> Result<k256::Scalar> {
     // Take (mod q)
-    let order = k256_order();
+    /// Call curve_order() to get the order of the curve
+    let order = C::curve_order();
+    //let order = k256_order();
 
     let x_modded = x % order;
     let bytes = x_modded.to_bytes();
@@ -236,7 +261,7 @@ mod tests {
         let _rng = init_testing();
         let neg1 = BigNumber::zero() - BigNumber::one();
 
-        let scalar = bn_to_scalar(&neg1).unwrap();
+        let scalar = bn_to_scalar::<CurvePoint>(&neg1).unwrap();
         assert_eq!(k256::Scalar::ZERO, scalar.add(&k256::Scalar::ONE));
     }
 }

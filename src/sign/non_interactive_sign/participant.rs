@@ -19,17 +19,7 @@ use tracing::{error, info};
 use zeroize::Zeroize;
 
 use crate::{
-    errors::{CallerError, InternalError, Result},
-    keygen::KeySharePublic,
-    local_storage::LocalStorage,
-    messages::{Message, MessageType, SignMessageType},
-    participant::{InnerProtocolParticipant, ProcessOutcome, Status},
-    protocol::{ProtocolType, SharedContext},
-    run_only_once,
-    sign::{non_interactive_sign::share::SignatureShare, Signature},
-    curve_point::CurvePoint,
-    zkp::ProofContext,
-    Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
+    curve_point::{CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::KeySharePublic, local_storage::LocalStorage, messages::{Message, MessageType, SignMessageType}, participant::{InnerProtocolParticipant, ProcessOutcome, Status}, protocol::{ProtocolType, SharedContext}, run_only_once, sign::{non_interactive_sign::share::SignatureShare, Signature}, zkp::ProofContext, Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant
 };
 
 /// A participant that runs the non-interactive signing protocol in Figure 8 of
@@ -145,8 +135,8 @@ impl Input {
 /// Note that this is only used in the case of identifiable abort, which is not
 /// yet implemented. A correct execution of signing does not involve any ZK
 /// proofs.
-pub(crate) struct SignContext {
-    shared_context: SharedContext,
+pub(crate) struct SignContext<C: CurveTrait> {
+    shared_context: SharedContext<C>,
     message_digest: [u8; 32],
 }
 
@@ -443,14 +433,7 @@ mod test {
     use tracing::debug;
 
     use crate::{
-        errors::Result,
-        keygen,
-        messages::{Message, MessageType},
-        participant::{ProcessOutcome, Status},
-        presign::PresignRecord,
-        sign::{self, Signature},
-        curve_point::{bn_to_scalar, testing::init_testing},
-        Identifier, ParticipantConfig, ProtocolParticipant,
+        curve_point::{bn_to_scalar, testing::init_testing, CurvePoint, CurveTrait}, errors::Result, keygen, messages::{Message, MessageType}, participant::{ProcessOutcome, Status}, presign::PresignRecord, sign::{self, Signature}, Identifier, ParticipantConfig, ProtocolParticipant
     };
 
     use super::SignParticipant;
@@ -494,7 +477,7 @@ mod test {
     ///
     /// It can be used to check that the distributed signature is being computed
     /// correctly according to the presign record.
-    fn compute_non_distributed_ecdsa(
+    fn compute_non_distributed_ecdsa<C: CurveTrait>(
         message: &[u8],
         records: &[PresignRecord],
         keygen_outputs: &[keygen::Output],
@@ -506,7 +489,7 @@ mod test {
 
         let secret_key = keygen_outputs
             .iter()
-            .map(|output| bn_to_scalar(output.private_key_share().as_ref()).unwrap())
+            .map(|output| bn_to_scalar::<C>(output.private_key_share().as_ref()).unwrap())
             .fold(Scalar::ZERO, |a, b| a + b);
 
         let r = records[0].x_projection().unwrap();
@@ -545,7 +528,7 @@ mod test {
         // Save some things for later -- a signature constructucted from the records and
         // the public key
         let non_distributed_sig =
-            compute_non_distributed_ecdsa(message, &presign_records, &keygen_outputs);
+            compute_non_distributed_ecdsa::<CurvePoint>(message, &presign_records, &keygen_outputs);
         let public_key = &keygen_outputs[0].public_key().unwrap();
 
         // Form signing inputs and participants
