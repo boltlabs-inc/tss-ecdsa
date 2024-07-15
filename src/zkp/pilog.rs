@@ -352,11 +352,7 @@ impl Proof for PiLogProof {
 mod tests {
     use super::*;
     use crate::{
-        paillier::{DecryptionKey, Nonce},
-        ring_pedersen::VerifiedRingPedersen,
-        curve_point::testing::init_testing,
-        utils::random_plusminus_by_size_with_minimum,
-        zkp::BadContext,
+        curve_point::{testing::init_testing, CurveTrait}, paillier::{DecryptionKey, Nonce}, ring_pedersen::VerifiedRingPedersen, utils::random_plusminus_by_size_with_minimum, zkp::BadContext
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
@@ -364,7 +360,7 @@ mod tests {
         Transcript::new(b"PiLogProof Test")
     }
 
-    fn with_random_paillier_log_proof<R: RngCore + CryptoRng>(
+    fn with_random_paillier_log_proof<R: RngCore + CryptoRng, C: CurveTrait>(
         rng: &mut R,
         x: &BigNumber,
         mut f: impl FnMut(PiLogProof, CommonInput) -> Result<()>,
@@ -372,7 +368,7 @@ mod tests {
         let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
         let pk = decryption_key.encryption_key();
 
-        let g = CurvePoint::GENERATOR;
+        let g = C::generator();
 
         let X = g.multiply_by_bignum(x)?;
         let (ciphertext, rho) = pk.encrypt(rng, x).unwrap();
@@ -391,7 +387,7 @@ mod tests {
         f(proof, input)
     }
 
-    fn random_paillier_log_proof_verification<R: RngCore + CryptoRng>(
+    fn random_paillier_log_proof_verification<R: RngCore + CryptoRng, C: CurveTrait>(
         rng: &mut R,
         x: &BigNumber,
     ) -> Result<()> {
@@ -399,11 +395,15 @@ mod tests {
             proof.verify(input, &(), &mut transcript())?;
             Ok(())
         };
-        with_random_paillier_log_proof(rng, x, f)
+        with_random_paillier_log_proof::<R, C>(rng, x, f)
     }
 
     #[test]
-    fn pilog_proof_with_consistent_secret_inputs_out_of_range() -> Result<()> {
+    fn test_pilog_proof_with_consistent_secret_inputs_out_of_range(){
+        pilog_proof_with_consistent_secret_inputs_out_of_range::<StdRng, CurvePoint>().unwrap();
+    }
+
+    fn pilog_proof_with_consistent_secret_inputs_out_of_range<R: RngCore + CryptoRng, C: CurveTrait>() -> Result<()> {
         let mut rng = init_testing();
         let upper_bound = BigNumber::one() << (ELL + EPSILON);
         loop {
@@ -420,11 +420,11 @@ mod tests {
                     assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
                     Ok(())
                 };
-                with_random_paillier_log_proof(&mut rng, &too_large, f)?;
+                with_random_paillier_log_proof::<StdRng, C>(&mut rng, &too_large, f)?;
 
                 // If the value is smaller than the bottom of the range, the proof won't verify
                 let too_small = -too_large;
-                with_random_paillier_log_proof(&mut rng, &too_small, f)?;
+                with_random_paillier_log_proof::<StdRng, C>(&mut rng, &too_small, f)?;
                 break;
             }
         }
@@ -590,7 +590,11 @@ mod tests {
     }
 
     #[test]
-    fn negative_test_swap_proof_elements() -> Result<()> {
+    fn test_negative_test_swap_proof_elements() {
+        negative_test_swap_proof_elements::<CurvePoint>().unwrap();
+    }
+
+    fn negative_test_swap_proof_elements<C: CurveTrait>() -> Result<()> {
         let mut rng = init_testing();
         // `rng` will be borrowed. We make another rng to be captured by the closure.
         let mut rng2 = StdRng::from_seed(rng.gen());
@@ -664,12 +668,16 @@ mod tests {
             Ok(())
         };
 
-        with_random_paillier_log_proof(&mut rng2, &x, f)?;
+        with_random_paillier_log_proof::<StdRng, C>(&mut rng2, &x, f)?;
         Ok(())
     }
 
     #[test]
-    fn pilog_proof_context_must_be_correct() -> Result<()> {
+    fn test_pilog_proof_context_must_be_correct() {
+        pilog_proof_context_must_be_correct::<CurvePoint>().unwrap();
+    }
+
+    fn pilog_proof_context_must_be_correct<C: CurveTrait>() -> Result<()> {
         let mut rng = init_testing();
 
         let context = BadContext {};
@@ -680,7 +688,7 @@ mod tests {
             Ok(())
         };
 
-        with_random_paillier_log_proof(&mut rng, &x_small, f)
+        with_random_paillier_log_proof::<StdRng, C>(&mut rng, &x_small, f)
     }
 
     #[test]
@@ -692,11 +700,11 @@ mod tests {
             random_plusminus_by_size_with_minimum(&mut rng, ELL + EPSILON + 1, ELL + EPSILON)?;
 
         // Sampling x in the range 2^ELL should always succeed
-        assert!(random_paillier_log_proof_verification(&mut rng, &x_small).is_ok());
+        assert!(random_paillier_log_proof_verification::<StdRng, CurvePoint>(&mut rng, &x_small).is_ok());
 
         // Sampling x in the range (2^{ELL + EPSILON}, 2^{ELL + EPSILON + 1}] should
         // fail
-        assert!(random_paillier_log_proof_verification(&mut rng, &x_large).is_err());
+        assert!(random_paillier_log_proof_verification::<StdRng, CurvePoint>(&mut rng, &x_large).is_err());
 
         Ok(())
     }
