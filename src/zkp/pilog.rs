@@ -432,12 +432,16 @@ mod tests {
     }
 
     #[test]
-    fn pilog_proof_with_different_setup_parameters() -> Result<()> {
+    fn test_pilog_proof_with_different_setup_parameters() {
+        let _ = pilog_proof_with_different_setup_parameters::<CurvePoint>();
+    }
+
+    fn pilog_proof_with_different_setup_parameters<C: CurveTrait>() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let pk = decryption_key.encryption_key();
-        let g = CurvePoint::GENERATOR;
+        let g = C::generator();
         let dlog_commit = g.multiply_by_bignum(&x)?;
         let (ciphertext, rho) = pk.encrypt(&mut rng, &x).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
@@ -545,14 +549,18 @@ mod tests {
     }
 
     #[test]
-    fn pilog_proof_with_inconsistent_secret_inputs() -> Result<()> {
+    fn test_pilof_proof_with_inconsistent_secret_inputs() {
+        let _ = pilog_proof_with_inconsistent_secret_inputs::<CurvePoint>();
+    }
+
+    fn pilog_proof_with_inconsistent_secret_inputs<C: CurveTrait>() -> Result<()> {
         let mut rng = init_testing();
 
         // Make a valid secret
         let x = random_plusminus_by_size(&mut rng, ELL);
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let pk = decryption_key.encryption_key();
-        let g = CurvePoint::GENERATOR;
+        let g = C::generator();
 
         // Make a valid common input
         let dlog_commit = g.multiply_by_bignum(&x)?;
