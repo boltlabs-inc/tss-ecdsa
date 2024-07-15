@@ -221,6 +221,7 @@ mod protocol;
 mod ring_pedersen;
 pub mod sign;
 mod utils;
+mod curve_point;
 mod zkp;
 mod zkstar;
 

@@ -11,7 +11,7 @@ use crate::{
     keygen::keyshare::KeySharePublic,
     messages::{KeygenMessageType, Message, MessageType},
     protocol::{Identifier, ParticipantIdentifier},
-    utils::CurvePoint,
+    curve_point::CurvePoint,
     zkp::pisch::PiSchPrecommit,
 };
 use merlin::Transcript;

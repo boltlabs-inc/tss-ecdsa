@@ -294,10 +294,8 @@ mod tests {
     use super::*;
     use crate::{
         paillier::DecryptionKey,
-        utils::{
-            k256_order, random_plusminus, random_plusminus_by_size_with_minimum,
-            random_positive_bn, testing::init_testing,
-        },
+        curve_point::{k256_order, testing::init_testing},
+        utils::{random_plusminus, random_plusminus_by_size_with_minimum, random_positive_bn},
         zkp::BadContext,
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};

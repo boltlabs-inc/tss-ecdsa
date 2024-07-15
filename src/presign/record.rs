@@ -13,7 +13,8 @@ use crate::{
         Result,
     },
     presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
-    utils::{bn_to_scalar, CurvePoint, ParseBytes},
+    curve_point::{bn_to_scalar, CurvePoint},
+    utils::ParseBytes,
 };
 use k256::{elliptic_curve::PrimeField, Scalar};
 use std::fmt::Debug;
@@ -255,7 +256,7 @@ mod tests {
     use crate::{
         keygen,
         presign::{participant::presign_record_set_is_valid, record::RECORD_TAG},
-        utils::{bn_to_scalar, testing::init_testing, CurvePoint},
+        curve_point::{bn_to_scalar, testing::init_testing, CurvePoint},
         ParticipantConfig, PresignRecord,
     };
 

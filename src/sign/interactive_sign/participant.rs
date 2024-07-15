@@ -352,7 +352,7 @@ mod tests {
         messages::{Message, MessageType},
         participant::ProcessOutcome,
         sign::Signature,
-        utils::testing::init_testing,
+        curve_point::testing::init_testing,
         Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
     };
 

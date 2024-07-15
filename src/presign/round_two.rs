@@ -16,7 +16,7 @@ use crate::{
         participant::ParticipantPresignContext,
         round_one::{Private as RoundOnePrivate, PublicBroadcast as RoundOnePublicBroadcast},
     },
-    utils::CurvePoint,
+    curve_point::CurvePoint,
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof},
         pilog::{CommonInput, PiLogProof},

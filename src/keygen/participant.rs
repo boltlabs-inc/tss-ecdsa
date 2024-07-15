@@ -592,7 +592,7 @@ fn schnorr_proof_transcript(
 mod tests {
     use super::*;
     use crate::{
-        utils::{testing::init_testing, CurvePoint},
+        curve_point::{testing::init_testing, CurvePoint},
         Identifier, ParticipantConfig,
     };
     use rand::{CryptoRng, Rng, RngCore};

@@ -15,7 +15,7 @@ use crate::{
         round_one::PublicBroadcast as RoundOnePublicBroadcast,
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
     },
-    utils::CurvePoint,
+    curve_point::CurvePoint,
     zkp::{
         pilog::{CommonInput, PiLogProof},
         Proof,

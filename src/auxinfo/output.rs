@@ -103,7 +103,7 @@ impl Output {
 mod tests {
     use super::*;
     use crate::{
-        paillier::DecryptionKey, ring_pedersen::VerifiedRingPedersen, utils::testing::init_testing,
+        paillier::DecryptionKey, ring_pedersen::VerifiedRingPedersen, curve_point::testing::init_testing,
         ParticipantConfig,
     };
 

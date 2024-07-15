@@ -621,7 +621,7 @@ impl AuxInfoParticipant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::testing::init_testing, Identifier, ParticipantConfig};
+    use crate::{curve_point::testing::init_testing, Identifier, ParticipantConfig};
     use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
 

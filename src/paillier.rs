@@ -7,7 +7,8 @@
 
 use crate::{
     parameters::PRIME_BITS,
-    utils::{modpow, random_bn_in_z_star, CRYPTOGRAPHIC_RETRY_MAX},
+    curve_point::random_bn_in_z_star,
+    utils::{modpow, CRYPTOGRAPHIC_RETRY_MAX},
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
@@ -458,7 +459,8 @@ mod test {
     use crate::{
         paillier::Ciphertext,
         parameters::PRIME_BITS,
-        utils::{random_plusminus, testing::init_testing},
+        curve_point::testing::init_testing,
+        utils::random_plusminus,
     };
 
     use super::{prime_gen, DecryptionKey, EncryptionKey};

@@ -27,7 +27,7 @@ use crate::{
     protocol::{ProtocolType, SharedContext},
     run_only_once,
     sign::{non_interactive_sign::share::SignatureShare, Signature},
-    utils::CurvePoint,
+    curve_point::CurvePoint,
     zkp::ProofContext,
     Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
 };
@@ -449,7 +449,7 @@ mod test {
         participant::{ProcessOutcome, Status},
         presign::PresignRecord,
         sign::{self, Signature},
-        utils::{bn_to_scalar, testing::init_testing},
+        curve_point::{bn_to_scalar, testing::init_testing},
         Identifier, ParticipantConfig, ProtocolParticipant,
     };
 

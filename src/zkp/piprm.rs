@@ -188,7 +188,7 @@ impl Proof for PiPrmProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{paillier::DecryptionKey, utils::testing::init_testing, zkp::BadContext};
+    use crate::{paillier::DecryptionKey, curve_point::testing::init_testing, zkp::BadContext};
     use rand::Rng;
 
     /// Make a transcript for PiPrmProof.

@@ -1,4 +1,4 @@
-use crate::{errors::InternalError, utils};
+use crate::{curve_point, errors::InternalError};
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -81,7 +81,7 @@ impl<'a> ZStarN<'a> {
         builder: &'a ZStarNBuilder,
         rng: &mut R,
     ) -> Result<Self, InternalError> {
-        utils::random_bn_in_z_star(rng, builder.modulus()).map(|value| Self { value, builder })
+        curve_point::random_bn_in_z_star(rng, builder.modulus()).map(|value| Self { value, builder })
     }
 }
 /// Unverified, deserialized value that claims to be in the multiplicative
@@ -105,7 +105,7 @@ impl ZStarNUnverified {
 
 #[cfg(test)]
 mod test {
-    use crate::{paillier::DecryptionKey, utils::testing::init_testing, zkstar::*};
+    use crate::{paillier::DecryptionKey, curve_point::testing::init_testing, zkstar::*};
 
     #[test]
     fn zkstar_verification_works() {
