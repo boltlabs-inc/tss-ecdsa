@@ -9,22 +9,13 @@
 // of this source tree.
 
 use crate::{
-    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    errors::{CallerError, InternalError, Result},
-    keygen::{
+    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::CurvePoint, errors::{CallerError, InternalError, Result}, keygen::{
         keygen_commit::{KeygenCommit, KeygenDecommit},
         keyshare::{KeySharePrivate, KeySharePublic},
         output::Output,
-    },
-    local_storage::LocalStorage,
-    messages::{KeygenMessageType, Message, MessageType},
-    participant::{
+    }, local_storage::LocalStorage, messages::{KeygenMessageType, Message, MessageType}, participant::{
         Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant, Status,
-    },
-    protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
-    run_only_once,
-    zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
-    Identifier,
+    }, protocol::{ParticipantIdentifier, ProtocolType, SharedContext}, run_only_once, zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret}, Identifier
 };
 
 use merlin::Transcript;
@@ -274,7 +265,7 @@ impl KeygenParticipant {
         let (keyshare_private, keyshare_public) = KeySharePublic::new_keyshare(self.id(), rng)?;
 
         // This corresponds to `A_i` in the paper.
-        let sch_precom = PiSchProof::precommit(rng)?;
+        let sch_precom = PiSchProof::<CurvePoint>::precommit(rng)?;
         let decom = KeygenDecommit::new(rng, &sid, &self.id, &keyshare_public, &sch_precom);
         // This corresponds to `V_i` in the paper.
         let com = decom.commit()?;
@@ -498,7 +489,7 @@ impl KeygenParticipant {
             .local_storage
             .retrieve::<storage::PrivateKeyshare>(self.id)?;
 
-        let proof = PiSchProof::prove_from_precommit(
+        let proof = PiSchProof::<CurvePoint>::prove_from_precommit(
             &self.retrieve_context(),
             precom,
             &input,
@@ -531,7 +522,7 @@ impl KeygenParticipant {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
-        let proof = PiSchProof::from_message(message)?;
+        let proof = PiSchProof::<CurvePoint>::from_message(message)?;
         let global_rid = *self.local_storage.retrieve::<storage::GlobalRid>(self.id)?;
         let decom = self
             .local_storage

@@ -9,21 +9,12 @@
 // of this source tree.
 
 use crate::{
-    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    errors::{CallerError, InternalError, Result},
-    keyrefresh::{
+    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::CurvePoint, errors::{CallerError, InternalError, Result}, keyrefresh::{
         keyrefresh_commit::{KeyrefreshCommit, KeyrefreshDecommit},
         keyshare::{KeyUpdateEncrypted, KeyUpdatePrivate, KeyUpdatePublic},
-    },
-    local_storage::LocalStorage,
-    messages::{KeyrefreshMessageType, Message, MessageType},
-    participant::{
+    }, local_storage::LocalStorage, messages::{KeyrefreshMessageType, Message, MessageType}, participant::{
         Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant, Status,
-    },
-    protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
-    run_only_once,
-    zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
-    Identifier, ParticipantConfig,
+    }, protocol::{ParticipantIdentifier, ProtocolType, SharedContext}, run_only_once, zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret}, Identifier, ParticipantConfig
 };
 
 use merlin::Transcript;
@@ -308,7 +299,7 @@ impl KeyrefreshParticipant {
 
         // This corresponds to `A_ij` in the paper.
         let sch_precoms = (0..update_publics.len())
-            .map(|_| PiSchProof::precommit(rng))
+            .map(|_| PiSchProof::<CurvePoint>::precommit(rng))
             .collect::<Result<Vec<_>>>()?;
 
         let decom = KeyrefreshDecommit::new(
@@ -572,7 +563,7 @@ impl KeyrefreshParticipant {
             .local_storage
             .retrieve::<storage::PrivateUpdatesForOthers>(self.id())?;
 
-        let mut proofs: Vec<PiSchProof> = vec![];
+        let mut proofs: Vec<PiSchProof::<CurvePoint>> = vec![];
         for i in 0..precoms.len() {
             let pk = &decom.update_publics[i];
             let input = CommonInput::new(pk);
@@ -654,7 +645,7 @@ impl KeyrefreshParticipant {
             .local_storage
             .retrieve::<storage::GlobalRid>(self.id())?;
 
-        let proofs = PiSchProof::from_message_multi(message)?;
+        let proofs = PiSchProof::<CurvePoint>::from_message_multi(message)?;
         let decom = self
             .local_storage
             .retrieve::<storage::Decommit>(message.from())?;
