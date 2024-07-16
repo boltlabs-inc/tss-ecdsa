@@ -409,8 +409,9 @@ impl ParticipantIdentifier {
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         // Sample random 32 bytes and convert to hex
         let random_bytes = rng.gen::<u128>();
-        trace!("Created new Participant Identifier({random_bytes})");
-        Self(random_bytes)
+        let pid = Self(random_bytes);
+        trace!("Created new {}", pid);
+        pid
     }
 
     /// Note: This method is for convenience only. The `id` value is still
@@ -490,12 +491,10 @@ impl SharedContext {
 }
 
 impl std::fmt::Display for ParticipantIdentifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "ParticipantId({})",
-            hex::encode(&self.0.to_be_bytes()[..4])
-        )
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        // 16 byte number. Take last five bytes for display purposes.
+        let last_bytes = &self.0.to_be_bytes()[11..];
+        write!(f, "ParticipantId(0x{})", hex::encode(last_bytes))
     }
 }
 

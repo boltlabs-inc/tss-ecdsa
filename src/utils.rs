@@ -421,6 +421,7 @@ mod tests {
 /// and used for debugging.
 #[cfg(test)]
 pub(crate) mod testing {
+    use crate::enable_zeroize;
     use rand::{
         rngs::{OsRng, StdRng},
         Rng, SeedableRng,
@@ -435,6 +436,7 @@ pub(crate) mod testing {
     /// This will print the rng seed to stderr so that if a test fails, the
     /// failing seed can be recovered and used for debugging.
     pub(crate) fn init_testing() -> StdRng {
+        enable_zeroize();
         let mut seeder = OsRng;
         let seed = seeder.gen();
         eprintln!(
