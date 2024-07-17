@@ -11,7 +11,7 @@ use crate::{
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
+use serde::{ser::SerializeStruct, Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -113,12 +113,33 @@ impl AsRef<BigNumber> for KeyUpdatePrivate {
 
 /// A curve point representing a given [`Participant`](crate::Participant)'s
 /// public key.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct KeyUpdatePublic<C: CurveTrait> {
     participant: ParticipantIdentifier,
     X: CurvePoint,
     /// Marker to pin the generic type `C`.
     _curve: std::marker::PhantomData<C>,
+}
+
+/// Implement Clone manually to avoid the `C: Clone` bound.
+impl<C: CurveTrait> Clone for KeyUpdatePublic<C> {
+    fn clone(&self) -> Self {
+        Self {
+            participant: self.participant,
+            X: self.X.clone(),
+            _curve: std::marker::PhantomData,
+        }
+    }
+}
+
+/// Implement Serialize manually to avoid the `C: Serialize` bound.
+impl<C: CurveTrait> Serialize for KeyUpdatePublic<C> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_struct("KeyUpdatePublic", 2)?;
+        state.serialize_field("participant", &self.participant)?;
+        state.serialize_field("X", &self.X.to_bytes())?;
+        state.end()
+    }
 }
 
 impl<C: CurveTrait> KeyUpdatePublic<C> {

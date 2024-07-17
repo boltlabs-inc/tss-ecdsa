@@ -11,7 +11,7 @@ use crate::{
 };
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
+use serde::{ser::SerializeStruct, Deserialize, Serialize};
 use tracing::error;
 
 /// Public commitment to `KeyrefreshDecommit` in round 1.
@@ -28,7 +28,7 @@ impl KeyrefreshCommit {
 }
 
 /// Decommitment published in round 2.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone)]
 pub(crate) struct KeyrefreshDecommit<C: CurveTrait> {
     sid: Identifier,
     sender: ParticipantIdentifier,
@@ -36,6 +36,29 @@ pub(crate) struct KeyrefreshDecommit<C: CurveTrait> {
     pub rid: [u8; 32],
     pub update_publics: Vec<KeyUpdatePublic<C>>,
     pub As: Vec<C>,
+}
+
+/// Implement custom serialization for KeyrefreshDecommit.
+impl<C: CurveTrait> Serialize for KeyrefreshDecommit<C> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        let mut ser = s.serialize_struct("KeyrefreshDecommit", 5)?;
+        ser.serialize_field("sid", &self.sid)?;
+        ser.serialize_field("sender", &self.sender)?;
+        ser.serialize_field("u_i", &self.u_i)?;
+        ser.serialize_field("rid", &self.rid)?;
+        ser.serialize_field("update_publics", &self.update_publics)?;
+        ser.end()
+    }
+}
+
+/// FIXME: Next function is calling itself, causing overflow in the stack. But code finally compiles.
+impl<'de, C: CurveTrait> Deserialize<'de> for KeyrefreshDecommit<C> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        let keyrefresh_decommit: KeyrefreshDecommit<C> = serde::Deserialize::deserialize(deserializer)?;
+        Ok(keyrefresh_decommit)
+    }
 }
 
 impl<C: CurveTrait> KeyrefreshDecommit<C> {
