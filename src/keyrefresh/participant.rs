@@ -9,7 +9,7 @@
 // of this source tree.
 
 use crate::{
-    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::CurvePoint, errors::{CallerError, InternalError, Result}, keyrefresh::{
+    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::{CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keyrefresh::{
         keyrefresh_commit::{KeyrefreshCommit, KeyrefreshDecommit},
         keyshare::{KeyUpdateEncrypted, KeyUpdatePrivate, KeyUpdatePublic},
     }, local_storage::LocalStorage, messages::{KeyrefreshMessageType, Message, MessageType}, participant::{
@@ -17,6 +17,7 @@ use crate::{
     }, protocol::{ParticipantIdentifier, ProtocolType, SharedContext}, run_only_once, zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret}, Identifier, ParticipantConfig
 };
 
+use k256::elliptic_curve::Curve;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use tracing::{error, info, instrument, warn};
@@ -31,9 +32,12 @@ mod storage {
     impl TypeTag for Commit {
         type Value = KeyrefreshCommit;
     }
-    pub(super) struct Decommit;
-    impl TypeTag for Decommit {
-        type Value = KeyrefreshDecommit;
+    pub(super) struct Decommit<C: CurveTrait> {
+        /// Marker for the curve type.
+        curve: std::marker::PhantomData<C>,
+    }
+    impl<C: CurveTrait + 'static + std::marker::Sync + std::marker::Send> TypeTag for Decommit<C> {
+        type Value = KeyrefreshDecommit<C>;
     }
     pub(super) struct VecSchnorrPrecom;
     impl TypeTag for VecSchnorrPrecom {
@@ -47,9 +51,12 @@ mod storage {
     impl TypeTag for PrivateUpdatesForOthers {
         type Value = Vec<super::KeyUpdatePrivate>;
     }
-    pub(super) struct ValidPublicUpdates;
-    impl TypeTag for ValidPublicUpdates {
-        type Value = Vec<super::KeyUpdatePublic>;
+    pub(super) struct ValidPublicUpdates<C: CurveTrait> {
+        /// Marker for the curve type.
+        curve: std::marker::PhantomData<C>,
+    }
+    impl<C: CurveTrait + 'static + std::marker::Sync + std::marker::Send> TypeTag for ValidPublicUpdates<C> {
+        type Value = Vec<super::KeyUpdatePublic<C>>;
     }
     pub(super) struct ValidPrivateUpdate;
     impl TypeTag for ValidPrivateUpdate {
@@ -319,7 +326,7 @@ impl KeyrefreshParticipant {
 
         // Mark our own public updates as verified.
         self.local_storage
-            .store::<storage::ValidPublicUpdates>(self.id(), decom.update_publics.clone());
+            .store::<storage::ValidPublicUpdates<CurvePoint>>(self.id(), decom.update_publics.clone());
 
         // Store the private update from ourselves to ourselves.
         self.local_storage.store::<storage::ValidPrivateUpdate>(
@@ -338,7 +345,7 @@ impl KeyrefreshParticipant {
 
         // Store our committed values so we can open the commitment later.
         self.local_storage
-            .store::<storage::Decommit>(self.id(), decom);
+            .store::<storage::Decommit<CurvePoint>>(self.id(), decom);
 
         let messages = self.broadcast(
             rng,
@@ -430,14 +437,14 @@ impl KeyrefreshParticipant {
         // `PublicKeyshare` and `Decommit`). This check forces that behavior.
         // Without it we'll get a `InternalInvariantFailed` error when trying to
         // retrieve `Decommit` below.
-        if !self.local_storage.contains::<storage::Decommit>(self.id()) {
+        if !self.local_storage.contains::<storage::Decommit<CurvePoint>>(self.id()) {
             let more_messages = run_only_once!(self.gen_round_one_msgs(rng, sid))?;
             messages.extend_from_slice(&more_messages);
         }
 
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(self.id())?;
+            .retrieve::<storage::Decommit<CurvePoint>>(self.id())?;
         let more_messages = self.message_for_other_participants(
             MessageType::Keyrefresh(KeyrefreshMessageType::R2Decommit),
             decom,
@@ -456,7 +463,7 @@ impl KeyrefreshParticipant {
         rng: &mut R,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        self.check_for_duplicate_msg::<storage::Decommit>(message.from())?;
+        self.check_for_duplicate_msg::<storage::Decommit<CurvePoint>>(message.from())?;
         info!("Handling round two keyrefresh message.");
 
         // We must receive all commitments in round 1 before we start processing
@@ -476,12 +483,12 @@ impl KeyrefreshParticipant {
             .retrieve::<storage::Commit>(message.from())?;
         let decom = KeyrefreshDecommit::from_message(message, com, &self.all_participants())?;
         self.local_storage
-            .store_once::<storage::Decommit>(message.from(), decom)?;
+            .store_once::<storage::Decommit<CurvePoint>>(message.from(), decom)?;
 
         // Check if we've received all the decommits
         let r2_done = self
             .local_storage
-            .contains_for_all_ids::<storage::Decommit>(&self.all_participants());
+            .contains_for_all_ids::<storage::Decommit<CurvePoint>>(&self.all_participants());
 
         if r2_done {
             // Generate messages for round 3...
@@ -526,7 +533,7 @@ impl KeyrefreshParticipant {
         // Construct `global rid` out of each participant's `rid`s.
         let my_rid = self
             .local_storage
-            .retrieve::<storage::Decommit>(self.id())?
+            .retrieve::<storage::Decommit<CurvePoint>>(self.id())?
             .rid;
         let rids: Vec<[u8; 32]> = self
             .other_ids()
@@ -534,7 +541,7 @@ impl KeyrefreshParticipant {
             .map(|&other_participant_id| {
                 let decom = self
                     .local_storage
-                    .retrieve::<storage::Decommit>(other_participant_id)?;
+                    .retrieve::<storage::Decommit<CurvePoint>>(other_participant_id)?;
                 Ok(decom.rid)
             })
             .collect::<Result<Vec<[u8; 32]>>>()?;
@@ -550,7 +557,7 @@ impl KeyrefreshParticipant {
 
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(self.id())?;
+            .retrieve::<storage::Decommit<CurvePoint>>(self.id())?;
 
         let transcript = schnorr_proof_transcript(self.sid(), &global_rid, self.id())?;
 
@@ -632,7 +639,7 @@ impl KeyrefreshParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        self.check_for_duplicate_msg::<storage::ValidPublicUpdates>(message.from())?;
+        self.check_for_duplicate_msg::<storage::ValidPublicUpdates<CurvePoint>>(message.from())?;
 
         if !self.can_handle_round_three_msg() {
             info!("Not yet ready to handle round three keyrefresh broadcast message.");
@@ -648,7 +655,7 @@ impl KeyrefreshParticipant {
         let proofs = PiSchProof::<CurvePoint>::from_message_multi(message)?;
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(message.from())?;
+            .retrieve::<storage::Decommit<CurvePoint>>(message.from())?;
 
         // Check that there is one proof per participant.
         if proofs.len() != self.all_participants().len() {
@@ -672,7 +679,7 @@ impl KeyrefreshParticipant {
 
         // Only if the proof verifies do we store the participant's updates.
         self.local_storage
-            .store_once::<storage::ValidPublicUpdates>(
+            .store_once::<storage::ValidPublicUpdates<CurvePoint>>(
                 message.from(),
                 decom.update_publics.clone(),
             )?;
@@ -714,7 +721,7 @@ impl KeyrefreshParticipant {
         let implied_public = update_private.public_point()?;
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(message.from())?;
+            .retrieve::<storage::Decommit<CurvePoint>>(message.from())?;
         let expected_public = decom
             .update_publics
             .iter()
@@ -736,7 +743,7 @@ impl KeyrefreshParticipant {
         // Have we validated and stored the public updates from everybody to everybody?
         let got_all_public_updates = self
             .local_storage
-            .contains_for_all_ids::<storage::ValidPublicUpdates>(&self.all_participants());
+            .contains_for_all_ids::<storage::ValidPublicUpdates<CurvePoint>>(&self.all_participants());
 
         // Have we got the private updates from everybody to us?
         let got_all_private_updates = self
@@ -751,7 +758,7 @@ impl KeyrefreshParticipant {
                 .iter()
                 .map(|pid| {
                     self.local_storage
-                        .remove::<storage::ValidPublicUpdates>(*pid)
+                        .remove::<storage::ValidPublicUpdates<CurvePoint>>(*pid)
                 })
                 .collect::<Result<Vec<_>>>()?;
             let all_public_updates =
@@ -812,10 +819,10 @@ impl KeyrefreshParticipant {
         KeyUpdatePrivate::sum(update_privates)
     }
 
-    fn aggregate_public_updates(
+    fn aggregate_public_updates<C: CurveTrait>(
         participants: &[ParticipantIdentifier],
-        from_all_to_all: &[Vec<KeyUpdatePublic>],
-    ) -> Result<Vec<KeyUpdatePublic>> {
+        from_all_to_all: &[Vec<KeyUpdatePublic<C>>],
+    ) -> Result<Vec<KeyUpdatePublic<C>>> {
         participants
             .iter()
             .map(|p_i| {
@@ -827,14 +834,14 @@ impl KeyrefreshParticipant {
             .collect()
     }
 
-    fn find_updates_for_participant(
+    fn find_updates_for_participant<C: CurveTrait>(
         p_i: ParticipantIdentifier,
-        from_all_to_all: &[Vec<KeyUpdatePublic>],
-    ) -> Result<Vec<KeyUpdatePublic>> {
+        from_all_to_all: &[Vec<KeyUpdatePublic<C>>],
+    ) -> Result<Vec<KeyUpdatePublic<C>>> {
         let from_all_to_i = from_all_to_all
             .iter()
             .map(|from_j_to_all| {
-                let from_j_to_i = from_j_to_all
+                let from_j_to_i = &from_j_to_all
                     .iter()
                     .find(|from_j_to_x| from_j_to_x.participant() == p_i)
                     .cloned()

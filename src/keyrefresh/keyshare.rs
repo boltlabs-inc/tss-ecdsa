@@ -7,11 +7,7 @@
 // of this source tree.
 
 use crate::{
-    errors::{CallerError, InternalError, Result},
-    keygen::{KeySharePrivate, KeySharePublic},
-    paillier::{Ciphertext, DecryptionKey, EncryptionKey},
-    curve_point::{k256_order, CurvePoint},
-    ParticipantIdentifier,
+    curve_point::{k256_order, CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::{KeySharePrivate, KeySharePublic}, paillier::{Ciphertext, DecryptionKey, EncryptionKey}, ParticipantIdentifier
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
@@ -118,16 +114,19 @@ impl AsRef<BigNumber> for KeyUpdatePrivate {
 /// A curve point representing a given [`Participant`](crate::Participant)'s
 /// public key.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct KeyUpdatePublic {
+pub struct KeyUpdatePublic<C: CurveTrait> {
     participant: ParticipantIdentifier,
     X: CurvePoint,
+    /// Marker to pin the generic type `C`.
+    _curve: std::marker::PhantomData<C>,
 }
 
-impl KeyUpdatePublic {
+impl<C: CurveTrait> KeyUpdatePublic<C> {
     pub(crate) fn new(participant: ParticipantIdentifier, share: CurvePoint) -> Self {
         Self {
             participant,
             X: share,
+            _curve: std::marker::PhantomData,
         }
     }
 
@@ -141,21 +140,22 @@ impl KeyUpdatePublic {
     pub(crate) fn new_keyshare<R: RngCore + CryptoRng>(
         participant: ParticipantIdentifier,
         rng: &mut R,
-    ) -> Result<(KeyUpdatePrivate, KeyUpdatePublic)> {
+    ) -> Result<(KeyUpdatePrivate, KeyUpdatePublic<C>)> {
         let private_share = KeyUpdatePrivate::random(rng);
         let public_share = private_share.public_point()?;
 
         Ok((
             private_share,
-            KeyUpdatePublic::new(participant, public_share),
+            KeyUpdatePublic::<C>::new(participant, public_share),
         ))
     }
 
     pub(crate) fn sum(participant: ParticipantIdentifier, shares: &[Self]) -> Self {
-        let sum = shares.iter().fold(CurvePoint::IDENTITY, |sum, o| sum + o.X);
+        let sum = shares.iter().fold(C::identity(), |sum, o| sum + o.X);
         Self {
             participant,
             X: sum,
+            _curve: std::marker::PhantomData,
         }
     }
 
@@ -165,7 +165,7 @@ impl KeyUpdatePublic {
     }
 }
 
-impl AsRef<CurvePoint> for KeyUpdatePublic {
+impl<C: CurveTrait> AsRef<CurvePoint> for KeyUpdatePublic<C> {
     /// Get the public curvepoint which is the public key share.
     fn as_ref(&self) -> &CurvePoint {
         &self.X
