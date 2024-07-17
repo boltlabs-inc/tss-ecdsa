@@ -46,7 +46,7 @@ impl AsRef<CurvePoint> for CurvePoint {
     }
 }
 
-impl CurvePoint {
+impl<'de> CurvePoint {
     pub fn x_affine(&self) -> FieldBytes {
         self.0.to_affine().x()
     }

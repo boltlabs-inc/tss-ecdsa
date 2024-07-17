@@ -17,7 +17,6 @@ use crate::{
     }, protocol::{ParticipantIdentifier, ProtocolType, SharedContext}, run_only_once, zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret}, Identifier, ParticipantConfig
 };
 
-use k256::elliptic_curve::Curve;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use tracing::{error, info, instrument, warn};
