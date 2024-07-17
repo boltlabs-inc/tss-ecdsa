@@ -32,7 +32,7 @@ use zeroize::Zeroize;
 /// private type, `Debug` should be manually implemented with the field of this
 /// type explicitly redacted!
 #[derive(Eq, PartialEq, Debug, Clone, Copy, Zeroize)]
-pub(crate) struct CurvePoint(k256::ProjectivePoint);
+pub struct CurvePoint(k256::ProjectivePoint);
 
 impl From<CurvePoint> for EncodedPoint {
     fn from(value: CurvePoint) -> EncodedPoint {
@@ -47,6 +47,7 @@ impl AsRef<CurvePoint> for CurvePoint {
 }
 
 impl<'de> CurvePoint {
+    /// Get the x-coordinate of the curve point in affine representation.
     pub fn x_affine(&self) -> FieldBytes {
         self.0.to_affine().x()
     }
@@ -176,8 +177,11 @@ pub(crate) fn random_bn_in_z_star<R: RngCore + CryptoRng>(
         ))
 }
 
-pub(crate) trait CurveTrait {
+/// Common trait for curves
+pub trait CurveTrait {
+    /// Returns the generator of the curve
     fn generator() -> CurvePoint;
+    /// Returns the identity element of the curve
     fn identity() -> CurvePoint;
 
     /// return the order of the curve

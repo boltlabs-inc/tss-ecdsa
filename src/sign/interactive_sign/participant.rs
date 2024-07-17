@@ -10,16 +10,7 @@ use sha3::{Digest, Keccak256};
 use tracing::{error, info};
 
 use crate::{
-    auxinfo,
-    errors::{CallerError, InternalError, Result},
-    keygen::{self, KeySharePublic},
-    message_queue::MessageQueue,
-    messages::{Message, MessageType, SignMessageType},
-    participant::{ProcessOutcome, Status},
-    presign::{self, PresignParticipant, PresignRecord},
-    protocol::ProtocolType,
-    sign::{self, non_interactive_sign::participant::SignParticipant, Signature},
-    Identifier, ParticipantIdentifier, ProtocolParticipant,
+    auxinfo, curve_point::CurvePoint, errors::{CallerError, InternalError, Result}, keygen::{self, KeySharePublic}, message_queue::MessageQueue, messages::{Message, MessageType, SignMessageType}, participant::{ProcessOutcome, Status}, presign::{self, PresignParticipant, PresignRecord}, protocol::ProtocolType, sign::{self, non_interactive_sign::participant::SignParticipant, Signature}, Identifier, ParticipantIdentifier, ProtocolParticipant
 };
 
 /// A participant that runs the interactive signing protocol in
@@ -161,7 +152,7 @@ impl Input {
     /// "pre-hash" the message. It is hashed here using SHA2-256.
     pub fn new(
         message: &[u8],
-        keygen_output: keygen::Output,
+        keygen_output: keygen::Output<CurvePoint>,
         auxinfo_output: auxinfo::Output,
     ) -> Result<Self> {
         let presign_input = presign::Input::new(auxinfo_output, keygen_output)?;

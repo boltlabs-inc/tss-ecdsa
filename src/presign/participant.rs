@@ -1275,7 +1275,7 @@ mod test {
 
     pub(crate) fn presign_record_set_is_valid(
         records: Vec<PresignRecord>,
-        keygen_outputs: Vec<keygen::Output>,
+        keygen_outputs: Vec<keygen::Output<CurvePoint>>,
     ) {
         // Every presign record has the same `R` value
         // We don't stick this in a HashSet because `CurvePoint`s can't be hashed :(

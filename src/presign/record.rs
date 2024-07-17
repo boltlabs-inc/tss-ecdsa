@@ -285,7 +285,7 @@ mod tests {
         /// For testing only; this does not check that the keygen output set is
         /// consistent or complete.
         pub(crate) fn simulate_set(
-            keygen_outputs: &[keygen::Output],
+            keygen_outputs: &[keygen::Output<CurvePoint>],
             rng: &mut (impl CryptoRng + RngCore),
         ) -> Vec<Self> {
             // Note: using slightly-biased generation for faster tests

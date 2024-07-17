@@ -443,14 +443,7 @@ mod test {
     use tracing::debug;
 
     use crate::{
-        errors::Result,
-        keygen,
-        messages::{Message, MessageType},
-        participant::{ProcessOutcome, Status},
-        presign::PresignRecord,
-        sign::{self, Signature},
-        curve_point::{bn_to_scalar, testing::init_testing},
-        Identifier, ParticipantConfig, ProtocolParticipant,
+        curve_point::{bn_to_scalar, testing::init_testing, CurvePoint}, errors::Result, keygen, messages::{Message, MessageType}, participant::{ProcessOutcome, Status}, presign::PresignRecord, sign::{self, Signature}, Identifier, ParticipantConfig, ProtocolParticipant
     };
 
     use super::SignParticipant;
@@ -497,7 +490,7 @@ mod test {
     fn compute_non_distributed_ecdsa(
         message: &[u8],
         records: &[PresignRecord],
-        keygen_outputs: &[keygen::Output],
+        keygen_outputs: &[keygen::Output<CurvePoint>],
     ) -> k256::ecdsa::Signature {
         let k = records
             .iter()

@@ -123,7 +123,7 @@ pub struct KeyrefreshParticipant {
 
 impl ProtocolParticipant for KeyrefreshParticipant {
     type Input = Input;
-    type Output = Output;
+    type Output = Output<CurvePoint>;
 
     fn new(
         sid: Identifier,
@@ -944,7 +944,7 @@ mod tests {
         quorum: &mut [KeyrefreshParticipant],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
-    ) -> Option<(usize, ProcessOutcome<Output>)> {
+    ) -> Option<(usize, ProcessOutcome<Output<CurvePoint>>)> {
         // Pick a random participant to process
         let index = rng.gen_range(0..quorum.len());
         let participant = quorum.get_mut(index).unwrap();

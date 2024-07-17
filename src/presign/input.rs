@@ -9,10 +9,7 @@ use std::collections::HashSet;
 use tracing::error;
 
 use crate::{
-    auxinfo::{self, AuxInfoPrivate, AuxInfoPublic},
-    errors::{CallerError, InternalError, Result},
-    keygen::{self, KeySharePrivate, KeySharePublic},
-    ParticipantIdentifier,
+    auxinfo::{self, AuxInfoPrivate, AuxInfoPublic}, curve_point::CurvePoint, errors::{CallerError, InternalError, Result}, keygen::{self, KeySharePrivate, KeySharePublic}, ParticipantIdentifier
 };
 
 /// Input needed for a
@@ -20,7 +17,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Input {
     /// The key share material for the key that will be used in the presign run.
-    keygen_output: keygen::Output,
+    keygen_output: keygen::Output<CurvePoint>,
     /// The auxiliary info for the key that will be used in the presign run.
     auxinfo_output: auxinfo::Output,
 }
@@ -29,7 +26,7 @@ impl Input {
     /// Creates a new [`Input`] from the outputs of the
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
-    pub fn new(auxinfo_output: auxinfo::Output, keygen_output: keygen::Output) -> Result<Self> {
+    pub fn new(auxinfo_output: auxinfo::Output, keygen_output: keygen::Output<CurvePoint>) -> Result<Self> {
         if auxinfo_output.public_auxinfo().len() != keygen_output.public_key_shares().len() {
             error!(
                 "Number of auxinfo ({:?}) and keyshare ({:?}) public entries is not equal",

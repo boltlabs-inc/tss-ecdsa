@@ -411,7 +411,7 @@ impl Worker {
     fn new_auxinfo(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
         // Note: Missing inputs to aux-info see issues
         // #242 and #243.
-        let _output: &Output = self.key_gen_material.retrieve(&key_id);
+        let _output: &Output<tss_ecdsa::curve_point::CurvePoint> = self.key_gen_material.retrieve(&key_id);
         self.new_sub_protocol::<AuxInfoParticipant>(sid, (), key_id)
     }
 

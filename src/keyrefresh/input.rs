@@ -9,10 +9,7 @@ use std::collections::HashSet;
 use tracing::error;
 
 use crate::{
-    auxinfo::{self, AuxInfoPrivate, AuxInfoPublic},
-    errors::{CallerError, InternalError, Result},
-    keygen::{self, KeySharePrivate, KeySharePublic},
-    ParticipantConfig, ParticipantIdentifier,
+    auxinfo::{self, AuxInfoPrivate, AuxInfoPublic}, curve_point::CurvePoint, errors::{CallerError, InternalError, Result}, keygen::{self, KeySharePrivate, KeySharePublic}, ParticipantConfig, ParticipantIdentifier
 };
 
 /// Input needed for a
@@ -20,7 +17,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Input {
     /// The key share material for the key that will be refreshed.
-    keygen_output: keygen::Output,
+    keygen_output: keygen::Output<CurvePoint>,
     /// The auxiliary info to encrypt/decrypt messages with other participants.
     auxinfo_output: auxinfo::Output,
 }
@@ -29,7 +26,7 @@ impl Input {
     /// Creates a new [`Input`] from the outputs of the
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
-    pub fn new(auxinfo_output: auxinfo::Output, keygen_output: keygen::Output) -> Result<Self> {
+    pub fn new(auxinfo_output: auxinfo::Output, keygen_output: keygen::Output<CurvePoint>) -> Result<Self> {
         // The constructors for keygen and auxinfo output already check other important
         // properties, like that the private component maps to one of public
         // components for each one.
@@ -54,7 +51,7 @@ impl Input {
         Ok(input)
     }
 
-    pub fn keygen_output(&self) -> &keygen::Output {
+    pub fn keygen_output(&self) -> &keygen::Output<CurvePoint> {
         &self.keygen_output
     }
 

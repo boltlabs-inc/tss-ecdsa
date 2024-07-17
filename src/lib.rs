@@ -221,7 +221,8 @@ mod protocol;
 mod ring_pedersen;
 pub mod sign;
 mod utils;
-mod curve_point;
+/// Interface for the curve point operations.
+pub mod curve_point;
 mod zkp;
 mod zkstar;
 

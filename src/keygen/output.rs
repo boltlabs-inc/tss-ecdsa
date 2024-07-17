@@ -8,10 +8,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    errors::{CallerError, InternalError, Result},
-    keygen::keyshare::{KeySharePrivate, KeySharePublic},
-    curve_point::CurvePoint,
-    ParticipantIdentifier,
+    curve_point::{CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::keyshare::{KeySharePrivate, KeySharePublic}, ParticipantIdentifier
 };
 
 use k256::ecdsa::VerifyingKey;
@@ -20,20 +17,21 @@ use tracing::error;
 /// Output type from key generation, including all parties' public key shares,
 /// this party's private key share, and a bit of global randomness.
 #[derive(Debug, Clone)]
-pub struct Output {
+pub struct Output<C: CurveTrait> {
     public_key_shares: Vec<KeySharePublic>,
     private_key_share: KeySharePrivate,
     rid: [u8; 32],
+    _curve: std::marker::PhantomData<C>,
 }
 
-impl Output {
+impl<C: CurveTrait> Output<C> {
     /// Construct the generated public key.
     pub fn public_key(&self) -> Result<VerifyingKey> {
         // Add up all the key shares
         let public_key_point = self
             .public_key_shares
             .iter()
-            .fold(CurvePoint::IDENTITY, |sum, share| sum + *share.as_ref());
+            .fold(C::identity(), |sum, share| sum + *share.as_ref());
 
         VerifyingKey::from_encoded_point(&public_key_point.into()).map_err(|_| {
             error!("Keygen output does not produce a valid public key.");
@@ -109,6 +107,7 @@ impl Output {
             public_key_shares,
             private_key_share,
             rid,
+            _curve: std::marker::PhantomData,
         })
     }
 
@@ -132,8 +131,9 @@ mod tests {
     use crate::curve_point::testing::init_testing;
     use crate::{ParticipantConfig, ParticipantIdentifier};
     use rand::{CryptoRng, Rng, RngCore};
+    use crate::curve_point::CurvePoint;
 
-    impl Output {
+    impl<C: CurveTrait> Output<C> {
         /// Simulate the valid output of a keygen run with the given
         /// participants.
         ///
@@ -195,10 +195,10 @@ mod tests {
         let pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let output = Output::simulate(&pids, rng);
+        let output: Output<CurvePoint> = Output::simulate(&pids, rng);
 
         let (public, private, rid) = output.into_parts();
-        assert!(Output::from_parts(public, private, rid).is_ok());
+        assert!(Output::<CurvePoint>::from_parts(public, private, rid).is_ok());
     }
 
     #[test]
@@ -209,14 +209,14 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Use the simulate function to get a set of valid public components
-        let output = Output::simulate(&pids, rng);
+        let output = Output::<CurvePoint>::simulate(&pids, rng);
 
         // Create a random private share. It's legally possible for this to match one of
         // the public keys but it's so unlikely that we won't check it.
         let bad_private_key_share = KeySharePrivate::random(rng);
 
         assert!(
-            Output::from_parts(output.public_key_shares, bad_private_key_share, output.rid)
+            Output::<CurvePoint>::from_parts(output.public_key_shares, bad_private_key_share, output.rid)
                 .is_err()
         )
     }
@@ -245,7 +245,7 @@ mod tests {
         let rid = rng.gen();
 
         assert!(
-            Output::from_parts(public_key_shares, private_key_shares.pop().unwrap(), rid).is_err()
+            Output::<CurvePoint>::from_parts(public_key_shares, private_key_shares.pop().unwrap(), rid).is_err()
         );
     }
 }
