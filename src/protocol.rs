@@ -973,7 +973,7 @@ mod tests {
             .map(|config| {
                 let record = presign_outputs.remove(&config.id()).unwrap();
                 let input = sign::Input::new(message, record, public_key_shares.clone());
-                Participant::<SignParticipant>::from_config(config, sign_sid, input)
+                Participant::<SignParticipant<CurvePoint>>::from_config(config, sign_sid, input)
             })
             .collect::<Result<Vec<_>>>()?;
 

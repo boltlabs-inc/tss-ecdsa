@@ -71,7 +71,7 @@ enum SigningMaterial {
     },
     Signer {
         // Boxed at the behest of compiler. This type is quite large.
-        signer: Box<SignParticipant>,
+        signer: Box<SignParticipant<CurvePoint>>,
     },
 }
 
@@ -120,7 +120,7 @@ impl SigningMaterial {
         }
     }
 
-    fn as_mut_signer(&mut self) -> Result<&mut SignParticipant> {
+    fn as_mut_signer(&mut self) -> Result<&mut SignParticipant<CurvePoint>> {
         match self {
             SigningMaterial::Signer { ref mut signer } => Ok(signer),
             _ => {

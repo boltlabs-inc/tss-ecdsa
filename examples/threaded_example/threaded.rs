@@ -36,12 +36,7 @@ use std::{
 use tracing::{debug, info, instrument, span, trace, Level};
 use tracing_subscriber::{self, EnvFilter};
 use tss_ecdsa::{
-    auxinfo::AuxInfoParticipant,
-    keygen::{KeygenParticipant, Output},
-    messages::Message,
-    presign::{self, PresignParticipant},
-    sign::{self, SignParticipant},
-    Identifier, Participant, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
+    auxinfo::AuxInfoParticipant, curve_point::CurvePoint, keygen::{KeygenParticipant, Output}, messages::Message, presign::{self, PresignParticipant}, sign::{self, SignParticipant}, Identifier, Participant, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant
 };
 use utils::{MessageFromWorker, SubProtocol};
 use uuid::Uuid;
@@ -326,7 +321,7 @@ struct Worker {
     /// Outputs of successful presign.
     presign_records: StoredOutput<PresignParticipant>,
     /// Signatures generated from successful signing runs.
-    signatures: StoredOutput<SignParticipant>,
+    signatures: StoredOutput<SignParticipant<CurvePoint>>,
     /// Channel for sending messages to the coordinator.
     outgoing: Sender<MessageFromWorker>,
 }
@@ -428,7 +423,7 @@ impl Worker {
         let record = self.presign_records.take(&key_id);
 
         let inputs = sign::Input::new(b"hello world", record, key_shares.to_vec());
-        self.new_sub_protocol::<SignParticipant>(sid, inputs, key_id)
+        self.new_sub_protocol::<SignParticipant<CurvePoint>>(sid, inputs, key_id)
     }
 }
 
@@ -462,7 +457,7 @@ impl Worker {
     }
 
     fn process_sign(&mut self, sid: SessionId, incoming: Message) -> anyhow::Result<()> {
-        let (p, key_id) = self.participants.get_mut::<SignParticipant>(&sid);
+        let (p, key_id) = self.participants.get_mut::<SignParticipant<CurvePoint>>(&sid);
         Self::process_message(p, key_id, incoming, &mut self.signatures, &self.outgoing)
     }
 }

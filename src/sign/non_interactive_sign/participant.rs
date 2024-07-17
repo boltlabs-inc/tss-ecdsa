@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, marker::PhantomData};
 
 use generic_array::{typenum::U32, GenericArray};
 use k256::{
@@ -19,17 +19,7 @@ use tracing::{error, info};
 use zeroize::Zeroize;
 
 use crate::{
-    errors::{CallerError, InternalError, Result},
-    keygen::KeySharePublic,
-    local_storage::LocalStorage,
-    messages::{Message, MessageType, SignMessageType},
-    participant::{InnerProtocolParticipant, ProcessOutcome, Status},
-    protocol::{ProtocolType, SharedContext},
-    run_only_once,
-    sign::{non_interactive_sign::share::SignatureShare, Signature},
-    curve_point::CurvePoint,
-    zkp::ProofContext,
-    Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
+    curve_point::{CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::KeySharePublic, local_storage::LocalStorage, messages::{Message, MessageType, SignMessageType}, participant::{InnerProtocolParticipant, ProcessOutcome, Status}, protocol::{ProtocolType, SharedContext}, run_only_once, sign::{non_interactive_sign::share::SignatureShare, Signature}, zkp::ProofContext, Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant
 };
 
 /// A participant that runs the non-interactive signing protocol in Figure 8 of
@@ -65,23 +55,24 @@ use crate::{
 /// with Identifiable Aborts. [EPrint archive,
 /// 2021](https://eprint.iacr.org/2021/060.pdf).
 #[derive(Debug)]
-pub struct SignParticipant {
+pub struct SignParticipant<C: CurveTrait> {
     sid: Identifier,
     storage: LocalStorage,
-    input: Input,
+    input: Input<C>,
     config: ParticipantConfig,
     status: Status,
 }
 
 /// Input for the non-interactive signing protocol.
 #[derive(Debug)]
-pub struct Input {
+pub struct Input<C: CurveTrait> {
     digest: Keccak256,
     presign_record: PresignRecord,
     public_key_shares: Vec<KeySharePublic>,
+    _curve: std::marker::PhantomData<C>,
 }
 
-impl Input {
+impl<C: CurveTrait> Input<C> {
     /// Construct a new input for signing.
     ///
     /// The `public_key_shares` should be the same ones used to generate the
@@ -95,6 +86,7 @@ impl Input {
             digest: Keccak256::new_with_prefix(message),
             presign_record: record,
             public_key_shares,
+            _curve: std::marker::PhantomData::<C>,
         }
     }
 
@@ -111,6 +103,7 @@ impl Input {
             digest,
             presign_record: record,
             public_key_shares,
+            _curve: std::marker::PhantomData::<C>,
         }
     }
 
@@ -130,7 +123,7 @@ impl Input {
         let public_key_point = self
             .public_key_shares
             .iter()
-            .fold(CurvePoint::IDENTITY, |sum, share| sum + *share.as_ref());
+            .fold(C::identity(), |sum, share| sum + *share.as_ref());
 
         VerifyingKey::from_encoded_point(&public_key_point.into()).map_err(|_| {
             error!("Keygen output does not produce a valid public key");
@@ -145,12 +138,13 @@ impl Input {
 /// Note that this is only used in the case of identifiable abort, which is not
 /// yet implemented. A correct execution of signing does not involve any ZK
 /// proofs.
-pub(crate) struct SignContext {
+pub(crate) struct SignContext<C: CurveTrait> {
     shared_context: SharedContext,
     message_digest: [u8; 32],
+    _curve: PhantomData<C>,
 }
 
-impl ProofContext for SignContext {
+impl<C: CurveTrait> ProofContext for SignContext<C> {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
             self.shared_context.as_bytes()?,
@@ -160,12 +154,13 @@ impl ProofContext for SignContext {
     }
 }
 
-impl SignContext {
+impl<C: CurveTrait + std::fmt::Debug> SignContext<C> {
     /// Build a [`SignContext`] from a [`SignParticipant`].
-    pub(crate) fn collect(p: &SignParticipant) -> Self {
+    pub(crate) fn collect(p: &SignParticipant<C>) -> Self {
         Self {
             shared_context: SharedContext::collect(p),
             message_digest: p.input.digest_hash().into(),
+            _curve: PhantomData::<C>,
         }
     }
 }
@@ -186,8 +181,8 @@ mod storage {
     }
 }
 
-impl ProtocolParticipant for SignParticipant {
-    type Input = Input;
+impl<C: CurveTrait + std::fmt::Debug> ProtocolParticipant for SignParticipant<C> {
+    type Input = Input<C>;
     type Output = Signature;
 
     fn ready_type() -> MessageType {
@@ -280,8 +275,8 @@ impl ProtocolParticipant for SignParticipant {
     }
 }
 
-impl InnerProtocolParticipant for SignParticipant {
-    type Context = SignContext;
+impl<C: CurveTrait + std::fmt::Debug> InnerProtocolParticipant for SignParticipant<C> {
+    type Context = SignContext<C>;
 
     fn retrieve_context(&self) -> Self::Context {
         SignContext::collect(self)
@@ -300,7 +295,7 @@ impl InnerProtocolParticipant for SignParticipant {
     }
 }
 
-impl SignParticipant {
+impl<C: CurveTrait + std::fmt::Debug> SignParticipant<C> {
     /// Handle a "Ready" message from ourselves.
     ///
     /// Once a "Ready" message has been received, continue to generate the round
@@ -451,10 +446,10 @@ mod test {
     /// Pick a random incoming message and have the correct participant process
     /// it.
     fn process_messages<'a, R: RngCore + CryptoRng>(
-        quorum: &'a mut [SignParticipant],
+        quorum: &'a mut [SignParticipant<CurvePoint>],
         inbox: &mut Vec<Message>,
         rng: &mut R,
-    ) -> Option<(&'a SignParticipant, ProcessOutcome<Signature>)> {
+    ) -> Option<(&'a SignParticipant<CurvePoint>, ProcessOutcome<Signature>)> {
         // Pick a random message to process
         if inbox.is_empty() {
             return None;
