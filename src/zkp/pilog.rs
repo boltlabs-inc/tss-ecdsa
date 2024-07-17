@@ -430,6 +430,16 @@ mod tests {
         Ok(())
     }
 
+    fn new_different_decryption_key(rng: &mut StdRng, dk: &DecryptionKey) -> Result<DecryptionKey> {
+        for _ in 0..10 {
+            let (other_dk, _, _) = DecryptionKey::new(rng).unwrap();
+            if other_dk != *dk {
+                return Ok(other_dk);
+            }
+        }
+        Err(InternalError::InternalInvariantFailed)
+    }
+
     #[test]
     fn pilog_proof_with_different_setup_parameters() -> Result<()> {
         let mut rng = init_testing();
@@ -444,7 +454,7 @@ mod tests {
         let input = CommonInput::new(&ciphertext, &dlog_commit, setup_params.scheme(), &pk, &g);
 
         // Generate a random encryption key
-        let (bad_decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
+        let bad_decryption_key = new_different_decryption_key(&mut rng, &decryption_key)?;
         let bad_pk = bad_decryption_key.encryption_key();
         let bad_input = CommonInput::new(
             &ciphertext,
