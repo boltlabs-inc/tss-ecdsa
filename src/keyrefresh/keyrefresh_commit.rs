@@ -128,7 +128,7 @@ impl<'de, C: CurveTrait + Serialize + Deserialize<'de>> KeyrefreshDecommit<C> {
         // Check that the sum of key updates is identity, i.e. it will not change our
         // public key.
         let sum = KeyUpdatePublic::sum(sender, &self.update_publics);
-        if sum.as_ref() != &CurvePoint::IDENTITY {
+        if sum.as_ref() != &C::identity() {
             error!("Sum of key updates is not identity");
             return Err(InternalError::ProtocolError(Some(sender)));
         }
