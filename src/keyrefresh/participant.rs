@@ -841,7 +841,7 @@ impl KeyrefreshParticipant {
         let from_all_to_i = from_all_to_all
             .iter()
             .map(|from_j_to_all| {
-                let from_j_to_i = &from_j_to_all
+                let from_j_to_i = from_j_to_all
                     .iter()
                     .find(|from_j_to_x| from_j_to_x.participant() == p_i)
                     .cloned()
