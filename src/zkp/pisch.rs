@@ -148,7 +148,7 @@ impl<C> Proof for PiSchProof<C>
         // Do equality checks
 
         let response_matches_commitment = {
-            let lhs = CurvePoint::GENERATOR.multiply_by_bignum(&self.response)?;
+            let lhs = C::generator().multiply_by_bignum(&self.response)?;
             let rhs = self.commitment + input.x_commitment.multiply_by_bignum(&self.challenge)?;
             lhs == rhs
         };
@@ -167,7 +167,7 @@ impl<C: CurveTrait> PiSchProof<C> {
         // Sample alpha from F_q
         let randomness_for_commitment = random_positive_bn(rng, &k256_order());
         // Form a commitment to the mask
-        let precommitment = CurvePoint::GENERATOR.multiply_by_bignum(&randomness_for_commitment)?;
+        let precommitment = C::generator().multiply_by_bignum(&randomness_for_commitment)?;
         Ok(PiSchPrecommit {
             precommitment,
             randomness_for_commitment,

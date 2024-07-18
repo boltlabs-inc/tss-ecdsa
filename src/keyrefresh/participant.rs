@@ -48,7 +48,7 @@ mod storage {
     }
     pub(super) struct PrivateUpdatesForOthers;
     impl TypeTag for PrivateUpdatesForOthers {
-        type Value = Vec<super::KeyUpdatePrivate>;
+        type Value = Vec<super::KeyUpdatePrivate<CurvePoint>>;
     }
     pub(super) struct ValidPublicUpdates<C: CurveTrait> {
         /// Marker for the curve type.
@@ -59,7 +59,7 @@ mod storage {
     }
     pub(super) struct ValidPrivateUpdate;
     impl TypeTag for ValidPrivateUpdate {
-        type Value = super::KeyUpdatePrivate;
+        type Value = super::KeyUpdatePrivate<CurvePoint>;
     }
 }
 
@@ -222,7 +222,7 @@ impl ProtocolParticipant for KeyrefreshParticipant {
 }
 
 impl InnerProtocolParticipant for KeyrefreshParticipant {
-    type Context = SharedContext;
+    type Context = SharedContext<CurvePoint>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
         SharedContext::collect(self)
@@ -814,7 +814,7 @@ impl KeyrefreshParticipant {
         }
     }
 
-    fn aggregate_private_updates(update_privates: &[KeyUpdatePrivate]) -> KeyUpdatePrivate {
+    fn aggregate_private_updates(update_privates: &[KeyUpdatePrivate<CurvePoint>]) -> KeyUpdatePrivate<CurvePoint> {
         KeyUpdatePrivate::sum(update_privates)
     }
 

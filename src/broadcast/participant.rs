@@ -7,13 +7,7 @@
 // of this source tree.
 
 use crate::{
-    broadcast::data::BroadcastData,
-    errors::{CallerError, InternalError, Result},
-    local_storage::LocalStorage,
-    messages::{BroadcastMessageType, Message, MessageType},
-    participant::{InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant},
-    protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
-    run_only_once_per_tag, Identifier,
+    broadcast::data::BroadcastData, curve_point::CurvePoint, errors::{CallerError, InternalError, Result}, local_storage::LocalStorage, messages::{BroadcastMessageType, Message, MessageType}, participant::{InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant}, protocol::{ParticipantIdentifier, ProtocolType, SharedContext}, run_only_once_per_tag, Identifier
 };
 
 use crate::participant::Status;
@@ -170,7 +164,7 @@ impl ProtocolParticipant for BroadcastParticipant {
 }
 
 impl InnerProtocolParticipant for BroadcastParticipant {
-    type Context = SharedContext;
+    type Context = SharedContext<CurvePoint>;
 
     /// This method is never used.
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {

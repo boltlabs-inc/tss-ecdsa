@@ -11,12 +11,7 @@
 //! This module includes the main [`Participant`] driver.
 
 use crate::{
-    errors::{CallerError, InternalError, Result},
-    messages::{Message, MessageType},
-    participant::{InnerProtocolParticipant, ProtocolParticipant, Status},
-    protocol::participant_config::ParticipantConfig,
-    curve_point::{k256_order, CurvePoint},
-    zkp::ProofContext,
+    curve_point::{k256_order, CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, messages::{Message, MessageType}, participant::{InnerProtocolParticipant, ProtocolParticipant, Status}, protocol::participant_config::ParticipantConfig, zkp::ProofContext
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, Rng, RngCore};
@@ -424,14 +419,14 @@ impl ParticipantIdentifier {
 /// The `SharedContext` contains fixed known parameters across the entire
 /// protocol. It does not however contain the entire protocol context.
 #[derive(Debug, Clone)]
-pub(crate) struct SharedContext {
+pub(crate) struct SharedContext<C: CurveTrait> {
     sid: Identifier,
     participants: Vec<ParticipantIdentifier>,
-    generator: CurvePoint,
+    generator: C,
     order: BigNumber,
 }
 
-impl ProofContext for SharedContext {
+impl<C: CurveTrait + Serialize> ProofContext for SharedContext<C> {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
             self.sid.0.to_be_bytes().into_iter().collect(),
@@ -447,7 +442,7 @@ impl ProofContext for SharedContext {
     }
 }
 
-impl SharedContext {
+impl<C: CurveTrait> SharedContext<C> {
     /// This function should not be used outside of the tests.
     #[cfg(test)]
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
@@ -455,9 +450,9 @@ impl SharedContext {
         let participant = ParticipantIdentifier::random(rng);
         let participant2 = ParticipantIdentifier::random(rng);
         let participants = vec![participant, participant2];
-        let generator = CurvePoint::GENERATOR;
+        let generator = C::generator();
         let order = k256_order();
-        SharedContext {
+        SharedContext::<C> {
             sid,
             participants,
             generator,
@@ -468,9 +463,9 @@ impl SharedContext {
     pub(crate) fn collect<P: InnerProtocolParticipant>(p: &P) -> Self {
         let mut participants = p.all_participants();
         participants.sort();
-        let generator = CurvePoint::GENERATOR;
+        let generator = C::generator();
         let order = k256_order();
-        SharedContext {
+        SharedContext::<C> {
             sid: p.sid(),
             participants,
             generator,
@@ -480,10 +475,11 @@ impl SharedContext {
     #[cfg(test)]
     pub fn fill_context(mut participants: Vec<ParticipantIdentifier>, sid: Identifier) -> Self {
         participants.sort();
-        SharedContext {
+        let generator = C::generator();
+        SharedContext::<C> {
             sid,
             participants,
-            generator: CurvePoint::GENERATOR,
+            generator,
             order: k256_order(),
         }
     }

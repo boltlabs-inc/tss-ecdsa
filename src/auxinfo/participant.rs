@@ -15,18 +15,9 @@ use crate::{
         info::{AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses},
         proof::{AuxInfoProof, CommonInput},
         Output,
-    },
-    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    errors::{CallerError, InternalError, Result},
-    local_storage::LocalStorage,
-    messages::{AuxinfoMessageType, Message, MessageType},
-    paillier::DecryptionKey,
-    participant::{
+    }, broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::CurvePoint, errors::{CallerError, InternalError, Result}, local_storage::LocalStorage, messages::{AuxinfoMessageType, Message, MessageType}, paillier::DecryptionKey, participant::{
         Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant, Status,
-    },
-    protocol::{Identifier, ParticipantIdentifier, ProtocolType, SharedContext},
-    ring_pedersen::VerifiedRingPedersen,
-    run_only_once,
+    }, protocol::{Identifier, ParticipantIdentifier, ProtocolType, SharedContext}, ring_pedersen::VerifiedRingPedersen, run_only_once
 };
 use rand::{CryptoRng, RngCore};
 use tracing::{debug, error, info, instrument};
@@ -221,7 +212,7 @@ impl ProtocolParticipant for AuxInfoParticipant {
 }
 
 impl InnerProtocolParticipant for AuxInfoParticipant {
-    type Context = SharedContext;
+    type Context = SharedContext<CurvePoint>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
         SharedContext::collect(self)
@@ -761,7 +752,7 @@ mod tests {
         assert_eq!(outputs.len(), QUORUM_SIZE);
 
         let participant_ids = quorum[0].all_participants();
-        let context = SharedContext::fill_context(participant_ids, sid);
+        let context: SharedContext<CurvePoint> = SharedContext::fill_context(participant_ids, sid);
         // Check returned outputs
         //
         // Every participant should have a public output from every other participant

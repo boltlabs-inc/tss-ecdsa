@@ -24,7 +24,7 @@ pub struct KeyUpdateEncrypted {
 
 impl KeyUpdateEncrypted {
     pub fn encrypt<R: RngCore + CryptoRng>(
-        update: &KeyUpdatePrivate,
+        update: &KeyUpdatePrivate<CurvePoint>,
         pk: &EncryptionKey,
         rng: &mut R,
     ) -> Result<Self> {
@@ -40,7 +40,7 @@ impl KeyUpdateEncrypted {
         Ok(KeyUpdateEncrypted { ciphertext })
     }
 
-    pub fn decrypt(&self, dk: &DecryptionKey) -> Result<KeyUpdatePrivate> {
+    pub fn decrypt(&self, dk: &DecryptionKey) -> Result<KeyUpdatePrivate<CurvePoint>> {
         let x = dk.decrypt(&self.ciphertext).map_err(|_| {
             error!("KeyUpdateEncrypted decryption failed, ciphertext out of range",);
             CallerError::DeserializationFailed
@@ -49,28 +49,29 @@ impl KeyUpdateEncrypted {
             error!("KeyUpdateEncrypted decryption failed, plaintext out of range");
             Err(CallerError::DeserializationFailed)?;
         }
-        Ok(KeyUpdatePrivate { x })
+        Ok(KeyUpdatePrivate { x, _curve: std::marker::PhantomData })
     }
 }
 
 /// Private update corresponding to a given
 /// [`Participant`](crate::Participant)'s.
 #[derive(Clone, ZeroizeOnDrop, PartialEq, Eq, Serialize, Deserialize)]
-pub struct KeyUpdatePrivate {
+pub struct KeyUpdatePrivate<C: CurveTrait> {
     x: BigNumber, // in the range [1, q)
+    _curve: std::marker::PhantomData<C>,
 }
 
-impl Debug for KeyUpdatePrivate {
+impl<C: CurveTrait> Debug for KeyUpdatePrivate<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("KeyUpdatePrivate([redacted])")
     }
 }
 
-impl KeyUpdatePrivate {
+impl<C: CurveTrait> KeyUpdatePrivate<C> {
     /// Sample a private key share uniformly at random.
     pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
         let random_bn = BigNumber::from_rng(&k256_order(), rng);
-        KeyUpdatePrivate { x: random_bn }
+        KeyUpdatePrivate { x: random_bn, _curve: std::marker::PhantomData }
     }
 
     /// Compute a private key share such that the sum of all shares equals 0 mod
@@ -80,7 +81,7 @@ impl KeyUpdatePrivate {
             .iter()
             .fold(BigNumber::zero(), |sum, o| sum + o.x.clone());
         let balance = (-sum).nmod(&k256_order());
-        KeyUpdatePrivate { x: balance }
+        KeyUpdatePrivate { x: balance, _curve: std::marker::PhantomData }
     }
 
     pub(crate) fn sum(shares: &[Self]) -> Self {
@@ -88,7 +89,7 @@ impl KeyUpdatePrivate {
             .iter()
             .fold(BigNumber::zero(), |sum, o| sum + o.x.clone())
             .nmod(&k256_order());
-        KeyUpdatePrivate { x: sum }
+        KeyUpdatePrivate { x: sum, _curve: std::marker::PhantomData }
     }
 
     pub(crate) fn apply(self, current_sk: &KeySharePrivate) -> KeySharePrivate {
@@ -100,11 +101,11 @@ impl KeyUpdatePrivate {
 
     /// Computes the "raw" curve point corresponding to this private key.
     pub(crate) fn public_point(&self) -> Result<CurvePoint> {
-        CurvePoint::GENERATOR.multiply_by_bignum(&self.x)
+        C::generator().multiply_by_bignum(&self.x)
     }
 }
 
-impl AsRef<BigNumber> for KeyUpdatePrivate {
+impl<C: CurveTrait> AsRef<BigNumber> for KeyUpdatePrivate<C> {
     /// Get the private key share.
     fn as_ref(&self) -> &BigNumber {
         &self.x
@@ -161,7 +162,7 @@ impl<C: CurveTrait> KeyUpdatePublic<C> {
     pub(crate) fn new_keyshare<R: RngCore + CryptoRng>(
         participant: ParticipantIdentifier,
         rng: &mut R,
-    ) -> Result<(KeyUpdatePrivate, KeyUpdatePublic<C>)> {
+    ) -> Result<(KeyUpdatePrivate<C>, KeyUpdatePublic<C>)> {
         let private_share = KeyUpdatePrivate::random(rng);
         let public_share = private_share.public_point()?;
 
@@ -236,7 +237,7 @@ mod tests {
 
         // Encrypt invalid shares.
         for x in [BigNumber::zero(), -BigNumber::one(), k256_order()].iter() {
-            let share = KeyUpdatePrivate { x: x.clone() };
+            let share = KeyUpdatePrivate::<CurvePoint> { x: x.clone(), _curve: std::marker::PhantomData };
             let encrypted =
                 KeyUpdateEncrypted::encrypt(&share, &pk, rng).expect("encryption failed");
             // Decryption reports an error.
@@ -250,7 +251,7 @@ mod tests {
         // Random shares do not sum to zero.
         let rng = &mut init_testing();
         let mut shares = (0..5)
-            .map(|_| KeyUpdatePrivate::random(rng))
+            .map(|_| KeyUpdatePrivate::<CurvePoint>::random(rng))
             .collect::<Vec<_>>();
         assert_ne!(KeyUpdatePrivate::sum(&shares).x, BigNumber::zero());
 

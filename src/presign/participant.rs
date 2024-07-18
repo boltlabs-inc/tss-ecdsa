@@ -79,7 +79,7 @@ mod storage {
 /// (including this participant).
 #[derive(Debug)]
 pub(crate) struct PresignContext {
-    shared_context: SharedContext,
+    shared_context: SharedContext<CurvePoint>,
     rid: [u8; 32],
     auxinfo_public: Vec<AuxInfoPublic>,
 }

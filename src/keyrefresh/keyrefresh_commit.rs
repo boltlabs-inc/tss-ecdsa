@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve_point::{CurveTrait}, errors::{InternalError, Result}, keyrefresh::keyshare::KeyUpdatePublic, messages::{KeyrefreshMessageType, Message, MessageType}, protocol::{Identifier, ParticipantIdentifier}
+    curve_point::{CurvePoint, CurveTrait}, errors::{InternalError, Result}, keyrefresh::keyshare::KeyUpdatePublic, messages::{KeyrefreshMessageType, Message, MessageType}, protocol::{Identifier, ParticipantIdentifier}
 };
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};

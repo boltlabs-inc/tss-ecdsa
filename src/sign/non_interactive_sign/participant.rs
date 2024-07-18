@@ -19,7 +19,7 @@ use tracing::{error, info};
 use zeroize::Zeroize;
 
 use crate::{
-    curve_point::{CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::KeySharePublic, local_storage::LocalStorage, messages::{Message, MessageType, SignMessageType}, participant::{InnerProtocolParticipant, ProcessOutcome, Status}, protocol::{ProtocolType, SharedContext}, run_only_once, sign::{non_interactive_sign::share::SignatureShare, Signature}, zkp::ProofContext, Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant
+    curve_point::{CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::KeySharePublic, local_storage::LocalStorage, messages::{Message, MessageType, SignMessageType}, participant::{InnerProtocolParticipant, ProcessOutcome, Status}, protocol::{ProtocolType, SharedContext}, run_only_once, sign::{non_interactive_sign::share::SignatureShare, Signature}, zkp::ProofContext, Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant
 };
 
 /// A participant that runs the non-interactive signing protocol in Figure 8 of
@@ -139,7 +139,7 @@ impl<C: CurveTrait> Input<C> {
 /// yet implemented. A correct execution of signing does not involve any ZK
 /// proofs.
 pub(crate) struct SignContext<C: CurveTrait> {
-    shared_context: SharedContext,
+    shared_context: SharedContext<CurvePoint>,
     message_digest: [u8; 32],
     _curve: PhantomData<C>,
 }
