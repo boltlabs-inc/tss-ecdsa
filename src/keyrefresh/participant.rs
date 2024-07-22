@@ -40,7 +40,7 @@ mod storage {
     }
     pub(super) struct VecSchnorrPrecom;
     impl TypeTag for VecSchnorrPrecom {
-        type Value = Vec<PiSchPrecommit>;
+        type Value = Vec<PiSchPrecommit<CurvePoint>>;
     }
     pub(super) struct GlobalRid;
     impl TypeTag for GlobalRid {

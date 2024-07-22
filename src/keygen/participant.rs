@@ -36,7 +36,7 @@ mod storage {
     }
     pub(super) struct SchnorrPrecom;
     impl TypeTag for SchnorrPrecom {
-        type Value = PiSchPrecommit;
+        type Value = PiSchPrecommit<CurvePoint>;
     }
     pub(super) struct GlobalRid;
     impl TypeTag for GlobalRid {

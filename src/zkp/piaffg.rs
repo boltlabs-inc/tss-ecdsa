@@ -39,14 +39,9 @@
 //! 2021](https://eprint.iacr.org/2021/060.pdf).
 
 use crate::{
-    errors::*,
-    paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce, PaillierError},
-    parameters::{ELL, ELL_PRIME, EPSILON},
-    ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
-    utils::{
+    curve_point, errors::*, paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce, PaillierError}, parameters::{ELL, ELL_PRIME, EPSILON}, ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen}, utils::{
         plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size,
-    },
-    zkp::{Proof, ProofContext},
+    }, zkp::{Proof, ProofContext}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -198,12 +193,12 @@ impl<'a> PiAffgSecret<'a> {
 }
 
 impl Proof for PiAffgProof {
-    type CommonInput<'a> = PiAffgInput<'a>;
+    type CommonInput<'a, CurvePoint: curve_point::CurveTrait + 'a> = PiAffgInput<'a>;
     type ProverSecret<'b> = PiAffgSecret<'b>;
 
     #[cfg_attr(feature = "flame_it", flame("PiAffgProof"))]
     fn prove<R: RngCore + CryptoRng>(
-        input: Self::CommonInput<'_>,
+        input: Self::CommonInput<'_, CurvePoint>,
         secret: Self::ProverSecret<'_>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
@@ -376,7 +371,7 @@ impl Proof for PiAffgProof {
     #[cfg_attr(feature = "flame_it", flame("PiAffgProof"))]
     fn verify(
         self,
-        input: Self::CommonInput<'_>,
+        input: Self::CommonInput<'_, CurvePoint>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
     ) -> Result<()> {

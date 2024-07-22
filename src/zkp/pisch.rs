@@ -27,7 +27,7 @@
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 use crate::{
-    curve_point::{k256_order, CurveTrait}, errors::*, messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType}, utils::{positive_challenge_from_transcript, random_positive_bn}, zkp::{Proof, ProofContext}
+    curve_point::{self, k256_order, CurveTrait}, errors::*, messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType}, utils::{positive_challenge_from_transcript, random_positive_bn}, zkp::{Proof, ProofContext}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -60,9 +60,9 @@ pub(crate) struct PiSchProof<C>
 /// convenience; the mask must not be sent to the verifier at any point as this
 /// breaks the security of the proof.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct PiSchPrecommit {
+pub(crate) struct PiSchPrecommit<C: CurveTrait> {
     /// Precommitment value (`A` in the paper).
-    precommitment: CurvePoint,
+    precommitment: C,
     /// Randomness mask for commitment (`alpha` in the paper).
     randomness_for_commitment: BigNumber,
 }
@@ -76,7 +76,7 @@ pub(crate) struct CommonInput<'a> {
     x_commitment: &'a CurvePoint,
 }
 
-impl PiSchPrecommit {
+impl<C: CurveTrait<Point = C>> PiSchPrecommit<C> {
     pub(crate) fn precommitment(&self) -> &CurvePoint {
         &self.precommitment
     }
@@ -110,14 +110,13 @@ impl<'a> ProverSecret<'a> {
     }
 }
 
-impl<C> Proof for PiSchProof<C> 
-    where C: CurveTrait 
+impl<C: CurveTrait<Point = C>> Proof for PiSchProof<C> 
 {
-    type CommonInput<'a> = CommonInput<'a>;
+    type CommonInput<'a, CurvePoint: curve_point::CurveTrait + 'a> = CommonInput<'a>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiSchProof"))]
     fn prove<R: RngCore + CryptoRng>(
-        input: Self::CommonInput<'_>,
+        input: Self::CommonInput<'_, CurvePoint>,
         secret: Self::ProverSecret<'_>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
@@ -131,7 +130,7 @@ impl<C> Proof for PiSchProof<C>
     #[cfg_attr(feature = "flame_it", flame("PiSchProof"))]
     fn verify(
         self,
-        input: Self::CommonInput<'_>,
+        input: Self::CommonInput<'_, CurvePoint>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
     ) -> Result<()> {
@@ -161,9 +160,9 @@ impl<C> Proof for PiSchProof<C>
     }
 }
 
-impl<C: CurveTrait> PiSchProof<C> {
+impl<C: CurveTrait<Point = C>> PiSchProof<C> {
     /// "Commitment" phase of the PiSch proof.
-    pub fn precommit<R: RngCore + CryptoRng>(rng: &mut R) -> Result<PiSchPrecommit> {
+    pub fn precommit<R: RngCore + CryptoRng>(rng: &mut R) -> Result<PiSchPrecommit<C>> {
         // Sample alpha from F_q
         let randomness_for_commitment = random_positive_bn(rng, &k256_order());
         // Form a commitment to the mask
@@ -177,7 +176,7 @@ impl<C: CurveTrait> PiSchProof<C> {
     /// "Challenge" and "Response" phases of the PiSch proof.
     pub fn prove_from_precommit(
         context: &impl ProofContext,
-        com: &PiSchPrecommit,
+        com: &PiSchPrecommit<C>,
         input: &CommonInput,
         secret: &ProverSecret,
         transcript: &Transcript,

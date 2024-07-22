@@ -179,17 +179,24 @@ pub(crate) fn random_bn_in_z_star<R: RngCore + CryptoRng>(
 
 /// Common trait for curves
 pub trait CurveTrait {
+    /// The type of the point on the curve
+    type Point;
     /// Returns the generator of the curve
-    fn generator() -> CurvePoint;
+    fn generator() -> Self::Point;
     /// Returns the identity element of the curve
-    fn identity() -> CurvePoint;
+    fn identity() -> Self::Point;
 
     /// return the order of the curve
     fn curve_order() -> BigNumber;
+    
+    fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> where Self: Sized;
 }
 
 /// Implement the CurveTrait for the CurvePoint
 impl CurveTrait for CurvePoint {
+
+    type Point = CurvePoint;
+
     fn generator() -> CurvePoint {
         CurvePoint::GENERATOR
     }
@@ -200,6 +207,10 @@ impl CurveTrait for CurvePoint {
 
     fn curve_order() -> BigNumber {
         k256_order()
+    }
+
+    fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
+        self.multiply_by_bignum(point)
     }
 }
 

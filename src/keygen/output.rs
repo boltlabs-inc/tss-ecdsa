@@ -24,7 +24,7 @@ pub struct Output<C: CurveTrait> {
     _curve: std::marker::PhantomData<C>,
 }
 
-impl<C: CurveTrait> Output<C> {
+impl<C: CurveTrait<Point = C>> Output<C> {
     /// Construct the generated public key.
     pub fn public_key(&self) -> Result<VerifyingKey> {
         // Add up all the key shares

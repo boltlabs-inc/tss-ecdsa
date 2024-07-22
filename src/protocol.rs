@@ -442,7 +442,7 @@ impl<C: CurveTrait + Serialize> ProofContext for SharedContext<C> {
     }
 }
 
-impl<C: CurveTrait> SharedContext<C> {
+impl<C: CurveTrait<Point = C>> SharedContext<C> {
     /// This function should not be used outside of the tests.
     #[cfg(test)]
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {

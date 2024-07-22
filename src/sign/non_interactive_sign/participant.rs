@@ -72,7 +72,7 @@ pub struct Input<C: CurveTrait> {
     _curve: std::marker::PhantomData<C>,
 }
 
-impl<C: CurveTrait> Input<C> {
+impl<C: CurveTrait<Point = C>> Input<C> {
     /// Construct a new input for signing.
     ///
     /// The `public_key_shares` should be the same ones used to generate the

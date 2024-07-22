@@ -143,7 +143,7 @@ impl<C: CurveTrait> Serialize for KeyUpdatePublic<C> {
     }
 }
 
-impl<C: CurveTrait> KeyUpdatePublic<C> {
+impl<C: CurveTrait<Point = C>> KeyUpdatePublic<C> {
     pub(crate) fn new(participant: ParticipantIdentifier, share: CurvePoint) -> Self {
         Self {
             participant,

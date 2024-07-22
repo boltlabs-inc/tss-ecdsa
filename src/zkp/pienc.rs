@@ -26,12 +26,7 @@
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 use crate::{
-    errors::*,
-    paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce},
-    parameters::{ELL, EPSILON},
-    ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
-    utils::{plusminus_challenge_from_transcript, random_plusminus_by_size},
-    zkp::{Proof, ProofContext},
+    curve_point::{self, CurvePoint}, errors::*, paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce}, parameters::{ELL, EPSILON}, ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen}, utils::{plusminus_challenge_from_transcript, random_plusminus_by_size}, zkp::{Proof, ProofContext}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -125,11 +120,11 @@ impl<'a> PiEncSecret<'a> {
 }
 
 impl Proof for PiEncProof {
-    type CommonInput<'a> = PiEncInput<'a>;
+    type CommonInput<'a, CurvePoint: curve_point::CurveTrait + 'a> = PiEncInput<'a>;
     type ProverSecret<'b> = PiEncSecret<'b>;
     #[cfg_attr(feature = "flame_it", flame("PiEncProof"))]
     fn prove<R: RngCore + CryptoRng>(
-        input: Self::CommonInput<'_>,
+        input: Self::CommonInput<'_, CurvePoint>,
         secret: Self::ProverSecret<'_>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
@@ -192,7 +187,7 @@ impl Proof for PiEncProof {
     #[cfg_attr(feature = "flame_it", flame("PiEncProof"))]
     fn verify(
         self,
-        input: Self::CommonInput<'_>,
+        input: Self::CommonInput<'_, CurvePoint>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
     ) -> Result<()> {

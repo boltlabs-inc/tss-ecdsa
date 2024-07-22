@@ -23,10 +23,7 @@
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 
 use crate::{
-    errors::*,
-    ring_pedersen::RingPedersen,
-    utils::*,
-    zkp::{Proof, ProofContext},
+    curve_point::{self, CurvePoint}, errors::*, ring_pedersen::RingPedersen, utils::*, zkp::{Proof, ProofContext}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -97,11 +94,11 @@ fn generate_challenge_bytes(
 }
 
 impl Proof for PiPrmProof {
-    type CommonInput<'a> = &'a RingPedersen;
+    type CommonInput<'a, CurvePoint: curve_point::CurveTrait + 'a> = &'a RingPedersen;
     type ProverSecret<'a> = PiPrmSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiPrmProof"))]
     fn prove<R: RngCore + CryptoRng>(
-        input: Self::CommonInput<'_>,
+        input: Self::CommonInput<'_, CurvePoint>,
         secret: Self::ProverSecret<'_>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
@@ -141,7 +138,7 @@ impl Proof for PiPrmProof {
     #[cfg_attr(feature = "flame_it", flame("PiPrmProof"))]
     fn verify(
         self,
-        input: Self::CommonInput<'_>,
+        input: Self::CommonInput<'_, CurvePoint>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
     ) -> Result<()> {

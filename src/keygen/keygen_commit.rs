@@ -49,7 +49,7 @@ impl KeygenDecommit {
         sid: &Identifier,
         sender: &ParticipantIdentifier,
         pk: &KeySharePublic,
-        sch_precom: &PiSchPrecommit,
+        sch_precom: &PiSchPrecommit<CurvePoint>,
     ) -> Self {
         let mut rid = [0u8; 32];
         let mut u_i = [0u8; 32];

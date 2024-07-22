@@ -18,11 +18,7 @@
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 
 use crate::{
-    errors::*,
-    parameters::{ELL, EPSILON},
-    ring_pedersen::{Commitment, CommitmentRandomness, MaskedRandomness, VerifiedRingPedersen},
-    utils::{plusminus_challenge_from_transcript, random_plusminus_scaled},
-    zkp::{Proof, ProofContext},
+    curve_point::{self, CurvePoint}, errors::*, parameters::{ELL, EPSILON}, ring_pedersen::{Commitment, CommitmentRandomness, MaskedRandomness, VerifiedRingPedersen}, utils::{plusminus_challenge_from_transcript, random_plusminus_scaled}, zkp::{Proof, ProofContext}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -115,12 +111,12 @@ impl<'a> ProverSecret<'a> {
 }
 
 impl Proof for PiFacProof {
-    type CommonInput<'a> = CommonInput<'a>;
+    type CommonInput<'a, CurvePoint: curve_point::CurveTrait + 'a> = CommonInput<'a>;
     type ProverSecret<'a> = ProverSecret<'a>;
 
     #[cfg_attr(feature = "flame_it", flame("PiFacProof"))]
     fn prove<'a, R: RngCore + CryptoRng>(
-        input: Self::CommonInput<'a>,
+        input: Self::CommonInput<'a, CurvePoint>,
         secret: Self::ProverSecret<'a>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
@@ -198,7 +194,7 @@ impl Proof for PiFacProof {
 
     fn verify(
         self,
-        input: Self::CommonInput<'_>,
+        input: Self::CommonInput<'_, CurvePoint>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
     ) -> Result<()> {
