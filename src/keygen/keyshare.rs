@@ -38,7 +38,7 @@ impl Debug for KeySharePrivate {
 
 impl KeySharePrivate {
     /// Sample a private key share uniformly at random.
-    pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
+    pub fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
         let random_bn = BigNumber::from_rng(&k256_order(), rng);
         KeySharePrivate { x: random_bn }
     }
