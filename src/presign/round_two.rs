@@ -59,7 +59,7 @@ pub(crate) struct Public {
     pub Gamma: CurvePoint,
     pub psi: PiAffgProof,
     pub psi_hat: PiAffgProof,
-    pub psi_prime: PiLogProof,
+    pub psi_prime: PiLogProof<CurvePoint>,
 }
 
 impl Public {

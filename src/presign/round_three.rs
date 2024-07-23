@@ -65,7 +65,7 @@ impl Debug for Private {
 pub(crate) struct Public {
     pub delta: Scalar,
     pub Delta: CurvePoint,
-    pub psi_double_prime: PiLogProof,
+    pub psi_double_prime: PiLogProof<CurvePoint>,
     /// Gamma value included for convenience
     pub Gamma: CurvePoint,
 }

@@ -44,7 +44,7 @@ pub(crate) struct PiSchProof<C>
     where C: CurveTrait
 {
     /// Commitment to the secret (`A` in the paper).
-    commitment: CurvePoint,
+    commitment: C,
     /// Fiat-Shamir challenge (`e` in the paper).
     challenge: BigNumber,
     /// Response binding the commitment randomness used in the commitment (`z`
@@ -122,7 +122,7 @@ impl<C: CurveTrait<Point = C>> Proof for PiSchProof<C>
         transcript: &mut Transcript,
         rng: &mut R,
     ) -> Result<Self> {
-        let com = PiSchProof::<CurvePoint>::precommit(rng)?;
+        let com = PiSchProof::<C>::precommit(rng)?;
         let proof = PiSchProof::prove_from_precommit(context, &com, &input, &secret, transcript)?;
         Ok(proof)
     }

@@ -36,14 +36,14 @@ use crate::curve_point::CurvePoint;
 /// of a Paillier encryption are equal, and
 /// 2. the plaintext value is in the valid range (in this case `± 2^{ℓ + ε}`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PiLogProof {
+pub(crate) struct PiLogProof<C: CurveTrait> {
     /// Commitment to the (secret) [plaintext](ProverSecret::plaintext) (`S` in
     /// the paper).
     plaintext_commit: Commitment,
     /// Paillier encryption of mask value (`A` in the paper).
     mask_ciphertext: Ciphertext,
     /// Discrete log commitment of mask value (`Y` in the paper).
-    mask_dlog_commit: CurvePoint,
+    mask_dlog_commit: C,
     /// Ring-Pedersen commitment of mask value (`D` in the paper).
     mask_commit: Commitment,
     /// Fiat-Shamir challenge (`e` in the paper).
@@ -159,8 +159,8 @@ fn generate_challenge(
     Ok(challenge)
 }
 
-impl Proof for PiLogProof {
-    type CommonInput<'a, CurvePoint: curve_point::CurveTrait + 'a> = CommonInput<'a, CurvePoint>;
+impl<C: CurveTrait<Point = C>> Proof for PiLogProof<C> {
+    type CommonInput<'a, CurvePoint: CurveTrait + 'a> = CommonInput<'a, CurvePoint>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiLogProof"))]
     fn prove<'a, R: RngCore + CryptoRng>(
@@ -359,7 +359,7 @@ mod tests {
     fn with_random_paillier_log_proof<R: RngCore + CryptoRng, C: CurveTrait<Point = C>>(
         rng: &mut R,
         x: &BigNumber,
-        mut f: impl FnMut(PiLogProof, CommonInput<CurvePoint>) -> Result<()>,
+        mut f: impl FnMut(PiLogProof<CurvePoint>, CommonInput<CurvePoint>) -> Result<()>,
     ) -> Result<()> {
         let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
         let pk = decryption_key.encryption_key();
@@ -563,7 +563,7 @@ mod tests {
         let dlog_commit = g.multiply_by_bignum(&x)?;
         let (ciphertext, rho) = pk.encrypt(&mut rng, &x).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
-        let input = CommonInput::<CurvePoint>::new(&ciphertext, &dlog_commit, setup_params.scheme(), &pk, &g);
+        let input = CommonInput::<C>::new(&ciphertext, &dlog_commit, setup_params.scheme(), &pk, &g);
 
         // Generate a random plaintext for the secret
         let bad_x = random_plusminus_by_size(&mut rng, ELL);
