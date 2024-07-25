@@ -20,7 +20,6 @@ use k256::{
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::Debug;
 use std::ops::Add;
@@ -180,9 +179,9 @@ pub(crate) fn random_bn_in_z_star<R: RngCore + CryptoRng>(
 }
 
 /// Common trait for curves
-pub trait CurveTrait: Serialize + DeserializeOwned + Clone + Debug + Eq + PartialEq + Zeroize + Add {
+pub trait CurveTrait: Serialize + Clone + Debug + Eq + PartialEq + Zeroize + Add {
     /// The type of the point on the curve
-    type Point: Serialize + DeserializeOwned + Clone + Debug + Eq + PartialEq + Zeroize + Add;
+    type Point: Serialize + Clone + Debug + Eq + PartialEq + Zeroize + Add;
     /// Returns the generator of the curve
     fn generator() -> Self::Point;
     /// Returns the identity element of the curve

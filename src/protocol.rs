@@ -11,7 +11,7 @@
 //! This module includes the main [`Participant`] driver.
 
 use crate::{
-    curve_point::{k256_order, CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, messages::{Message, MessageType}, participant::{InnerProtocolParticipant, ProtocolParticipant, Status}, protocol::participant_config::ParticipantConfig, zkp::ProofContext
+    curve_point::{k256_order, CurveTrait}, errors::{CallerError, InternalError, Result}, messages::{Message, MessageType}, participant::{InnerProtocolParticipant, ProtocolParticipant, Status}, protocol::participant_config::ParticipantConfig, zkp::ProofContext
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, Rng, RngCore};
@@ -600,6 +600,7 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo::AuxInfoParticipant,
+        curve_point::CurvePoint,
         keygen::KeygenParticipant,
         participant::Status,
         presign,

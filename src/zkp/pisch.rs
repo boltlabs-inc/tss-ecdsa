@@ -110,7 +110,7 @@ impl<'a> ProverSecret<'a> {
     }
 }
 
-impl<C: CurveTrait<Point = C>> Proof for PiSchProof<C> 
+impl<'de, C: CurveTrait<Point = C> + Deserialize<'de>> Proof for PiSchProof<C> 
 {
     type CommonInput<'a, CurvePoint: curve_point::CurveTrait + 'a> = CommonInput<'a>;
     type ProverSecret<'a> = ProverSecret<'a>;

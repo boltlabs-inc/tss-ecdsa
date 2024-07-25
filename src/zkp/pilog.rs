@@ -22,7 +22,6 @@ use crate::{
         plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size,
     }, zkp::{Proof, ProofContext}
 };
-use k256::elliptic_curve::Curve;
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
@@ -159,7 +158,7 @@ fn generate_challenge(
     Ok(challenge)
 }
 
-impl<C: CurveTrait<Point = C>> Proof for PiLogProof<C> {
+impl<'de, C: CurveTrait<Point = C> + Deserialize<'de>> Proof for PiLogProof<C> {
     type CommonInput<'a, CurvePoint: CurveTrait + 'a> = CommonInput<'a, CurvePoint>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiLogProof"))]
