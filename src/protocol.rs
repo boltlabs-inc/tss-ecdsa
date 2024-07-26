@@ -389,26 +389,30 @@ pub(crate) mod participant_config {
 /// All [`Participant`]s in a sub-protocol must agree on the
 /// [`ParticipantIdentifier`]s. That is, these are not local identifiers
 /// controlled by a single `Participant`; they are unique, agreed-upon
-/// identifiers for the `Participant`s executing a sub-protocol. Each member
-/// participating in a sub-protocol should have a different `ParticipantIdentifier`.
+/// identifiers for *all* the `Participant`s executing a sub-protocol. Each
+/// member participating in a sub-protocol should have a different
+/// `ParticipantIdentifier`.
 ///
-/// The same `ParticipantIdentifier`s are used across multiple sub-protocols. For
-/// example, if a set of participants run keygen, aux-info, and then compute
-/// several signatures, they must use the same set of identifiers for each of
-/// those sessions. These `ParticipantIdentifier`s are embedded in the output
-/// of certain sub-protocols, e.g. aux-info: this library will check the expected
-/// `ParticipantIdentifier` from the aux-info output against the `ParticipantIdentifier`
-/// of the `Participant` object executing the sub-protocol. An error will be returned
-/// if they don't match. Therefore, it is up to the calling application to remember and
-/// use the expected `ParticipantIdentifier` when executing sub-protocols.
+/// The set of [`ParticipantIdentifier`]s are forever associated with a key and
+/// must remain the same throughout all (sub-protocol) operations on that key.
+/// For example, if a set of participants run keygen, aux-info, and then compute
+/// several signatures, they must use the same set of identifiers throughout.
 ///
-/// However, a single `ParticipantIdentifier` should not be used
+/// These `ParticipantIdentifier`s are embedded in the output
+/// of our key operations. For example: this library will check the expected
+/// `ParticipantIdentifier` from the aux-info output against the
+/// `ParticipantIdentifier` of the `Participant` object executing the
+/// sub-protocol. An error will be returned if they don't match. It is up to the
+/// calling application to remember and use the expected `ParticipantIdentifier`
+/// when executing sub-protocols.
+///
+/// A single `ParticipantIdentifier` should not be used
 /// to represent different participants (even in different sub-protocols with
 /// non-overlapping participant sets!).
 ///
 /// `ParticipantIdentifier`s should be unique within a deployment, but they
-/// don't necessarily have to be globally unique. `ParticipantIdentifier`s may be
-/// re-used to execute multiple, unrelated, tss-ecdsa sub-protocols.
+/// don't necessarily have to be globally unique. `ParticipantIdentifier`s may
+/// be re-used to execute multiple, unrelated, tss-ecdsa sub-protocols.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ParticipantIdentifier(u128);
 
