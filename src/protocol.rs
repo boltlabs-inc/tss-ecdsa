@@ -35,6 +35,7 @@ use tracing::{error, info, instrument, trace};
 #[derive(Debug)]
 pub enum ProtocolType {
     Keygen,
+    Tshare,
     Keyrefresh,
     AuxInfo,
     Presign,
@@ -168,6 +169,7 @@ impl<P: ProtocolParticipant> Participant<P> {
         match (message.message_type(), P::protocol_type()) {
             (MessageType::Auxinfo(_), ProtocolType::AuxInfo)
             | (MessageType::Keygen(_), ProtocolType::Keygen)
+            | (MessageType::Tshare(_), ProtocolType::Tshare)
             | (MessageType::Keyrefresh(_), ProtocolType::Keyrefresh)
             | (MessageType::Presign(_), ProtocolType::Presign)
             | (MessageType::Sign(_), ProtocolType::Sign)
@@ -431,6 +433,11 @@ impl ParticipantIdentifier {
     /// for example [`Self::random`].
     pub fn from_u128(id: u128) -> Self {
         Self(id)
+    }
+
+    /// Get the ID as a number.
+    pub fn as_u128(&self) -> u128 {
+        self.0
     }
 }
 

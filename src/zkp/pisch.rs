@@ -28,7 +28,7 @@
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 use crate::{
     errors::*,
-    messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType},
+    messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType, TshareMessageType},
     utils::{self, k256_order, positive_challenge_from_transcript, random_positive_bn},
     zkp::{Proof, ProofContext},
 };
@@ -219,7 +219,10 @@ impl PiSchProof {
 
     // Deserialize multiple proofs from a single message.
     pub(crate) fn from_message_multi(message: &Message) -> Result<Vec<Self>> {
-        message.check_type(MessageType::Keyrefresh(KeyrefreshMessageType::R3Proofs))?;
+        message.check_one_of_type(&[
+            MessageType::Keyrefresh(KeyrefreshMessageType::R3Proofs),
+            MessageType::Tshare(TshareMessageType::R3Proofs),
+        ])?;
 
         let pisch_proofs: Vec<PiSchProof> = deserialize!(&message.unverified_bytes)?;
         for pisch_proof in &pisch_proofs {

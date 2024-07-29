@@ -30,6 +30,8 @@ pub enum MessageType {
     Auxinfo(AuxinfoMessageType),
     /// Keygen messages
     Keygen(KeygenMessageType),
+    /// Tshare messages
+    Tshare(TshareMessageType),
     /// Keyrefresh messages
     Keyrefresh(KeyrefreshMessageType),
     /// Presign messages
@@ -66,6 +68,22 @@ pub enum KeygenMessageType {
     /// A proof of knowledge of the discrete log of the value decommitted in
     /// Round 2
     R3Proof,
+}
+
+/// An enum consisting of all tshare message types
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TshareMessageType {
+    /// Signal to self that we're ready to run the protocol
+    Ready,
+    /// A hash commitment to the public keyshare and associated proofs
+    R1CommitHash,
+    /// The information committed to in Round 1
+    R2Decommit,
+    /// A proof of knowledge of the discrete log of the value decommitted in
+    /// Round 2
+    R3Proofs,
+    /// The encrypted private share from a participant to another.
+    R3PrivateShare,
 }
 
 /// An enum consisting of all keyrefresh message types
@@ -205,6 +223,19 @@ impl Message {
             error!(
                 "A message was misrouted. Expected {:?}, Got {:?}",
                 expected_type,
+                self.message_type()
+            );
+            return Err(InternalError::InternalInvariantFailed);
+        }
+        Ok(())
+    }
+
+    /// Check if the message type is one of the valid options.
+    pub(crate) fn check_one_of_type(&self, expected_types: &[MessageType]) -> Result<()> {
+        if !expected_types.contains(&self.message_type()) {
+            error!(
+                "A message was misrouted. Expected one of {:?}, Got {:?}",
+                expected_types,
                 self.message_type()
             );
             return Err(InternalError::InternalInvariantFailed);
