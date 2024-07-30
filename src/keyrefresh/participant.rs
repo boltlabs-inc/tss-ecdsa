@@ -103,11 +103,11 @@ with Identifiable Aborts. [EPrint archive,
 2021](https://eprint.iacr.org/2021/060.pdf). Figure 6.
 */
 #[derive(Debug)]
-pub struct KeyrefreshParticipant {
+pub struct KeyrefreshParticipant<C: CurveTrait> {
     /// The current session identifier
     sid: Identifier,
     /// The current protocol input.
-    input: Input,
+    input: Input<C>,
     /// A unique identifier for this participant.
     id: ParticipantIdentifier,
     /// A list of all other participant identifiers participating in the
@@ -121,9 +121,9 @@ pub struct KeyrefreshParticipant {
     status: Status,
 }
 
-impl ProtocolParticipant for KeyrefreshParticipant {
-    type Input = Input;
-    type Output = Output<CurvePoint>;
+impl<C: CurveTrait> ProtocolParticipant for KeyrefreshParticipant<C> {
+    type Input = Input<C>;
+    type Output = Output<C>;
 
     fn new(
         sid: Identifier,
@@ -221,8 +221,8 @@ impl ProtocolParticipant for KeyrefreshParticipant {
     }
 }
 
-impl InnerProtocolParticipant for KeyrefreshParticipant {
-    type Context = SharedContext<CurvePoint>;
+impl<C: CurveTrait> InnerProtocolParticipant for KeyrefreshParticipant<C> {
+    type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
         SharedContext::collect(self)
@@ -241,13 +241,13 @@ impl InnerProtocolParticipant for KeyrefreshParticipant {
     }
 }
 
-impl Broadcast for KeyrefreshParticipant {
+impl<C: CurveTrait> Broadcast for KeyrefreshParticipant<C> {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant {
         &mut self.broadcast_participant
     }
 }
 
-impl KeyrefreshParticipant {
+impl<C: CurveTrait> KeyrefreshParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this
@@ -818,7 +818,7 @@ impl KeyrefreshParticipant {
         KeyUpdatePrivate::sum(update_privates)
     }
 
-    fn aggregate_public_updates<C: CurveTrait>(
+    fn aggregate_public_updates(
         participants: &[ParticipantIdentifier],
         from_all_to_all: &[Vec<KeyUpdatePublic<C>>],
     ) -> Result<Vec<KeyUpdatePublic<C>>> {
@@ -833,7 +833,7 @@ impl KeyrefreshParticipant {
             .collect()
     }
 
-    fn find_updates_for_participant<C: CurveTrait>(
+    fn find_updates_for_participant(
         p_i: ParticipantIdentifier,
         from_all_to_all: &[Vec<KeyUpdatePublic<C>>],
     ) -> Result<Vec<KeyUpdatePublic<C>>> {
@@ -881,7 +881,7 @@ mod tests {
     };
     use tracing::debug;
 
-    impl KeyrefreshParticipant {
+    impl<C: CurveTrait> KeyrefreshParticipant<C> {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             quorum_size: usize,
@@ -930,7 +930,7 @@ mod tests {
         }
     }
 
-    fn is_keyrefresh_done(quorum: &[KeyrefreshParticipant]) -> bool {
+    fn is_keyrefresh_done(quorum: &[KeyrefreshParticipant<CurvePoint>]) -> bool {
         for participant in quorum {
             if *participant.status() != Status::TerminatedSuccessfully {
                 return false;
@@ -941,7 +941,7 @@ mod tests {
 
     #[allow(clippy::type_complexity)]
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut [KeyrefreshParticipant],
+        quorum: &mut [KeyrefreshParticipant<CurvePoint>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
     ) -> Option<(usize, ProcessOutcome<Output<CurvePoint>>)> {

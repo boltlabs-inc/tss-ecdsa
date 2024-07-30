@@ -92,7 +92,7 @@ impl<C: CurveTrait> KeyUpdatePrivate<C> {
         KeyUpdatePrivate { x: sum, _curve: std::marker::PhantomData }
     }
 
-    pub(crate) fn apply(self, current_sk: &KeySharePrivate) -> KeySharePrivate {
+    pub(crate) fn apply(self, current_sk: &KeySharePrivate<C>) -> KeySharePrivate<C> {
         let mut sum = current_sk.as_ref() + &self.x;
         let share = KeySharePrivate::from_bigint(&sum);
         sum.zeroize();
@@ -143,7 +143,7 @@ impl<C: CurveTrait> Serialize for KeyUpdatePublic<C> {
     }
 }
 
-impl<C: CurveTrait<Point = C>> KeyUpdatePublic<C> {
+impl<C: CurveTrait> KeyUpdatePublic<C> {
     pub(crate) fn new(participant: ParticipantIdentifier, share: CurvePoint) -> Self {
         Self {
             participant,
@@ -181,7 +181,7 @@ impl<C: CurveTrait<Point = C>> KeyUpdatePublic<C> {
         }
     }
 
-    pub(crate) fn apply(&self, current_pk: &KeySharePublic) -> KeySharePublic {
+    pub(crate) fn apply(&self, current_pk: &KeySharePublic<C>) -> KeySharePublic<C> {
         let sum = *current_pk.as_ref() + self.X;
         KeySharePublic::new(current_pk.participant(), sum)
     }

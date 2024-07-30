@@ -7,19 +7,14 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::AuxInfoPublic,
-    errors::{InternalError, Result},
-    messages::{Message, MessageType, PresignMessageType},
-    presign::{
+    auxinfo::AuxInfoPublic, curve_point::{CurvePoint, CurveTrait}, errors::{InternalError, Result}, messages::{Message, MessageType, PresignMessageType}, presign::{
         participant::ParticipantPresignContext,
         round_one::PublicBroadcast as RoundOnePublicBroadcast,
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
-    },
-    curve_point::CurvePoint,
-    zkp::{
+    }, zkp::{
         pilog::{CommonInput, PiLogProof},
         Proof,
-    },
+    }
 };
 use k256::{elliptic_curve::PrimeField, Scalar};
 use libpaillier::unknown_order::BigNumber;
@@ -62,23 +57,23 @@ impl Debug for Private {
 /// necessarily valid (i.e., that all the components are valid with respect to
 /// each other); use [`Public::verify`] to check this latter condition.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct Public {
+pub(crate) struct Public<C: CurveTrait> {
     pub delta: Scalar,
-    pub Delta: CurvePoint,
+    pub Delta: C,
     pub psi_double_prime: PiLogProof<CurvePoint>,
     /// Gamma value included for convenience
-    pub Gamma: CurvePoint,
+    pub Gamma: C,
 }
 
-impl Public {
+impl<C: CurveTrait> Public<C> {
     /// Verify the validity of [`Public`] against the prover's [`AuxInfoPublic`]
     /// and [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast)
     /// values.
     pub(crate) fn verify(
         self,
-        context: &ParticipantPresignContext,
-        verifier_auxinfo_public: &AuxInfoPublic,
-        prover_auxinfo_public: &AuxInfoPublic,
+        context: &ParticipantPresignContext<C>,
+        verifier_auxinfo_public: &AuxInfoPublic<C>,
+        prover_auxinfo_public: &AuxInfoPublic<C>,
         prover_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
         let mut transcript = Transcript::new(b"PiLogProof");
@@ -96,7 +91,7 @@ impl Public {
     }
 }
 
-impl TryFrom<&Message> for Public {
+impl<C: CurveTrait> TryFrom<&Message> for Public<C> {
     type Error = InternalError;
 
     fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {
@@ -115,8 +110,8 @@ impl TryFrom<&Message> for Public {
 }
 
 /// Used to bundle the inputs passed to round_three() together
-pub(crate) struct Input {
-    pub auxinfo_public: AuxInfoPublic,
+pub(crate) struct Input<C: CurveTrait> {
+    pub auxinfo_public: AuxInfoPublic<C>,
     pub r2_private: RoundTwoPrivate,
-    pub r2_public: RoundTwoPublic,
+    pub r2_public: RoundTwoPublic<C>,
 }

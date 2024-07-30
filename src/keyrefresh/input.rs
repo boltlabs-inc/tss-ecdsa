@@ -9,24 +9,24 @@ use std::collections::HashSet;
 use tracing::error;
 
 use crate::{
-    auxinfo::{self, AuxInfoPrivate, AuxInfoPublic}, curve_point::CurvePoint, errors::{CallerError, InternalError, Result}, keygen::{self, KeySharePrivate, KeySharePublic}, ParticipantConfig, ParticipantIdentifier
+    auxinfo::{self, AuxInfoPrivate, AuxInfoPublic}, curve_point::{CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::{self, KeySharePrivate, KeySharePublic}, ParticipantConfig, ParticipantIdentifier
 };
 
 /// Input needed for a
 /// [`KeyrefreshParticipant`](crate::keyrefresh::KeyrefreshParticipant) to run.
 #[derive(Debug, Clone)]
-pub struct Input {
+pub struct Input<C: CurveTrait> {
     /// The key share material for the key that will be refreshed.
-    keygen_output: keygen::Output<CurvePoint>,
+    keygen_output: keygen::Output<C>,
     /// The auxiliary info to encrypt/decrypt messages with other participants.
-    auxinfo_output: auxinfo::Output,
+    auxinfo_output: auxinfo::Output<C>,
 }
 
-impl Input {
+impl<C: CurveTrait> Input<C> {
     /// Creates a new [`Input`] from the outputs of the
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
-    pub fn new(auxinfo_output: auxinfo::Output, keygen_output: keygen::Output<CurvePoint>) -> Result<Self> {
+    pub fn new(auxinfo_output: auxinfo::Output<C>, keygen_output: keygen::Output<C>) -> Result<Self> {
         // The constructors for keygen and auxinfo output already check other important
         // properties, like that the private component maps to one of public
         // components for each one.
@@ -91,7 +91,7 @@ impl Input {
         Ok(())
     }
 
-    pub(crate) fn public_key_shares(&self) -> &[KeySharePublic] {
+    pub(crate) fn public_key_shares(&self) -> &[KeySharePublic<C>] {
         self.keygen_output.public_key_shares()
     }
 
@@ -101,7 +101,7 @@ impl Input {
 
     /// Returns the [`AuxInfoPublic`] associated with the given
     /// [`ParticipantIdentifier`].
-    pub(crate) fn find_auxinfo_public(&self, pid: ParticipantIdentifier) -> Result<&AuxInfoPublic> {
+    pub(crate) fn find_auxinfo_public(&self, pid: ParticipantIdentifier) -> Result<&AuxInfoPublic<C>> {
         self.auxinfo_output.find_public(pid)
             .ok_or_else(|| {
                 error!("Presign input doesn't contain a public auxinfo for {}, even though we checked for it at construction.", pid);
@@ -109,7 +109,7 @@ impl Input {
             })
     }
 
-    pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
+    pub(crate) fn private_key_share(&self) -> &KeySharePrivate<C> {
         self.keygen_output.private_key_share()
     }
 }

@@ -39,7 +39,7 @@ pub(crate) struct KeyrefreshDecommit<C: CurveTrait> {
     pub As: Vec<C>,
 }
 
-impl<'de, C: CurveTrait<Point = C> + Serialize + Deserialize<'de>> KeyrefreshDecommit<C> {
+impl<'de, C: CurveTrait + Serialize + Deserialize<'de>> KeyrefreshDecommit<C> {
     ///`sid` corresponds to a unique session identifier.
     pub(crate) fn new<R: RngCore + CryptoRng>(
         rng: &mut R,

@@ -71,7 +71,6 @@ impl<'de> CurvePoint {
     /// converting it. This may be insecure if the point contains private
     /// data.
     pub(crate) fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
-        //Ok(self.multiply_by_scalar(&bn_to_scalar::<CurvePoint>(point)?))
         Ok(self.multiply_by_scalar(&bn_to_scalar(point)?))
     }
 
@@ -110,7 +109,7 @@ impl<'de> CurvePoint {
 impl std::ops::Add for CurvePoint {
     type Output = Self;
 
-    fn add(self, rhs: Self) -> Self::Output {
+    fn add(self, rhs: Self) -> Self {
         Self(self.0 + rhs.0)
     }
 }
@@ -180,12 +179,10 @@ pub(crate) fn random_bn_in_z_star<R: RngCore + CryptoRng>(
 
 /// Common trait for curves
 pub trait CurveTrait: Serialize + Clone + Debug + Eq + PartialEq + Zeroize + Add {
-    /// The type of the point on the curve
-    type Point: Serialize + Clone + Debug + Eq + PartialEq + Zeroize + Add;
     /// Returns the generator of the curve
-    fn generator() -> Self::Point;
+    fn generator() -> Self;
     /// Returns the identity element of the curve
-    fn identity() -> Self::Point;
+    fn identity() -> Self;
 
     /// return the order of the curve
     fn curve_order() -> BigNumber;
@@ -196,13 +193,11 @@ pub trait CurveTrait: Serialize + Clone + Debug + Eq + PartialEq + Zeroize + Add
 /// Implement the CurveTrait for the CurvePoint
 impl CurveTrait for CurvePoint {
 
-    type Point = CurvePoint;
-
-    fn generator() -> Self::Point {
+    fn generator() -> Self {
         CurvePoint::GENERATOR
     }
 
-    fn identity() -> Self::Point {
+    fn identity() -> Self {
         CurvePoint::IDENTITY
     }
 

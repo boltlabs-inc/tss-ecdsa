@@ -67,20 +67,20 @@ pub struct SignParticipant<C: CurveTrait> {
 #[derive(Debug)]
 pub struct Input<C: CurveTrait> {
     digest: Keccak256,
-    presign_record: PresignRecord,
-    public_key_shares: Vec<KeySharePublic>,
+    presign_record: PresignRecord<C>,
+    public_key_shares: Vec<KeySharePublic<C>>,
     _curve: std::marker::PhantomData<C>,
 }
 
-impl<C: CurveTrait<Point = C>> Input<C> {
+impl<C: CurveTrait> Input<C> {
     /// Construct a new input for signing.
     ///
     /// The `public_key_shares` should be the same ones used to generate the
     /// [`PresignRecord`].
     pub fn new(
         message: &[u8],
-        record: PresignRecord,
-        public_key_shares: Vec<KeySharePublic>,
+        record: PresignRecord<C>,
+        public_key_shares: Vec<KeySharePublic<C>>,
     ) -> Self {
         Self {
             digest: Keccak256::new_with_prefix(message),
@@ -96,8 +96,8 @@ impl<C: CurveTrait<Point = C>> Input<C> {
     /// they receive it, rather that waiting until presigning completes.
     pub(crate) fn new_from_digest(
         digest: Keccak256,
-        record: PresignRecord,
-        public_key_shares: Vec<KeySharePublic>,
+        record: PresignRecord<C>,
+        public_key_shares: Vec<KeySharePublic<C>>,
     ) -> Self {
         Self {
             digest,
@@ -108,7 +108,7 @@ impl<C: CurveTrait<Point = C>> Input<C> {
     }
 
     /// Retrieve the presign record.
-    pub(crate) fn presign_record(&self) -> &PresignRecord {
+    pub(crate) fn presign_record(&self) -> &PresignRecord<C> {
         &self.presign_record
     }
 
@@ -484,7 +484,7 @@ mod test {
     /// correctly according to the presign record.
     fn compute_non_distributed_ecdsa(
         message: &[u8],
-        records: &[PresignRecord],
+        records: &[PresignRecord<CurvePoint>],
         keygen_outputs: &[keygen::Output<CurvePoint>],
     ) -> k256::ecdsa::Signature {
         let k = records

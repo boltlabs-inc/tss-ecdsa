@@ -21,7 +21,7 @@ pub(crate) mod pimod;
 pub(crate) mod piprm;
 pub(crate) mod pisch;
 
-use crate::{curve_point::{CurvePoint, CurveTrait}, errors::Result};
+use crate::{curve_point::CurveTrait, errors::Result};
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Serialize};
@@ -54,14 +54,14 @@ impl ProofContext for BadContext {
 /// The associated type [`Proof::CommonInput`] denotes the data known to both
 /// the prover and verifier, and the associated type [`Proof::ProverSecret`]
 /// denotes the data known only to the prover.
-pub(crate) trait Proof: Sized + Serialize + DeserializeOwned {
-    type CommonInput<'a, C: CurveTrait> where C: 'a;
+pub(crate) trait Proof<C: CurveTrait>: Sized + Serialize + DeserializeOwned {
+    type CommonInput<'a>;
     type ProverSecret<'a>;
 
     /// Constructs a zero knowledge proof over [`Proof::ProverSecret`] and
     /// [`Proof::CommonInput`] using the provided [`Transcript`].
     fn prove<R: RngCore + CryptoRng>(
-        input: Self::CommonInput<'_, CurvePoint>,
+        input: Self::CommonInput<'_>,
         secret: Self::ProverSecret<'_>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
@@ -72,7 +72,7 @@ pub(crate) trait Proof: Sized + Serialize + DeserializeOwned {
     /// [`Proof::CommonInput`] and [`Transcript`].
     fn verify(
         self,
-        input: Self::CommonInput<'_, CurvePoint>,
+        input: Self::CommonInput<'_>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
     ) -> Result<()>;

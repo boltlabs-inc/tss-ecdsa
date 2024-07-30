@@ -27,12 +27,12 @@
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 use crate::{
-    curve_point::{self, k256_order, CurveTrait}, errors::*, messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType}, utils::{positive_challenge_from_transcript, random_positive_bn}, zkp::{Proof, ProofContext}
+    curve_point::{k256_order, CurveTrait}, errors::*, messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType}, utils::{positive_challenge_from_transcript, random_positive_bn}, zkp::{Proof, ProofContext}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{convert::AsRef, fmt::Debug};
 use tracing::error;
 use crate::curve_point::CurvePoint;
@@ -76,8 +76,8 @@ pub(crate) struct CommonInput<'a> {
     x_commitment: &'a CurvePoint,
 }
 
-impl<C: CurveTrait<Point = C>> PiSchPrecommit<C> {
-    pub(crate) fn precommitment(&self) -> &CurvePoint {
+impl<C: CurveTrait> PiSchPrecommit<C> {
+    pub(crate) fn precommitment(&self) -> &C {
         &self.precommitment
     }
 }
@@ -110,13 +110,13 @@ impl<'a> ProverSecret<'a> {
     }
 }
 
-impl<'de, C: CurveTrait<Point = C> + Deserialize<'de>> Proof for PiSchProof<C> 
+impl<C: CurveTrait + DeserializeOwned> Proof<C> for PiSchProof<C> 
 {
-    type CommonInput<'a, CurvePoint: curve_point::CurveTrait + 'a> = CommonInput<'a>;
+    type CommonInput<'a> = CommonInput<'a>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiSchProof"))]
     fn prove<R: RngCore + CryptoRng>(
-        input: Self::CommonInput<'_, CurvePoint>,
+        input: Self::CommonInput<'_>,
         secret: Self::ProverSecret<'_>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
@@ -130,7 +130,7 @@ impl<'de, C: CurveTrait<Point = C> + Deserialize<'de>> Proof for PiSchProof<C>
     #[cfg_attr(feature = "flame_it", flame("PiSchProof"))]
     fn verify(
         self,
-        input: Self::CommonInput<'_, CurvePoint>,
+        input: Self::CommonInput<'_>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
     ) -> Result<()> {
@@ -160,7 +160,7 @@ impl<'de, C: CurveTrait<Point = C> + Deserialize<'de>> Proof for PiSchProof<C>
     }
 }
 
-impl<C: CurveTrait<Point = C>> PiSchProof<C> {
+impl<C: CurveTrait + DeserializeOwned> PiSchProof<C> {
     /// "Commitment" phase of the PiSch proof.
     pub fn precommit<R: RngCore + CryptoRng>(rng: &mut R) -> Result<PiSchPrecommit<C>> {
         // Sample alpha from F_q

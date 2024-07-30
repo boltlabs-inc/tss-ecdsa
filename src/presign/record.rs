@@ -7,23 +7,20 @@
 // of this source tree.
 
 use crate::{
-    errors::{
+    curve_point::{bn_to_scalar, CurvePoint, CurveTrait}, errors::{
         CallerError,
         InternalError::{InternalInvariantFailed, ProtocolError},
         Result,
-    },
-    presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
-    curve_point::{bn_to_scalar, CurvePoint},
-    utils::ParseBytes,
+    }, presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic}, utils::ParseBytes
 };
 use k256::{elliptic_curve::PrimeField, Scalar};
 use std::fmt::Debug;
 use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-pub(crate) struct RecordPair {
+pub(crate) struct RecordPair<C: CurveTrait> {
     pub(crate) private: RoundThreePrivate,
-    pub(crate) publics: Vec<RoundThreePublic>,
+    pub(crate) publics: Vec<RoundThreePublic<C>>,
 }
 
 /// The precomputation used to create a partial signature.
@@ -53,15 +50,15 @@ pub(crate) struct RecordPair {
 ///
 /// [^cite]: [Wikipedia](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm#Signature_generation_algorithm)
 #[derive(Zeroize, ZeroizeOnDrop, PartialEq, Eq)]
-pub struct PresignRecord {
-    R: CurvePoint,
+pub struct PresignRecord<C: CurveTrait> {
+    R: C,
     k: Scalar,
     chi: Scalar,
 }
 
 const RECORD_TAG: &[u8] = b"Presign Record";
 
-impl Debug for PresignRecord {
+impl<C: CurveTrait> Debug for PresignRecord<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Redacting all the fields because I'm not sure how sensitive they are. If
         // later analysis suggests they're fine to print, please udpate
@@ -74,9 +71,9 @@ impl Debug for PresignRecord {
     }
 }
 
-impl TryFrom<RecordPair> for PresignRecord {
+impl<C: CurveTrait> TryFrom<RecordPair<C>> for PresignRecord<C> {
     type Error = crate::errors::InternalError;
-    fn try_from(RecordPair { private, publics }: RecordPair) -> Result<Self> {
+    fn try_from(RecordPair { private, publics }: RecordPair<C>) -> Result<Self> {
         let mut delta = private.delta;
         let mut Delta = private.Delta;
         for p in publics {
@@ -104,7 +101,7 @@ impl TryFrom<RecordPair> for PresignRecord {
     }
 }
 
-impl PresignRecord {
+impl<C: CurveTrait> PresignRecord<C> {
     /// Get the mask share (`k` in the paper) from the record.
     pub(crate) fn mask_share(&self) -> &Scalar {
         &self.k
@@ -254,21 +251,18 @@ mod tests {
     use rand::{rngs::StdRng, CryptoRng, Rng, RngCore, SeedableRng};
 
     use crate::{
-        keygen,
-        presign::{participant::presign_record_set_is_valid, record::RECORD_TAG},
-        curve_point::{bn_to_scalar, testing::init_testing, CurvePoint},
-        ParticipantConfig, PresignRecord,
+        curve_point::{bn_to_scalar, testing::init_testing, CurvePoint, CurveTrait}, keygen, presign::{participant::presign_record_set_is_valid, record::RECORD_TAG}, ParticipantConfig, PresignRecord
     };
 
-    impl PresignRecord {
-        pub(crate) fn mask_point(&self) -> &CurvePoint {
+    impl<C: CurveTrait> PresignRecord<C> {
+        pub(crate) fn mask_point(&self) -> &C {
             &self.R
         }
 
         /// Simulate creation of a random presign record. Do not use outside of
         /// testing.
-        fn simulate(rng: &mut StdRng) -> PresignRecord {
-            let mask_point = CurvePoint::random(StdRng::from_seed(rng.gen()));
+        fn simulate(rng: &mut StdRng) -> PresignRecord<C> {
+            let mask_point = C::random(StdRng::from_seed(rng.gen()));
             let mask_share = Scalar::random(StdRng::from_seed(rng.gen()));
             let masked_key_share = Scalar::random(rng);
 

@@ -32,7 +32,7 @@ mod storage {
     }
     pub(super) struct Decommit;
     impl TypeTag for Decommit {
-        type Value = KeygenDecommit;
+        type Value = KeygenDecommit<CurvePoint>;
     }
     pub(super) struct SchnorrPrecom;
     impl TypeTag for SchnorrPrecom {
@@ -44,11 +44,11 @@ mod storage {
     }
     pub(super) struct PrivateKeyshare;
     impl TypeTag for PrivateKeyshare {
-        type Value = KeySharePrivate;
+        type Value = KeySharePrivate<CurvePoint>;
     }
     pub(super) struct PublicKeyshare;
     impl TypeTag for PublicKeyshare {
-        type Value = KeySharePublic;
+        type Value = KeySharePublic<CurvePoint>;
     }
 }
 

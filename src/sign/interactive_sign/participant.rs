@@ -10,7 +10,7 @@ use sha3::{Digest, Keccak256};
 use tracing::{error, info};
 
 use crate::{
-    auxinfo, curve_point::CurvePoint, errors::{CallerError, InternalError, Result}, keygen::{self, KeySharePublic}, message_queue::MessageQueue, messages::{Message, MessageType, SignMessageType}, participant::{ProcessOutcome, Status}, presign::{self, PresignParticipant, PresignRecord}, protocol::ProtocolType, sign::{self, non_interactive_sign::participant::SignParticipant, Signature}, Identifier, ParticipantIdentifier, ProtocolParticipant
+    auxinfo, curve_point::{CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::{self, KeySharePublic}, message_queue::MessageQueue, messages::{Message, MessageType, SignMessageType}, participant::{ProcessOutcome, Status}, presign::{self, PresignParticipant, PresignRecord}, protocol::ProtocolType, sign::{self, non_interactive_sign::participant::SignParticipant, Signature}, Identifier, ParticipantIdentifier, ProtocolParticipant
 };
 
 /// A participant that runs the interactive signing protocol in
@@ -50,9 +50,9 @@ use crate::{
 /// with Identifiable Aborts. [EPrint archive,
 /// 2021](https://eprint.iacr.org/2021/060.pdf).
 #[derive(Debug)]
-pub struct InteractiveSignParticipant {
-    signing_material: SigningMaterial,
-    presigner: PresignParticipant,
+pub struct InteractiveSignParticipant<C: CurveTrait> {
+    signing_material: SigningMaterial<C>,
+    presigner: PresignParticipant<C>,
     signing_message_storage: MessageQueue,
 }
 
@@ -61,22 +61,22 @@ pub struct InteractiveSignParticipant {
 /// Either we have not yet started the signing protocol, so we are only saving
 /// the input, or we are actively running signing.
 #[derive(Debug)]
-enum SigningMaterial {
+enum SigningMaterial<C: CurveTrait> {
     /// When we create the `signer`, we'll need to pass this input, plus the
     /// output of `presign`.
     PartialInput {
         // Boxed at the behest of compiler. This type is quite large.
         digest: Box<Keccak256>,
-        public_keys: Vec<KeySharePublic>,
+        public_keys: Vec<KeySharePublic<C>>,
     },
     Signer {
         // Boxed at the behest of compiler. This type is quite large.
-        signer: Box<SignParticipant<CurvePoint>>,
+        signer: Box<SignParticipant<C>>,
     },
 }
 
-impl SigningMaterial {
-    fn new_partial_input(digest: Keccak256, public_keys: Vec<KeySharePublic>) -> Self {
+impl<C: CurveTrait> SigningMaterial<C> {
+    fn new_partial_input(digest: Keccak256, public_keys: Vec<KeySharePublic<C>>) -> Self {
         Self::PartialInput {
             digest: Box::new(digest),
             public_keys,
@@ -86,7 +86,7 @@ impl SigningMaterial {
     /// Update from `PartialInput` to `Signer`.
     fn update(
         &mut self,
-        record: PresignRecord,
+        record: PresignRecord<C>,
         id: ParticipantIdentifier,
         other_ids: Vec<ParticipantIdentifier>,
         sid: Identifier,
@@ -133,12 +133,12 @@ impl SigningMaterial {
 
 /// Input for the interactive signing protocol.
 #[derive(Debug)]
-pub struct Input {
+pub struct Input<C: CurveTrait> {
     message_digest: Keccak256,
-    presign_input: presign::Input,
+    presign_input: presign::Input<C>,
 }
 
-impl Input {
+impl<C: CurveTrait> Input<C> {
     /// Construct a new input for interactive signing from the outputs of the
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
@@ -152,8 +152,8 @@ impl Input {
     /// "pre-hash" the message. It is hashed here using SHA2-256.
     pub fn new(
         message: &[u8],
-        keygen_output: keygen::Output<CurvePoint>,
-        auxinfo_output: auxinfo::Output,
+        keygen_output: keygen::Output<C>,
+        auxinfo_output: auxinfo::Output<C>,
     ) -> Result<Self> {
         let presign_input = presign::Input::new(auxinfo_output, keygen_output)?;
         let message_digest = Keccak256::new_with_prefix(message);
@@ -164,8 +164,8 @@ impl Input {
     }
 }
 
-impl ProtocolParticipant for InteractiveSignParticipant {
-    type Input = Input;
+impl<C: CurveTrait> ProtocolParticipant for InteractiveSignParticipant<C> {
+    type Input = Input<C>;
     type Output = Signature;
 
     fn ready_type() -> MessageType {
@@ -266,7 +266,7 @@ impl ProtocolParticipant for InteractiveSignParticipant {
     }
 }
 
-impl InteractiveSignParticipant {
+impl<C: CurveTrait> InteractiveSignParticipant<C> {
     fn handle_sign_message(
         &mut self,
         rng: &mut (impl CryptoRng + RngCore),
@@ -337,14 +337,7 @@ mod tests {
     use tracing::debug;
 
     use crate::{
-        auxinfo,
-        errors::Result,
-        keygen,
-        messages::{Message, MessageType},
-        participant::ProcessOutcome,
-        sign::Signature,
-        curve_point::testing::init_testing,
-        Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
+        auxinfo, curve_point::{testing::init_testing, CurvePoint}, errors::Result, keygen, messages::{Message, MessageType}, participant::ProcessOutcome, sign::Signature, Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant
     };
 
     use super::{Input, InteractiveSignParticipant, Status};
@@ -364,10 +357,10 @@ mod tests {
     /// Pick a random incoming message and have the correct participant process
     /// it.
     fn process_messages<'a>(
-        quorum: &'a mut [InteractiveSignParticipant],
+        quorum: &'a mut [InteractiveSignParticipant<CurvePoint>],
         inbox: &mut Vec<Message>,
         rng: &mut StdRng,
-    ) -> (&'a InteractiveSignParticipant, ProcessOutcome<Signature>) {
+    ) -> (&'a InteractiveSignParticipant<CurvePoint>, ProcessOutcome<Signature>) {
         // Make sure test doesn't loop forever if we have a control flow problem
         if inbox.is_empty() {
             panic!("Protocol isn't done but there are no more messages!")

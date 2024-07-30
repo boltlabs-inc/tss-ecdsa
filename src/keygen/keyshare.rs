@@ -7,10 +7,7 @@
 // of this source tree.
 
 use crate::{
-    errors::{CallerError, Result},
-    curve_point::{k256_order, CurvePoint},
-    utils::ParseBytes,
-    ParticipantIdentifier,
+    curve_point::{k256_order, CurveTrait}, errors::{CallerError, Result}, utils::ParseBytes, ParticipantIdentifier
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
@@ -27,17 +24,19 @@ const KEYSHARE_TAG: &[u8] = b"KeySharePrivate";
 /// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
 #[derive(Clone, PartialEq, Eq)]
-pub struct KeySharePrivate {
+pub struct KeySharePrivate<C: CurveTrait> {
     x: BigNumber, // in the range [1, q)
+    /// Marker to pin the generic type.
+    curve: std::marker::PhantomData<C>,
 }
 
-impl Debug for KeySharePrivate {
+impl<C: CurveTrait> Debug for KeySharePrivate<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("KeySharePrivate([redacted])")
     }
 }
 
-impl KeySharePrivate {
+impl<C: CurveTrait> KeySharePrivate<C> {
     /// Sample a private key share uniformly at random.
     pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
         let random_bn = BigNumber::from_rng(&k256_order(), rng);
@@ -52,8 +51,8 @@ impl KeySharePrivate {
     }
 
     /// Computes the "raw" curve point corresponding to this private key.
-    pub(crate) fn public_share(&self) -> Result<CurvePoint> {
-        CurvePoint::GENERATOR.multiply_by_bignum(&self.x)
+    pub(crate) fn public_share(&self) -> Result<C> {
+        C::generator().multiply_by_bignum(&self.x)
     }
 
     /// Convert private material into bytes.
@@ -134,7 +133,7 @@ impl KeySharePrivate {
     }
 }
 
-impl AsRef<BigNumber> for KeySharePrivate {
+impl<C: CurveTrait> AsRef<BigNumber> for KeySharePrivate<C> {
     /// Get the private key share.
     fn as_ref(&self) -> &BigNumber {
         &self.x
@@ -144,13 +143,13 @@ impl AsRef<BigNumber> for KeySharePrivate {
 /// A curve point representing a given [`Participant`](crate::Participant)'s
 /// public key.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct KeySharePublic {
+pub struct KeySharePublic<C: CurveTrait> {
     participant: ParticipantIdentifier,
-    X: CurvePoint,
+    X: C,
 }
 
-impl KeySharePublic {
-    pub(crate) fn new(participant: ParticipantIdentifier, share: CurvePoint) -> Self {
+impl<C: CurveTrait> KeySharePublic<C> {
+    pub(crate) fn new(participant: ParticipantIdentifier, share: C) -> Self {
         Self {
             participant,
             X: share,
@@ -167,20 +166,20 @@ impl KeySharePublic {
     pub(crate) fn new_keyshare<R: RngCore + CryptoRng>(
         participant: ParticipantIdentifier,
         rng: &mut R,
-    ) -> Result<(KeySharePrivate, KeySharePublic)> {
+    ) -> Result<(KeySharePrivate<C>, KeySharePublic<C>)> {
         let private_share = KeySharePrivate::random(rng);
         let public_share = private_share.public_share()?;
 
         Ok((
             private_share,
-            KeySharePublic::new(participant, public_share),
+            KeySharePublic::<C>::new(participant, public_share),
         ))
     }
 }
 
-impl AsRef<CurvePoint> for KeySharePublic {
+impl<C: CurveTrait> AsRef<C> for KeySharePublic<C> {
     /// Get the public curvepoint which is the public key share.
-    fn as_ref(&self) -> &CurvePoint {
+    fn as_ref(&self) -> &C {
         &self.X
     }
 }

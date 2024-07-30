@@ -23,7 +23,7 @@
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 
 use crate::{
-    curve_point::{self, CurvePoint}, errors::*, ring_pedersen::RingPedersen, utils::*, zkp::{Proof, ProofContext}
+    curve_point::CurveTrait, errors::*, ring_pedersen::RingPedersen, utils::*, zkp::{Proof, ProofContext}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -38,13 +38,15 @@ const SOUNDNESS: usize = crate::parameters::SOUNDNESS_PARAMETER;
 /// Proof that externally provided [`RingPedersen`] parameters are constructed
 /// correctly.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PiPrmProof {
+pub(crate) struct PiPrmProof<C: CurveTrait> {
     /// The commitments computed by the prover (`A_i` in the paper).
     commitments: Vec<BigNumber>,
     /// The randomized challenge bytes (`e_i` in the paper).
     challenge_bytes: Vec<u8>,
     /// The prover responses (`z_i` in the paper).
     responses: Vec<BigNumber>,
+    /// Marker to pin the curve type.
+    curve: std::marker::PhantomData<C>,
 }
 
 /// The prover's secret knowledge.
@@ -93,12 +95,12 @@ fn generate_challenge_bytes(
     Ok(challenges.into())
 }
 
-impl Proof for PiPrmProof {
-    type CommonInput<'a, CurvePoint: curve_point::CurveTrait + 'a> = &'a RingPedersen;
+impl<C: CurveTrait> Proof<C> for PiPrmProof<C> {
+    type CommonInput<'a> = &'a RingPedersen;
     type ProverSecret<'a> = PiPrmSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiPrmProof"))]
     fn prove<R: RngCore + CryptoRng>(
-        input: Self::CommonInput<'_, CurvePoint>,
+        input: Self::CommonInput<'_>,
         secret: Self::ProverSecret<'_>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
@@ -138,7 +140,7 @@ impl Proof for PiPrmProof {
     #[cfg_attr(feature = "flame_it", flame("PiPrmProof"))]
     fn verify(
         self,
-        input: Self::CommonInput<'_, CurvePoint>,
+        input: Self::CommonInput<'_>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
     ) -> Result<()> {
@@ -185,7 +187,7 @@ impl Proof for PiPrmProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{paillier::DecryptionKey, curve_point::testing::init_testing, zkp::BadContext};
+    use crate::{curve_point::{testing::init_testing, CurvePoint}, paillier::DecryptionKey, zkp::BadContext};
     use rand::Rng;
 
     /// Make a transcript for PiPrmProof.
@@ -195,7 +197,7 @@ mod tests {
 
     fn random_ring_pedersen_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
-    ) -> Result<(RingPedersen, PiPrmProof, BigNumber, BigNumber)> {
+    ) -> Result<(RingPedersen, PiPrmProof::<CurvePoint>, BigNumber, BigNumber)> {
         let (sk, _, _) = DecryptionKey::new(rng).unwrap();
         let (scheme, lambda, totient) = RingPedersen::extract(&sk, rng)?;
         let secrets = PiPrmSecret::new(&lambda, &totient);

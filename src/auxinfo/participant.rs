@@ -15,7 +15,7 @@ use crate::{
         info::{AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses},
         proof::{AuxInfoProof, CommonInput},
         Output,
-    }, broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::CurvePoint, errors::{CallerError, InternalError, Result}, local_storage::LocalStorage, messages::{AuxinfoMessageType, Message, MessageType}, paillier::DecryptionKey, participant::{
+    }, broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::{CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, local_storage::LocalStorage, messages::{AuxinfoMessageType, Message, MessageType}, paillier::DecryptionKey, participant::{
         Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant, Status,
     }, protocol::{Identifier, ParticipantIdentifier, ProtocolType, SharedContext}, ring_pedersen::VerifiedRingPedersen, run_only_once
 };
@@ -33,7 +33,7 @@ mod storage {
     }
     pub(super) struct Public;
     impl TypeTag for Public {
-        type Value = AuxInfoPublic;
+        type Value = AuxInfoPublic<CurvePoint>;
     }
     pub(super) struct Commit;
     impl TypeTag for Commit {
@@ -41,7 +41,7 @@ mod storage {
     }
     pub(super) struct Decommit;
     impl TypeTag for Decommit {
-        type Value = CommitmentScheme;
+        type Value = CommitmentScheme<CurvePoint>;
     }
     pub(super) struct GlobalRid;
     impl TypeTag for GlobalRid {
@@ -101,7 +101,7 @@ mod storage {
 /// not include the key-refresh steps included in Figure 6.
 
 #[derive(Debug)]
-pub struct AuxInfoParticipant {
+pub struct AuxInfoParticipant<C: CurveTrait> {
     /// The current session identifier
     sid: Identifier,
     /// A unique identifier for this participant
@@ -115,13 +115,15 @@ pub struct AuxInfoParticipant {
     broadcast_participant: BroadcastParticipant,
     /// The status of the protocol execution
     status: Status,
+    /// Marker for the curve type
+    curve_type: std::marker::PhantomData<C>,
 }
 
-impl ProtocolParticipant for AuxInfoParticipant {
+impl<C: CurveTrait> ProtocolParticipant for AuxInfoParticipant<C> {
     type Input = ();
     // The output type includes `AuxInfoPublic` material for all participants
     // (including ourselves) and `AuxInfoPrivate` for ourselves.
-    type Output = Output;
+    type Output = Output<C>;
 
     fn new(
         sid: Identifier,
@@ -211,8 +213,8 @@ impl ProtocolParticipant for AuxInfoParticipant {
     }
 }
 
-impl InnerProtocolParticipant for AuxInfoParticipant {
-    type Context = SharedContext<CurvePoint>;
+impl<C: CurveTrait> InnerProtocolParticipant for AuxInfoParticipant<C> {
+    type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
         SharedContext::collect(self)
@@ -231,13 +233,13 @@ impl InnerProtocolParticipant for AuxInfoParticipant {
     }
 }
 
-impl Broadcast for AuxInfoParticipant {
+impl<C: CurveTrait> Broadcast for AuxInfoParticipant<C> {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant {
         &mut self.broadcast_participant
     }
 }
 
-impl AuxInfoParticipant {
+impl<C: CurveTrait> AuxInfoParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this
@@ -591,7 +593,7 @@ impl AuxInfoParticipant {
     fn new_auxinfo<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
-    ) -> Result<(AuxInfoPrivate, AuxInfoPublic, AuxInfoWitnesses)> {
+    ) -> Result<(AuxInfoPrivate, AuxInfoPublic<CurvePoint>, AuxInfoWitnesses)> {
         debug!("Creating new auxinfo.");
 
         let (decryption_key, p, q) = DecryptionKey::new(rng).map_err(|_| {
@@ -616,7 +618,7 @@ mod tests {
     use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
 
-    impl AuxInfoParticipant {
+    impl<C: CurveTrait> AuxInfoParticipant<C> {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             input: (),
@@ -657,7 +659,7 @@ mod tests {
         }
     }
 
-    fn is_auxinfo_done(quorum: &[AuxInfoParticipant]) -> bool {
+    fn is_auxinfo_done(quorum: &[AuxInfoParticipant<CurvePoint>]) -> bool {
         for participant in quorum {
             if *participant.status() != Status::TerminatedSuccessfully {
                 return false;
@@ -671,10 +673,10 @@ mod tests {
     ///
     /// Returns None if there are no messages for the selected participant.
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut [AuxInfoParticipant],
+        quorum: &mut [AuxInfoParticipant<CurvePoint>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
-    ) -> Option<(usize, ProcessOutcome<Output>)> {
+    ) -> Option<(usize, ProcessOutcome<Output<CurvePoint>>)> {
         // Pick a random participant to process
         let index = rng.gen_range(0..quorum.len());
         let participant = quorum.get_mut(index).unwrap();

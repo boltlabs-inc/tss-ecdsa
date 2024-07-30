@@ -8,7 +8,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    curve_point::{CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::keyshare::{KeySharePrivate, KeySharePublic}, ParticipantIdentifier
+    curve_point::CurveTrait, errors::{CallerError, InternalError, Result}, keygen::keyshare::{KeySharePrivate, KeySharePublic}, ParticipantIdentifier
 };
 
 use k256::ecdsa::VerifyingKey;
@@ -18,13 +18,12 @@ use tracing::error;
 /// this party's private key share, and a bit of global randomness.
 #[derive(Debug, Clone)]
 pub struct Output<C: CurveTrait> {
-    public_key_shares: Vec<KeySharePublic>,
-    private_key_share: KeySharePrivate,
+    public_key_shares: Vec<KeySharePublic<C>>,
+    private_key_share: KeySharePrivate<C>,
     rid: [u8; 32],
-    _curve: std::marker::PhantomData<C>,
 }
 
-impl<C: CurveTrait<Point = C>> Output<C> {
+impl<C: CurveTrait> Output<C> {
     /// Construct the generated public key.
     pub fn public_key(&self) -> Result<VerifyingKey> {
         // Add up all the key shares
@@ -40,11 +39,11 @@ impl<C: CurveTrait<Point = C>> Output<C> {
     }
 
     /// Get the individual shares of the public key.
-    pub fn public_key_shares(&self) -> &[KeySharePublic] {
+    pub fn public_key_shares(&self) -> &[KeySharePublic<C>] {
         &self.public_key_shares
     }
 
-    pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
+    pub(crate) fn private_key_share(&self) -> &KeySharePrivate<C> {
         &self.private_key_share
     }
 
@@ -81,13 +80,13 @@ impl<C: CurveTrait<Point = C>> Output<C> {
     ///   the private key share must be contained in the list of public shares.
     /// - The public key shares must be from a unique set of participants
     pub fn from_parts(
-        public_key_shares: Vec<KeySharePublic>,
-        private_key_share: KeySharePrivate,
+        public_key_shares: Vec<KeySharePublic<C>>,
+        private_key_share: KeySharePrivate<C>,
         rid: [u8; 32],
     ) -> Result<Self> {
         let pids = public_key_shares
             .iter()
-            .map(KeySharePublic::participant)
+            .map(KeySharePublic::<C>::participant)
             .collect::<HashSet<_>>();
         if pids.len() != public_key_shares.len() {
             error!("Tried to create a keygen output using a set of public material from non-unique participants");
@@ -120,7 +119,7 @@ impl<C: CurveTrait<Point = C>> Output<C> {
     ///
     /// The public components (including the byte array and the public key
     /// shares) can be stored in the clear.
-    pub fn into_parts(self) -> (Vec<KeySharePublic>, KeySharePrivate, [u8; 32]) {
+    pub fn into_parts(self) -> (Vec<KeySharePublic<C>>, KeySharePrivate<C>, [u8; 32]) {
         (self.public_key_shares, self.private_key_share, self.rid)
     }
 }

@@ -39,14 +39,14 @@
 //! 2021](https://eprint.iacr.org/2021/060.pdf).
 
 use crate::{
-    curve_point, errors::*, paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce, PaillierError}, parameters::{ELL, ELL_PRIME, EPSILON}, ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen}, utils::{
+    curve_point::CurveTrait, errors::*, paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce, PaillierError}, parameters::{ELL, ELL_PRIME, EPSILON}, ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen}, utils::{
         plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size,
     }, zkp::{Proof, ProofContext}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
 use crate::curve_point::CurvePoint;
@@ -57,7 +57,7 @@ use crate::curve_point::CurvePoint;
 ///
 /// See the [module-level documentation](crate::zkp::piaffg) for more details.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PiAffgProof {
+pub(crate) struct PiAffgProof<C: CurveTrait> {
     /// A ring-Pedersen commitment to the multiplicative coefficient (`S` in the
     /// paper).
     mult_coeff_commit: Commitment,
@@ -70,7 +70,7 @@ pub(crate) struct PiAffgProof {
     random_affine_ciphertext_verifier: Ciphertext,
     /// A group exponentiation of the random multiplicative coefficient (`B_x`
     /// in the paper).
-    random_mult_coeff_exp: CurvePoint,
+    random_mult_coeff_exp: C,
     /// A Paillier ciphertext, under the prover's encryption key, of the
     /// random additive coefficient (`B_y` in the paper).
     random_add_coeff_ciphertext_prover: Ciphertext,
@@ -106,9 +106,9 @@ pub(crate) struct PiAffgProof {
 /// Copying/Cloning references is harmless and sometimes necessary. So we
 /// implement Clone and Copy for this type.
 #[derive(Serialize, Clone, Copy)]
-pub(crate) struct PiAffgInput<'a> {
+pub(crate) struct PiAffgInput<'a, C: CurveTrait> {
     /// The verifier's commitment parameters (`(Nhat, s, t)` in the paper).
-    verifier_setup_params: &'a VerifiedRingPedersen,
+    verifier_setup_params: &'a VerifiedRingPedersen<C>,
     /// The verifier's Paillier encryption key (`N_0` in the paper).
     verifier_encryption_key: &'a EncryptionKey,
     /// The prover's Paillier encryption key (`N_1` in the paper).
@@ -124,20 +124,20 @@ pub(crate) struct PiAffgInput<'a> {
     add_coeff_ciphertext_prover: &'a Ciphertext,
     /// Exponentiation of the prover's multiplicative coefficient (`X` in the
     /// paper).
-    mult_coeff_exp: &'a CurvePoint,
+    mult_coeff_exp: &'a C,
 }
 
-impl<'a> PiAffgInput<'a> {
+impl<'a, C: CurveTrait> PiAffgInput<'a, C> {
     /// Construct a new [`PiAffgInput`] type.
     pub(crate) fn new(
-        verifier_setup_params: &'a VerifiedRingPedersen,
+        verifier_setup_params: &'a VerifiedRingPedersen<C>,
         verifier_encryption_key: &'a EncryptionKey,
         prover_encryption_key: &'a EncryptionKey,
         original_ciphertext_verifier: &'a Ciphertext,
         transformed_ciphertext_verifier: &'a Ciphertext,
         add_coeff_ciphertext_prover: &'a Ciphertext,
-        mult_coeff_exp: &'a CurvePoint,
-    ) -> PiAffgInput<'a> {
+        mult_coeff_exp: &'a C,
+    ) -> PiAffgInput<'a, C> {
         Self {
             verifier_setup_params,
             verifier_encryption_key,
@@ -192,13 +192,13 @@ impl<'a> PiAffgSecret<'a> {
     }
 }
 
-impl Proof for PiAffgProof {
-    type CommonInput<'a, CurvePoint: curve_point::CurveTrait + 'a> = PiAffgInput<'a>;
+impl<C: CurveTrait + DeserializeOwned> Proof<C> for PiAffgProof<C> {
+    type CommonInput<'a> = PiAffgInput<'a, C>;
     type ProverSecret<'b> = PiAffgSecret<'b>;
 
     #[cfg_attr(feature = "flame_it", flame("PiAffgProof"))]
     fn prove<R: RngCore + CryptoRng>(
-        input: Self::CommonInput<'_, CurvePoint>,
+        input: Self::CommonInput<'_>,
         secret: Self::ProverSecret<'_>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
@@ -371,7 +371,7 @@ impl Proof for PiAffgProof {
     #[cfg_attr(feature = "flame_it", flame("PiAffgProof"))]
     fn verify(
         self,
-        input: Self::CommonInput<'_, CurvePoint>,
+        input: Self::CommonInput<'_>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
     ) -> Result<()> {
@@ -499,16 +499,16 @@ impl Proof for PiAffgProof {
     }
 }
 
-impl PiAffgProof {
+impl<C: CurveTrait> PiAffgProof<C> {
     #[allow(clippy::too_many_arguments)]
     fn generate_challenge(
         transcript: &mut Transcript,
         context: &impl ProofContext,
-        input: &PiAffgInput,
+        input: &PiAffgInput<C>,
         mult_coeff_commit: &Commitment,
         add_coeff_commit: &Commitment,
         random_affine_ciphertext: &Ciphertext,
-        random_mult_coeff_exp: &CurvePoint,
+        random_mult_coeff_exp: &C,
         random_add_coeff_ciphertext_prover: &Ciphertext,
         random_mult_coeff_commit: &Commitment,
         random_add_coeff_commit: &Commitment,
@@ -551,7 +551,7 @@ mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
     // Type of expected function for our code testing.
-    type TestFn = fn(PiAffgProof, PiAffgInput) -> Result<()>;
+    type TestFn = fn(PiAffgProof<CurvePoint>, PiAffgInput<CurvePoint>) -> Result<()>;
 
     fn transcript() -> Transcript {
         Transcript::new(b"random_paillier_affg_proof")
@@ -561,7 +561,7 @@ mod tests {
         rng: &mut R,
         x: &BigNumber,
         y: &BigNumber,
-        mut test_code: impl FnMut(PiAffgProof, PiAffgInput) -> Result<()>,
+        mut test_code: impl FnMut(PiAffgProof<CurvePoint>, PiAffgInput<CurvePoint>) -> Result<()>,
     ) -> Result<()> {
         let (decryption_key_0, _, _) = DecryptionKey::new(rng).unwrap();
         let pk0 = decryption_key_0.encryption_key();

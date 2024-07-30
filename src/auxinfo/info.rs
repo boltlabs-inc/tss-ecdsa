@@ -7,12 +7,7 @@
 // of this source tree.
 
 use crate::{
-    errors::{CallerError, InternalError, Result},
-    paillier::{DecryptionKey, EncryptionKey},
-    ring_pedersen::VerifiedRingPedersen,
-    utils::ParseBytes,
-    zkp::ProofContext,
-    ParticipantIdentifier,
+    curve_point::CurveTrait, errors::{CallerError, InternalError, Result}, paillier::{DecryptionKey, EncryptionKey}, ring_pedersen::VerifiedRingPedersen, utils::ParseBytes, zkp::ProofContext, ParticipantIdentifier
 };
 use k256::elliptic_curve::zeroize::ZeroizeOnDrop;
 use libpaillier::unknown_order::BigNumber;
@@ -144,21 +139,21 @@ impl Debug for AuxInfoPrivate {
 /// This includes a Paillier encryption key and corresponding ring-Pedersen
 /// commitment parameters.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct AuxInfoPublic {
+pub struct AuxInfoPublic<C: CurveTrait> {
     /// The participant's identifier.
     participant: ParticipantIdentifier,
     /// The participant's Paillier public key.
     pk: EncryptionKey,
     /// The participant's (verified) ring-Pedersen parameters.
-    params: VerifiedRingPedersen,
+    params: VerifiedRingPedersen<C>,
 }
 
-impl AuxInfoPublic {
+impl<C: CurveTrait> AuxInfoPublic<C> {
     pub(crate) fn new(
         context: &impl ProofContext,
         participant: ParticipantIdentifier,
         encryption_key: EncryptionKey,
-        params: VerifiedRingPedersen,
+        params: VerifiedRingPedersen<C>,
     ) -> Result<Self> {
         let public = Self {
             participant,
@@ -173,7 +168,7 @@ impl AuxInfoPublic {
         &self.pk
     }
 
-    pub(crate) fn params(&self) -> &VerifiedRingPedersen {
+    pub(crate) fn params(&self) -> &VerifiedRingPedersen<C> {
         &self.params
     }
 
