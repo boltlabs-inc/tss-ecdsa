@@ -21,9 +21,9 @@ impl From<Vec<u8>> for KeyShareEncrypted {
     }
 }
 
-impl Into<Vec<u8>> for KeyShareEncrypted {
-    fn into(self) -> Vec<u8> {
-        self.0
+impl From<KeyShareEncrypted> for Vec<u8> {
+    fn from(encrypted: KeyShareEncrypted) -> Vec<u8> {
+        encrypted.0
     }
 }
 
