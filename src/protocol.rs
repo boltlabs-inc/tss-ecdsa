@@ -386,21 +386,33 @@ pub(crate) mod participant_config {
 
 /// An identifier for a [`Participant`].
 ///
-/// All [`Participant`]s in a session must agree on the
+/// All [`Participant`]s in a sub-protocol must agree on the
 /// [`ParticipantIdentifier`]s. That is, these are not local identifiers
 /// controlled by a single `Participant`; they are unique, agreed-upon
-/// identifiers for the `Participant`s in a session. Each entity participating
-/// in a session should have a different `ParticipantIdentifier`.
+/// identifiers for *all* the `Participant`s executing a sub-protocol. Each
+/// member participating in a sub-protocol should have a different
+/// `ParticipantIdentifier`.
 ///
-/// `ParticipantIdentifier`s can be used across multiple sessions. For
-/// example, if a set of participants run keygen, auxinfo, and then compute
-/// several signatures, they can use the same set of identifiers for each of
-/// those sessions. However, a single `ParticipantIdentifier` should not be used
-/// to represent different entities (even in different sessions with
+/// The set of [`ParticipantIdentifier`]s are forever associated with a key and
+/// must remain the same throughout all (sub-protocol) operations on that key.
+/// For example, if a set of participants run keygen, aux-info, and then compute
+/// several signatures, they must use the same set of identifiers throughout.
+///
+/// These `ParticipantIdentifier`s are embedded in the output
+/// of our key operations. For example: this library will check the expected
+/// `ParticipantIdentifier` from the aux-info output against the
+/// `ParticipantIdentifier` of the `Participant` object executing the
+/// sub-protocol. An error will be returned if they don't match. It is up to the
+/// calling application to remember and use the expected `ParticipantIdentifier`
+/// when executing sub-protocols.
+///
+/// A single `ParticipantIdentifier` should not be used
+/// to represent different participants (even in different sub-protocols with
 /// non-overlapping participant sets!).
 ///
 /// `ParticipantIdentifier`s should be unique within a deployment, but they
-/// don't necessarily have to be globally unique.
+/// don't necessarily have to be globally unique. `ParticipantIdentifier`s may
+/// be re-used to execute multiple, unrelated, tss-ecdsa sub-protocols.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ParticipantIdentifier(u128);
 
@@ -500,12 +512,12 @@ impl std::fmt::Display for ParticipantIdentifier {
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 /// A session [`Identifier`] uniquely identifies a single
-/// instance of a protocol and all messages associated with it.
+/// instance of a sub-protocol and all messages associated with it.
 ///
 /// Session identifiers have two roles in the protocol: they tag messages
 /// and they are incorporated as context into zero-knowledge proofs.
 /// They must be _globally unique_; this allows participants to distinguish
-/// messages belonging to different, concurrent protocol runs,
+/// messages belonging to different, concurrent sub-protocol runs,
 /// prevents collisions between messages belonging to
 /// different sessions, and prevents replay attacks by associating messages and
 /// zero-knowledge proofs
