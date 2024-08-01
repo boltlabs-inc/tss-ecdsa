@@ -210,6 +210,7 @@ mod broadcast;
 mod gmp_zeroize;
 pub mod keygen;
 pub mod keyrefresh;
+pub mod keyshare_export;
 mod local_storage;
 mod message_queue;
 pub mod messages;
