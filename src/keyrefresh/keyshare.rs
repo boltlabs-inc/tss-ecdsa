@@ -92,7 +92,7 @@ impl<C: CurveTrait> KeyUpdatePrivate<C> {
         KeyUpdatePrivate { x: sum, _curve: std::marker::PhantomData }
     }
 
-    pub(crate) fn apply(self, current_sk: &KeySharePrivate) -> KeySharePrivate {
+    pub(crate) fn apply(self, current_sk: &KeySharePrivate<C>) -> KeySharePrivate<C> {
         let mut sum = current_sk.as_ref() + &self.x;
         let share = KeySharePrivate::from_bigint(&sum);
         sum.zeroize();

@@ -301,8 +301,8 @@ mod tests {
             setup_parameters: &setup_params,
             modulus: &modulus,
         };
-        match AuxInfoProof::prove(&mut rng, &common_input, &p, &q) {
-            Ok(proof) => assert!(proof.verify(&bad_common_input).is_err()),
+        match AuxInfoProof::prove::<StdRng, CurvePoint>(&mut rng, &common_input, &p, &q) {
+            Ok(proof) => assert!(proof.verify::<CurvePoint>(&bad_common_input).is_err()),
             Err(_) => return Ok(()),
         }
         Ok(())

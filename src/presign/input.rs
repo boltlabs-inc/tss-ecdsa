@@ -112,7 +112,7 @@ impl<C: CurveTrait> Input<C> {
             })
     }
 
-    pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
+    pub(crate) fn private_key_share(&self) -> &KeySharePrivate<C> {
         self.keygen_output.private_key_share()
     }
 

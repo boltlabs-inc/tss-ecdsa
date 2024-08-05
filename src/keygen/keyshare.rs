@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve_point::{k256_order, CurveTrait}, errors::{CallerError, Result}, utils::ParseBytes, ParticipantIdentifier
+    curve_point::{k256_order, CurvePoint, CurveTrait}, errors::{CallerError, Result}, utils::ParseBytes, ParticipantIdentifier
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
@@ -24,28 +24,30 @@ const KEYSHARE_TAG: &[u8] = b"KeySharePrivate";
 /// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
 #[derive(Clone, PartialEq, Eq)]
-pub struct KeySharePrivate {
+pub struct KeySharePrivate<C: CurveTrait> {
     x: BigNumber, // in the range [1, q)
+    /// Marker to pin the generic type.
+    curve: std::marker::PhantomData<C>,
 }
 
-impl Debug for KeySharePrivate {
+impl<C: CurveTrait> Debug for KeySharePrivate<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("KeySharePrivate([redacted])")
     }
 }
 
-impl KeySharePrivate {
+impl<C: CurveTrait> KeySharePrivate<C> {
     /// Sample a private key share uniformly at random.
     pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
         let random_bn = BigNumber::from_rng(&k256_order(), rng);
-        KeySharePrivate { x: random_bn }
+        KeySharePrivate::<C> { x: random_bn, curve: std::marker::PhantomData }
     }
 
     /// Take a [`BigNumber`] as [`KeySharePrivate`]. `x_int` will be reduced
     /// modulo `q`.
     pub(crate) fn from_bigint(x_int: &BigNumber) -> Self {
         let x = x_int.nmod(&k256_order());
-        Self { x }
+        Self { x, curve: std::marker::PhantomData }
     }
 
     /// Computes the "raw" curve point corresponding to this private key.
@@ -108,7 +110,7 @@ impl KeySharePrivate {
                 Err(CallerError::DeserializationFailed)?
             }
 
-            Ok(Self { x: share })
+            Ok(Self { x: share, curve: std::marker::PhantomData })
         };
 
         let result = parse();
@@ -131,7 +133,7 @@ impl KeySharePrivate {
     }
 }
 
-impl AsRef<BigNumber> for KeySharePrivate {
+impl<C: CurveTrait> AsRef<BigNumber> for KeySharePrivate<C> {
     /// Get the private key share.
     fn as_ref(&self) -> &BigNumber {
         &self.x
@@ -164,7 +166,7 @@ impl<C: CurveTrait> KeySharePublic<C> {
     pub(crate) fn new_keyshare<R: RngCore + CryptoRng>(
         participant: ParticipantIdentifier,
         rng: &mut R,
-    ) -> Result<(KeySharePrivate, KeySharePublic<C>)> {
+    ) -> Result<(KeySharePrivate<C>, KeySharePublic<C>)> {
         let private_share = KeySharePrivate::random(rng);
         let public_share = private_share.public_share()?;
 
@@ -191,7 +193,7 @@ mod tests {
     #[test]
     fn keyshare_private_bytes_conversion_works() {
         let rng = &mut init_testing();
-        let share: KeySharePrivate = KeySharePrivate::random(rng);
+        let share: KeySharePrivate::<CurvePoint> = KeySharePrivate::<CurvePoint>::random(rng);
 
         let bytes = share.clone().into_bytes();
         let reconstructed = KeySharePrivate::try_from_bytes(bytes);
@@ -203,9 +205,9 @@ mod tests {
     #[test]
     fn keyshare_private_bytes_must_be_in_range() {
         // Share must be < k256_order()
-        let too_big = KeySharePrivate { x: k256_order() };
+        let too_big = KeySharePrivate::<CurvePoint> { x: k256_order(), curve: std::marker::PhantomData };
         let bytes = too_big.into_bytes();
-        assert!(KeySharePrivate::try_from_bytes(bytes).is_err());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bytes).is_err());
 
         // Note: I tried testing the negative case but it seems like the
         // unknown_order crate's `from_bytes` method always interprets
@@ -217,7 +219,7 @@ mod tests {
     #[test]
     fn deserialized_keyshare_private_tag_must_be_correct() {
         let rng = &mut init_testing();
-        let key_share = KeySharePrivate::random(rng);
+        let key_share = KeySharePrivate::<CurvePoint>::random(rng);
 
         // Cut out the tag from the serialized bytes for convenience.
         let share_bytes = &key_share.into_bytes()[KEYSHARE_TAG.len()..];

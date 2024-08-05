@@ -880,7 +880,7 @@ impl<C: CurveTrait> PresignParticipant<C> {
 ///
 /// TODO: Refactor as specified in #246.
 pub(crate) struct PresignKeyShareAndInfo<C: CurveTrait> {
-    pub(crate) keyshare_private: KeySharePrivate,
+    pub(crate) keyshare_private: KeySharePrivate<C>,
     pub(crate) keyshare_public: KeySharePublic<C>,
     pub(crate) aux_info_private: AuxInfoPrivate,
     pub(crate) aux_info_public: AuxInfoPublic,

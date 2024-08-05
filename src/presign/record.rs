@@ -247,6 +247,7 @@ impl<C: CurveTrait> PresignRecord<C> {
 
 #[cfg(test)]
 mod tests {
+    use crate::presign::record;
     use k256::{elliptic_curve::Field, Scalar};
     use rand::{rngs::StdRng, CryptoRng, Rng, RngCore, SeedableRng};
 
@@ -461,10 +462,10 @@ mod tests {
 
         // Part of a tag or the whole tag alone doesn't pass
         let bytes = &RECORD_TAG[..3];
-        assert!(PresignRecord::try_from_bytes(bytes.to_vec()).is_err());
-        assert!(PresignRecord::try_from_bytes(RECORD_TAG.to_vec()).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bytes.to_vec()).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(RECORD_TAG.to_vec()).is_err());
 
-        let PresignRecord { R, k, chi }: record::PresignRecord<CurvePoint> = PresignRecord::simulate(rng);
+        let PresignRecord::<CurvePoint> { R, k, chi }: record::PresignRecord<CurvePoint> = PresignRecord::<CurvePoint>::simulate(rng);
 
         let point = R.to_bytes();
         let point_len = point.len().to_le_bytes();
@@ -479,18 +480,18 @@ mod tests {
 
         // Length with no curve point following doesn't pass
         let bytes = [RECORD_TAG, &point_len].concat();
-        assert!(PresignRecord::try_from_bytes(bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bytes).is_err());
 
         // Zero-length doesn't pass
         let bytes = [RECORD_TAG, &zero_len].concat();
-        assert!(PresignRecord::try_from_bytes(bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bytes).is_err());
 
         // Length with no randomness share following doesn't pass
         let bytes = [RECORD_TAG, &point_len, &point, &random_share_len].concat();
-        assert!(PresignRecord::try_from_bytes(bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bytes).is_err());
 
         let bytes = [RECORD_TAG, &point_len, &point, &zero_len].concat();
-        assert!(PresignRecord::try_from_bytes(bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bytes).is_err());
 
         // Length with no chi share following doesn't pass
         let bytes = [
@@ -502,7 +503,7 @@ mod tests {
             &chi_share_len,
         ]
         .concat();
-        assert!(PresignRecord::try_from_bytes(bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bytes).is_err());
 
         let bytes = [
             RECORD_TAG,
@@ -513,7 +514,7 @@ mod tests {
             &zero_len,
         ]
         .concat();
-        assert!(PresignRecord::try_from_bytes(bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bytes).is_err());
 
         // Full thing works (e.g. the encoding scheme used above is correct)
         let bytes = [
@@ -526,6 +527,6 @@ mod tests {
             chi_share.as_ref(),
         ]
         .concat();
-        assert!(PresignRecord::try_from_bytes(bytes).is_ok());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bytes).is_ok());
     }
 }
