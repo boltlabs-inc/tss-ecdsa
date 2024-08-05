@@ -191,7 +191,7 @@ mod tests {
     #[test]
     fn keyshare_private_bytes_conversion_works() {
         let rng = &mut init_testing();
-        let share: KeySharePrivate<CurvePoint> = KeySharePrivate::random(rng);
+        let share: KeySharePrivate = KeySharePrivate::random(rng);
 
         let bytes = share.clone().into_bytes();
         let reconstructed = KeySharePrivate::try_from_bytes(bytes);

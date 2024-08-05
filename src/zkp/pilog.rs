@@ -131,13 +131,13 @@ impl<'a> ProverSecret<'a> {
 
 /// Generates a challenge from a [`Transcript`] and the values generated in the
 /// proof.
-fn generate_challenge(
+fn generate_challenge<C: CurveTrait>(
     transcript: &mut Transcript,
     context: &dyn ProofContext,
-    common_input: CommonInput<CurvePoint>,
+    common_input: CommonInput<C>,
     plaintext_commit: &Commitment,
     mask_encryption: &Ciphertext,
-    mask_dlog_commit: &CurvePoint,
+    mask_dlog_commit: &C,
     mask_commit: &Commitment,
 ) -> Result<BigNumber> {
     transcript.append_message(b"PiLog ProofContext", &context.as_bytes()?);

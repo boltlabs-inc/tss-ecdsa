@@ -256,7 +256,7 @@ impl<C: CurveTrait + DeserializeOwned> PiSchProof<C> {
         transcript: &mut Transcript,
         context: &impl ProofContext,
         input: &CommonInput,
-        commitment: &CurvePoint,
+        commitment: &C,
     ) -> Result<()> {
         transcript.append_message(b"PiSch ProofContext", &context.as_bytes()?);
         transcript.append_message(b"PiSch CommonInput", &serialize!(&input)?);

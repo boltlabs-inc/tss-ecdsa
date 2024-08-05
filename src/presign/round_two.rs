@@ -13,7 +13,6 @@ use crate::{
     }, zkp::{
         piaffg::{PiAffgInput, PiAffgProof},
         pilog::{CommonInput, PiLogProof},
-        Proof,
     }
 };
 use libpaillier::unknown_order::BigNumber;
@@ -68,7 +67,7 @@ impl<C: CurveTrait> Public<C> {
         prover_keyshare_public: &KeySharePublic<C>,
         prover_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
-        let g = CurvePoint::GENERATOR;
+        let g = C::generator();
 
         // Verify the psi proof
         let psi_input = PiAffgInput::new(

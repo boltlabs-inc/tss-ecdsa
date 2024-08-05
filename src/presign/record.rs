@@ -279,7 +279,7 @@ mod tests {
         /// For testing only; this does not check that the keygen output set is
         /// consistent or complete.
         pub(crate) fn simulate_set(
-            keygen_outputs: &[keygen::Output<CurvePoint>],
+            keygen_outputs: &[keygen::Output<C>],
             rng: &mut (impl CryptoRng + RngCore),
         ) -> Vec<Self> {
             // Note: using slightly-biased generation for faster tests
@@ -291,7 +291,7 @@ mod tests {
                 .fold(Scalar::ZERO, |sum, mask_share| sum + mask_share);
             let mask_inversion = Option::<Scalar>::from(mask.invert()).unwrap();
             // `R` in the paper.
-            let mask_point = CurvePoint::GENERATOR.multiply_by_scalar(&mask_inversion);
+            let mask_point = C::generator().multiply_by_scalar(&mask_inversion);
 
             // Compute the masked key shares as (secret_key_share * mask)
             let masked_key_shares = keygen_outputs

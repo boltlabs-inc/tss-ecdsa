@@ -118,12 +118,7 @@ impl<C: CurveTrait> Input<C> {
 mod test {
     use super::Input;
     use crate::{
-        auxinfo,
-        errors::{CallerError, InternalError, Result},
-        keygen,
-        keyrefresh::KeyrefreshParticipant,
-        curve_point::testing::init_testing,
-        Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
+        auxinfo, curve_point::{testing::init_testing, CurvePoint}, errors::{CallerError, InternalError, Result}, keygen::{self, Output}, keyrefresh::KeyrefreshParticipant, Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant
     };
 
     #[test]
@@ -170,7 +165,7 @@ mod test {
         let keygen_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let keygen_output = keygen::Output::simulate(&keygen_pids, rng);
+        let keygen_output: Output<CurvePoint> = keygen::Output::simulate(&keygen_pids, rng);
 
         let result = Input::new(auxinfo_output, keygen_output);
         assert!(result.is_err());
@@ -187,7 +182,7 @@ mod test {
 
         // Create valid input set with random PIDs
         let config = ParticipantConfig::random(5, rng);
-        let keygen_output = keygen::Output::simulate(&config.all_participants(), rng);
+        let keygen_output: Output<CurvePoint> = keygen::Output::simulate(&config.all_participants(), rng);
         let auxinfo_output = auxinfo::Output::simulate(&config.all_participants(), rng);
         let input = Input::new(auxinfo_output, keygen_output)?;
 

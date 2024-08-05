@@ -155,12 +155,7 @@ impl<C: CurveTrait> Input<C> {
 mod test {
     use super::Input;
     use crate::{
-        auxinfo,
-        errors::{CallerError, InternalError, Result},
-        keygen,
-        curve_point::testing::init_testing,
-        Identifier, ParticipantConfig, ParticipantIdentifier, PresignParticipant,
-        ProtocolParticipant,
+        auxinfo, curve_point::{testing::init_testing, CurvePoint}, errors::{CallerError, InternalError, Result}, keygen::{self, Output}, Identifier, ParticipantConfig, ParticipantIdentifier, PresignParticipant, ProtocolParticipant
     };
 
     #[test]
@@ -170,7 +165,7 @@ mod test {
         let pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let keygen_output = keygen::Output::simulate(&pids, rng);
+        let keygen_output: Output<CurvePoint> = keygen::Output::simulate(&pids, rng);
         let auxinfo_output = auxinfo::Output::simulate(&pids, rng);
 
         // Same length works
@@ -208,7 +203,7 @@ mod test {
         let keygen_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let keygen_output = keygen::Output::simulate(&keygen_pids, rng);
+        let keygen_output: Output<CurvePoint> = keygen::Output::simulate(&keygen_pids, rng);
 
         let result = Input::new(auxinfo_output, keygen_output);
         assert!(result.is_err());
@@ -227,7 +222,7 @@ mod test {
         let input_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(SIZE)
             .collect::<Vec<_>>();
-        let keygen_output = keygen::Output::simulate(&input_pids, rng);
+        let keygen_output: Output<CurvePoint> = keygen::Output::simulate(&input_pids, rng);
         let auxinfo_output = auxinfo::Output::simulate(&input_pids, rng);
 
         let input = Input::new(auxinfo_output, keygen_output)?;
