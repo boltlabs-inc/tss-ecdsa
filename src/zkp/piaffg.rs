@@ -279,7 +279,7 @@ impl<C: CurveTrait + DeserializeOwned> Proof for PiAffgProof<C> {
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Compute the exponentiation of the random multiplicative coefficient
         // (producing `B_x` in the paper)
-        let random_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_bignum(&random_mult_coeff)?;
+        let random_mult_coeff_exp = C::generator().multiply_by_bignum(&random_mult_coeff)?;
         // Encrypt the random additive coefficient using the 1st encryption key
         // (producing `B_y` in the paper).
         let (random_add_coeff_ciphertext_prover, random_add_coeff_nonce_prover) = input
