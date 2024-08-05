@@ -228,65 +228,65 @@ mod tests {
         let wrong_tag = b"NotTheRightTag!";
         assert_eq!(wrong_tag.len(), KEYSHARE_TAG.len());
         let bad_bytes = [wrong_tag.as_slice(), share_bytes].concat();
-        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         // Tag must be correct length (too short, too long)
         let short_tag = &KEYSHARE_TAG[..5];
         let bad_bytes = [short_tag, share_bytes].concat();
-        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         let bad_bytes = [KEYSHARE_TAG, b"TAG EXTENSION!", share_bytes].concat();
-        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         // Normal serialization works
         let bytes = [KEYSHARE_TAG, share_bytes].concat();
-        assert!(KeySharePrivate::try_from_bytes(bytes).is_ok());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bytes).is_ok());
     }
 
     #[test]
     fn deserialized_keyshare_private_length_field_must_be_correct() {
         let rng = &mut init_testing();
-        let share_bytes = KeySharePrivate::random(rng).x.to_bytes();
+        let share_bytes = KeySharePrivate::<CurvePoint>::random(rng).x.to_bytes();
 
         // Length must be specified
         let bad_bytes = [KEYSHARE_TAG, &share_bytes].concat();
-        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         // Length must be little endian
         let share_len = share_bytes.len().to_be_bytes();
         let bad_bytes = [KEYSHARE_TAG, &share_len, &share_bytes].concat();
-        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         // Length must be correct (too long, too short)
         let too_short = (share_bytes.len() - 5).to_le_bytes();
         let bad_bytes = [KEYSHARE_TAG, &too_short, &share_bytes].concat();
-        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         let too_long = (share_bytes.len() + 5).to_le_bytes();
         let bad_bytes = [KEYSHARE_TAG, &too_long, &share_bytes].concat();
-        assert!(KeySharePrivate::try_from_bytes(bad_bytes).is_err());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         // Correct length works
         let share_len = share_bytes.len().to_le_bytes();
         let bytes = [KEYSHARE_TAG, &share_len, &share_bytes].concat();
-        assert!(KeySharePrivate::try_from_bytes(bytes).is_ok());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bytes).is_ok());
     }
 
     #[test]
     fn deserialized_keyshare_private_requires_all_fields() {
         // Part of a tag or the whole tag alone doesn't pass
         let bytes = &KEYSHARE_TAG[..3];
-        assert!(KeySharePrivate::try_from_bytes(bytes.to_vec()).is_err());
-        assert!(KeySharePrivate::try_from_bytes(KEYSHARE_TAG.to_vec()).is_err());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bytes.to_vec()).is_err());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(KEYSHARE_TAG.to_vec()).is_err());
 
         // Length with no secret following doesn't pass
         let share_len = k256_order().bit_length() / 8;
         let bytes = [KEYSHARE_TAG, &share_len.to_le_bytes()].concat();
-        assert!(KeySharePrivate::try_from_bytes(bytes).is_err());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bytes).is_err());
 
         // Zero-length doesn't pass
         let bytes = [KEYSHARE_TAG, &0usize.to_le_bytes()].concat();
-        assert!(KeySharePrivate::try_from_bytes(bytes).is_err());
+        assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bytes).is_err());
     }
 
     use crate::enable_zeroize;
@@ -306,7 +306,7 @@ mod tests {
 
         // Generate a secret.
         let rng = &mut StdRng::from_seed([0; 32]);
-        let mut share = KeySharePrivate::random(rng);
+        let mut share = KeySharePrivate::<CurvePoint>::random(rng);
 
         // Pre-hack validation.
         assert!(

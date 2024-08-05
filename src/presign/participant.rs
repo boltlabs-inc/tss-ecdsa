@@ -1025,7 +1025,7 @@ impl<C: CurveTrait> PresignKeyShareAndInfo<C> {
             .encrypt(rng, &beta_hat)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
 
-        let g = CurvePoint::GENERATOR;
+        let g = C::generator();
         let Gamma = g.multiply_by_bignum(&sender_r1_priv.gamma)?;
 
         // Generate the proofs.
