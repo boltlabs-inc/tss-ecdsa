@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    auxinfo::info::{AuxInfoPrivate, AuxInfoPublic}, curve_point::CurveTrait, errors::{CallerError, InternalError, Result}, protocol::ParticipantIdentifier
+    auxinfo::info::{AuxInfoPrivate, AuxInfoPublic}, errors::{CallerError, InternalError, Result}, protocol::ParticipantIdentifier
 };
 use tracing::error;
 
@@ -14,19 +14,19 @@ use rand::{CryptoRng, RngCore};
 /// This should include an [`AuxInfoPublic`] for every protocol participant
 /// and an [`AuxInfoPrivate`] for participant that receives this output.
 #[derive(Debug, Clone)]
-pub struct Output<C: CurveTrait> {
-    public_auxinfo: Vec<AuxInfoPublic<C>>,
+pub struct Output {
+    public_auxinfo: Vec<AuxInfoPublic>,
     private_auxinfo: AuxInfoPrivate,
 }
 
-impl<C: CurveTrait> Output<C> {
+impl Output {
     /// Create a new `Output` from its constituent parts.
     ///
     /// The parts must constitute a valid output:
     /// - the public components should be from a unique set of participants;
     /// - the private component should have a corresponding public component.
     pub fn from_parts(
-        public_auxinfo: Vec<AuxInfoPublic<C>>,
+        public_auxinfo: Vec<AuxInfoPublic>,
         private_auxinfo: AuxInfoPrivate,
     ) -> Result<Self> {
         let pids = public_auxinfo
@@ -63,11 +63,11 @@ impl<C: CurveTrait> Output<C> {
     /// after it's securely stored.
     ///
     /// The public components can be stored in the clear.
-    pub fn into_parts(self) -> (Vec<AuxInfoPublic<C>>, AuxInfoPrivate) {
+    pub fn into_parts(self) -> (Vec<AuxInfoPublic>, AuxInfoPrivate) {
         (self.public_auxinfo, self.private_auxinfo)
     }
 
-    pub(crate) fn public_auxinfo(&self) -> &[AuxInfoPublic<C>] {
+    pub(crate) fn public_auxinfo(&self) -> &[AuxInfoPublic] {
         &self.public_auxinfo
     }
 
@@ -86,7 +86,7 @@ impl<C: CurveTrait> Output<C> {
         }
     }
 
-    pub(crate) fn find_public(&self, pid: ParticipantIdentifier) -> Option<&AuxInfoPublic<C>> {
+    pub(crate) fn find_public(&self, pid: ParticipantIdentifier) -> Option<&AuxInfoPublic> {
         self.public_auxinfo
             .iter()
             .find(|public_key| public_key.participant() == pid)
@@ -105,7 +105,7 @@ mod tests {
         ParticipantConfig,
     };
 
-    impl<C: CurveTrait> Output<C> {
+    impl Output {
         /// Simulate the valid output of an auxinfo run with the given
         /// participants.
         ///

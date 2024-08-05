@@ -23,7 +23,7 @@
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 
 use crate::{
-    curve_point::CurveTrait, errors::*, ring_pedersen::RingPedersen, utils::*, zkp::{Proof, ProofContext}
+    errors::*, ring_pedersen::RingPedersen, utils::*, zkp::{Proof, ProofContext}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -38,15 +38,13 @@ const SOUNDNESS: usize = crate::parameters::SOUNDNESS_PARAMETER;
 /// Proof that externally provided [`RingPedersen`] parameters are constructed
 /// correctly.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PiPrmProof<C: CurveTrait> {
+pub(crate) struct PiPrmProof {
     /// The commitments computed by the prover (`A_i` in the paper).
     commitments: Vec<BigNumber>,
     /// The randomized challenge bytes (`e_i` in the paper).
     challenge_bytes: Vec<u8>,
     /// The prover responses (`z_i` in the paper).
     responses: Vec<BigNumber>,
-    /// Marker to pin the curve type.
-    curve: std::marker::PhantomData<C>,
 }
 
 /// The prover's secret knowledge.
@@ -95,7 +93,7 @@ fn generate_challenge_bytes(
     Ok(challenges.into())
 }
 
-impl<C: CurveTrait> Proof<C> for PiPrmProof<C> {
+impl Proof for PiPrmProof {
     type CommonInput<'a> = &'a RingPedersen;
     type ProverSecret<'a> = PiPrmSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiPrmProof"))]
@@ -187,7 +185,7 @@ impl<C: CurveTrait> Proof<C> for PiPrmProof<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{curve_point::{testing::init_testing, CurvePoint}, paillier::DecryptionKey, zkp::BadContext};
+    use crate::{curve_point::testing::init_testing, paillier::DecryptionKey, zkp::BadContext};
     use rand::Rng;
 
     /// Make a transcript for PiPrmProof.
@@ -197,7 +195,7 @@ mod tests {
 
     fn random_ring_pedersen_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
-    ) -> Result<(RingPedersen, PiPrmProof::<CurvePoint>, BigNumber, BigNumber)> {
+    ) -> Result<(RingPedersen, PiPrmProof, BigNumber, BigNumber)> {
         let (sk, _, _) = DecryptionKey::new(rng).unwrap();
         let (scheme, lambda, totient) = RingPedersen::extract(&sk, rng)?;
         let secrets = PiPrmSecret::new(&lambda, &totient);

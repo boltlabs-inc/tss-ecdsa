@@ -24,19 +24,17 @@ const KEYSHARE_TAG: &[u8] = b"KeySharePrivate";
 /// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
 #[derive(Clone, PartialEq, Eq)]
-pub struct KeySharePrivate<C: CurveTrait> {
+pub struct KeySharePrivate {
     x: BigNumber, // in the range [1, q)
-    /// Marker to pin the generic type.
-    curve: std::marker::PhantomData<C>,
 }
 
-impl<C: CurveTrait> Debug for KeySharePrivate<C> {
+impl Debug for KeySharePrivate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("KeySharePrivate([redacted])")
     }
 }
 
-impl<C: CurveTrait> KeySharePrivate<C> {
+impl KeySharePrivate {
     /// Sample a private key share uniformly at random.
     pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
         let random_bn = BigNumber::from_rng(&k256_order(), rng);
@@ -133,7 +131,7 @@ impl<C: CurveTrait> KeySharePrivate<C> {
     }
 }
 
-impl<C: CurveTrait> AsRef<BigNumber> for KeySharePrivate<C> {
+impl AsRef<BigNumber> for KeySharePrivate {
     /// Get the private key share.
     fn as_ref(&self) -> &BigNumber {
         &self.x
@@ -166,7 +164,7 @@ impl<C: CurveTrait> KeySharePublic<C> {
     pub(crate) fn new_keyshare<R: RngCore + CryptoRng>(
         participant: ParticipantIdentifier,
         rng: &mut R,
-    ) -> Result<(KeySharePrivate<C>, KeySharePublic<C>)> {
+    ) -> Result<(KeySharePrivate, KeySharePublic<C>)> {
         let private_share = KeySharePrivate::random(rng);
         let public_share = private_share.public_share()?;
 
@@ -187,14 +185,13 @@ impl<C: CurveTrait> AsRef<C> for KeySharePublic<C> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        keygen::{keyshare::KEYSHARE_TAG, KeySharePrivate},
-        curve_point::{k256_order, testing::init_testing},
+        curve_point::{k256_order, testing::init_testing, CurvePoint}, keygen::{keyshare::KEYSHARE_TAG, KeySharePrivate}
     };
 
     #[test]
     fn keyshare_private_bytes_conversion_works() {
         let rng = &mut init_testing();
-        let share = KeySharePrivate::random(rng);
+        let share: KeySharePrivate<CurvePoint> = KeySharePrivate::random(rng);
 
         let bytes = share.clone().into_bytes();
         let reconstructed = KeySharePrivate::try_from_bytes(bytes);

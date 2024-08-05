@@ -158,8 +158,8 @@ fn generate_challenge(
     Ok(challenge)
 }
 
-impl<C: CurveTrait + DeserializeOwned> Proof<C> for PiLogProof<C> {
-    type CommonInput<'a> = CommonInput<'a, CurvePoint>;
+impl<C: CurveTrait + DeserializeOwned> Proof for PiLogProof<C> {
+    type CommonInput<'a> = CommonInput<'a, C> where C: 'a;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiLogProof"))]
     fn prove<'a, R: RngCore + CryptoRng>(
@@ -355,10 +355,10 @@ mod tests {
         Transcript::new(b"PiLogProof Test")
     }
 
-    fn with_random_paillier_log_proof<R: RngCore + CryptoRng, C: CurveTrait>(
+    fn with_random_paillier_log_proof<R: RngCore + CryptoRng, C: CurveTrait + DeserializeOwned>(
         rng: &mut R,
         x: &BigNumber,
-        mut f: impl FnMut(PiLogProof<CurvePoint>, CommonInput<CurvePoint>) -> Result<()>,
+        mut f: impl FnMut(PiLogProof<C>, CommonInput<C>) -> Result<()>,
     ) -> Result<()> {
         let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
         let pk = decryption_key.encryption_key();
@@ -382,11 +382,11 @@ mod tests {
         f(proof, input)
     }
 
-    fn random_paillier_log_proof_verification<R: RngCore + CryptoRng, C: CurveTrait>(
+    fn random_paillier_log_proof_verification<R: RngCore + CryptoRng, C: CurveTrait + DeserializeOwned>(
         rng: &mut R,
         x: &BigNumber,
     ) -> Result<()> {
-        let f = |proof: PiLogProof, input: CommonInput<CurvePoint>| {
+        let f = |proof: PiLogProof<C>, input: CommonInput<C>| {
             proof.verify(input, &(), &mut transcript())?;
             Ok(())
         };
@@ -398,7 +398,7 @@ mod tests {
         pilog_proof_with_consistent_secret_inputs_out_of_range::<StdRng, CurvePoint>().unwrap();
     }
 
-    fn pilog_proof_with_consistent_secret_inputs_out_of_range<R: RngCore + CryptoRng, C: CurveTrait>() -> Result<()> {
+    fn pilog_proof_with_consistent_secret_inputs_out_of_range<R: RngCore + CryptoRng, C: CurveTrait + DeserializeOwned>() -> Result<()> {
         let mut rng = init_testing();
         let upper_bound = BigNumber::one() << (ELL + EPSILON);
         loop {
@@ -411,7 +411,7 @@ mod tests {
             // If the input value is larger than the top of the range, the proof won't
             // verify
             if too_large > upper_bound {
-                let f = |bad_proof: PiLogProof, input: CommonInput<CurvePoint>| {
+                let f = |bad_proof: PiLogProof<C>, input: CommonInput<C>| {
                     assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
                     Ok(())
                 };
@@ -431,7 +431,7 @@ mod tests {
         let _ = pilog_proof_with_different_setup_parameters::<CurvePoint>();
     }
 
-    fn pilog_proof_with_different_setup_parameters<C: CurveTrait>() -> Result<()> {
+    fn pilog_proof_with_different_setup_parameters<C: CurveTrait + DeserializeOwned>() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
@@ -548,7 +548,7 @@ mod tests {
         let _ = pilog_proof_with_inconsistent_secret_inputs::<CurvePoint>();
     }
 
-    fn pilog_proof_with_inconsistent_secret_inputs<C: CurveTrait>() -> Result<()> 
+    fn pilog_proof_with_inconsistent_secret_inputs<C: CurveTrait + DeserializeOwned>() -> Result<()> 
     {
         let mut rng = init_testing();
 
@@ -598,13 +598,13 @@ mod tests {
         negative_test_swap_proof_elements::<CurvePoint>().unwrap();
     }
 
-    fn negative_test_swap_proof_elements<C: CurveTrait>() -> Result<()> {
+    fn negative_test_swap_proof_elements<C: CurveTrait + DeserializeOwned>() -> Result<()> {
         let mut rng = init_testing();
         // `rng` will be borrowed. We make another rng to be captured by the closure.
         let mut rng2 = StdRng::from_seed(rng.gen());
         let x = random_plusminus_by_size(&mut rng2, ELL);
 
-        let f = |proof: PiLogProof<CurvePoint>, input: CommonInput<CurvePoint>| {
+        let f = |proof: PiLogProof<C>, input: CommonInput<C>| {
             let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
             // Generate some random elements to use as replacements
@@ -681,12 +681,12 @@ mod tests {
         pilog_proof_context_must_be_correct::<CurvePoint>().unwrap();
     }
 
-    fn pilog_proof_context_must_be_correct<C: CurveTrait>() -> Result<()> {
+    fn pilog_proof_context_must_be_correct<C: CurveTrait + DeserializeOwned>() -> Result<()> {
         let mut rng = init_testing();
 
         let context = BadContext {};
         let x_small = random_plusminus_by_size(&mut rng, ELL);
-        let f = |proof: PiLogProof<CurvePoint>, input: CommonInput<CurvePoint>| {
+        let f = |proof: PiLogProof<C>, input: CommonInput<C>| {
             let result = proof.verify(input, &context, &mut transcript());
             assert!(result.is_err());
             Ok(())

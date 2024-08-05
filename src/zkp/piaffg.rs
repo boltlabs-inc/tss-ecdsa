@@ -108,7 +108,7 @@ pub(crate) struct PiAffgProof<C: CurveTrait> {
 #[derive(Serialize, Clone, Copy)]
 pub(crate) struct PiAffgInput<'a, C: CurveTrait> {
     /// The verifier's commitment parameters (`(Nhat, s, t)` in the paper).
-    verifier_setup_params: &'a VerifiedRingPedersen<C>,
+    verifier_setup_params: &'a VerifiedRingPedersen,
     /// The verifier's Paillier encryption key (`N_0` in the paper).
     verifier_encryption_key: &'a EncryptionKey,
     /// The prover's Paillier encryption key (`N_1` in the paper).
@@ -130,7 +130,7 @@ pub(crate) struct PiAffgInput<'a, C: CurveTrait> {
 impl<'a, C: CurveTrait> PiAffgInput<'a, C> {
     /// Construct a new [`PiAffgInput`] type.
     pub(crate) fn new(
-        verifier_setup_params: &'a VerifiedRingPedersen<C>,
+        verifier_setup_params: &'a VerifiedRingPedersen,
         verifier_encryption_key: &'a EncryptionKey,
         prover_encryption_key: &'a EncryptionKey,
         original_ciphertext_verifier: &'a Ciphertext,
@@ -192,8 +192,8 @@ impl<'a> PiAffgSecret<'a> {
     }
 }
 
-impl<C: CurveTrait + DeserializeOwned> Proof<C> for PiAffgProof<C> {
-    type CommonInput<'a> = PiAffgInput<'a, C>;
+impl<C: CurveTrait + DeserializeOwned> Proof for PiAffgProof<C> {
+    type CommonInput<'a> = PiAffgInput<'a, C> where C: 'a;
     type ProverSecret<'b> = PiAffgSecret<'b>;
 
     #[cfg_attr(feature = "flame_it", flame("PiAffgProof"))]
@@ -652,7 +652,7 @@ mod tests {
         let y = random_plusminus_by_size(&mut rng, ELL_PRIME);
         let rng2 = &mut StdRng::from_seed(rng.gen());
 
-        let f = |proof: PiAffgProof, input: PiAffgInput| {
+        let f = |proof: PiAffgProof::<CurvePoint>, input: PiAffgInput::<CurvePoint>| {
             // Swap verifier setup parameters with a random [`VerifiedRingPedersen`]
             let bad_setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
             assert_ne!(bad_setup_params, input.verifier_setup_params.clone());
@@ -875,7 +875,7 @@ mod tests {
         let y = random_plusminus_by_size(&mut rng, ELL_PRIME);
         let rng2 = &mut StdRng::from_seed(rng.gen());
 
-        let f = |proof: PiAffgProof, input: PiAffgInput| {
+        let f = |proof: PiAffgProof::<CurvePoint>, input: PiAffgInput::<CurvePoint>| {
             let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
             // Generate some random elements to use as replacements

@@ -12,7 +12,7 @@
 //! that the commitment scheme parameters were constructed correctly.
 
 use crate::{
-    curve_point::CurveTrait, errors::Result, paillier::DecryptionKey, utils::{modpow, random_plusminus_scaled, random_positive_bn}, zkp::{
+    errors::Result, paillier::DecryptionKey, utils::{modpow, random_plusminus_scaled, random_positive_bn}, zkp::{
         piprm::{PiPrmProof, PiPrmSecret},
         Proof, ProofContext,
     }
@@ -41,20 +41,21 @@ pub(crate) struct RingPedersen {
 /// A [`RingPedersen`] commitment scheme alongside a zero knowledge proof that
 /// the commitment scheme was constructed correctly.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub(crate) struct VerifiedRingPedersen<C: CurveTrait> {
+pub(crate) struct VerifiedRingPedersen {
     /// The underlying commitment scheme.
     scheme: RingPedersen,
     /// The zero knowledge proof that validates the correctness of
     /// [`VerifiedRingPedersen::scheme`].
-    proof: PiPrmProof<C>,
+    proof: PiPrmProof,
 }
 
-impl<C: CurveTrait> PartialEq for VerifiedRingPedersen<C> {
+impl PartialEq for VerifiedRingPedersen {
     fn eq(&self, other: &Self) -> bool {
         self.scheme == other.scheme
     }
 }
-impl<C: CurveTrait> Eq for VerifiedRingPedersen<C> {}
+
+impl Eq for VerifiedRingPedersen {}
 
 /// A commitment produced by [`RingPedersen::commit`].
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -139,7 +140,7 @@ impl MaskedRandomness {
     }
 }
 
-impl<C: CurveTrait> VerifiedRingPedersen<C> {
+impl VerifiedRingPedersen {
     /// Extracts a [`VerifiedRingPedersen`] object from a [`DecryptionKey`].
     ///
     /// In more detail, `sk` is used to derive a

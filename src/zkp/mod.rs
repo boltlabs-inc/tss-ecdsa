@@ -21,7 +21,7 @@ pub(crate) mod pimod;
 pub(crate) mod piprm;
 pub(crate) mod pisch;
 
-use crate::{curve_point::CurveTrait, errors::Result};
+use crate::errors::Result;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Serialize};
@@ -54,7 +54,7 @@ impl ProofContext for BadContext {
 /// The associated type [`Proof::CommonInput`] denotes the data known to both
 /// the prover and verifier, and the associated type [`Proof::ProverSecret`]
 /// denotes the data known only to the prover.
-pub(crate) trait Proof<C: CurveTrait>: Sized + Serialize + DeserializeOwned {
+pub(crate) trait Proof: Sized + Serialize + DeserializeOwned {
     type CommonInput<'a>;
     type ProverSecret<'a>;
 

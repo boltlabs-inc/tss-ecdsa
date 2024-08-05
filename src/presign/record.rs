@@ -330,7 +330,7 @@ mod tests {
         let clone = PresignRecord { ..record };
 
         let bytes = record.into_bytes();
-        let reconstructed = PresignRecord::try_from_bytes(bytes);
+        let reconstructed = PresignRecord::<CurvePoint>::try_from_bytes(bytes);
 
         assert!(reconstructed.is_ok());
         assert_eq!(reconstructed.unwrap(), clone);
@@ -339,7 +339,7 @@ mod tests {
     #[test]
     fn deserialized_record_tag_must_be_correct() {
         let rng = &mut init_testing();
-        let record = PresignRecord::simulate(rng);
+        let record = PresignRecord::<CurvePoint>::simulate(rng);
 
         // Cut out the tag from the serialized bytes for convenience.
         let share_bytes = &record.into_bytes()[RECORD_TAG.len()..];
@@ -348,48 +348,48 @@ mod tests {
         let wrong_tag = b"NotTheRightTag";
         assert_eq!(wrong_tag.len(), RECORD_TAG.len());
         let bad_bytes = [wrong_tag.as_slice(), share_bytes].concat();
-        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         // Tag must be correct length (too short, too long)
         let short_tag = &RECORD_TAG[..5];
         let bad_bytes = [short_tag, share_bytes].concat();
-        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         let bad_bytes = [RECORD_TAG, b"TAG EXTENSION!", share_bytes].concat();
-        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         // Normal serialization works
         let bytes = [RECORD_TAG, share_bytes].concat();
-        assert!(PresignRecord::try_from_bytes(bytes).is_ok());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bytes).is_ok());
     }
 
     fn test_length_field(front: &[u8], len: usize, back: &[u8]) {
         // Length must be specified
         let bad_bytes = [front, back].concat();
-        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         // Length must be little endian
         let bad_bytes = [front, &len.to_be_bytes(), back].concat();
-        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         // Length must be correct (too long, too short)
         let too_short = (len - 5).to_le_bytes();
         let bad_bytes = [front, &too_short, back].concat();
-        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         let too_long = (len + 5).to_le_bytes();
         let bad_bytes = [front, &too_long, back].concat();
-        assert!(PresignRecord::try_from_bytes(bad_bytes).is_err());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bad_bytes).is_err());
 
         // Correct length works
         let bytes = [front, &len.to_le_bytes(), back].concat();
-        assert!(PresignRecord::try_from_bytes(bytes).is_ok());
+        assert!(PresignRecord::<CurvePoint>::try_from_bytes(bytes).is_ok());
     }
 
     #[test]
     fn point_field_must_have_length_prepended() {
         let rng = &mut init_testing();
-        let PresignRecord { R, k, chi } = PresignRecord::simulate(rng);
+        let PresignRecord { R, k, chi }: record::PresignRecord<CurvePoint> = PresignRecord::simulate(rng);
 
         let point = R.to_bytes();
 
@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn k_field_must_have_length_prepended() {
         let rng = &mut init_testing();
-        let PresignRecord { R, k, chi } = PresignRecord::simulate(rng);
+        let PresignRecord { R, k, chi }: record::PresignRecord<CurvePoint> = PresignRecord::simulate(rng);
 
         let point = R.to_bytes();
         let point_len = point.len().to_le_bytes();
@@ -433,7 +433,7 @@ mod tests {
     #[test]
     fn chi_field_must_have_length_prepended() {
         let rng = &mut init_testing();
-        let PresignRecord { R, k, chi } = PresignRecord::simulate(rng);
+        let PresignRecord { R, k, chi }: record::PresignRecord<CurvePoint> = PresignRecord::simulate(rng);
 
         let point = R.to_bytes();
         let point_len = point.len().to_le_bytes();
@@ -464,7 +464,7 @@ mod tests {
         assert!(PresignRecord::try_from_bytes(bytes.to_vec()).is_err());
         assert!(PresignRecord::try_from_bytes(RECORD_TAG.to_vec()).is_err());
 
-        let PresignRecord { R, k, chi } = PresignRecord::simulate(rng);
+        let PresignRecord { R, k, chi }: record::PresignRecord<CurvePoint> = PresignRecord::simulate(rng);
 
         let point = R.to_bytes();
         let point_len = point.len().to_le_bytes();

@@ -62,9 +62,9 @@ impl<C: CurveTrait> Public<C> {
     pub(crate) fn verify(
         self,
         context: &ParticipantPresignContext<C>,
-        verifier_auxinfo_public: &AuxInfoPublic<C>,
+        verifier_auxinfo_public: &AuxInfoPublic,
         verifier_r1_private: &RoundOnePrivate,
-        prover_auxinfo_public: &AuxInfoPublic<C>,
+        prover_auxinfo_public: &AuxInfoPublic,
         prover_keyshare_public: &KeySharePublic<C>,
         prover_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {

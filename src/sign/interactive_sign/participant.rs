@@ -153,7 +153,7 @@ impl<C: CurveTrait> Input<C> {
     pub fn new(
         message: &[u8],
         keygen_output: keygen::Output<C>,
-        auxinfo_output: auxinfo::Output<C>,
+        auxinfo_output: auxinfo::Output,
     ) -> Result<Self> {
         let presign_input = presign::Input::new(auxinfo_output, keygen_output)?;
         let message_digest = Keccak256::new_with_prefix(message);
@@ -169,7 +169,7 @@ impl<C: CurveTrait> ProtocolParticipant for InteractiveSignParticipant<C> {
     type Output = Signature;
 
     fn ready_type() -> MessageType {
-        PresignParticipant::ready_type()
+        PresignParticipant::<CurvePoint>::ready_type()
     }
 
     fn protocol_type() -> ProtocolType {
@@ -337,7 +337,7 @@ mod tests {
     use tracing::debug;
 
     use crate::{
-        auxinfo, curve_point::{testing::init_testing, CurvePoint}, errors::Result, keygen, messages::{Message, MessageType}, participant::ProcessOutcome, sign::Signature, Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant
+        auxinfo, curve_point::{testing::init_testing, CurvePoint}, errors::Result, keygen::{self, Output}, messages::{Message, MessageType}, participant::ProcessOutcome, sign::Signature, Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant
     };
 
     use super::{Input, InteractiveSignParticipant, Status};
@@ -348,7 +348,7 @@ mod tests {
         let pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let keygen_output = keygen::Output::simulate(&pids, rng);
+        let keygen_output: Output<CurvePoint> = keygen::Output::simulate(&pids, rng);
         let auxinfo_output = auxinfo::Output::simulate(&pids, rng);
         let message = b"greetings from the new world";
         assert!(Input::new(message, keygen_output, auxinfo_output).is_ok())

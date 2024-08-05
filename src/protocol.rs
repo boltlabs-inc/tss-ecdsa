@@ -929,12 +929,12 @@ mod tests {
             .into_iter()
             .zip(presign_inputs)
             .map(|(config, input)| {
-                Participant::<PresignParticipant>::from_config(config, presign_sid, input).unwrap()
+                Participant::<PresignParticipant::<CurvePoint>>::from_config(config, presign_sid, input).unwrap()
             })
             .collect::<Vec<_>>();
         let mut presign_outputs: HashMap<
             ParticipantIdentifier,
-            <PresignParticipant as ProtocolParticipant>::Output,
+            <PresignParticipant::<CurvePoint> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         for participant in &mut presign_quorum {
@@ -1143,7 +1143,7 @@ mod tests {
         let sign_sid = Identifier::random(rng);
         let mut sign_quorum = std::iter::zip(configs, sign_inputs)
             .map(|(config, input)| {
-                Participant::<InteractiveSignParticipant>::from_config(config, sign_sid, input)
+                Participant::<InteractiveSignParticipant::<CurvePoint>>::from_config(config, sign_sid, input)
             })
             .collect::<Result<Vec<_>>>()?;
 

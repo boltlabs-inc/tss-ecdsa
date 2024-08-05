@@ -19,14 +19,14 @@ pub struct Input<C: CurveTrait> {
     /// The key share material for the key that will be used in the presign run.
     keygen_output: keygen::Output<C>,
     /// The auxiliary info for the key that will be used in the presign run.
-    auxinfo_output: auxinfo::Output<C>,
+    auxinfo_output: auxinfo::Output,
 }
 
 impl<C: CurveTrait> Input<C> {
     /// Creates a new [`Input`] from the outputs of the
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
-    pub fn new(auxinfo_output: auxinfo::Output<C>, keygen_output: keygen::Output<C>) -> Result<Self> {
+    pub fn new(auxinfo_output: auxinfo::Output, keygen_output: keygen::Output<C>) -> Result<Self> {
         if auxinfo_output.public_auxinfo().len() != keygen_output.public_key_shares().len() {
             error!(
                 "Number of auxinfo ({:?}) and keyshare ({:?}) public entries is not equal",
@@ -104,7 +104,7 @@ impl<C: CurveTrait> Input<C> {
 
     /// Returns the [`AuxInfoPublic`] associated with the given
     /// [`ParticipantIdentifier`].
-    pub(crate) fn find_auxinfo_public(&self, pid: ParticipantIdentifier) -> Result<&AuxInfoPublic<C>> {
+    pub(crate) fn find_auxinfo_public(&self, pid: ParticipantIdentifier) -> Result<&AuxInfoPublic> {
         self.auxinfo_output.find_public(pid)
             .ok_or_else(|| {
                 error!("Presign input doesn't contain a public auxinfo for {}, even though we checked for it at construction.", pid);
@@ -112,7 +112,7 @@ impl<C: CurveTrait> Input<C> {
             })
     }
 
-    pub(crate) fn private_key_share(&self) -> &KeySharePrivate<C> {
+    pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
         self.keygen_output.private_key_share()
     }
 
@@ -137,7 +137,7 @@ impl<C: CurveTrait> Input<C> {
     pub(crate) fn all_but_one_auxinfo_public(
         &self,
         pid: ParticipantIdentifier,
-    ) -> Vec<&AuxInfoPublic<C>> {
+    ) -> Vec<&AuxInfoPublic> {
         self.auxinfo_output
             .public_auxinfo()
             .iter()
@@ -146,7 +146,7 @@ impl<C: CurveTrait> Input<C> {
     }
     /// Returns a copy of the [`AuxInfoPublic`]s associated with all the
     /// participants (including this participant).
-    pub(crate) fn to_public_auxinfo(&self) -> Vec<AuxInfoPublic<C>> {
+    pub(crate) fn to_public_auxinfo(&self) -> Vec<AuxInfoPublic> {
         self.auxinfo_output.public_auxinfo().to_vec()
     }
 }

@@ -19,7 +19,7 @@ use tracing::error;
 #[derive(Debug, Clone)]
 pub struct Output<C: CurveTrait> {
     public_key_shares: Vec<KeySharePublic<C>>,
-    private_key_share: KeySharePrivate<C>,
+    private_key_share: KeySharePrivate,
     rid: [u8; 32],
 }
 
@@ -43,7 +43,7 @@ impl<C: CurveTrait> Output<C> {
         &self.public_key_shares
     }
 
-    pub(crate) fn private_key_share(&self) -> &KeySharePrivate<C> {
+    pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
         &self.private_key_share
     }
 
@@ -81,7 +81,7 @@ impl<C: CurveTrait> Output<C> {
     /// - The public key shares must be from a unique set of participants
     pub fn from_parts(
         public_key_shares: Vec<KeySharePublic<C>>,
-        private_key_share: KeySharePrivate<C>,
+        private_key_share: KeySharePrivate,
         rid: [u8; 32],
     ) -> Result<Self> {
         let pids = public_key_shares
@@ -106,7 +106,6 @@ impl<C: CurveTrait> Output<C> {
             public_key_shares,
             private_key_share,
             rid,
-            _curve: std::marker::PhantomData,
         })
     }
 
@@ -119,7 +118,7 @@ impl<C: CurveTrait> Output<C> {
     ///
     /// The public components (including the byte array and the public key
     /// shares) can be stored in the clear.
-    pub fn into_parts(self) -> (Vec<KeySharePublic<C>>, KeySharePrivate<C>, [u8; 32]) {
+    pub fn into_parts(self) -> (Vec<KeySharePublic<C>>, KeySharePrivate, [u8; 32]) {
         (self.public_key_shares, self.private_key_share, self.rid)
     }
 }

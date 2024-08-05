@@ -8,7 +8,7 @@
 
 use super::participant::ParticipantPresignContext;
 use crate::{
-    curve_point::CurveTrait, errors::{InternalError, Result}, messages::{Message, MessageType, PresignMessageType}, paillier::{Ciphertext, EncryptionKey, Nonce}, ring_pedersen::VerifiedRingPedersen, zkp::{
+    curve_point::CurvePoint, errors::{InternalError, Result}, messages::{Message, MessageType, PresignMessageType}, paillier::{Ciphertext, EncryptionKey, Nonce}, ring_pedersen::VerifiedRingPedersen, zkp::{
         pienc::{PiEncInput, PiEncProof},
         Proof,
     }
@@ -52,12 +52,12 @@ impl Debug for Private {
 /// necessarily valid (i.e., that all the components are valid with respect to
 /// each other); use [`Public::verify`] to check this latter condition.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct Public<C: CurveTrait> {
-    proof: PiEncProof<C>,
+pub(crate) struct Public {
+    proof: PiEncProof,
 }
 
-impl<C: CurveTrait> From<PiEncProof<C>> for Public<C> {
-    fn from(proof: PiEncProof<C>) -> Self {
+impl From<PiEncProof> for Public {
+    fn from(proof: PiEncProof) -> Self {
         Self { proof }
     }
 }
@@ -69,7 +69,7 @@ pub(crate) struct PublicBroadcast {
     pub G: Ciphertext,
 }
 
-impl<C: CurveTrait> Public<C> {
+impl Public {
     /// Verify the validity of [`Public`] against the prover's [`EncryptionKey`]
     /// and [`PublicBroadcast`] values.
     ///
@@ -77,8 +77,8 @@ impl<C: CurveTrait> Public<C> {
     /// (i.e., the verifier).
     pub(crate) fn verify(
         self,
-        context: &ParticipantPresignContext<C>,
-        verifier_setup_params: &VerifiedRingPedersen<C>,
+        context: &ParticipantPresignContext<CurvePoint>,
+        verifier_setup_params: &VerifiedRingPedersen,
         prover_pk: &EncryptionKey,
         prover_public_broadcast: &PublicBroadcast,
     ) -> Result<()> {
@@ -88,7 +88,7 @@ impl<C: CurveTrait> Public<C> {
     }
 }
 
-impl<C: CurveTrait> TryFrom<&Message> for Public<C> {
+impl TryFrom<&Message> for Public {
     type Error = InternalError;
 
     fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {

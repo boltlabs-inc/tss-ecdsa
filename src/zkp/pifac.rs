@@ -18,7 +18,7 @@
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 
 use crate::{
-    curve_point::CurveTrait, errors::*, parameters::{ELL, EPSILON}, ring_pedersen::{Commitment, CommitmentRandomness, MaskedRandomness, VerifiedRingPedersen}, utils::{plusminus_challenge_from_transcript, random_plusminus_scaled}, zkp::{Proof, ProofContext}
+    errors::*, parameters::{ELL, EPSILON}, ring_pedersen::{Commitment, CommitmentRandomness, MaskedRandomness, VerifiedRingPedersen}, utils::{plusminus_challenge_from_transcript, random_plusminus_scaled}, zkp::{Proof, ProofContext}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -31,7 +31,7 @@ use tracing::error;
 /// Proof that the modulus `N` can be factored into two numbers greater than
 /// `2^ℓ` for a parameter `ℓ`.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct PiFacProof<C: CurveTrait> {
+pub(crate) struct PiFacProof {
     /// Commitment to the factor `p` (`P` in the paper).
     p_commitment: Commitment,
     /// Commitment to the factor `q` (`Q` in the paper).
@@ -58,8 +58,6 @@ pub(crate) struct PiFacProof<C: CurveTrait> {
     /// Masked commitment randomness linking `p` to the commitment randomness
     /// used in `q_commitment` (`v` in the paper).
     masked_p_link: MaskedRandomness,
-    /// Marker to pin the curve type.
-    curve_type: std::marker::PhantomData<C>,
 }
 
 /// Common input and setup parameters known to both the prover and verifier.
@@ -67,16 +65,16 @@ pub(crate) struct PiFacProof<C: CurveTrait> {
 /// Copying/Cloning references is harmless and sometimes necessary. So we
 /// implement Clone and Copy for this type.
 #[derive(Serialize, Copy, Clone)]
-pub(crate) struct CommonInput<'a, C: CurveTrait> {
-    setup_params: &'a VerifiedRingPedersen<C>,
+pub(crate) struct CommonInput<'a> {
+    setup_params: &'a VerifiedRingPedersen,
     modulus: &'a BigNumber,
 }
 
-impl<'a, C: CurveTrait> CommonInput<'a, C> {
+impl<'a> CommonInput<'a> {
     /// Generate public input for proving and verifying [`PiFacProof`] about
     /// `N`.
     pub(crate) fn new(
-        verifier_commitment_params: &'a VerifiedRingPedersen<C>,
+        verifier_commitment_params: &'a VerifiedRingPedersen,
         prover_modulus: &'a BigNumber,
     ) -> Self {
         Self {
@@ -112,8 +110,8 @@ impl<'a> ProverSecret<'a> {
     }
 }
 
-impl<C: CurveTrait> Proof<C> for PiFacProof<C> {
-    type CommonInput<'a> = CommonInput<'a, C>;
+impl Proof for PiFacProof {
+    type CommonInput<'a> = CommonInput<'a>;
     type ProverSecret<'a> = ProverSecret<'a>;
 
     #[cfg_attr(feature = "flame_it", flame("PiFacProof"))]
@@ -288,12 +286,12 @@ impl<C: CurveTrait> Proof<C> for PiFacProof<C> {
     }
 }
 
-impl<C: CurveTrait> PiFacProof<C> {
+impl PiFacProof {
     #[allow(clippy::too_many_arguments)]
     fn fill_transcript(
         transcript: &mut Transcript,
         context: &impl ProofContext,
-        input: &CommonInput<C>,
+        input: &CommonInput,
         P: &Commitment,
         Q: &Commitment,
         A: &Commitment,
@@ -330,7 +328,7 @@ fn sqrt(num: &BigNumber) -> BigNumber {
 #[cfg(test)]
 mod tests {
     use crate::{
-        curve_point::{k256_order, testing::init_testing, CurvePoint}, paillier::prime_gen, utils::random_positive_bn, zkp::BadContext
+        curve_point::{k256_order, testing::init_testing}, paillier::prime_gen, utils::random_positive_bn, zkp::BadContext
     };
     use rand::{prelude::StdRng, Rng, SeedableRng};
 
@@ -342,7 +340,7 @@ mod tests {
 
     fn with_random_no_small_factors_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
-        mut test_code: impl FnMut(CommonInput::<CurvePoint>, PiFacProof::<CurvePoint>) -> Result<()>,
+        mut test_code: impl FnMut(CommonInput, PiFacProof) -> Result<()>,
     ) -> Result<()> {
         let (p0, q0) = prime_gen::get_prime_pair_from_pool_insecure(rng).unwrap();
         let N0 = &p0 * &q0;

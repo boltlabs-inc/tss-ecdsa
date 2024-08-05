@@ -72,8 +72,8 @@ impl<C: CurveTrait> Public<C> {
     pub(crate) fn verify(
         self,
         context: &ParticipantPresignContext<C>,
-        verifier_auxinfo_public: &AuxInfoPublic<C>,
-        prover_auxinfo_public: &AuxInfoPublic<C>,
+        verifier_auxinfo_public: &AuxInfoPublic,
+        prover_auxinfo_public: &AuxInfoPublic,
         prover_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
         let mut transcript = Transcript::new(b"PiLogProof");
@@ -111,7 +111,7 @@ impl<C: CurveTrait> TryFrom<&Message> for Public<C> {
 
 /// Used to bundle the inputs passed to round_three() together
 pub(crate) struct Input<C: CurveTrait> {
-    pub auxinfo_public: AuxInfoPublic<C>,
+    pub auxinfo_public: AuxInfoPublic,
     pub r2_private: RoundTwoPrivate,
     pub r2_public: RoundTwoPublic<C>,
 }

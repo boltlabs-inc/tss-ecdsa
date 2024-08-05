@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::{info::AuxInfoPublic, participant::AuxInfoParticipant}, curve_point::CurveTrait, errors::{InternalError, Result}, messages::{AuxinfoMessageType, Message, MessageType}, parameters::PRIME_BITS, participant::{InnerProtocolParticipant, ProtocolParticipant}, protocol::{Identifier, ParticipantIdentifier}
+    auxinfo::{info::AuxInfoPublic, participant::AuxInfoParticipant}, errors::{InternalError, Result}, messages::{AuxinfoMessageType, Message, MessageType}, parameters::PRIME_BITS, participant::{InnerProtocolParticipant, ProtocolParticipant}, protocol::{Identifier, ParticipantIdentifier}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -37,14 +37,14 @@ impl Commitment {
 /// to send decommit to a validly produced [`Commitment`] one needs to send
 /// [`CommitmentScheme`] itself.
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct CommitmentScheme<C: CurveTrait> {
+pub(crate) struct CommitmentScheme {
     /// A unique session identifier (`ssid` in the paper).
     sid: Identifier,
     /// This participant's [`ParticipantIdentifier`] (`i` in the paper).
     pid: ParticipantIdentifier,
     /// This participant's [`AuxInfoPublic`] (`N_i, s_i, t_i, ψhat_i` in the
     /// paper).
-    public_key: AuxInfoPublic<C>,
+    public_key: AuxInfoPublic,
     /// This participant's randomness (`ρ_i` in the paper).
     ///
     /// This randomness is combined with all other participants' randomness and
@@ -57,7 +57,7 @@ pub(crate) struct CommitmentScheme<C: CurveTrait> {
     commit_randomness: [u8; 32],
 }
 
-impl<C: CurveTrait> Debug for CommitmentScheme<C> {
+impl Debug for CommitmentScheme {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Redacting randomness and commit_randomness because I'm not sure how
         // sensitive they are. If later analysis suggests they're fine to print,
@@ -72,7 +72,7 @@ impl<C: CurveTrait> Debug for CommitmentScheme<C> {
     }
 }
 
-impl<C: CurveTrait> CommitmentScheme<C> {
+impl CommitmentScheme {
     /// Construct a new [`CommitmentScheme`] using the provided unique session
     /// [`Identifier`], [`AuxInfoParticipant`], and [`AuxInfoPublic`].
     ///
@@ -81,8 +81,8 @@ impl<C: CurveTrait> CommitmentScheme<C> {
     /// [`AuxInfoParticipant`].
     pub(crate) fn new<R: RngCore + CryptoRng>(
         sid: Identifier,
-        auxinfo_participant: &AuxInfoParticipant<C>,
-        public_key: AuxInfoPublic<C>,
+        auxinfo_participant: &AuxInfoParticipant,
+        public_key: AuxInfoPublic,
         rng: &mut R,
     ) -> Result<Self> {
         let mut rid = [0u8; 32];
@@ -112,7 +112,7 @@ impl<C: CurveTrait> CommitmentScheme<C> {
     /// This method verifies all the internal [`CommitmentScheme`] values.
     pub(crate) fn from_message(
         message: &Message,
-        context: &<AuxInfoParticipant<C> as InnerProtocolParticipant>::Context,
+        context: &<AuxInfoParticipant as InnerProtocolParticipant>::Context,
     ) -> Result<Self> {
         message.check_type(MessageType::Auxinfo(AuxinfoMessageType::R2Decommit))?;
         let scheme: CommitmentScheme = deserialize!(&message.unverified_bytes)?;
@@ -164,7 +164,7 @@ impl<C: CurveTrait> CommitmentScheme<C> {
         self.randomness
     }
 
-    pub(crate) fn into_public(self) -> AuxInfoPublic<C> {
+    pub(crate) fn into_public(self) -> AuxInfoPublic {
         self.public_key
     }
 

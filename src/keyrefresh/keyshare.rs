@@ -92,7 +92,7 @@ impl<C: CurveTrait> KeyUpdatePrivate<C> {
         KeyUpdatePrivate { x: sum, _curve: std::marker::PhantomData }
     }
 
-    pub(crate) fn apply(self, current_sk: &KeySharePrivate<C>) -> KeySharePrivate<C> {
+    pub(crate) fn apply(self, current_sk: &KeySharePrivate) -> KeySharePrivate {
         let mut sum = current_sk.as_ref() + &self.x;
         let share = KeySharePrivate::from_bigint(&sum);
         sum.zeroize();
@@ -100,7 +100,7 @@ impl<C: CurveTrait> KeyUpdatePrivate<C> {
     }
 
     /// Computes the "raw" curve point corresponding to this private key.
-    pub(crate) fn public_point(&self) -> Result<CurvePoint> {
+    pub(crate) fn public_point(&self) -> Result<C> {
         C::generator().multiply_by_bignum(&self.x)
     }
 }
@@ -117,7 +117,7 @@ impl<C: CurveTrait> AsRef<BigNumber> for KeyUpdatePrivate<C> {
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct KeyUpdatePublic<C: CurveTrait> {
     participant: ParticipantIdentifier,
-    X: CurvePoint,
+    X: C,
     /// Marker to pin the generic type `C`.
     _curve: std::marker::PhantomData<C>,
 }
@@ -144,7 +144,7 @@ impl<C: CurveTrait> Serialize for KeyUpdatePublic<C> {
 }
 
 impl<C: CurveTrait> KeyUpdatePublic<C> {
-    pub(crate) fn new(participant: ParticipantIdentifier, share: CurvePoint) -> Self {
+    pub(crate) fn new(participant: ParticipantIdentifier, share: C) -> Self {
         Self {
             participant,
             X: share,
@@ -187,9 +187,9 @@ impl<C: CurveTrait> KeyUpdatePublic<C> {
     }
 }
 
-impl<C: CurveTrait> AsRef<CurvePoint> for KeyUpdatePublic<C> {
+impl<C: CurveTrait> AsRef<C> for KeyUpdatePublic<C> {
     /// Get the public curvepoint which is the public key share.
-    fn as_ref(&self) -> &CurvePoint {
+    fn as_ref(&self) -> &C {
         &self.X
     }
 }

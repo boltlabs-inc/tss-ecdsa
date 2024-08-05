@@ -67,7 +67,7 @@ mod storage {
 pub(crate) struct PresignContext<C: CurveTrait> {
     shared_context: SharedContext<C>,
     rid: [u8; 32],
-    auxinfo_public: Vec<AuxInfoPublic<C>>,
+    auxinfo_public: Vec<AuxInfoPublic>,
 }
 
 impl<C: CurveTrait> ProofContext for PresignContext<C> {
@@ -880,10 +880,10 @@ impl<C: CurveTrait> PresignParticipant<C> {
 ///
 /// TODO: Refactor as specified in #246.
 pub(crate) struct PresignKeyShareAndInfo<C: CurveTrait> {
-    pub(crate) keyshare_private: KeySharePrivate<C>,
+    pub(crate) keyshare_private: KeySharePrivate,
     pub(crate) keyshare_public: KeySharePublic<C>,
     pub(crate) aux_info_private: AuxInfoPrivate,
-    pub(crate) aux_info_public: AuxInfoPublic<C>,
+    pub(crate) aux_info_public: AuxInfoPublic,
 }
 
 impl<C: CurveTrait> PresignKeyShareAndInfo<C> {
@@ -909,10 +909,10 @@ impl<C: CurveTrait> PresignKeyShareAndInfo<C> {
         &self,
         rng: &mut R,
         context: &ParticipantPresignContext<C>,
-        other_auxinfos: &[&AuxInfoPublic<C>],
+        other_auxinfos: &[&AuxInfoPublic],
     ) -> Result<(
         round_one::Private,
-        HashMap<ParticipantIdentifier, round_one::Public<C>>,
+        HashMap<ParticipantIdentifier, round_one::Public>,
         round_one::PublicBroadcast,
     )> {
         let order = k256_order();
@@ -970,7 +970,7 @@ impl<C: CurveTrait> PresignKeyShareAndInfo<C> {
         &self,
         rng: &mut R,
         context: &ParticipantPresignContext<C>,
-        receiver_aux_info: &AuxInfoPublic<C>,
+        receiver_aux_info: &AuxInfoPublic,
         sender_r1_priv: &round_one::Private,
         receiver_r1_pub_broadcast: &round_one::PublicBroadcast,
     ) -> Result<(round_two::Private, round_two::Public::<C>)> {

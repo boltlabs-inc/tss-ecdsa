@@ -110,7 +110,7 @@ impl<'a> ProverSecret<'a> {
     }
 }
 
-impl<C: CurveTrait + DeserializeOwned> Proof<C> for PiSchProof<C> 
+impl<C: CurveTrait + DeserializeOwned> Proof for PiSchProof<C> 
 {
     type CommonInput<'a> = CommonInput<'a>;
     type ProverSecret<'a> = ProverSecret<'a>;
@@ -211,7 +211,7 @@ impl<C: CurveTrait + DeserializeOwned> PiSchProof<C> {
         input: CommonInput,
         context: &impl ProofContext,
         transcript: &mut Transcript,
-        commitment: &CurvePoint,
+        commitment: &C,
     ) -> Result<()> {
         if commitment != &self.commitment {
             error!("the proof does not match the previous commitment");

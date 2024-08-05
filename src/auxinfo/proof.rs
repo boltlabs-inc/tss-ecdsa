@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::participant::AuxInfoParticipant, curve_point::CurveTrait, errors::Result, messages::{AuxinfoMessageType, Message, MessageType}, participant::InnerProtocolParticipant, ring_pedersen::VerifiedRingPedersen, Identifier, ParticipantIdentifier
+    auxinfo::participant::AuxInfoParticipant, curve_point::{CurvePoint, CurveTrait}, errors::Result, messages::{AuxinfoMessageType, Message, MessageType}, participant::InnerProtocolParticipant, ring_pedersen::VerifiedRingPedersen, Identifier, ParticipantIdentifier
 };
 
 use crate::zkp::{pifac, pimod, Proof, ProofContext};
@@ -21,32 +21,32 @@ use serde::{Deserialize, Serialize};
 ///
 /// This type includes proofs for `𝚷[fac]` and `𝚷[mod]`.
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct AuxInfoProof<C: CurveTrait> {
-    pimod: pimod::PiModProof::<C>,
-    pifac: pifac::PiFacProof::<C>,
+pub(crate) struct AuxInfoProof {
+    pimod: pimod::PiModProof,
+    pifac: pifac::PiFacProof,
 }
 
 /// Common input and setup parameters known to both the prover and the verifier.
 #[derive(Clone)]
-pub(crate) struct CommonInput<'a, C: CurveTrait> {
-    shared_context: &'a <AuxInfoParticipant<C> as InnerProtocolParticipant>::Context,
+pub(crate) struct CommonInput<'a> {
+    shared_context: &'a <AuxInfoParticipant as InnerProtocolParticipant>::Context,
     sid: Identifier,
     rho: [u8; 32],
     pid: ParticipantIdentifier,
-    setup_parameters: &'a VerifiedRingPedersen<C>,
+    setup_parameters: &'a VerifiedRingPedersen,
     modulus: &'a BigNumber,
 }
 
-impl<'a, C: CurveTrait> CommonInput<'a, C> {
+impl<'a> CommonInput<'a> {
     /// Collect common parameters for proving or verifying a [`AuxInfoProof`]
     pub(crate) fn new(
-        shared_context: &'a <AuxInfoParticipant<C> as InnerProtocolParticipant>::Context,
+        shared_context: &'a <AuxInfoParticipant as InnerProtocolParticipant>::Context,
         sid: Identifier,
         rho: [u8; 32],
         pid: ParticipantIdentifier,
-        verifier_setup_parameters: &'a VerifiedRingPedersen<C>,
+        verifier_setup_parameters: &'a VerifiedRingPedersen,
         modulus: &'a BigNumber,
-    ) -> CommonInput<'a, C> {
+    ) -> CommonInput<'a> {
         Self {
             shared_context,
             sid,
@@ -58,7 +58,7 @@ impl<'a, C: CurveTrait> CommonInput<'a, C> {
     }
 }
 
-impl<C: CurveTrait> AuxInfoProof<C> {
+impl AuxInfoProof {
     /// Generate a fresh transcript to be used in [`AuxInfoProof`].
     fn new_transcript() -> Transcript {
         Transcript::new(b"AuxInfoProof")
@@ -81,35 +81,35 @@ impl<C: CurveTrait> AuxInfoProof<C> {
     /// Note: The [`VerifiedRingPedersen`] argument **must be** provided by the
     /// verifier!
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn prove<R: RngCore + CryptoRng>(
+    pub(crate) fn prove<R: RngCore + CryptoRng, C: CurveTrait>(
         rng: &mut R,
-        common_input: &CommonInput<C>,
+        common_input: &CommonInput,
         p: &BigNumber,
         q: &BigNumber,
     ) -> Result<Self> {
         let mut transcript = Self::new_transcript();
-        Self::append_pimod_transcript(
+        Self::append_pimod_transcript::<CurvePoint>(
             &mut transcript,
             common_input.shared_context,
             common_input.sid,
             common_input.rho,
             common_input.pid,
         )?;
-        let pimod: pimod::PiModProof::<C> = pimod::PiModProof::<C>::prove(
+        let pimod: pimod::PiModProof = pimod::PiModProof::prove(
             pimod::CommonInput::new(common_input.modulus),
             pimod::ProverSecret::new(p, q),
             common_input.shared_context,
             &mut transcript,
             rng,
         )?;
-        Self::append_pifac_transcript(
+        Self::append_pifac_transcript::<CurvePoint>(
             &mut transcript,
             common_input.shared_context,
             common_input.sid,
             common_input.rho,
             common_input.pid,
         )?;
-        let pifac = pifac::PiFacProof::<C>::prove(
+        let pifac = pifac::PiFacProof::prove(
             pifac::CommonInput::new(common_input.setup_parameters, common_input.modulus),
             pifac::ProverSecret::new(p, q),
             common_input.shared_context,
@@ -126,9 +126,9 @@ impl<C: CurveTrait> AuxInfoProof<C> {
     ///
     /// Note: The [`VerifiedRingPedersen`] argument **must be** provided by the
     /// verifier!
-    pub(crate) fn verify(self, common_input: &CommonInput<C>) -> Result<()> {
+    pub(crate) fn verify<C: CurveTrait>(self, common_input: &CommonInput) -> Result<()> {
         let mut transcript = Self::new_transcript();
-        Self::append_pimod_transcript(
+        Self::append_pimod_transcript::<CurvePoint>(
             &mut transcript,
             common_input.shared_context,
             common_input.sid,
@@ -140,7 +140,7 @@ impl<C: CurveTrait> AuxInfoProof<C> {
             common_input.shared_context,
             &mut transcript,
         )?;
-        Self::append_pifac_transcript(
+        Self::append_pifac_transcript::<CurvePoint>(
             &mut transcript,
             common_input.shared_context,
             common_input.sid,
@@ -157,9 +157,9 @@ impl<C: CurveTrait> AuxInfoProof<C> {
 
     /// Append info relevant to the `𝚷[mod]` proof to the provided
     /// [`Transcript`].
-    fn append_pimod_transcript(
+    fn append_pimod_transcript<C: CurveTrait>(
         transcript: &mut Transcript,
-        context: &<AuxInfoParticipant<C> as InnerProtocolParticipant>::Context,
+        context: &<AuxInfoParticipant as InnerProtocolParticipant>::Context,
         sid: Identifier,
         rho: [u8; 32],
         pid: ParticipantIdentifier,
@@ -174,9 +174,9 @@ impl<C: CurveTrait> AuxInfoProof<C> {
 
     /// Append info relevant to the `𝚷[fac]` proof to the provided
     /// [`Transcript`].
-    fn append_pifac_transcript(
+    fn append_pifac_transcript<C: CurveTrait>(
         transcript: &mut Transcript,
-        context: &<AuxInfoParticipant<C> as InnerProtocolParticipant>::Context,
+        context: &<AuxInfoParticipant as InnerProtocolParticipant>::Context,
         sid: Identifier,
         rho: [u8; 32],
         pid: ParticipantIdentifier,
@@ -198,18 +198,18 @@ mod tests {
 
     fn random_auxinfo_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
-        test_code: impl FnOnce(CommonInput<CurvePoint>, AuxInfoProof<CurvePoint>) -> Result<()>,
+        test_code: impl FnOnce(CommonInput, AuxInfoProof) -> Result<()>,
     ) -> Result<()> {
         let sid = Identifier::random(rng);
         let rho = rng.gen();
         let pid = ParticipantIdentifier::random(rng);
-        let setup_params = VerifiedRingPedersen::<CurvePoint>::gen(rng, &()).unwrap();
+        let setup_params = VerifiedRingPedersen::gen(rng, &()).unwrap();
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(rng).unwrap();
         let modulus = &p * &q;
         let shared_context = SharedContext::random(rng);
         let common_input =
             CommonInput::new(&shared_context, sid, rho, pid, &setup_params, &modulus);
-        let proof = AuxInfoProof::<CurvePoint>::prove(rng, &common_input, &p, &q).unwrap();
+        let proof = AuxInfoProof::prove::<R, CurvePoint>(rng, &common_input, &p, &q).unwrap();
         test_code(common_input, proof)
     }
 
@@ -219,14 +219,14 @@ mod tests {
         let sid = Identifier::random(&mut rng);
         let rho = rng.gen();
         let pid = ParticipantIdentifier::random(&mut rng);
-        let setup_params = VerifiedRingPedersen::<CurvePoint>::gen(&mut rng, &())?;
+        let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
         let shared_context = SharedContext::random(&mut rng);
         let common_input =
             CommonInput::new(&shared_context, sid, rho, pid, &setup_params, &modulus);
-        let proof = AuxInfoProof::<CurvePoint>::prove(&mut rng, &common_input, &p, &q)?;
-        assert!(proof.verify(&common_input).is_ok());
+        let proof = AuxInfoProof::prove::<StdRng, CurvePoint>(&mut rng, &common_input, &p, &q)?;
+        assert!(proof.verify::<CurvePoint>(&common_input).is_ok());
         Ok(())
     }
 
@@ -244,8 +244,8 @@ mod tests {
                     pifac: proof1.pifac,
                     pimod: proof.pimod,
                 };
-                assert!(mix_one.verify(&input).is_err());
-                assert!(mix_two.verify(&input1).is_err());
+                assert!(mix_one.verify::<CurvePoint>(&input).is_err());
+                assert!(mix_two.verify::<CurvePoint>(&input1).is_err());
                 Ok(())
             };
             random_auxinfo_proof(&mut rng2, f1)?;
@@ -267,8 +267,8 @@ mod tests {
         let modulus = &p * &q;
         let shared_context = &SharedContext::random(&mut rng);
         let common_input = CommonInput::new(shared_context, sid, rho, pid, &setup_params, &modulus);
-        match AuxInfoProof::prove(&mut rng, &common_input, &p1, &q1) {
-            Ok(proof) => assert!(proof.verify(&common_input).is_err()),
+        match AuxInfoProof::prove::<StdRng, CurvePoint>(&mut rng, &common_input, &p1, &q1) {
+            Ok(proof) => assert!(proof.verify::<CurvePoint>(&common_input).is_err()),
             Err(_) => return Ok(()),
         }
         Ok(())

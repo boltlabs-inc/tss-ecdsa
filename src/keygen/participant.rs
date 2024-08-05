@@ -44,7 +44,7 @@ mod storage {
     }
     pub(super) struct PrivateKeyshare;
     impl TypeTag for PrivateKeyshare {
-        type Value = KeySharePrivate<CurvePoint>;
+        type Value = KeySharePrivate;
     }
     pub(super) struct PublicKeyshare;
     impl TypeTag for PublicKeyshare {

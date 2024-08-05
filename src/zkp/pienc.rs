@@ -26,7 +26,7 @@
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 use crate::{
-    curve_point::{CurveTrait}, errors::*, paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce}, parameters::{ELL, EPSILON}, ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen}, utils::{plusminus_challenge_from_transcript, random_plusminus_by_size}, zkp::{Proof, ProofContext}
+    errors::*, paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce}, parameters::{ELL, EPSILON}, ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen}, utils::{plusminus_challenge_from_transcript, random_plusminus_by_size}, zkp::{Proof, ProofContext}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -38,7 +38,7 @@ use tracing::error;
 /// Proof of knowledge of the plaintext value of a ciphertext, where the value
 /// is within a desired range.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PiEncProof<C: CurveTrait>  {
+pub(crate) struct PiEncProof  {
     /// Commitment to the plaintext value of the ciphertext (`S` in the paper).
     plaintext_commit: Commitment,
     /// Masking ciphertext (`A` in the paper).
@@ -57,8 +57,6 @@ pub(crate) struct PiEncProof<C: CurveTrait>  {
     /// Response binding the commitment randomness used in the two commitments
     /// (`z3` in the paper).
     randomness_response: MaskedRandomness,
-    /// Marker to pin the curve type `C`.
-    _marker: std::marker::PhantomData<C>,
 }
 
 /// Common input and setup parameters known to both the prover and verifier.
@@ -66,23 +64,23 @@ pub(crate) struct PiEncProof<C: CurveTrait>  {
 /// Copying/Cloning references is harmless and sometimes necessary. So we
 /// implement Clone and Copy for this type.
 #[derive(Serialize, Copy, Clone)]
-pub(crate) struct PiEncInput<'a, C: CurveTrait> {
+pub(crate) struct PiEncInput<'a> {
     /// The verifier's commitment parameters (`(N^hat, s, t)` in the paper).
-    setup_params: &'a VerifiedRingPedersen<C>,
+    setup_params: &'a VerifiedRingPedersen,
     /// The prover's encryption key (`N_0` in the paper).
     encryption_key: &'a EncryptionKey,
     /// Ciphertext about which we are proving properties (`K` in the paper).
     ciphertext: &'a Ciphertext,
 }
 
-impl<'a, C: CurveTrait> PiEncInput<'a, C> {
+impl<'a> PiEncInput<'a> {
     /// Generate public input for proving or verifying a [`PiEncProof`] about
     /// `ciphertext`.
     pub(crate) fn new(
-        verifer_setup_params: &'a VerifiedRingPedersen<C>,
+        verifer_setup_params: &'a VerifiedRingPedersen,
         prover_encryption_key: &'a EncryptionKey,
         ciphertext: &'a Ciphertext,
-    ) -> PiEncInput<'a, C> {
+    ) -> PiEncInput<'a> {
         Self {
             setup_params: verifer_setup_params,
             encryption_key: prover_encryption_key,
@@ -121,8 +119,8 @@ impl<'a> PiEncSecret<'a> {
     }
 }
 
-impl<C: CurveTrait> Proof<C> for PiEncProof<C> {
-    type CommonInput<'a> = PiEncInput<'a, C>;
+impl Proof for PiEncProof {
+    type CommonInput<'a> = PiEncInput<'a>;
     type ProverSecret<'b> = PiEncSecret<'b>;
     #[cfg_attr(feature = "flame_it", flame("PiEncProof"))]
     fn prove<R: RngCore + CryptoRng>(
@@ -260,13 +258,13 @@ impl<C: CurveTrait> Proof<C> for PiEncProof<C> {
     }
 }
 
-impl<C: CurveTrait> PiEncProof<C> {
+impl PiEncProof {
     /// Update the [`Transcript`] with all the commitment values used in the
     /// proof.
     fn fill_transcript(
         transcript: &mut Transcript,
         context: &impl ProofContext,
-        input: &PiEncInput<C>,
+        input: &PiEncInput,
         plaintext_commit: &Commitment,
         ciphertext_mask: &Ciphertext,
         plaintext_mask_commit: &Commitment,
@@ -290,7 +288,7 @@ impl<C: CurveTrait> PiEncProof<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve_point::{k256_order, testing::init_testing, CurvePoint}, paillier::DecryptionKey, utils::{random_plusminus, random_plusminus_by_size_with_minimum, random_positive_bn}, zkp::BadContext
+        curve_point::{k256_order, testing::init_testing}, paillier::DecryptionKey, utils::{random_plusminus, random_plusminus_by_size_with_minimum, random_positive_bn}, zkp::BadContext
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
@@ -300,14 +298,14 @@ mod tests {
 
     // Shorthand to avoid putting types for closure arguments.
     // Note: This does not work on closures that capture variables.
-    type ProofTest = fn(PiEncProof<CurvePoint>, PiEncInput<CurvePoint>) -> Result<()>;
+    type ProofTest = fn(PiEncProof, PiEncInput) -> Result<()>;
 
     /// Generate a [`PiEncProof`] and [`PiEncInput`] and pass them to the
     /// `test_code` closure.
     fn with_random_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
         plaintext: BigNumber,
-        mut test_code: impl FnMut(PiEncProof<CurvePoint>, PiEncInput<CurvePoint>) -> Result<()>,
+        mut test_code: impl FnMut(PiEncProof, PiEncInput) -> Result<()>,
     ) -> Result<()> {
         let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
         let encryption_key = decryption_key.encryption_key();
