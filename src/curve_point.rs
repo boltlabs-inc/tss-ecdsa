@@ -178,7 +178,7 @@ pub(crate) fn random_bn_in_z_star<R: RngCore + CryptoRng>(
 }
 
 /// Common trait for curves
-pub trait CurveTrait: Serialize + Clone + Debug + Eq + PartialEq + Zeroize + Add {
+pub trait CurveTrait: Serialize + Clone + Debug + Eq + PartialEq + Zeroize + Add<Output = Self> {
     /// Returns the generator of the curve
     fn generator() -> Self;
     /// Returns the identity element of the curve
