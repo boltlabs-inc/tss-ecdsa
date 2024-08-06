@@ -1107,7 +1107,7 @@ impl<C: CurveTrait> PresignKeyShareAndInfo<C> {
         HashMap<ParticipantIdentifier, round_three::Public<C>>,
     )> {
         let order = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let g = C::generator();
 
         let mut delta: BigNumber = sender_r1_priv.gamma.modmul(&sender_r1_priv.k, &order);
         let mut chi: BigNumber = self

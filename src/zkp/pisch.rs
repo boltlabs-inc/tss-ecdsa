@@ -59,7 +59,7 @@ pub(crate) struct PiSchProof<C>
 /// Implementation note: this type includes the mask itself. This is for
 /// convenience; the mask must not be sent to the verifier at any point as this
 /// breaks the security of the proof.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub(crate) struct PiSchPrecommit<C: CurveTrait> {
     /// Precommitment value (`A` in the paper).
     precommitment: C,
@@ -72,8 +72,8 @@ pub(crate) struct PiSchPrecommit<C: CurveTrait> {
 /// Copying/Cloning references is harmless and sometimes necessary. So we
 /// implement Clone and Copy for this type.
 #[derive(Serialize, Copy, Clone)]
-pub(crate) struct CommonInput<'a> {
-    x_commitment: &'a CurvePoint,
+pub(crate) struct CommonInput<'a, C: CurveTrait> {
+    x_commitment: &'a C,
 }
 
 impl<C: CurveTrait> PiSchPrecommit<C> {
@@ -82,8 +82,8 @@ impl<C: CurveTrait> PiSchPrecommit<C> {
     }
 }
 
-impl<'a> CommonInput<'a> {
-    pub(crate) fn new(x_commitment: &'a impl AsRef<CurvePoint>) -> CommonInput<'a> {
+impl<'a, C: CurveTrait> CommonInput<'a, C> {
+    pub(crate) fn new(x_commitment: &'a impl AsRef<C>) -> CommonInput<'a, C> {
         Self {
             x_commitment: x_commitment.as_ref(),
         }
@@ -112,7 +112,7 @@ impl<'a> ProverSecret<'a> {
 
 impl<C: CurveTrait + DeserializeOwned> Proof for PiSchProof<C> 
 {
-    type CommonInput<'a> = CommonInput<'a>;
+    type CommonInput<'a> = CommonInput<'a, C>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiSchProof"))]
     fn prove<R: RngCore + CryptoRng>(
@@ -177,7 +177,7 @@ impl<C: CurveTrait + DeserializeOwned> PiSchProof<C> {
     pub fn prove_from_precommit(
         context: &impl ProofContext,
         com: &PiSchPrecommit<C>,
-        input: &CommonInput,
+        input: &CommonInput<C>,
         secret: &ProverSecret,
         transcript: &Transcript,
     ) -> Result<Self> {
@@ -208,7 +208,7 @@ impl<C: CurveTrait + DeserializeOwned> PiSchProof<C> {
     /// Verify that the proof is valid and that it matches a precommitment.
     pub fn verify_with_precommit(
         self,
-        input: CommonInput,
+        input: CommonInput<C>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
         commitment: &C,
@@ -255,7 +255,7 @@ impl<C: CurveTrait + DeserializeOwned> PiSchProof<C> {
     fn fill_transcript(
         transcript: &mut Transcript,
         context: &impl ProofContext,
-        input: &CommonInput,
+        input: &CommonInput<C>,
         commitment: &C,
     ) -> Result<()> {
         transcript.append_message(b"PiSch ProofContext", &context.as_bytes()?);
@@ -273,12 +273,12 @@ mod tests {
         Transcript::new(b"PiSchProof Test")
     }
 
-    type TestFn = fn(PiSchProof<CurvePoint>, CommonInput) -> Result<()>;
+    type TestFn = fn(PiSchProof<CurvePoint>, CommonInput<CurvePoint>) -> Result<()>;
 
     fn with_random_schnorr_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
         additive: bool,
-        test_code: impl Fn(PiSchProof<CurvePoint>, CommonInput) -> Result<()>,
+        test_code: impl Fn(PiSchProof<CurvePoint>, CommonInput<CurvePoint>) -> Result<()>,
     ) -> Result<()> {
         let q = k256_order();
         let g = CurvePoint::GENERATOR;

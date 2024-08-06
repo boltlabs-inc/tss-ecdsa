@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::AuxInfoPublic, curve_point::{CurvePoint, CurveTrait}, errors::{InternalError, Result}, keygen::KeySharePublic, messages::{Message, MessageType, PresignMessageType}, paillier::Ciphertext, presign::{
+    auxinfo::AuxInfoPublic, curve_point::CurveTrait, errors::{InternalError, Result}, keygen::KeySharePublic, messages::{Message, MessageType, PresignMessageType}, paillier::Ciphertext, presign::{
         participant::ParticipantPresignContext,
         round_one::{Private as RoundOnePrivate, PublicBroadcast as RoundOnePublicBroadcast},
     }, zkp::{
@@ -17,7 +17,7 @@ use crate::{
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::fmt::Debug;
 use zeroize::ZeroizeOnDrop;
 
@@ -42,7 +42,7 @@ impl Debug for Private {
 /// [`Message`] is a valid serialization of `Public`, but _not_ that `Public` is
 /// necessarily valid (i.e., that all the components are valid with respect to
 /// each other); use [`Public::verify`] to check this latter condition.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize)]
 pub(crate) struct Public<C: CurveTrait> {
     pub D: Ciphertext,
     pub D_hat: Ciphertext,

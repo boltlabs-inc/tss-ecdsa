@@ -29,7 +29,7 @@ impl KeyrefreshCommit {
 }
 
 /// Decommitment published in round 2.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Clone)]
 pub(crate) struct KeyrefreshDecommit<C: CurveTrait> {
     sid: Identifier,
     sender: ParticipantIdentifier,
@@ -39,7 +39,7 @@ pub(crate) struct KeyrefreshDecommit<C: CurveTrait> {
     pub As: Vec<C>,
 }
 
-impl<'de, C: CurveTrait + Serialize + Deserialize<'de> + PartialEq<C>> KeyrefreshDecommit<C> {
+impl<'de, C: CurveTrait + Serialize + PartialEq<C>> KeyrefreshDecommit<C> {
     ///`sid` corresponds to a unique session identifier.
     pub(crate) fn new<R: RngCore + CryptoRng>(
         rng: &mut R,

@@ -19,7 +19,7 @@ use crate::{
 use k256::{elliptic_curve::PrimeField, Scalar};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::fmt::Debug;
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
@@ -56,7 +56,7 @@ impl Debug for Private {
 /// [`Message`] is a valid serialization of `Public`, but _not_ that `Public` is
 /// necessarily valid (i.e., that all the components are valid with respect to
 /// each other); use [`Public::verify`] to check this latter condition.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize)]
 pub(crate) struct Public<C: CurveTrait> {
     pub delta: Scalar,
     pub Delta: C,

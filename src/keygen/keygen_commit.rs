@@ -11,7 +11,7 @@ use crate::{
 };
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use tracing::{error, instrument};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -26,7 +26,7 @@ impl KeygenCommit {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub(crate) struct KeygenDecommit<C: CurveTrait> {
     ///`sid` corresponds to a unique session identifier.
     pub sid: Identifier,
@@ -37,7 +37,7 @@ pub(crate) struct KeygenDecommit<C: CurveTrait> {
     pub A: C,
 }
 
-impl<C: CurveTrait + DeserializeOwned> KeygenDecommit<C> {
+impl<C: CurveTrait> KeygenDecommit<C> {
     ///`sid` corresponds to a unique session identifier.
     pub(crate) fn new<R: RngCore + CryptoRng>(
         rng: &mut R,

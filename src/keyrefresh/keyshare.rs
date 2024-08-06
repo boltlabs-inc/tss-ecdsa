@@ -114,7 +114,7 @@ impl<C: CurveTrait> AsRef<BigNumber> for KeyUpdatePrivate<C> {
 
 /// A curve point representing a given [`Participant`](crate::Participant)'s
 /// public key.
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct KeyUpdatePublic<C: CurveTrait> {
     participant: ParticipantIdentifier,
     X: C,

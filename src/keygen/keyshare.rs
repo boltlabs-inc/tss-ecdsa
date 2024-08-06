@@ -7,11 +7,11 @@
 // of this source tree.
 
 use crate::{
-    curve_point::{k256_order, CurvePoint, CurveTrait}, errors::{CallerError, Result}, utils::ParseBytes, ParticipantIdentifier
+    curve_point::{k256_order, CurveTrait}, errors::{CallerError, Result}, utils::ParseBytes, ParticipantIdentifier
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::fmt::Debug;
 use tracing::error;
 use zeroize::Zeroize;
@@ -142,7 +142,7 @@ impl<C: CurveTrait> AsRef<BigNumber> for KeySharePrivate<C> {
 
 /// A curve point representing a given [`Participant`](crate::Participant)'s
 /// public key.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct KeySharePublic<C: CurveTrait> {
     participant: ParticipantIdentifier,
     X: C,

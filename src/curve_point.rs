@@ -20,6 +20,7 @@ use k256::{
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::Debug;
 use std::ops::Add;

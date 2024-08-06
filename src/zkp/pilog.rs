@@ -28,7 +28,6 @@ use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
-use crate::curve_point::CurvePoint;
 
 /// Proof of knowledge that:
 /// 1. the committed value in a discrete log commitment and the plaintext value
@@ -347,7 +346,7 @@ impl<C: CurveTrait + DeserializeOwned> Proof for PiLogProof<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve_point::{testing::init_testing, CurveTrait}, paillier::{DecryptionKey, Nonce}, ring_pedersen::VerifiedRingPedersen, utils::random_plusminus_by_size_with_minimum, zkp::BadContext
+        curve_point::{testing::init_testing, CurvePoint, CurveTrait}, paillier::{DecryptionKey, Nonce}, ring_pedersen::VerifiedRingPedersen, utils::random_plusminus_by_size_with_minimum, zkp::BadContext
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
@@ -355,7 +354,7 @@ mod tests {
         Transcript::new(b"PiLogProof Test")
     }
 
-    fn with_random_paillier_log_proof<R: RngCore + CryptoRng, C: CurveTrait + DeserializeOwned>(
+    fn with_random_paillier_log_proof<R: RngCore + CryptoRng, C: CurveTrait>(
         rng: &mut R,
         x: &BigNumber,
         mut f: impl FnMut(PiLogProof<C>, CommonInput<C>) -> Result<()>,
@@ -382,7 +381,7 @@ mod tests {
         f(proof, input)
     }
 
-    fn random_paillier_log_proof_verification<R: RngCore + CryptoRng, C: CurveTrait + DeserializeOwned>(
+    fn random_paillier_log_proof_verification<R: RngCore + CryptoRng, C: CurveTrait>(
         rng: &mut R,
         x: &BigNumber,
     ) -> Result<()> {
@@ -398,7 +397,7 @@ mod tests {
         pilog_proof_with_consistent_secret_inputs_out_of_range::<StdRng, CurvePoint>().unwrap();
     }
 
-    fn pilog_proof_with_consistent_secret_inputs_out_of_range<R: RngCore + CryptoRng, C: CurveTrait + DeserializeOwned>() -> Result<()> {
+    fn pilog_proof_with_consistent_secret_inputs_out_of_range<R: RngCore + CryptoRng, C: CurveTrait>() -> Result<()> {
         let mut rng = init_testing();
         let upper_bound = BigNumber::one() << (ELL + EPSILON);
         loop {
@@ -431,7 +430,7 @@ mod tests {
         let _ = pilog_proof_with_different_setup_parameters::<CurvePoint>();
     }
 
-    fn pilog_proof_with_different_setup_parameters<C: CurveTrait + DeserializeOwned>() -> Result<()> {
+    fn pilog_proof_with_different_setup_parameters<C: CurveTrait>() -> Result<()> {
         let mut rng = init_testing();
         let x = random_plusminus_by_size(&mut rng, ELL);
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
@@ -548,7 +547,7 @@ mod tests {
         let _ = pilog_proof_with_inconsistent_secret_inputs::<CurvePoint>();
     }
 
-    fn pilog_proof_with_inconsistent_secret_inputs<C: CurveTrait + DeserializeOwned>() -> Result<()> 
+    fn pilog_proof_with_inconsistent_secret_inputs<C: CurveTrait>() -> Result<()> 
     {
         let mut rng = init_testing();
 
@@ -598,7 +597,7 @@ mod tests {
         negative_test_swap_proof_elements::<CurvePoint>().unwrap();
     }
 
-    fn negative_test_swap_proof_elements<C: CurveTrait + DeserializeOwned>() -> Result<()> {
+    fn negative_test_swap_proof_elements<C: CurveTrait>() -> Result<()> {
         let mut rng = init_testing();
         // `rng` will be borrowed. We make another rng to be captured by the closure.
         let mut rng2 = StdRng::from_seed(rng.gen());
@@ -681,7 +680,7 @@ mod tests {
         pilog_proof_context_must_be_correct::<CurvePoint>().unwrap();
     }
 
-    fn pilog_proof_context_must_be_correct<C: CurveTrait + DeserializeOwned>() -> Result<()> {
+    fn pilog_proof_context_must_be_correct<C: CurveTrait>() -> Result<()> {
         let mut rng = init_testing();
 
         let context = BadContext {};

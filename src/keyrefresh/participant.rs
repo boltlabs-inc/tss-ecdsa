@@ -757,7 +757,7 @@ impl<C: CurveTrait> KeyrefreshParticipant<C> {
                 .iter()
                 .map(|pid| {
                     self.local_storage
-                        .remove::<storage::ValidPublicUpdates<CurvePoint>>(*pid)
+                        .remove::<storage::ValidPublicUpdates<C>>(*pid)
                 })
                 .collect::<Result<Vec<_>>>()?;
             let all_public_updates =
@@ -814,7 +814,7 @@ impl<C: CurveTrait> KeyrefreshParticipant<C> {
         }
     }
 
-    fn aggregate_private_updates(update_privates: &[KeyUpdatePrivate<CurvePoint>]) -> KeyUpdatePrivate<CurvePoint> {
+    fn aggregate_private_updates(update_privates: &[KeyUpdatePrivate<C>]) -> KeyUpdatePrivate<C> {
         KeyUpdatePrivate::sum(update_privates)
     }
 
