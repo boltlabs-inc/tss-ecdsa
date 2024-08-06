@@ -158,7 +158,7 @@ fn generate_challenge<C: CurveTrait>(
 }
 
 impl<C: CurveTrait + DeserializeOwned> Proof for PiLogProof<C> {
-    type CommonInput<'a> = CommonInput<'a, C> where C: 'a;
+    type CommonInput<'a> = CommonInput<'a, C>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiLogProof"))]
     fn prove<'a, R: RngCore + CryptoRng>(
