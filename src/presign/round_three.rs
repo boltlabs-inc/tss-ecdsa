@@ -21,24 +21,64 @@ use crate::{
         Proof,
     },
 };
-use k256::{elliptic_curve::PrimeField, Scalar};
+use k256::{
+    elliptic_curve::{subtle::CtOption, PrimeField},
+    Scalar,
+};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::AddAssign};
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
-#[derive(Clone, ZeroizeOnDrop)]
+#[derive(Clone)]
 pub(crate) struct Private {
-    pub k: BigNumber,
-    pub chi: Scalar,
-    #[zeroize(skip)]
+    pub k: SecretBigNumber,
+    pub chi: SecretScalar,
+    /// Gamma is not secret and does not need to be zeroized.
     pub Gamma: CurvePoint,
-    #[zeroize(skip)]
-    pub delta: Scalar,
-    #[zeroize(skip)]
+    pub delta: SecretScalar,
+    /// Delta is not secret and does not need to be zeroized.
     pub Delta: CurvePoint,
+}
+#[derive(Clone, ZeroizeOnDrop)]
+pub(crate) struct SecretBigNumber(BigNumber);
+
+impl SecretBigNumber {
+    pub fn from_number(bn: BigNumber) -> SecretBigNumber {
+        SecretBigNumber(bn)
+    }
+    /// This method gives you access to the underlying secret bignumber. We
+    /// should be careful about cloning the returned reference.
+    pub fn get_bignumber_secret(&self) -> &BigNumber {
+        &self.0
+    }
+}
+
+#[derive(Clone, ZeroizeOnDrop, Debug)]
+pub(crate) struct SecretScalar(Scalar);
+
+impl SecretScalar {
+    pub fn from_scalar(scalar: Scalar) -> SecretScalar {
+        SecretScalar(scalar)
+    }
+
+    pub fn invert(&self) -> CtOption<SecretScalar> {
+        self.get_scalar_secret().invert().map(SecretScalar)
+    }
+
+    /// This method gives you access to the underlying secret scalar. We should
+    /// be careful about cloning the returned reference.
+    pub fn get_scalar_secret(&self) -> &Scalar {
+        &self.0
+    }
+}
+
+impl AddAssign<&SecretScalar> for SecretScalar {
+    fn add_assign(&mut self, other: &SecretScalar) {
+        self.0 += &other.0;
+    }
 }
 
 impl Debug for Private {
