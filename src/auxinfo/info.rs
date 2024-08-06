@@ -17,7 +17,10 @@ use crate::{
 use k256::elliptic_curve::zeroize::ZeroizeOnDrop;
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{
+    fmt::Debug,
+    hash::{Hash, Hasher},
+};
 use tracing::{error, instrument};
 use zeroize::Zeroize;
 /// Private auxiliary information for a specific
@@ -143,7 +146,7 @@ impl Debug for AuxInfoPrivate {
 ///
 /// This includes a Paillier encryption key and corresponding ring-Pedersen
 /// commitment parameters.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AuxInfoPublic {
     /// The participant's identifier.
     participant: ParticipantIdentifier,
@@ -152,6 +155,20 @@ pub struct AuxInfoPublic {
     /// The participant's (verified) ring-Pedersen parameters.
     params: VerifiedRingPedersen,
 }
+
+impl PartialEq for AuxInfoPublic {
+    fn eq(&self, other: &Self) -> bool {
+        self.participant == other.participant
+    }
+}
+
+impl Hash for AuxInfoPublic {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.participant.hash(state);
+    }
+}
+
+impl Eq for AuxInfoPublic {}
 
 impl AuxInfoPublic {
     pub(crate) fn new(
