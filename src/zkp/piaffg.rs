@@ -193,7 +193,7 @@ impl<'a> PiAffgSecret<'a> {
 }
 
 impl<C: CurveTrait + DeserializeOwned> Proof for PiAffgProof<C> {
-    type CommonInput<'a> = PiAffgInput<'a, C> where C: 'a;
+    type CommonInput<'a> = PiAffgInput<'a, C>;
     type ProverSecret<'b> = PiAffgSecret<'b>;
 
     #[cfg_attr(feature = "flame_it", flame("PiAffgProof"))]
