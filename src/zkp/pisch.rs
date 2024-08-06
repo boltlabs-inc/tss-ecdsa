@@ -35,7 +35,6 @@ use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{convert::AsRef, fmt::Debug};
 use tracing::error;
-use crate::curve_point::CurvePoint;
 
 /// Proof of knowledge of discrete logarithm of a group element which is the
 /// commitment to the secret.
@@ -268,7 +267,7 @@ impl<C: CurveTrait + DeserializeOwned> PiSchProof<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{curve_point::testing::init_testing, zkp::BadContext};
+    use crate::{curve_point::{testing::init_testing, CurvePoint}, zkp::BadContext};
     fn transcript() -> Transcript {
         Transcript::new(b"PiSchProof Test")
     }
