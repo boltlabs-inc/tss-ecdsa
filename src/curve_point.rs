@@ -202,7 +202,9 @@ impl CurveTrait for CurvePoint {
     }
 
     fn curve_order() -> BigNumber {
-        k256_order()
+        // Set order = q
+        let order_bytes: [u8; 32] = CurvePoint::ORDER.to_be_bytes();
+        BigNumber::from_slice(order_bytes)
     }
 
     fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {

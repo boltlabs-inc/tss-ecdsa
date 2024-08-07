@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve_point::{CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::{KeySharePrivate, KeySharePublic}, paillier::{Ciphertext, DecryptionKey, EncryptionKey}, ParticipantIdentifier
+    curve_point::CurveTrait, errors::{CallerError, InternalError, Result}, keygen::{KeySharePrivate, KeySharePublic}, paillier::{Ciphertext, DecryptionKey, EncryptionKey}, ParticipantIdentifier
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
@@ -199,7 +199,7 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo,
-        curve_point::testing::init_testing,
+        curve_point::{testing::init_testing, CurvePoint},
     };
     use rand::rngs::StdRng;
 
