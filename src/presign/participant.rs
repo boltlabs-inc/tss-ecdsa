@@ -915,7 +915,7 @@ impl<C: CurveTrait> PresignKeyShareAndInfo<C> {
         HashMap<ParticipantIdentifier, round_one::Public>,
         round_one::PublicBroadcast,
     )> {
-        let order = k256_order();
+        let order = C::curve_order();
 
         let k = random_positive_bn(rng, &order);
         let gamma = random_positive_bn(rng, &order);
@@ -1106,7 +1106,7 @@ impl<C: CurveTrait> PresignKeyShareAndInfo<C> {
         round_three::Private,
         HashMap<ParticipantIdentifier, round_three::Public<C>>,
     )> {
-        let order = k256_order();
+        let order = C::curve_order();
         let g = C::generator();
 
         let mut delta: BigNumber = sender_r1_priv.gamma.modmul(&sender_r1_priv.k, &order);

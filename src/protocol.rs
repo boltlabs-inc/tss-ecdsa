@@ -11,7 +11,7 @@
 //! This module includes the main [`Participant`] driver.
 
 use crate::{
-    curve_point::{k256_order, CurveTrait}, errors::{CallerError, InternalError, Result}, messages::{Message, MessageType}, participant::{InnerProtocolParticipant, ProtocolParticipant, Status}, protocol::participant_config::ParticipantConfig, zkp::ProofContext
+    curve_point::CurveTrait, errors::{CallerError, InternalError, Result}, messages::{Message, MessageType}, participant::{InnerProtocolParticipant, ProtocolParticipant, Status}, protocol::participant_config::ParticipantConfig, zkp::ProofContext
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, Rng, RngCore};
@@ -451,7 +451,7 @@ impl<C: CurveTrait> SharedContext<C> {
         let participant2 = ParticipantIdentifier::random(rng);
         let participants = vec![participant, participant2];
         let generator = C::generator();
-        let order = k256_order();
+        let order = C::curve_order();
         SharedContext::<C> {
             sid,
             participants,
@@ -464,7 +464,7 @@ impl<C: CurveTrait> SharedContext<C> {
         let mut participants = p.all_participants();
         participants.sort();
         let generator = C::generator();
-        let order = k256_order();
+        let order = C::curve_order();
         SharedContext::<C> {
             sid: p.sid(),
             participants,
@@ -474,13 +474,15 @@ impl<C: CurveTrait> SharedContext<C> {
     }
     #[cfg(test)]
     pub fn fill_context(mut participants: Vec<ParticipantIdentifier>, sid: Identifier) -> Self {
+        use crate::curve_point::CurvePoint;
+
         participants.sort();
         let generator = C::generator();
         SharedContext::<C> {
             sid,
             participants,
             generator,
-            order: k256_order(),
+            order: CurvePoint::curve_order(),
         }
     }
 }

@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve_point::{k256_order, CurveTrait}, errors::{CallerError, Result}, utils::ParseBytes, ParticipantIdentifier
+    curve_point::CurveTrait, errors::{CallerError, Result}, utils::ParseBytes, ParticipantIdentifier
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
@@ -39,14 +39,14 @@ impl<C: CurveTrait> Debug for KeySharePrivate<C> {
 impl<C: CurveTrait> KeySharePrivate<C> {
     /// Sample a private key share uniformly at random.
     pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
-        let random_bn = BigNumber::from_rng(&k256_order(), rng);
+        let random_bn = BigNumber::from_rng(&C::curve_order(), rng);
         KeySharePrivate::<C> { x: random_bn, curve: std::marker::PhantomData }
     }
 
     /// Take a [`BigNumber`] as [`KeySharePrivate`]. `x_int` will be reduced
     /// modulo `q`.
     pub(crate) fn from_bigint(x_int: &BigNumber) -> Self {
-        let x = x_int.nmod(&k256_order());
+        let x = x_int.nmod(&C::curve_order());
         Self { x, curve: std::marker::PhantomData }
     }
 
@@ -106,7 +106,7 @@ impl<C: CurveTrait> KeySharePrivate<C> {
 
             // Check that the share itself is valid
             let share = BigNumber::from_slice(share_bytes);
-            if share >= k256_order() || share < BigNumber::one() {
+            if share >= C::curve_order() || share < BigNumber::one() {
                 Err(CallerError::DeserializationFailed)?
             }
 
@@ -187,7 +187,7 @@ impl<C: CurveTrait> AsRef<C> for KeySharePublic<C> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        curve_point::{k256_order, testing::init_testing, CurvePoint}, keygen::{keyshare::KEYSHARE_TAG, KeySharePrivate}
+        curve_point::{testing::init_testing, CurvePoint}, keygen::{keyshare::KEYSHARE_TAG, KeySharePrivate}
     };
 
     #[test]
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn keyshare_private_bytes_must_be_in_range() {
         // Share must be < k256_order()
-        let too_big = KeySharePrivate::<CurvePoint> { x: k256_order(), curve: std::marker::PhantomData };
+        let too_big = KeySharePrivate::<CurvePoint> { x: CurvePoint::curve_order(), curve: std::marker::PhantomData };
         let bytes = too_big.into_bytes();
         assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bytes).is_err());
 
@@ -280,7 +280,7 @@ mod tests {
         assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(KEYSHARE_TAG.to_vec()).is_err());
 
         // Length with no secret following doesn't pass
-        let share_len = k256_order().bit_length() / 8;
+        let share_len = CurvePoint::curve_order().bit_length() / 8;
         let bytes = [KEYSHARE_TAG, &share_len.to_le_bytes()].concat();
         assert!(KeySharePrivate::<CurvePoint>::try_from_bytes(bytes).is_err());
 

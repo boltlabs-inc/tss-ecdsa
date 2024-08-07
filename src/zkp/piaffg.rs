@@ -544,7 +544,7 @@ mod tests {
     use super::*;
     use crate::{
         paillier::DecryptionKey,
-        curve_point::{k256_order, testing::init_testing},
+        curve_point::testing::init_testing,
         utils::{random_plusminus, random_plusminus_by_size_with_minimum},
         zkp::BadContext,
     };
@@ -839,7 +839,7 @@ mod tests {
         let secret = PiAffgSecret::new(&x, &y, &rho, &rho_y);
 
         // Generate some random elements to use as replacements
-        let random_bignumber = random_plusminus(&mut rng, &k256_order());
+        let random_bignumber = random_plusminus(&mut rng, &CurvePoint::curve_order());
         let random_nonce = Nonce::random(&mut rng, input.prover_encryption_key.modulus());
 
         // Swap multi coefficient with a random [`BigNumber`]
@@ -915,7 +915,7 @@ mod tests {
 
             // Swap challenge with a random [`Bignumber`]
             let mut bad_proof = proof.clone();
-            bad_proof.challenge = random_plusminus(&mut rng, &k256_order());
+            bad_proof.challenge = random_plusminus(&mut rng, &CurvePoint::curve_order());
             assert_ne!(bad_proof.challenge, proof.challenge);
             assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 

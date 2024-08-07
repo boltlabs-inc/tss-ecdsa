@@ -328,7 +328,7 @@ fn sqrt(num: &BigNumber) -> BigNumber {
 #[cfg(test)]
 mod tests {
     use crate::{
-        curve_point::{k256_order, testing::init_testing}, paillier::prime_gen, utils::random_positive_bn, zkp::BadContext
+        curve_point::{testing::init_testing, CurvePoint}, paillier::prime_gen, utils::random_positive_bn, zkp::BadContext
     };
     use rand::{prelude::StdRng, Rng, SeedableRng};
 
@@ -522,7 +522,7 @@ mod tests {
         let mut rng2 = StdRng::from_seed(rng.gen());
         let proof_elements_must_be_correct = |input: CommonInput, proof: PiFacProof| {
             let mut incorrect_proof = proof.clone();
-            let random_bignumber = random_positive_bn(&mut rng, &k256_order());
+            let random_bignumber = random_positive_bn(&mut rng, &CurvePoint::curve_order());
             incorrect_proof.p_masked = random_bignumber.clone();
             assert!(incorrect_proof
                 .verify(input, &(), &mut transcript())

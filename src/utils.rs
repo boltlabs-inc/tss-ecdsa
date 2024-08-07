@@ -6,7 +6,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::curve_point::k256_order;
+use crate::curve_point::CurvePoint;
 use crate::errors::{CallerError, InternalError, Result};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -154,7 +154,7 @@ pub(crate) fn plusminus_challenge_from_transcript(
 
     // The sampling method samples from the open interval, so add 1 to sample from
     // the _closed_ interval we want here.
-    let q = k256_order();
+    let q = CurvePoint::curve_order();
     let open_interval_max = &q + 1;
     let b = positive_challenge_from_transcript(transcript, &open_interval_max)?;
     Ok(match is_neg {

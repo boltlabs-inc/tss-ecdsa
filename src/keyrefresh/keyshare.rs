@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve_point::{k256_order, CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::{KeySharePrivate, KeySharePublic}, paillier::{Ciphertext, DecryptionKey, EncryptionKey}, ParticipantIdentifier
+    curve_point::{CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::{KeySharePrivate, KeySharePublic}, paillier::{Ciphertext, DecryptionKey, EncryptionKey}, ParticipantIdentifier
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
@@ -23,12 +23,12 @@ pub struct KeyUpdateEncrypted {
 }
 
 impl KeyUpdateEncrypted {
-    pub fn encrypt<R: RngCore + CryptoRng>(
-        update: &KeyUpdatePrivate<CurvePoint>,
+    pub fn encrypt<R: RngCore + CryptoRng, C: CurveTrait>(
+        update: &KeyUpdatePrivate<C>,
         pk: &EncryptionKey,
         rng: &mut R,
     ) -> Result<Self> {
-        if &(k256_order() * 2) >= pk.modulus() {
+        if &(C::curve_order() * 2) >= pk.modulus() {
             error!("KeyUpdateEncrypted encryption failed, pk.modulus() is too small");
             Err(InternalError::InternalInvariantFailed)?;
         }
@@ -40,12 +40,12 @@ impl KeyUpdateEncrypted {
         Ok(KeyUpdateEncrypted { ciphertext })
     }
 
-    pub fn decrypt(&self, dk: &DecryptionKey) -> Result<KeyUpdatePrivate<CurvePoint>> {
+    pub fn decrypt<C: CurveTrait>(&self, dk: &DecryptionKey) -> Result<KeyUpdatePrivate<C>> {
         let x = dk.decrypt(&self.ciphertext).map_err(|_| {
             error!("KeyUpdateEncrypted decryption failed, ciphertext out of range",);
             CallerError::DeserializationFailed
         })?;
-        if x >= k256_order() || x < BigNumber::one() {
+        if x >= C::curve_order() || x < BigNumber::one() {
             error!("KeyUpdateEncrypted decryption failed, plaintext out of range");
             Err(CallerError::DeserializationFailed)?;
         }
@@ -70,7 +70,7 @@ impl<C: CurveTrait> Debug for KeyUpdatePrivate<C> {
 impl<C: CurveTrait> KeyUpdatePrivate<C> {
     /// Sample a private key share uniformly at random.
     pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
-        let random_bn = BigNumber::from_rng(&k256_order(), rng);
+        let random_bn = BigNumber::from_rng(&C::curve_order(), rng);
         KeyUpdatePrivate { x: random_bn, _curve: std::marker::PhantomData }
     }
 
@@ -80,7 +80,7 @@ impl<C: CurveTrait> KeyUpdatePrivate<C> {
         let sum = others
             .iter()
             .fold(BigNumber::zero(), |sum, o| sum + o.x.clone());
-        let balance = (-sum).nmod(&k256_order());
+        let balance = (-sum).nmod(&C::curve_order());
         KeyUpdatePrivate { x: balance, _curve: std::marker::PhantomData }
     }
 
@@ -88,7 +88,7 @@ impl<C: CurveTrait> KeyUpdatePrivate<C> {
         let sum = shares
             .iter()
             .fold(BigNumber::zero(), |sum, o| sum + o.x.clone())
-            .nmod(&k256_order());
+            .nmod(&C::curve_order());
         KeyUpdatePrivate { x: sum, _curve: std::marker::PhantomData }
     }
 
@@ -199,7 +199,7 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo,
-        curve_point::{k256_order, testing::init_testing},
+        curve_point::testing::init_testing,
     };
     use rand::rngs::StdRng;
 
@@ -211,7 +211,7 @@ mod tests {
         let dk = auxinfo.private_auxinfo().decryption_key();
         let pk = auxinfo.find_public(pid).unwrap().pk();
         assert!(
-            &(k256_order() * 2) < pk.modulus(),
+            &(CurvePoint::curve_order() * 2) < pk.modulus(),
             "the Paillier modulus is supposed to be much larger than the k256 order"
         );
         (rng, pk.clone(), dk.clone())
@@ -236,7 +236,7 @@ mod tests {
         let rng = &mut rng;
 
         // Encrypt invalid shares.
-        for x in [BigNumber::zero(), -BigNumber::one(), k256_order()].iter() {
+        for x in [BigNumber::zero(), -BigNumber::one(), CurvePoint::curve_order()].iter() {
             let share = KeyUpdatePrivate::<CurvePoint> { x: x.clone(), _curve: std::marker::PhantomData };
             let encrypted =
                 KeyUpdateEncrypted::encrypt(&share, &pk, rng).expect("encryption failed");

@@ -288,7 +288,7 @@ impl PiEncProof {
 mod tests {
     use super::*;
     use crate::{
-        curve_point::{k256_order, testing::init_testing}, paillier::DecryptionKey, utils::{random_plusminus, random_plusminus_by_size_with_minimum, random_positive_bn}, zkp::BadContext
+        curve_point::{testing::init_testing, CurvePoint}, paillier::DecryptionKey, utils::{random_plusminus, random_plusminus_by_size_with_minimum, random_positive_bn}, zkp::BadContext
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
@@ -456,7 +456,7 @@ mod tests {
             // Bad challenge fails
             {
                 let mut bad_proof = proof.clone();
-                bad_proof.challenge = random_plusminus(rng2, &k256_order());
+                bad_proof.challenge = random_plusminus(rng2, &CurvePoint::curve_order());
                 assert_ne!(bad_proof.challenge, proof.challenge);
                 assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
             }
