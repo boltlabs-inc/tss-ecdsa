@@ -78,6 +78,7 @@ impl<'de> CurvePoint {
         Self(self.0 * point)
     }
 
+    // Returns x: BigNumber as a k256::Scalar mod k256_order
     fn bn_to_scalar(x: &BigNumber) -> Result<Scalar> {
 
         // Take (mod q)
@@ -243,41 +244,6 @@ impl CurveTrait for CurvePoint {
     fn bn_to_scalar(x: &BigNumber) -> Result<Scalar> {
         CurvePoint::bn_to_scalar(x)
     }
-}
-
-// Returns x: BigNumber as a k256::Scalar mod k256_order
-//pub(crate) fn bn_to_scalar<C: CurveTrait>(x: &BigNumber) -> Result<k256::Scalar> {
-/*pub(crate) fn bn_to_scalar(x: &BigNumber) -> Result<k256::Scalar> {
-    // Take (mod q)
-    //let order = C::curve_order();
-    // Call curve_order() to get the order of the curve
-    let order = k256_order();
-
-    let x_modded = x % order;
-    let bytes = x_modded.to_bytes();
-
-    let mut slice = vec![0u8; 32 - bytes.len()];
-    slice.extend_from_slice(&bytes);
-    let mut ret: k256::Scalar = Option::from(k256::Scalar::from_repr(
-        GenericArray::clone_from_slice(&slice),
-    ))
-    .ok_or_else(|| {
-        error!("Failed to convert BigNumber into k256::Scalar");
-        InternalError::InternalInvariantFailed
-    })?;
-
-    // Make sure to negate the scalar if the original input was negative
-    if x < &BigNumber::zero() {
-        ret = ret.negate();
-    }
-
-    Ok(ret)
-}*/
-
-pub(crate) fn k256_order() -> BigNumber {
-    // Set order = q
-    let order_bytes: [u8; 32] = k256::Secp256k1::ORDER.to_be_bytes();
-    BigNumber::from_slice(order_bytes)
 }
 
 #[cfg(test)]
