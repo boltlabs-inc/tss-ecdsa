@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve_point::{bn_to_scalar, CurvePoint, CurveTrait}, errors::{
+    curve_point::{CurvePoint, CurveTrait}, errors::{
         CallerError,
         InternalError::{InternalInvariantFailed, ProtocolError},
         Result,
@@ -95,7 +95,7 @@ impl<C: CurveTrait> TryFrom<RecordPair<C>> for PresignRecord<C> {
 
         Ok(PresignRecord {
             R,
-            k: bn_to_scalar(&private.k)?,
+            k: C::bn_to_scalar(&private.k)?,
             chi: private.chi,
         })
     }
@@ -252,7 +252,7 @@ mod tests {
     use rand::{rngs::StdRng, CryptoRng, Rng, RngCore, SeedableRng};
 
     use crate::{
-        curve_point::{bn_to_scalar, testing::init_testing, CurvePoint, CurveTrait}, keygen, presign::{participant::presign_record_set_is_valid, record::RECORD_TAG}, ParticipantConfig, PresignRecord
+        curve_point::{testing::init_testing, CurvePoint, CurveTrait}, keygen, presign::{participant::presign_record_set_is_valid, record::RECORD_TAG}, ParticipantConfig, PresignRecord
     };
 
     impl<C: CurveTrait> PresignRecord<C> {
@@ -297,7 +297,7 @@ mod tests {
             // Compute the masked key shares as (secret_key_share * mask)
             let masked_key_shares = keygen_outputs
                 .iter()
-                .map(|output| bn_to_scalar(output.private_key_share().as_ref()).unwrap())
+                .map(|output| CurvePoint::bn_to_scalar(output.private_key_share().as_ref()).unwrap())
                 .map(|secret_key_share| secret_key_share * mask);
 
             assert_eq!(masked_key_shares.len(), keygen_outputs.len());

@@ -9,7 +9,7 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::{AuxInfoPrivate, AuxInfoPublic}, broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::{bn_to_scalar, CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::{KeySharePrivate, KeySharePublic}, local_storage::LocalStorage, messages::{Message, MessageType, PresignMessageType}, parameters::ELL_PRIME, participant::{Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant}, presign::{
+    auxinfo::{AuxInfoPrivate, AuxInfoPublic}, broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::{CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::{KeySharePrivate, KeySharePublic}, local_storage::LocalStorage, messages::{Message, MessageType, PresignMessageType}, parameters::ELL_PRIME, participant::{Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant}, presign::{
         input::Input,
         record::{PresignRecord, RecordPair},
         round_one, round_three, round_two,
@@ -1154,8 +1154,8 @@ impl<C: CurveTrait> PresignKeyShareAndInfo<C> {
 
         let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k)?;
 
-        let delta_scalar = bn_to_scalar(&delta)?;
-        let chi_scalar = bn_to_scalar(&chi)?;
+        let delta_scalar = C::bn_to_scalar(&delta)?;
+        let chi_scalar = C::bn_to_scalar(&chi)?;
 
         let mut ret_publics = HashMap::new();
         for (other_id, round_three_input) in other_participant_inputs {
@@ -1216,7 +1216,7 @@ mod test {
         messages::{Message, MessageType, PresignMessageType},
         participant::{ProcessOutcome, Status},
         presign::{Input, PresignRecord},
-        curve_point::{self, testing::init_testing, CurvePoint},
+        curve_point::{testing::init_testing, CurvePoint},
         Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
     };
 
@@ -1294,7 +1294,7 @@ mod test {
             .map(|output| output.private_key_share())
             .fold(BigNumber::zero(), |sum, key_share| sum + key_share.as_ref());
         // Converting to scalars automatically gets us the mod q
-        assert_eq!(masked_key, curve_point::bn_to_scalar(&secret_key).unwrap() * mask);
+        assert_eq!(masked_key, CurvePoint::bn_to_scalar(&secret_key).unwrap() * mask);
     }
 
     #[test]

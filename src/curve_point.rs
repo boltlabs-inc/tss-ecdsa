@@ -71,11 +71,38 @@ impl<'de> CurvePoint {
     /// converting it. This may be insecure if the point contains private
     /// data.
     pub(crate) fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
-        Ok(self.multiply_by_scalar(&bn_to_scalar(point)?))
+        Ok(self.multiply_by_scalar(&Self::bn_to_scalar(point)?))
     }
 
     pub(crate) fn multiply_by_scalar(&self, point: &Scalar) -> Self {
         Self(self.0 * point)
+    }
+
+    fn bn_to_scalar(x: &BigNumber) -> Result<Scalar> {
+
+        // Take (mod q)
+        let order = Self::curve_order();
+
+        let x_modded = x % order;
+        let bytes = x_modded.to_bytes();
+
+        let mut slice = vec![0u8; 32 - bytes.len()];
+        slice.extend_from_slice(&bytes);
+        let mut ret: k256::Scalar = Option::from(k256::Scalar::from_repr(
+            GenericArray::clone_from_slice(&slice),
+        ))
+        .ok_or_else(|| {
+            error!("Failed to convert BigNumber into k256::Scalar");
+            InternalError::InternalInvariantFailed
+        })?;
+
+        // Make sure to negate the scalar if the original input was negative
+        if x < &BigNumber::zero() {
+            ret = ret.negate();
+        }
+
+        Ok(ret)
+
     }
 
     /// Serialize the `CurvePoint` as an affine-encoded secp256k1 byte array.
@@ -188,6 +215,8 @@ pub trait CurveTrait: Serialize + Clone + Debug + Eq + PartialEq + Zeroize + Add
     fn curve_order() -> BigNumber;
     
     fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> where Self: Sized;
+
+    fn bn_to_scalar(x: &BigNumber) -> Result<Scalar>;
 }
 
 /// Implement the CurveTrait for the CurvePoint
@@ -210,11 +239,15 @@ impl CurveTrait for CurvePoint {
     fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
         self.multiply_by_bignum(point)
     }
+    
+    fn bn_to_scalar(x: &BigNumber) -> Result<Scalar> {
+        CurvePoint::bn_to_scalar(x)
+    }
 }
 
 // Returns x: BigNumber as a k256::Scalar mod k256_order
 //pub(crate) fn bn_to_scalar<C: CurveTrait>(x: &BigNumber) -> Result<k256::Scalar> {
-pub(crate) fn bn_to_scalar(x: &BigNumber) -> Result<k256::Scalar> {
+/*pub(crate) fn bn_to_scalar(x: &BigNumber) -> Result<k256::Scalar> {
     // Take (mod q)
     //let order = C::curve_order();
     // Call curve_order() to get the order of the curve
@@ -239,7 +272,7 @@ pub(crate) fn bn_to_scalar(x: &BigNumber) -> Result<k256::Scalar> {
     }
 
     Ok(ret)
-}
+}*/
 
 pub(crate) fn k256_order() -> BigNumber {
     // Set order = q
@@ -277,7 +310,7 @@ mod tests {
         let neg1 = BigNumber::zero() - BigNumber::one();
 
         //let scalar = bn_to_scalar::<CurvePoint>(&neg1).unwrap();
-        let scalar = bn_to_scalar(&neg1).unwrap();
+        let scalar = CurvePoint::bn_to_scalar(&neg1).unwrap();
         assert_eq!(k256::Scalar::ZERO, scalar.add(&k256::Scalar::ONE));
     }
 }

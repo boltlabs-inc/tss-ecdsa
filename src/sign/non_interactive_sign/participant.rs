@@ -438,7 +438,7 @@ mod test {
     use tracing::debug;
 
     use crate::{
-        curve_point::{bn_to_scalar, testing::init_testing, CurvePoint}, errors::Result, keygen, messages::{Message, MessageType}, participant::{ProcessOutcome, Status}, presign::PresignRecord, sign::{self, Signature}, Identifier, ParticipantConfig, ProtocolParticipant
+        curve_point::{testing::init_testing, CurvePoint}, errors::Result, keygen, messages::{Message, MessageType}, participant::{ProcessOutcome, Status}, presign::PresignRecord, sign::{self, Signature}, Identifier, ParticipantConfig, ProtocolParticipant
     };
 
     use super::SignParticipant;
@@ -494,7 +494,7 @@ mod test {
 
         let secret_key = keygen_outputs
             .iter()
-            .map(|output| bn_to_scalar(output.private_key_share().as_ref()).unwrap())
+            .map(|output| CurvePoint::bn_to_scalar(output.private_key_share().as_ref()).unwrap())
             .fold(Scalar::ZERO, |a, b| a + b);
 
         let r = records[0].x_projection().unwrap();
