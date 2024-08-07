@@ -27,7 +27,7 @@
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
 //! [EPrint archive, 2021](https://eprint.iacr.org/2021/060.pdf).
 use crate::{
-    curve_point::{k256_order, CurveTrait}, errors::*, messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType}, utils::{positive_challenge_from_transcript, random_positive_bn}, zkp::{Proof, ProofContext}
+    curve_point::CurveTrait, errors::*, messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType}, utils::{positive_challenge_from_transcript, random_positive_bn}, zkp::{Proof, ProofContext}
 };
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -135,7 +135,7 @@ impl<C: CurveTrait + DeserializeOwned> Proof for PiSchProof<C>
         Self::fill_transcript(transcript, context, &input, &self.commitment)?;
 
         // Verifier samples e in F_q
-        let challenge = positive_challenge_from_transcript(transcript, &k256_order())?;
+        let challenge = positive_challenge_from_transcript(transcript, &C::curve_order())?;
         if challenge != self.challenge {
             error!("Fiat-Shamir consistency check failed");
             return Err(InternalError::ProtocolError(None));
