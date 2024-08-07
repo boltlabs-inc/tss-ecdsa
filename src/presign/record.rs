@@ -81,7 +81,7 @@ impl<C: CurveTrait> TryFrom<RecordPair<C>> for PresignRecord<C> {
             Delta = Delta + p.Delta;
         }
 
-        let g = CurvePoint::GENERATOR;
+        let g = C::generator();
         if g.multiply_by_scalar(&delta) != Delta {
             error!("Could not create PresignRecord: mismatch between calculated private and public deltas");
             return Err(ProtocolError(None));

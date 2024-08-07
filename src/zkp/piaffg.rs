@@ -419,7 +419,7 @@ impl<C: CurveTrait + DeserializeOwned> Proof for PiAffgProof<C> {
         }
         // Check that the masked group exponentiation is valid.
         let masked_group_exponentiation_is_valid = {
-            let lhs = CurvePoint::GENERATOR.multiply_by_bignum(&self.masked_mult_coeff)?;
+            let lhs = C::GENERATOR.multiply_by_bignum(&self.masked_mult_coeff)?;
             let rhs = self.random_mult_coeff_exp
                 + input.mult_coeff_exp.multiply_by_bignum(&self.challenge)?;
             lhs == rhs
