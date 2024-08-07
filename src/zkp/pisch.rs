@@ -49,8 +49,6 @@ pub(crate) struct PiSchProof<C>
     /// Response binding the commitment randomness used in the commitment (`z`
     /// in the paper).
     response: BigNumber,
-    /// Marker to pin the curve type.
-    curve: std::marker::PhantomData<C>,
 }
 
 /// Commitment to the mask selected in the commitment phase of the proof.
@@ -163,7 +161,7 @@ impl<C: CurveTrait + DeserializeOwned> PiSchProof<C> {
     /// "Commitment" phase of the PiSch proof.
     pub fn precommit<R: RngCore + CryptoRng>(rng: &mut R) -> Result<PiSchPrecommit<C>> {
         // Sample alpha from F_q
-        let randomness_for_commitment = random_positive_bn(rng, &k256_order());
+        let randomness_for_commitment = random_positive_bn(rng, &C::curve_order());
         // Form a commitment to the mask
         let precommitment = C::generator().multiply_by_bignum(&randomness_for_commitment)?;
         Ok(PiSchPrecommit {
@@ -186,12 +184,12 @@ impl<C: CurveTrait + DeserializeOwned> PiSchProof<C> {
         Self::fill_transcript(&mut local_transcript, context, input, &commitment)?;
 
         // Verifier samples e in F_q
-        let challenge = positive_challenge_from_transcript(&mut local_transcript, &k256_order())?;
+        let challenge = positive_challenge_from_transcript(&mut local_transcript, &C::curve_order())?;
 
         // Create a response by masking the secret with the challenge and mask
         let response = com.randomness_for_commitment.modadd(
-            &challenge.modmul(secret.discrete_logarithm, &k256_order()),
-            &k256_order(),
+            &challenge.modmul(secret.discrete_logarithm, &C::curve_order()),
+            &C::curve_order(),
         );
 
         // Proof consists of all 3 messages in the 3 rounds
@@ -225,11 +223,11 @@ impl<C: CurveTrait + DeserializeOwned> PiSchProof<C> {
 
         let pisch_proofs: Vec<PiSchProof<C>> = deserialize!(&message.unverified_bytes)?;
         for pisch_proof in &pisch_proofs {
-            if pisch_proof.challenge >= k256_order() {
+            if pisch_proof.challenge >= C::curve_order() {
                 error!("the challenge is not in the field");
                 return Err(InternalError::ProtocolError(None));
             }
-            if pisch_proof.response >= k256_order() {
+            if pisch_proof.response >= C::curve_order() {
                 error!("the response is not in the field");
                 return Err(InternalError::ProtocolError(None));
             }
@@ -241,11 +239,11 @@ impl<C: CurveTrait + DeserializeOwned> PiSchProof<C> {
         message.check_type(MessageType::Keygen(KeygenMessageType::R3Proof))?;
 
         let pisch_proof: PiSchProof<C> = deserialize!(&message.unverified_bytes)?;
-        if pisch_proof.challenge >= k256_order() {
+        if pisch_proof.challenge >= C::curve_order() {
             error!("the challenge is not in the field");
             return Err(InternalError::ProtocolError(None));
         }
-        if pisch_proof.response >= k256_order() {
+        if pisch_proof.response >= C::curve_order() {
             error!("the response is not in the field");
             return Err(InternalError::ProtocolError(None));
         }
@@ -279,8 +277,8 @@ mod tests {
         additive: bool,
         test_code: impl Fn(PiSchProof<CurvePoint>, CommonInput<CurvePoint>) -> Result<()>,
     ) -> Result<()> {
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = CurvePoint::curve_order();
+        let g = CurvePoint::generator();
 
         let mut x = random_positive_bn(rng, &q);
         let x_commit = g.multiply_by_bignum(&x)?;
@@ -301,8 +299,8 @@ mod tests {
     fn proof_commitment_field_must_match_input() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = CurvePoint::curve_order();
+        let g = CurvePoint::generator();
 
         let x = random_positive_bn(&mut rng, &q);
 
@@ -330,8 +328,8 @@ mod tests {
     fn proof_response_field_must_match_input() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = CurvePoint::curve_order();
+        let g = CurvePoint::generator();
 
         let x = random_positive_bn(&mut rng, &q);
 
@@ -355,8 +353,8 @@ mod tests {
     fn generator_must_be_correct() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = CurvePoint::curve_order();
+        let g = CurvePoint::generator();
 
         let x = random_positive_bn(&mut rng, &q);
 
@@ -380,8 +378,8 @@ mod tests {
     fn secret_input_must_be_the_same_proving_and_verifying() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = CurvePoint::curve_order();
+        let g = CurvePoint::generator();
 
         let x = random_positive_bn(&mut rng, &q);
 
@@ -409,8 +407,8 @@ mod tests {
     fn common_input_must_be_the_same_proving_and_verifying() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = CurvePoint::curve_order();
+        let g = CurvePoint::generator();
 
         let x = random_positive_bn(&mut rng, &q);
 
@@ -474,8 +472,8 @@ mod tests {
     fn test_precommit_proof() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = CurvePoint::curve_order();
+        let g = CurvePoint::generator();
 
         let x = random_positive_bn(&mut rng, &q);
         let x_commit = g.multiply_by_bignum(&x)?;
