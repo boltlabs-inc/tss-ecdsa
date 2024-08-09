@@ -475,6 +475,7 @@ fn y_prime_combinations(
 #[cfg(test)]
 mod tests {
     use rand::{rngs::StdRng, Rng};
+    use crate::curve_point::CurveTrait;
 
     use super::*;
     use crate::{

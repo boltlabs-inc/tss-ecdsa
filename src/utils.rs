@@ -6,7 +6,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::curve_point::CurvePoint;
+use crate::curve_point::{CurveTrait, CurvePoint};
 use crate::errors::{CallerError, InternalError, Result};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;

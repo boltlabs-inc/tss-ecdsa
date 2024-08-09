@@ -109,7 +109,7 @@ impl<'a> ProverSecret<'a> {
 
 impl<C: CurveTrait + DeserializeOwned> Proof for PiSchProof<C> 
 {
-    type CommonInput<'a> = CommonInput<'a, C>;
+    type CommonInput<'a> = CommonInput<'a, C> where C: 'a;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiSchProof"))]
     fn prove<R: RngCore + CryptoRng>(
@@ -197,7 +197,6 @@ impl<C: CurveTrait + DeserializeOwned> PiSchProof<C> {
             commitment,
             challenge,
             response,
-            curve: std::marker::PhantomData,
         };
         Ok(proof)
     }

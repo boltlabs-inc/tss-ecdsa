@@ -28,7 +28,7 @@ use tracing::{error, info, instrument};
 
 // Local storage data types.
 mod storage {
-    use crate::{curve_point::CurvePoint, local_storage::TypeTag};
+    use crate::{curve_point::{CurvePoint, CurveTrait}, local_storage::TypeTag};
 
     pub(super) struct RoundOnePrivate;
     impl TypeTag for RoundOnePrivate {
@@ -46,17 +46,23 @@ mod storage {
     impl TypeTag for RoundTwoPrivate {
         type Value = crate::presign::round_two::Private;
     }
-    pub(super) struct RoundTwoPublic;
-    impl TypeTag for RoundTwoPublic {
-        type Value = crate::presign::round_two::Public<CurvePoint>;
+    pub(super) struct RoundTwoPublic<C: CurveTrait> {
+        pub(crate) curve: std::marker::PhantomData<C>,
     }
-    pub(super) struct RoundThreePrivate;
-    impl TypeTag for RoundThreePrivate {
-        type Value = crate::presign::round_three::Private;
+    impl<C: CurveTrait + 'static> TypeTag for RoundTwoPublic<C> {
+        type Value = crate::presign::round_two::Public<C>;
     }
-    pub(super) struct RoundThreePublic;
-    impl TypeTag for RoundThreePublic {
-        type Value = crate::presign::round_three::Public<CurvePoint>;
+    pub(super) struct RoundThreePrivate<C: CurveTrait> {
+        pub(crate) curve: std::marker::PhantomData<C>,
+    }
+    impl<C: CurveTrait + 'static> TypeTag for RoundThreePrivate<C> {
+        type Value = crate::presign::round_three::Private<C>;
+    }
+    pub(super) struct RoundThreePublic<C: CurveTrait> {
+        pub(crate) curve: std::marker::PhantomData<C>,
+    }
+    impl<C: CurveTrait + 'static> TypeTag for RoundThreePublic<C> {
+        type Value = crate::presign::round_three::Public<C>;
     }
 }
 
@@ -654,7 +660,7 @@ impl<C: CurveTrait> PresignParticipant<C> {
             .contains_for_all_ids::<storage::RoundTwoPrivate>(&self.other_participant_ids);
         let all_publics_received = self
             .local_storage
-            .contains_for_all_ids::<storage::RoundTwoPublic>(&self.other_participant_ids);
+            .contains_for_all_ids::<storage::RoundTwoPublic<C>>(&self.other_participant_ids);
         if all_privates_received && all_publics_received {
             info!("Presign: Round two complete. Generating round three messages.");
             // Generate messages for round three...
@@ -699,7 +705,7 @@ impl<C: CurveTrait> PresignParticipant<C> {
                 .retrieve::<storage::RoundTwoPrivate>(pid)?;
             let r2_public = self
                 .local_storage
-                .retrieve::<storage::RoundTwoPublic>(pid)?;
+                .retrieve::<storage::RoundTwoPublic<C>>(pid)?;
             let _ = hashmap.insert(
                 pid,
                 round_three::Input {
@@ -722,7 +728,7 @@ impl<C: CurveTrait> PresignParticipant<C> {
         )?;
 
         self.local_storage
-            .store::<storage::RoundThreePrivate>(self.id, r3_private);
+            .store::<storage::RoundThreePrivate<C>>(self.id, r3_private);
 
         let messages = r3_publics_map
             .into_iter()
@@ -753,7 +759,7 @@ impl<C: CurveTrait> PresignParticipant<C> {
         // private round three value exists in storage.
         if !self
             .local_storage
-            .contains::<storage::RoundThreePrivate>(self.id)
+            .contains::<storage::RoundThreePrivate<C>>(self.id)
         {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
@@ -766,7 +772,7 @@ impl<C: CurveTrait> PresignParticipant<C> {
         // presign record.
         if self
             .local_storage
-            .contains_for_all_ids::<storage::RoundThreePublic>(&self.other_participant_ids)
+            .contains_for_all_ids::<storage::RoundThreePublic<C>>(&self.other_participant_ids)
         {
             let record = self.do_presign_finish()?;
             self.status = Status::TerminatedSuccessfully;
@@ -779,7 +785,7 @@ impl<C: CurveTrait> PresignParticipant<C> {
     /// Finish the presign protocol.
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     #[instrument(skip_all, err(Debug))]
-    fn do_presign_finish(&mut self) -> Result<PresignRecord<CurvePoint>> {
+    fn do_presign_finish(&mut self) -> Result<PresignRecord<C>> {
         info!("Doing presign finish. Creating presign record.");
         // Collect the other participants' round three public values from storage.
         let r3_pubs = self
@@ -788,14 +794,14 @@ impl<C: CurveTrait> PresignParticipant<C> {
             .map(|pid| {
                 Ok(self
                     .local_storage
-                    .retrieve::<storage::RoundThreePublic>(*pid)?
+                    .retrieve::<storage::RoundThreePublic<C>>(*pid)?
                     .clone())
             })
             .collect::<Result<Vec<_>>>()?;
 
         let r3_private = self
             .local_storage
-            .retrieve::<storage::RoundThreePrivate>(self.id)?;
+            .retrieve::<storage::RoundThreePrivate<C>>(self.id)?;
 
         // Check consistency across all Gamma values
         for (i, r3_pub) in r3_pubs.iter().enumerate() {
@@ -810,7 +816,7 @@ impl<C: CurveTrait> PresignParticipant<C> {
 
         // Note: This `try_into` call does the check and computation specified
         // in Step 2 of Output in the paper's protocol specification (Figure 7).
-        let presign_record: PresignRecord = RecordPair {
+        let presign_record: PresignRecord<C> = RecordPair {
             private: r3_private.clone(),
             publics: r3_pubs,
         }
@@ -821,7 +827,7 @@ impl<C: CurveTrait> PresignParticipant<C> {
 
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     fn validate_and_store_round_two_public(&mut self, message: &Message) -> Result<()> {
-        self.check_for_duplicate_msg::<storage::RoundTwoPublic>(message.from())?;
+        self.check_for_duplicate_msg::<storage::RoundTwoPublic<C>>(message.from())?;
 
         let input = self.input();
 
@@ -846,14 +852,14 @@ impl<C: CurveTrait> PresignParticipant<C> {
         )?;
 
         self.local_storage
-            .store_once::<storage::RoundTwoPublic>(message.from(), round_two_public)?;
+            .store_once::<storage::RoundTwoPublic<C>>(message.from(), round_two_public)?;
 
         Ok(())
     }
 
     #[cfg_attr(feature = "flame_it", flame("presign"))]
     fn validate_and_store_round_three_public(&mut self, message: &Message) -> Result<()> {
-        self.check_for_duplicate_msg::<storage::RoundThreePublic>(message.from())?;
+        self.check_for_duplicate_msg::<storage::RoundThreePublic<C>>(message.from())?;
 
         let input = self.input();
         let receiver_auxinfo_public = input.find_auxinfo_public(message.to())?;
@@ -870,7 +876,7 @@ impl<C: CurveTrait> PresignParticipant<C> {
         )?;
 
         self.local_storage
-            .store_once::<storage::RoundThreePublic>(message.from(), public)?;
+            .store_once::<storage::RoundThreePublic<C>>(message.from(), public)?;
         Ok(())
     }
 }
@@ -1101,9 +1107,9 @@ impl<C: CurveTrait> PresignKeyShareAndInfo<C> {
         rng: &mut R,
         context: &ParticipantPresignContext<C>,
         sender_r1_priv: &round_one::Private,
-        other_participant_inputs: &HashMap<ParticipantIdentifier, round_three::Input<CurvePoint>>,
+        other_participant_inputs: &HashMap<ParticipantIdentifier, round_three::Input<C>>,
     ) -> Result<(
-        round_three::Private,
+        round_three::Private<C>,
         HashMap<ParticipantIdentifier, round_three::Public<C>>,
     )> {
         let order = C::curve_order();

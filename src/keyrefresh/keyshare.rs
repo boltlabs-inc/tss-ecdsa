@@ -223,7 +223,7 @@ mod tests {
         let rng = &mut rng;
 
         // Encryption round-trip.
-        let share = KeyUpdatePrivate::random(rng);
+        let share: KeyUpdatePrivate<CurvePoint> = KeyUpdatePrivate::random(rng);
         let encrypted = KeyUpdateEncrypted::encrypt(&share, &pk, rng).expect("encryption failed");
         let decrypted = encrypted.decrypt(&dk).expect("decryption failed");
 
@@ -241,7 +241,7 @@ mod tests {
             let encrypted =
                 KeyUpdateEncrypted::encrypt(&share, &pk, rng).expect("encryption failed");
             // Decryption reports an error.
-            let decrypt_result = encrypted.decrypt(&dk);
+            let decrypt_result = encrypted.decrypt::<CurvePoint>(&dk);
             assert!(decrypt_result.is_err());
         }
     }

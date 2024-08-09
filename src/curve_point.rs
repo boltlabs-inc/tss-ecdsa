@@ -79,7 +79,7 @@ impl<'de> CurvePoint {
     }
 
     // Returns x: BigNumber as a k256::Scalar mod k256_order
-    fn bn_to_scalar(x: &BigNumber) -> Result<Scalar> {
+    pub(crate) fn bn_to_scalar(x: &BigNumber) -> Result<Scalar> {
 
         // Take (mod q)
         let order = Self::curve_order();
@@ -206,7 +206,7 @@ pub(crate) fn random_bn_in_z_star<R: RngCore + CryptoRng>(
 }
 
 /// Common trait for curves
-pub trait CurveTrait: Serialize + Clone + Debug + Eq + PartialEq + Zeroize + Add<Output = Self> {
+pub trait CurveTrait: Serialize + Clone + Debug + Eq + PartialEq + Zeroize + Add<Output = Self> + Sync + Send{
     /// Returns the generator of the curve
     fn generator() -> Self;
     /// Returns the identity element of the curve
@@ -215,9 +215,17 @@ pub trait CurveTrait: Serialize + Clone + Debug + Eq + PartialEq + Zeroize + Add
     /// return the order of the curve
     fn curve_order() -> BigNumber;
     
+    fn x_affine(&self) -> FieldBytes;
+
     fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> where Self: Sized;
 
+    fn multiply_by_scalar(&self, point: &Scalar) -> Self;
+
     fn bn_to_scalar(x: &BigNumber) -> Result<Scalar>;
+    
+    fn to_bytes(self) -> Vec<u8>;
+
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self>;
 }
 
 /// Implement the CurveTrait for the CurvePoint
@@ -237,12 +245,28 @@ impl CurveTrait for CurvePoint {
         BigNumber::from_slice(order_bytes)
     }
 
+    fn x_affine(&self) -> FieldBytes {
+        self.x_affine()
+    }
+
     fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
         self.multiply_by_bignum(point)
+    }
+
+    fn multiply_by_scalar(&self, point: &Scalar) -> Self {
+        self.multiply_by_scalar(point)
     }
     
     fn bn_to_scalar(x: &BigNumber) -> Result<Scalar> {
         CurvePoint::bn_to_scalar(x)
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
+        self.to_bytes()
+    }
+
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
+        CurvePoint::try_from_bytes(bytes)
     }
 }
 

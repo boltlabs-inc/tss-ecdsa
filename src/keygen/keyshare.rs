@@ -187,7 +187,7 @@ impl<C: CurveTrait> AsRef<C> for KeySharePublic<C> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        curve_point::{testing::init_testing, CurvePoint}, keygen::{keyshare::KEYSHARE_TAG, KeySharePrivate}
+        curve_point::{CurveTrait, testing::init_testing, CurvePoint}, keygen::{keyshare::KEYSHARE_TAG, KeySharePrivate}
     };
 
     #[test]

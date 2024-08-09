@@ -120,7 +120,7 @@ impl<C: CurveTrait> SigningMaterial<C> {
         }
     }
 
-    fn as_mut_signer(&mut self) -> Result<&mut SignParticipant<CurvePoint>> {
+    fn as_mut_signer(&mut self) -> Result<&mut SignParticipant<C>> {
         match self {
             SigningMaterial::Signer { ref mut signer } => Ok(signer),
             _ => {

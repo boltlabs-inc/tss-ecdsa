@@ -19,7 +19,7 @@ use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub(crate) struct RecordPair<C: CurveTrait> {
-    pub(crate) private: RoundThreePrivate,
+    pub(crate) private: RoundThreePrivate<C>,
     pub(crate) publics: Vec<RoundThreePublic<C>>,
 }
 
@@ -183,7 +183,7 @@ impl<C: CurveTrait> PresignRecord<C> {
         //    whether parsing succeeded; and
         // 2. We can log the error message once at the end, rather than duplicating it
         //    across all the parsing code
-        let mut parse = || -> Result<PresignRecord> {
+        let mut parse = || -> Result<PresignRecord<C>> {
             // Make sure the RECORD_TAG is correct.
             let actual_tag = parser.take_bytes(RECORD_TAG.len())?;
             if actual_tag != RECORD_TAG {
@@ -193,7 +193,7 @@ impl<C: CurveTrait> PresignRecord<C> {
             // Parse the curve point
             let point_len = parser.take_len()?;
             let point_bytes = parser.take_bytes(point_len)?;
-            let point = CurvePoint::try_from_bytes(point_bytes)?;
+            let point = C::try_from_bytes(point_bytes)?;
 
             // Parse the random share `k`
             let random_share_len = parser.take_len()?;

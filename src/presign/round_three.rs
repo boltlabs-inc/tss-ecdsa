@@ -25,18 +25,18 @@ use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
 #[derive(Clone, ZeroizeOnDrop)]
-pub(crate) struct Private {
+pub(crate) struct Private<C: CurveTrait> {
     pub k: BigNumber,
     pub chi: Scalar,
     #[zeroize(skip)]
-    pub Gamma: CurvePoint,
+    pub Gamma: C,
     #[zeroize(skip)]
     pub delta: Scalar,
     #[zeroize(skip)]
-    pub Delta: CurvePoint,
+    pub Delta: C,
 }
 
-impl Debug for Private {
+impl<C: CurveTrait> Debug for Private<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Note: delta, Gamma, and Delta are all sent over the network to other
         // parties so I assume they are not actually private data.
@@ -60,7 +60,7 @@ impl Debug for Private {
 pub(crate) struct Public<C: CurveTrait> {
     pub delta: Scalar,
     pub Delta: C,
-    pub psi_double_prime: PiLogProof<CurvePoint>,
+    pub psi_double_prime: PiLogProof<C>,
     /// Gamma value included for convenience
     pub Gamma: C,
 }

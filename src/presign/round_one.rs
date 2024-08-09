@@ -8,7 +8,7 @@
 
 use super::participant::ParticipantPresignContext;
 use crate::{
-    curve_point::CurvePoint, errors::{InternalError, Result}, messages::{Message, MessageType, PresignMessageType}, paillier::{Ciphertext, EncryptionKey, Nonce}, ring_pedersen::VerifiedRingPedersen, zkp::{
+    curve_point::{CurvePoint, CurveTrait}, errors::{InternalError, Result}, messages::{Message, MessageType, PresignMessageType}, paillier::{Ciphertext, EncryptionKey, Nonce}, ring_pedersen::VerifiedRingPedersen, zkp::{
         pienc::{PiEncInput, PiEncProof},
         Proof,
     }
@@ -75,9 +75,9 @@ impl Public {
     ///
     /// Note: The [`VerifiedRingPedersen`] value must be that of the _caller_
     /// (i.e., the verifier).
-    pub(crate) fn verify(
+    pub(crate) fn verify<C: CurveTrait>(
         self,
-        context: &ParticipantPresignContext<CurvePoint>,
+        context: &ParticipantPresignContext<C>,
         verifier_setup_params: &VerifiedRingPedersen,
         prover_pk: &EncryptionKey,
         prover_public_broadcast: &PublicBroadcast,

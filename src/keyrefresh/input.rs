@@ -128,7 +128,7 @@ mod test {
         let config = ParticipantConfig::random(5, rng);
         let pids = config.all_participants();
         assert_eq!(pids.last().unwrap(), &config.id());
-        let keygen_output = keygen::Output::simulate(&pids, rng);
+        let keygen_output: Output<CurvePoint> = keygen::Output::simulate(&pids, rng);
         let auxinfo_output = auxinfo::Output::simulate(&pids, rng);
 
         // Same length works
@@ -136,7 +136,7 @@ mod test {
         assert!(result.is_ok());
 
         // If keygen is too short, it fails.
-        let short_keygen = keygen::Output::simulate(&pids[1..], rng);
+        let short_keygen: Output<CurvePoint> = keygen::Output::simulate(&pids[1..], rng);
         let result = Input::new(auxinfo_output, short_keygen);
         assert!(result.is_err());
         assert_eq!(

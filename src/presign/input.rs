@@ -173,7 +173,7 @@ mod test {
         assert!(result.is_ok());
 
         // If keygen is too short, it fails.
-        let short_keygen = keygen::Output::simulate(&pids[1..], rng);
+        let short_keygen: Output<CurvePoint> = keygen::Output::simulate(&pids[1..], rng);
         let result = Input::new(auxinfo_output, short_keygen);
         assert!(result.is_err());
         assert_eq!(

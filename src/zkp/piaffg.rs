@@ -49,7 +49,6 @@ use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
-use crate::curve_point::CurvePoint;
 
 /// Zero-knowledge proof of knowledge of a Paillier affine operation with a
 /// group commitment where the encrypted and committed values are in a given
@@ -193,7 +192,7 @@ impl<'a> PiAffgSecret<'a> {
 }
 
 impl<C: CurveTrait + DeserializeOwned> Proof for PiAffgProof<C> {
-    type CommonInput<'a> = PiAffgInput<'a, C>;
+    type CommonInput<'a> = PiAffgInput<'a, C> where C: 'a;
     type ProverSecret<'b> = PiAffgSecret<'b>;
 
     #[cfg_attr(feature = "flame_it", flame("PiAffgProof"))]
@@ -419,7 +418,7 @@ impl<C: CurveTrait + DeserializeOwned> Proof for PiAffgProof<C> {
         }
         // Check that the masked group exponentiation is valid.
         let masked_group_exponentiation_is_valid = {
-            let lhs = C::GENERATOR.multiply_by_bignum(&self.masked_mult_coeff)?;
+            let lhs = C::generator().multiply_by_bignum(&self.masked_mult_coeff)?;
             let rhs = self.random_mult_coeff_exp
                 + input.mult_coeff_exp.multiply_by_bignum(&self.challenge)?;
             lhs == rhs
@@ -543,10 +542,7 @@ impl<C: CurveTrait> PiAffgProof<C> {
 mod tests {
     use super::*;
     use crate::{
-        paillier::DecryptionKey,
-        curve_point::testing::init_testing,
-        utils::{random_plusminus, random_plusminus_by_size_with_minimum},
-        zkp::BadContext,
+        curve_point::{testing::init_testing, CurvePoint}, paillier::DecryptionKey, utils::{random_plusminus, random_plusminus_by_size_with_minimum}, zkp::BadContext
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
