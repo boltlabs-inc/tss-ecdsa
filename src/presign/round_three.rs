@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::AuxInfoPublic, curve_point::{CurvePoint, CurveTrait}, errors::{InternalError, Result}, messages::{Message, MessageType, PresignMessageType}, presign::{
+    auxinfo::AuxInfoPublic, curve_point::CurveTrait, errors::{InternalError, Result}, messages::{Message, MessageType, PresignMessageType}, presign::{
         participant::ParticipantPresignContext,
         round_one::PublicBroadcast as RoundOnePublicBroadcast,
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},

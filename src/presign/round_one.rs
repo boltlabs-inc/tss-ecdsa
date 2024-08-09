@@ -8,7 +8,7 @@
 
 use super::participant::ParticipantPresignContext;
 use crate::{
-    curve_point::{CurvePoint, CurveTrait}, errors::{InternalError, Result}, messages::{Message, MessageType, PresignMessageType}, paillier::{Ciphertext, EncryptionKey, Nonce}, ring_pedersen::VerifiedRingPedersen, zkp::{
+    curve_point::CurveTrait, errors::{InternalError, Result}, messages::{Message, MessageType, PresignMessageType}, paillier::{Ciphertext, EncryptionKey, Nonce}, ring_pedersen::VerifiedRingPedersen, zkp::{
         pienc::{PiEncInput, PiEncProof},
         Proof,
     }

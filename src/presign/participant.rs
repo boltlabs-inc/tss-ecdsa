@@ -9,7 +9,7 @@
 // of this source tree.
 
 use crate::{
-    auxinfo::{AuxInfoPrivate, AuxInfoPublic}, broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::{CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keygen::{KeySharePrivate, KeySharePublic}, local_storage::LocalStorage, messages::{Message, MessageType, PresignMessageType}, parameters::ELL_PRIME, participant::{Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant}, presign::{
+    auxinfo::{AuxInfoPrivate, AuxInfoPublic}, broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::CurveTrait, errors::{CallerError, InternalError, Result}, keygen::{KeySharePrivate, KeySharePublic}, local_storage::LocalStorage, messages::{Message, MessageType, PresignMessageType}, parameters::ELL_PRIME, participant::{Broadcast, InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant}, presign::{
         input::Input,
         record::{PresignRecord, RecordPair},
         round_one, round_three, round_two,
@@ -28,7 +28,7 @@ use tracing::{error, info, instrument};
 
 // Local storage data types.
 mod storage {
-    use crate::{curve_point::{CurvePoint, CurveTrait}, local_storage::TypeTag};
+    use crate::{curve_point::CurveTrait, local_storage::TypeTag};
 
     pub(super) struct RoundOnePrivate;
     impl TypeTag for RoundOnePrivate {

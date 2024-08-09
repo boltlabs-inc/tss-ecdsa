@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve_point::{CurvePoint, CurveTrait}, errors::{
+    curve_point::CurveTrait, errors::{
         CallerError,
         InternalError::{InternalInvariantFailed, ProtocolError},
         Result,

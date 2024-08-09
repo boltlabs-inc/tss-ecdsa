@@ -9,7 +9,7 @@
 // of this source tree.
 
 use crate::{
-    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::{CurvePoint, CurveTrait}, errors::{CallerError, InternalError, Result}, keyrefresh::{
+    broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag}, curve_point::CurveTrait, errors::{CallerError, InternalError, Result}, keyrefresh::{
         keyrefresh_commit::{KeyrefreshCommit, KeyrefreshDecommit},
         keyshare::{KeyUpdateEncrypted, KeyUpdatePrivate, KeyUpdatePublic},
     }, local_storage::LocalStorage, messages::{KeyrefreshMessageType, Message, MessageType}, participant::{
@@ -24,8 +24,6 @@ use tracing::{error, info, instrument, warn};
 use super::{input::Input, Output};
 
 mod storage {
-    use k256::elliptic_curve::Curve;
-
     use super::*;
     use crate::local_storage::TypeTag;
 
