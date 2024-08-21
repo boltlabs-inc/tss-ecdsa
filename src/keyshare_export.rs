@@ -1,7 +1,6 @@
 //! Module to export and import key shares, with encryption in transit.
 
 use crate::{errors::Result, keygen::KeySharePrivate};
-use std::{marker::PhantomData, ops::Deref};
 
 mod pke;
 pub use pke::Pke;
@@ -11,29 +10,19 @@ pub use sodium::SodiumPke;
 
 /// Struct for handling the export and import of KeySharePrivate
 #[derive(Clone, Debug)]
-pub struct KeyShareEncrypted<T: Pke>(Vec<u8>, PhantomData<T>);
+pub struct KeyShareEncrypted(Vec<u8>);
 
-impl<T: Pke> From<Vec<u8>> for KeyShareEncrypted<T> {
-    fn from(data: Vec<u8>) -> Self {
-        Self(data, PhantomData)
+impl KeyShareEncrypted {
+    /// Build a new `KeyShareEncrypted` from ciphertext bytes.
+    pub fn from_vec(encrypted: Vec<u8>) -> Self {
+        Self(encrypted)
     }
-}
 
-impl<T: Pke> From<KeyShareEncrypted<T>> for Vec<u8> {
-    fn from(encrypted: KeyShareEncrypted<T>) -> Vec<u8> {
-        encrypted.0
+    /// Get the ciphertext bytes from a `KeyShareEncrypted`.
+    pub fn into_vec(self) -> Vec<u8> {
+        self.0
     }
-}
 
-impl<T: Pke> Deref for KeyShareEncrypted<T> {
-    type Target = Vec<u8>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<T: Pke> KeyShareEncrypted<T> {
     /// Export a `KeySharePrivate` structure by serializing and encrypting it.
     ///
     /// # Arguments
@@ -59,24 +48,24 @@ impl<T: Pke> KeyShareEncrypted<T> {
     /// let mut rng = rand::thread_rng();
     /// let key_share = KeySharePrivate::random(&mut rng);
     ///
-    /// let exported = KeyShareEncrypted::<SodiumPke>::export_keyshare(&key_share, &receiver_pk, &sender_sk)
+    /// let exported = KeyShareEncrypted::export_keyshare::<SodiumPke>(&key_share, &receiver_pk, &sender_sk)
     ///     .expect("Failed to export keyshare");
-    /// let exported_bytes: Vec<u8> = exported.into();
+    /// let exported_bytes = exported.into_vec();
     ///
-    /// let to_import = KeyShareEncrypted::<SodiumPke>::from(exported_bytes);
-    /// let imported = to_import.import_keyshare(&sender_pk, &receiver_sk)
+    /// let to_import = KeyShareEncrypted::from_vec(exported_bytes);
+    /// let imported = to_import.import_keyshare::<SodiumPke>(&sender_pk, &receiver_sk)
     ///     .expect("Failed to import keyshare");
     ///
     /// assert_eq!(imported, key_share);
     /// ```
-    pub fn export_keyshare(
+    pub fn export_keyshare<T: Pke>(
         key_share: &KeySharePrivate,
         receiver_pk: &T::PublicKey,
         sender_sk: &T::SecretKey,
     ) -> Result<Self> {
         let serialized = key_share.clone().into_bytes();
         let encrypted_data = T::encrypt(&serialized, receiver_pk, sender_sk)?;
-        Ok(Self(encrypted_data, PhantomData))
+        Ok(Self(encrypted_data))
     }
 
     /// Import a `KeySharePrivate` structure by decrypting and deserializing it.
@@ -91,7 +80,7 @@ impl<T: Pke> KeyShareEncrypted<T> {
     /// # Returns
     ///
     /// A `KeySharePrivate` object.
-    pub fn import_keyshare(
+    pub fn import_keyshare<T: Pke>(
         &self,
         sender_pk: &T::PublicKey,
         receiver_sk: &T::SecretKey,
@@ -121,7 +110,7 @@ mod tests {
 
         // Export the key share using the LibsodiumPke
         let mut encrypted =
-            KeyShareEncrypted::<SodiumPke>::export_keyshare(&key_share, &receiver_pk, &sender_sk)
+            KeyShareEncrypted::export_keyshare::<SodiumPke>(&key_share, &receiver_pk, &sender_sk)
                 .expect("Failed to export key share");
 
         // Tamper with the nonce to invalidate it
@@ -129,7 +118,7 @@ mod tests {
 
         // Attempt to import the key share (should fail)
         let result =
-            KeyShareEncrypted::<SodiumPke>::import_keyshare(&encrypted, &sender_pk, &receiver_sk);
+            KeyShareEncrypted::import_keyshare::<SodiumPke>(&encrypted, &sender_pk, &receiver_sk);
         assert!(result.is_err());
     }
 
@@ -148,7 +137,7 @@ mod tests {
 
         // Export the key share using the LibsodiumPke
         let mut encrypted =
-            KeyShareEncrypted::<SodiumPke>::export_keyshare(&key_share, &receiver_pk, &sender_sk)
+            KeyShareEncrypted::export_keyshare::<SodiumPke>(&key_share, &receiver_pk, &sender_sk)
                 .expect("Failed to export key share");
 
         // Tamper with the ciphertext to invalidate it
@@ -156,7 +145,7 @@ mod tests {
 
         // Attempt to import the key share (should fail)
         let result =
-            KeyShareEncrypted::<SodiumPke>::import_keyshare(&encrypted, &sender_pk, &receiver_sk);
+            KeyShareEncrypted::import_keyshare::<SodiumPke>(&encrypted, &sender_pk, &receiver_sk);
         assert!(result.is_err());
     }
 }
