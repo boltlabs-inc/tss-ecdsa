@@ -20,7 +20,11 @@ use crate::{
     presign::{
         input::Input,
         record::{PresignRecord, RecordPair},
-        round_one, round_three, round_two,
+        round_one,
+        round_one::SecretNonce,
+        round_three,
+        round_three::SecretScalar,
+        round_two,
     },
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
@@ -966,10 +970,10 @@ impl PresignKeyShareAndInfo {
         };
 
         let r1_private = round_one::Private {
-            k,
-            rho,
+            k: SecretBigNumber::from_number(k),
+            rho: SecretNonce::from_nonce(rho),
             gamma,
-            nu,
+            nu: SecretNonce::from_nonce(nu),
             G,
             K,
         };
@@ -1077,7 +1081,8 @@ impl PresignKeyShareAndInfo {
             rng,
         )?;
         let mut transcript = Transcript::new(b"PiLogProof");
-        let secret = ProverSecret::new(&sender_r1_priv.gamma, &sender_r1_priv.nu);
+        let nonce_clone = &sender_r1_priv.nu.get_nonce_secret().clone();
+        let secret = ProverSecret::new(&sender_r1_priv.gamma, nonce_clone);
         let psi_prime = PiLogProof::prove(
             CommonInput::new(
                 &sender_r1_priv.G,
@@ -1093,7 +1098,10 @@ impl PresignKeyShareAndInfo {
         )?;
 
         Ok((
-            round_two::Private { beta, beta_hat },
+            round_two::Private {
+                beta: SecretBigNumber::from_number(beta),
+                beta_hat: SecretBigNumber::from_number(beta_hat),
+            },
             round_two::Public {
                 D,
                 D_hat,
@@ -1122,11 +1130,13 @@ impl PresignKeyShareAndInfo {
         let order = k256_order();
         let g = CurvePoint::GENERATOR;
 
-        let mut delta: BigNumber = sender_r1_priv.gamma.modmul(&sender_r1_priv.k, &order);
+        let mut delta: BigNumber = sender_r1_priv
+            .gamma
+            .modmul(sender_r1_priv.k.get_bignumber_secret(), &order);
         let mut chi: BigNumber = self
             .keyshare_private
             .as_ref()
-            .modmul(&sender_r1_priv.k, &order);
+            .modmul(sender_r1_priv.k.get_bignumber_secret(), &order);
         let mut Gamma = g.multiply_by_bignum(&sender_r1_priv.gamma)?;
 
         for round_three_input in other_participant_inputs.values() {
@@ -1160,12 +1170,18 @@ impl PresignKeyShareAndInfo {
             // in round two we did _not_ encrypt the negation of these as
             // specified in the protocol. See comment in `round_two` for the
             // reasoning.
-            delta = delta.modadd(&alpha.modsub(&r2_priv_j.beta, &order), &order);
-            chi = chi.modadd(&alpha_hat.modsub(&r2_priv_j.beta_hat, &order), &order);
+            delta = delta.modadd(
+                &alpha.modsub(r2_priv_j.beta.get_bignumber_secret(), &order),
+                &order,
+            );
+            chi = chi.modadd(
+                &alpha_hat.modsub(r2_priv_j.beta_hat.get_bignumber_secret(), &order),
+                &order,
+            );
             Gamma = Gamma + r2_pub_j.Gamma;
         }
 
-        let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k)?;
+        let Delta = Gamma.multiply_by_bignum(sender_r1_priv.k.get_bignumber_secret())?;
 
         let delta_scalar = bn_to_scalar(&delta)?;
         let chi_scalar = bn_to_scalar(&chi)?;
@@ -1173,6 +1189,7 @@ impl PresignKeyShareAndInfo {
         let mut ret_publics = HashMap::new();
         for (other_id, round_three_input) in other_participant_inputs {
             let mut transcript = Transcript::new(b"PiLogProof");
+            // We are copying the underlying secret to a non-secret for k and rho.
             let psi_double_prime = PiLogProof::prove(
                 CommonInput::new(
                     &sender_r1_priv.K,
@@ -1181,7 +1198,10 @@ impl PresignKeyShareAndInfo {
                     self.aux_info_public.pk(),
                     &Gamma,
                 ),
-                ProverSecret::new(&sender_r1_priv.k, &sender_r1_priv.rho),
+                ProverSecret::new(
+                    &sender_r1_priv.k.get_bignumber_secret().clone(),
+                    &sender_r1_priv.rho.get_nonce_secret().clone(),
+                ),
                 context,
                 &mut transcript,
                 rng,
@@ -1197,11 +1217,11 @@ impl PresignKeyShareAndInfo {
 
         let private = round_three::Private {
             k: sender_r1_priv.k.clone(),
-            chi: chi_scalar,
+            chi: SecretScalar::from_scalar(chi_scalar),
             Gamma,
             // These last two fields can be public, but for convenience
             // are stored in this party's private component
-            delta: delta_scalar,
+            delta: SecretScalar::from_scalar(delta_scalar),
             Delta,
         };
 
@@ -1212,6 +1232,8 @@ impl PresignKeyShareAndInfo {
 use crate::participant::Status;
 #[cfg(test)]
 pub(super) use test::presign_record_set_is_valid;
+
+use super::round_three::SecretBigNumber;
 
 #[cfg(test)]
 mod test {

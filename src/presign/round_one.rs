@@ -23,16 +23,30 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use zeroize::ZeroizeOnDrop;
 
+use super::round_three::SecretBigNumber;
+
+#[derive(Clone, ZeroizeOnDrop)]
+pub(crate) struct SecretNonce(Nonce);
+
+impl SecretNonce {
+    pub fn from_nonce(nonce: Nonce) -> SecretNonce {
+        SecretNonce(nonce)
+    }
+    /// This method gives you access to the underlying secret nonce. We should
+    /// be careful about cloning the returned reference.
+    pub fn get_nonce_secret(&self) -> &Nonce {
+        &self.0
+    }
+}
+
 /// Private data used in round one of the presign protocol.
-#[derive(ZeroizeOnDrop)]
+//#[derive(ZeroizeOnDrop)]
 pub(crate) struct Private {
-    pub k: BigNumber,
-    pub rho: Nonce,
+    pub k: SecretBigNumber,
+    pub rho: SecretNonce,
     pub gamma: BigNumber,
-    pub nu: Nonce,
-    #[zeroize(skip)]
+    pub nu: SecretNonce,
     pub G: Ciphertext, // Technically can be public but is only one per party
-    #[zeroize(skip)]
     pub K: Ciphertext, // Technically can be public but is only one per party
 }
 
