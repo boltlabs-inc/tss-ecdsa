@@ -23,6 +23,7 @@ use crate::{
         Proof,
     },
 };
+use generic_ec::curves::Secp256k1;
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
@@ -59,7 +60,7 @@ pub(crate) struct Public {
     pub Gamma: CurvePoint,
     pub psi: PiAffgProof,
     pub psi_hat: PiAffgProof,
-    pub psi_prime: PiLogProof,
+    pub psi_prime: PiLogProof<Secp256k1>,
 }
 
 impl Public {
