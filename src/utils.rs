@@ -373,6 +373,12 @@ pub(crate) fn bn_to_scalar(x: &BigNumber) -> Result<k256::Scalar> {
     Ok(ret)
 }
 
+// Convert from k256::Scalar to BigNumber
+pub(crate) fn scalar_to_bn(x: &k256::Scalar) -> BigNumber {
+    let bytes = x.to_repr();
+    BigNumber::from_slice(bytes)
+}
+
 pub(crate) fn k256_order() -> BigNumber {
     // Set order = q
     let order_bytes: [u8; 32] = k256::Secp256k1::ORDER.to_be_bytes();

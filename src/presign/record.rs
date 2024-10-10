@@ -266,7 +266,7 @@ mod tests {
 
         /// Simulate creation of a random presign record. Do not use outside of
         /// testing.
-        fn simulate(rng: &mut StdRng) -> PresignRecord {
+        pub(crate) fn simulate(rng: &mut StdRng) -> PresignRecord {
             let mask_point = CurvePoint::random(StdRng::from_seed(rng.gen()));
             let mask_share = Scalar::random(StdRng::from_seed(rng.gen()));
             let masked_key_share = Scalar::random(rng);

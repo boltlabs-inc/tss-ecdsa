@@ -16,7 +16,7 @@ use crate::{
 /// A single participant's share of the signature.
 #[allow(unused)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SignatureShare(Scalar);
+pub struct SignatureShare(pub Scalar);
 
 impl SignatureShare {
     pub(super) fn new(share: Scalar) -> Self {

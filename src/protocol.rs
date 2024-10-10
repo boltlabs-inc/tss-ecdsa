@@ -35,6 +35,7 @@ use tracing::{error, info, instrument, trace};
 #[derive(Debug)]
 pub enum ProtocolType {
     Keygen,
+    Tshare,
     Keyrefresh,
     AuxInfo,
     Presign,
@@ -168,6 +169,7 @@ impl<P: ProtocolParticipant> Participant<P> {
         match (message.message_type(), P::protocol_type()) {
             (MessageType::Auxinfo(_), ProtocolType::AuxInfo)
             | (MessageType::Keygen(_), ProtocolType::Keygen)
+            | (MessageType::Tshare(_), ProtocolType::Tshare)
             | (MessageType::Keyrefresh(_), ProtocolType::Keyrefresh)
             | (MessageType::Presign(_), ProtocolType::Presign)
             | (MessageType::Sign(_), ProtocolType::Sign)
@@ -331,6 +333,23 @@ pub(crate) mod participant_config {
             let id = ParticipantIdentifier::random(rng);
             Self { id, other_ids }
         }
+
+        /// Remove id from ParticipantConfig
+        pub fn remove(&self) -> Result<Vec<ParticipantConfig>> {
+            assert!(self.other_ids.len() > 1);
+            let other_ids = self.other_ids();
+            // for each element in other_ids, create a new ParticipantConfig
+            // with that element as the id
+            other_ids
+                .iter()
+                .enumerate()
+                .map(|(i, id)| {
+                    let mut others = other_ids.to_vec();
+                    let _removed = others.swap_remove(i);
+                    Self::new(*id, &others[..])
+                })
+                .collect::<Result<Vec<ParticipantConfig>>>()
+        }
     }
 
     #[cfg(test)]
@@ -431,6 +450,11 @@ impl ParticipantIdentifier {
     /// for example [`Self::random`].
     pub fn from_u128(id: u128) -> Self {
         Self(id)
+    }
+
+    /// Get the ID as a number.
+    pub fn as_u128(&self) -> u128 {
+        self.0
     }
 }
 
@@ -614,20 +638,21 @@ impl std::fmt::Display for Identifier {
 mod tests {
     use super::*;
     use crate::{
-        auxinfo::AuxInfoParticipant,
+        auxinfo::{self, AuxInfoParticipant, AuxInfoPublic},
         keygen::KeygenParticipant,
         participant::Status,
         presign,
         sign::{self, InteractiveSignParticipant, SignParticipant},
         slip0010,
-        utils::testing::init_testing,
+        tshare::{self, CoeffPrivate, TshareParticipant},
+        utils::{bn_to_scalar, testing::init_testing},
         PresignParticipant,
     };
     use core::panic;
-    use k256::ecdsa::signature::DigestVerifier;
+    use k256::{ecdsa::signature::DigestVerifier, Scalar};
     use rand::seq::IteratorRandom;
     use sha3::{Digest, Keccak256};
-    use std::collections::HashMap;
+    use std::{collections::HashMap, vec};
     use tracing::debug;
 
     // Negative test checking whether the message has the correct session id
@@ -820,20 +845,57 @@ mod tests {
         inboxes.iter().all(|(_pid, messages)| messages.is_empty())
     }
 
+    #[ignore]
+    #[test]
+    fn test_full_protocol_execution_with_noninteractive_signing_works_larger_values() {
+        assert!(full_protocol_execution_with_noninteractive_signing_works(5, 5, 5, 42).is_ok());
+        assert!(full_protocol_execution_with_noninteractive_signing_works(5, 4, 5, 42).is_ok());
+        assert!(full_protocol_execution_with_noninteractive_signing_works(4, 4, 5, 42).is_ok());
+        assert!(full_protocol_execution_with_noninteractive_signing_works(5, 3, 5, 42).is_ok());
+        assert!(full_protocol_execution_with_noninteractive_signing_works(4, 3, 5, 42).is_ok());
+        assert!(full_protocol_execution_with_noninteractive_signing_works(3, 3, 5, 42).is_ok());
+    }
+
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
     fn test_full_protocol_execution_with_noninteractive_signing_works() {
-        assert!(full_protocol_execution_with_noninteractive_signing_works(42).is_ok());
+        assert!(full_protocol_execution_with_noninteractive_signing_works(3, 3, 3, 42).is_ok());
+        assert!(full_protocol_execution_with_noninteractive_signing_works(3, 2, 3, 42).is_ok());
+        assert!(full_protocol_execution_with_noninteractive_signing_works(2, 2, 3, 42).is_ok());
         // 2**31
         let invalid_index = 1 << 31;
-        assert!(full_protocol_execution_with_noninteractive_signing_works(invalid_index).is_err());
+        assert!(
+            full_protocol_execution_with_noninteractive_signing_works(3, 3, 3, invalid_index)
+                .is_err()
+        );
     }
 
-    fn full_protocol_execution_with_noninteractive_signing_works(child_index: u32) -> Result<()> {
+    #[ignore]
+    #[test]
+    fn test_full_protocol_execution_with_noninteractive_signing_works_err_larger_values() {
+        assert!(full_protocol_execution_with_noninteractive_signing_works(3, 4, 5, 42).is_err());
+        assert!(full_protocol_execution_with_noninteractive_signing_works(2, 4, 5, 42).is_err());
+    }
+
+    #[test]
+    fn test_full_protocol_execution_with_noninteractive_signing_works_err() {
+        assert!(full_protocol_execution_with_noninteractive_signing_works(2, 3, 4, 42).is_err());
+    }
+
+    fn full_protocol_execution_with_noninteractive_signing_works(
+        r: usize,
+        t: usize,
+        n: usize,
+        child_index: u32,
+    ) -> Result<()> {
         let mut rng = init_testing();
-        let QUORUM_SIZE = 3;
+        let QUORUM_REAL = r; // The real quorum size, which is the number of participants that will actually
+                             // participate in the protocol
+        let QUORUM_THRESHOLD = t; // threshold t, which is the minimum quorum allowed to complete the protocol
+        let QUORUM_SIZE = n; // total number of participants in the protocol
+
         // Set GLOBAL config for participants
-        let configs = ParticipantConfig::random_quorum(QUORUM_SIZE, &mut rng).unwrap();
+        let mut configs = ParticipantConfig::random_quorum(QUORUM_SIZE, &mut rng).unwrap();
 
         // Set up auxinfo participants
         let auxinfo_sid = Identifier::random(&mut rng);
@@ -912,26 +974,156 @@ mod tests {
             }
         }
 
-        // Keygen is done! Makre sure there are no more messages.
+        // Keygen is done! Make sure there are no more messages.
         assert!(inboxes_are_empty(&inboxes));
         // And make sure all participants have successfully terminated.
         assert!(keygen_quorum
             .iter()
             .all(|p| *p.status() == Status::TerminatedSuccessfully));
 
-        // Save the public key and key shares for later
-        let public_key_shares = keygen_outputs
+        // Tshare protocol
+        // After the Tshare protocol, we will have a set of t-out-of-t shares
+        // Therefore we need to remove the some participants from the configs, and from
+        // keygen and auxinfo outputs
+        let mut keygen_outputs_tshare = keygen_outputs.clone();
+        let auxinfo_outputs_tshare = auxinfo_outputs.clone();
+        let tshare_sid = Identifier::random(&mut rng);
+
+        let tshare_inputs = configs
+            .iter()
+            .map(|config| {
+                (
+                    auxinfo_outputs.remove(&config.id()).unwrap(),
+                    keygen_outputs_tshare.remove(&config.id()).unwrap(),
+                )
+            })
+            .map(|(auxinfo_output, keygen_output)| {
+                // convert the private share to CoeffPrivate
+                let secret = keygen_output.private_key_share().as_ref();
+                tshare::Input::new(
+                    auxinfo_output,
+                    Some(CoeffPrivate {
+                        x: bn_to_scalar(secret).unwrap(),
+                    }),
+                    QUORUM_THRESHOLD,
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        let mut tshare_quorum = configs
+            .clone()
+            .into_iter()
+            .zip(tshare_inputs.clone())
+            .map(|(config, input)| {
+                Participant::<TshareParticipant>::from_config(config, tshare_sid, input).unwrap()
+            })
+            .collect::<Vec<_>>();
+        let mut tshare_outputs: HashMap<
+            ParticipantIdentifier,
+            <TshareParticipant as ProtocolParticipant>::Output,
+        > = HashMap::new();
+
+        let mut inboxes: HashMap<ParticipantIdentifier, Vec<Message>> = HashMap::from_iter(
+            tshare_quorum
+                .iter()
+                .map(|p| (p.id, vec![]))
+                .collect::<Vec<_>>(),
+        );
+
+        for participant in &mut tshare_quorum {
+            let inbox = inboxes.get_mut(&participant.id).unwrap();
+            inbox.push(participant.initialize_message()?);
+        }
+
+        while tshare_outputs.len() < QUORUM_SIZE {
+            let output = process_random_message(&mut tshare_quorum, &mut inboxes, &mut rng)?;
+
+            if let Some((pid, output)) = output {
+                // Save the output, and make sure this participant didn't already return an
+                // output.
+                assert!(tshare_outputs.insert(pid, output).is_none());
+            }
+        }
+
+        // Tshare is done! Make sure there are no more messages.
+        assert!(inboxes_are_empty(&inboxes));
+        // And make sure all participants have successfully terminated.
+        assert!(tshare_quorum
+            .iter()
+            .all(|p| *p.status() == Status::TerminatedSuccessfully));
+
+        // remove QUORUM_SIZE - QUORUM_REAL elements from the configs (the last ones)
+        assert!(QUORUM_REAL > 1);
+        assert!(QUORUM_SIZE >= QUORUM_REAL);
+        for _ in 0..(QUORUM_SIZE - QUORUM_REAL) {
+            configs = configs.clone().last().unwrap().remove().unwrap();
+        }
+        assert!(configs.len() == QUORUM_REAL);
+
+        let all_participants = configs.first().unwrap().all_participants();
+
+        // t-out-of-t conversion
+        let chain_code = keygen_outputs[&configs[0].id()].chain_code();
+        let rid = keygen_outputs[&configs[0].id()].rid();
+        let (mut toft_keygen_outputs, _toft_public_keys) =
+            TshareParticipant::convert_to_t_out_of_t_shares(
+                tshare_outputs,
+                all_participants.clone(),
+                *chain_code,
+                *rid,
+            )?;
+
+        if QUORUM_REAL >= QUORUM_THRESHOLD {
+            let mut sum_toft_private_shares = toft_keygen_outputs
+                .values()
+                .map(|output| output.private_key_share().as_ref().clone())
+                .fold(BigNumber::zero(), |acc, x| acc + x);
+
+            // Check the sum is indeed the sum of original private keys used as input of
+            // tshare
+            let sum_tshare_input = tshare_inputs
+                .iter()
+                .map(|input| input.share().unwrap().x)
+                .fold(Scalar::ZERO, |acc, x| acc + x);
+            // reduce mod the order
+            sum_toft_private_shares %= k256_order();
+            assert_eq!(
+                bn_to_scalar(&sum_toft_private_shares).unwrap(),
+                sum_tshare_input
+            );
+        }
+
+        let public_key_shares = toft_keygen_outputs
             .get(&configs.first().unwrap().id())
             .unwrap()
             .public_key_shares()
             .to_vec();
-        let saved_public_key = keygen_outputs
+        let saved_public_key = toft_keygen_outputs
             .get(&configs.first().unwrap().id())
             .unwrap()
             .public_key()?;
         let keygen_outputs_clone = keygen_outputs.clone();
 
         // Set up presign participants
+        let mut auxinfo_outputs_presign = HashMap::new();
+
+        // remove elements not in `all-participants` from auxinfo_outputs_presign
+        for pid in auxinfo_outputs_tshare.keys() {
+            if all_participants.contains(pid) {
+                let output = auxinfo_outputs_tshare.get(pid).unwrap();
+                let new_aux_pk: Vec<AuxInfoPublic> = output
+                    .public_auxinfo()
+                    .iter()
+                    .filter(|auxinfo| all_participants.contains(&auxinfo.participant()))
+                    .cloned()
+                    .collect();
+                let new_output =
+                    auxinfo::Output::from_parts(new_aux_pk, output.private_auxinfo().clone())?;
+                assert!(auxinfo_outputs_presign.insert(*pid, new_output).is_none());
+            }
+        }
+
         let presign_sid = Identifier::random(&mut rng);
 
         // Prepare presign inputs: a pair of outputs from keygen and auxinfo.
@@ -939,8 +1131,8 @@ mod tests {
             .iter()
             .map(|config| {
                 (
-                    auxinfo_outputs.remove(&config.id()).unwrap(),
-                    keygen_outputs.remove(&config.id()).unwrap(),
+                    auxinfo_outputs_presign.remove(&config.id()).unwrap(),
+                    toft_keygen_outputs.remove(&config.id()).unwrap(),
                 )
             })
             .map(|(auxinfo_output, keygen_output)| {
@@ -966,7 +1158,7 @@ mod tests {
             inbox.push(participant.initialize_message()?);
         }
 
-        while presign_outputs.len() < QUORUM_SIZE {
+        while presign_outputs.len() < QUORUM_REAL {
             let output = process_random_message(&mut presign_quorum, &mut inboxes, &mut rng)?;
 
             if let Some((pid, output)) = output {
@@ -1009,6 +1201,7 @@ mod tests {
 
         // Make signing participants
         let mut sign_quorum = configs
+            .clone()
             .into_iter()
             .map(|config| {
                 let record = presign_outputs.remove(&config.id()).unwrap();
@@ -1016,6 +1209,7 @@ mod tests {
                     message,
                     record,
                     public_key_shares.clone(),
+                    QUORUM_THRESHOLD,
                     Some(shift_scalar),
                 );
                 Participant::<SignParticipant>::from_config(config, sign_sid, input)
@@ -1030,7 +1224,7 @@ mod tests {
         }
 
         // Run signing protocol
-        while sign_outputs.len() < QUORUM_SIZE {
+        while sign_outputs.len() < QUORUM_REAL {
             let output = process_random_message(&mut sign_quorum, &mut inboxes, &mut rng)?;
 
             if let Some((_pid, output)) = output {

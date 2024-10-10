@@ -460,7 +460,7 @@ pub enum Status {
     /// This variant is used by
     /// [`InteractiveSignParticipant`](crate::sign::InteractiveSignParticipant)
     RunningPresign,
-    /// Participant completed presign and is running sign.
+    /// Participant received a ready message and is running tshare.
     ///
     /// This variant is used by
     /// [`InteractiveSignParticipant`](crate::sign::InteractiveSignParticipant)
