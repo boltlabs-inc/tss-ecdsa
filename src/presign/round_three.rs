@@ -17,7 +17,7 @@ use crate::{
     },
     utils::CurvePoint,
     zkp::{
-        pilog::{CommonInput, PiLogProof},
+        pilog::{CommonInput, PiLogProof, SerdePoint},
         Proof,
     },
 };
@@ -83,9 +83,10 @@ impl Public {
         prover_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
         let mut transcript = Transcript::new(b"PiLogProof");
+        let deltaSerde = SerdePoint::from_curve_point(self.Delta);
         let psi_double_prime_input = CommonInput::new(
             &prover_r1_public_broadcast.K,
-            &self.Delta,
+            &deltaSerde,
             verifier_auxinfo_public.params().scheme(),
             prover_auxinfo_public.pk(),
             &self.Gamma,

@@ -40,6 +40,7 @@ impl From<CurvePoint> for EncodedPoint {
     fn from(value: CurvePoint) -> EncodedPoint {
         value.0.to_affine().into()
     }
+
 }
 
 impl AsRef<CurvePoint> for CurvePoint {
@@ -49,6 +50,16 @@ impl AsRef<CurvePoint> for CurvePoint {
 }
 
 impl CurvePoint {
+    // new
+    pub fn new(value: k256::ProjectivePoint) -> Self {
+        Self(value)
+    }
+
+    // return the wrapped point
+    pub fn inner_value(&self) -> k256::ProjectivePoint {
+        self.0
+    }
+
     pub fn x_affine(&self) -> FieldBytes {
         self.0.to_affine().x()
     }

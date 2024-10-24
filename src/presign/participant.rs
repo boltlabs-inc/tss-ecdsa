@@ -28,11 +28,12 @@ use crate::{
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof, PiAffgSecret},
         pienc::{PiEncInput, PiEncProof, PiEncSecret},
-        pilog::{CommonInput, PiLogProof, ProverSecret},
+        pilog::{CommonInput, PiLogProof, ProverSecret, SerdePoint},
         Proof, ProofContext,
     },
     Identifier,
 };
+use generic_ec::curves::Secp256k1;
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
@@ -1040,6 +1041,14 @@ impl PresignKeyShareAndInfo {
 
         let g = CurvePoint::GENERATOR;
         let Gamma = g.multiply_by_bignum(&sender_r1_priv.gamma)?;
+        // create SerdePoint from Gamma
+        //let serdeGamma = SerdePoint::<generic_ec::curves::Secp256k1> {  
+            //point: generic_ec::curves::Secp256k1::point::from_bytes(Gamma.to_bytes()),
+            //point: <generic_ec_curves::rust_crypto::RustCryptoCurve<Secp256k1, ExpandMsgXmd<CoreWrapper<CtVariableCoreWrapper<Sha256VarCore, UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>, OidSha256>>>> as Example>::point::from_bytes(Gamma.to_bytes()),
+        //};
+        //let serdeGamma = SerdePoint::new(point_from_bytes(Gamma.to_bytes()));
+        let serdeGamma = SerdePoint::from_curve_point(Gamma);
+        let serdeg: SerdePoint<Secp256k1> = SerdePoint::from_curve_point(g);
 
         // Generate the proofs.
         let mut transcript = Transcript::new(b"PiAffgProof");
@@ -1081,7 +1090,7 @@ impl PresignKeyShareAndInfo {
         let psi_prime = PiLogProof::prove(
             CommonInput::new(
                 &sender_r1_priv.G,
-                &Gamma,
+                &serdeGamma,
                 receiver_aux_info.params().scheme(),
                 self.aux_info_public.pk(),
                 &g,
@@ -1166,6 +1175,8 @@ impl PresignKeyShareAndInfo {
         }
 
         let Delta = Gamma.multiply_by_bignum(&sender_r1_priv.k)?;
+        let serdeDelta = SerdePoint::from_curve_point(Delta);
+        let serdeGamma: SerdePoint<Secp256k1> = SerdePoint::from_curve_point(Gamma);
 
         let delta_scalar = bn_to_scalar(&delta)?;
         let chi_scalar = bn_to_scalar(&chi)?;
@@ -1176,7 +1187,7 @@ impl PresignKeyShareAndInfo {
             let psi_double_prime = PiLogProof::prove(
                 CommonInput::new(
                     &sender_r1_priv.K,
-                    &Delta,
+                    &serdeDelta,
                     round_three_input.auxinfo_public.params().scheme(),
                     self.aux_info_public.pk(),
                     &Gamma,

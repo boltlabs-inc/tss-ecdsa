@@ -24,7 +24,7 @@ pub(crate) mod pisch;
 use crate::errors::Result;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 /// A trait for constructing arbitrary system context.
 ///

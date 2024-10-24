@@ -19,7 +19,7 @@ use crate::{
     utils::CurvePoint,
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof},
-        pilog::{CommonInput, PiLogProof},
+        pilog::{CommonInput, PiLogProof, SerdePoint},
         Proof,
     },
 };
@@ -107,9 +107,10 @@ impl Public {
             .verify(psi_hat_input, context, &mut transcript)?;
 
         // Verify the psi_prime proof
+        let Gamma = SerdePoint::from_curve_point(self.Gamma);
         let psi_prime_input = CommonInput::new(
             &prover_r1_public_broadcast.G,
-            &self.Gamma,
+            &Gamma,
             verifier_auxinfo_public.params().scheme(),
             prover_auxinfo_public.pk(),
             &g,
