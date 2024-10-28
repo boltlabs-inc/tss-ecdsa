@@ -28,8 +28,10 @@ pub struct Output {
     public_coeffs: Vec<CoeffPublic>,
     // Public keys for each participant
     public_key_shares: Vec<KeySharePublic>,
-    //private_key_share: KeySharePrivate,
+    // A Scalar representing the private share,
     private_key_share: Scalar,
+    // The chain code for the HD wallet
+    chain_code: [u8; 32],
 }
 
 impl Output {
@@ -62,6 +64,11 @@ impl Output {
         &self.private_key_share
     }
 
+    /// Get the chaincode.
+    pub fn chain_code(&self) -> &[u8; 32] {
+        &self.chain_code
+    }
+
     /// Create a new `Output` from its constitutent parts.
     ///
     /// This method should only be used with components that were previously
@@ -75,6 +82,7 @@ impl Output {
         public_coeffs: Vec<CoeffPublic>,
         public_keys: Vec<KeySharePublic>,
         private_key_share: Scalar,
+        chain_code: [u8; 32],
     ) -> Result<Self> {
         let pids = public_keys
             .iter()
@@ -93,6 +101,7 @@ impl Output {
             public_coeffs,
             public_key_shares: public_keys,
             private_key_share,
+            chain_code,
         })
     }
 
@@ -105,11 +114,12 @@ impl Output {
     ///
     /// The public components (including the byte array and the public key
     /// shares) can be stored in the clear.
-    pub fn into_parts(self) -> (Vec<CoeffPublic>, Vec<KeySharePublic>, Scalar) {
+    pub fn into_parts(self) -> (Vec<CoeffPublic>, Vec<KeySharePublic>, Scalar, [u8; 32]) {
         (
             self.public_coeffs,
             self.public_key_shares,
             self.private_key_share,
+            self.chain_code,
         )
     }
 }
@@ -125,6 +135,7 @@ mod tests {
     use itertools::Itertools;
     use k256::elliptic_curve::Field;
     use libpaillier::unknown_order::BigNumber;
+    use rand::Rng;
 
     impl Output {
         /// Simulate the valid output of a keygen run with the given
@@ -144,6 +155,9 @@ mod tests {
                     (secret, KeySharePublic::new(pid, public))
                 })
                 .unzip();
+
+            let rng = &mut init_testing();
+            let chain_code = rng.gen();
 
             // simulate a random evaluation
             let converted_publics = public_key_shares
@@ -165,6 +179,7 @@ mod tests {
                 converted_publics,
                 public_key_shares,
                 eval_private_at_first_pid.x,
+                chain_code,
             )
             .unwrap();
 
@@ -182,8 +197,8 @@ mod tests {
             .collect::<Vec<_>>();
         let output = Output::simulate(&pids);
 
-        let (public_coeffs, public_keys, private_key) = output.into_parts();
-        assert!(Output::from_parts(public_coeffs, public_keys, private_key).is_ok());
+        let (public_coeffs, public_keys, private_key, chain_code) = output.into_parts();
+        assert!(Output::from_parts(public_coeffs, public_keys, private_key, chain_code).is_ok());
     }
 
     #[test]
@@ -211,10 +226,14 @@ mod tests {
                 })
                 .multiunzip();
 
+        let rng = &mut init_testing();
+        let chain_code = rng.gen();
+
         assert!(Output::from_parts(
             public_coeffs,
             public_key_shares,
-            private_key_shares.pop().unwrap()
+            private_key_shares.pop().unwrap(),
+            chain_code,
         )
         .is_err());
     }

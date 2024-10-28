@@ -983,7 +983,7 @@ mod tests {
 
         // Tshare protocol
         // After the Tshare protocol, we will have a set of t-out-of-t shares
-        // Therefore we need to remove the some participants from the configs, and from
+        // Therefore we need to remove some participants from the configs, and from
         // keygen and auxinfo outputs
         let mut keygen_outputs_tshare = keygen_outputs.clone();
         let auxinfo_outputs_tshare = auxinfo_outputs.clone();
@@ -1064,13 +1064,11 @@ mod tests {
         let all_participants = configs.first().unwrap().all_participants();
 
         // t-out-of-t conversion
-        let chain_code = keygen_outputs[&configs[0].id()].chain_code();
         let rid = keygen_outputs[&configs[0].id()].rid();
         let (mut toft_keygen_outputs, _toft_public_keys) =
             TshareParticipant::convert_to_t_out_of_t_shares(
-                tshare_outputs,
+                tshare_outputs.clone(),
                 all_participants.clone(),
-                *chain_code,
                 *rid,
             )?;
 
@@ -1103,7 +1101,6 @@ mod tests {
             .get(&configs.first().unwrap().id())
             .unwrap()
             .public_key()?;
-        let keygen_outputs_clone = keygen_outputs.clone();
 
         // Set up presign participants
         let mut auxinfo_outputs_presign = HashMap::new();
@@ -1181,12 +1178,17 @@ mod tests {
         let sign_sid = Identifier::random(&mut rng);
 
         // Get first output
-        let first_output = keygen_outputs_clone
-            .values()
-            .next()
-            .expect("could not get the first output");
+        //let first_output = keygen_outputs_clone
+        //    .values()
+        //    .next()
+        //    .expect("could not get the first output");
 
-        let chain_code = first_output.chain_code();
+        //let chain_code = first_output.chain_code();
+        // read chain_code from first output from tshare protocol
+        let chain_code = tshare_outputs
+            .get(&configs.first().unwrap().id())
+            .unwrap()
+            .chain_code();
 
         let saved_public_key_bytes: Vec<u8> = saved_public_key.clone().to_sec1_bytes().to_vec();
 
