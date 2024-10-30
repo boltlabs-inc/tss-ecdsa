@@ -1136,13 +1136,6 @@ mod tests {
         let digest = Keccak256::new_with_prefix(message);
         let sign_sid = Identifier::random(&mut rng);
 
-        // Get first output
-        //let first_output = keygen_outputs_clone
-        //    .values()
-        //    .next()
-        //    .expect("could not get the first output");
-
-        //let chain_code = first_output.chain_code();
         // read chain_code from first output from tshare protocol
         let chain_code = tshare_outputs
             .get(&configs.first().unwrap().id())
