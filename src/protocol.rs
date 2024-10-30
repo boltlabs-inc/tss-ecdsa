@@ -649,7 +649,7 @@ mod tests {
         PresignParticipant,
     };
     use core::panic;
-    use k256::{ecdsa::signature::DigestVerifier, Scalar};
+    use k256::{ecdsa::signature::DigestVerifier, elliptic_curve::Field, Scalar};
     use rand::seq::IteratorRandom;
     use sha3::{Digest, Keccak256};
     use std::{collections::HashMap, vec};
@@ -943,68 +943,22 @@ mod tests {
             .iter()
             .all(|p| *p.status() == Status::TerminatedSuccessfully));
 
-        // Set up keygen participants
-        let keygen_sid = Identifier::random(&mut rng);
-        let mut keygen_quorum = configs
-            .clone()
-            .into_iter()
-            .map(|config| {
-                Participant::<KeygenParticipant>::from_config(config, keygen_sid, ()).unwrap()
-            })
-            .collect::<Vec<_>>();
-        let mut keygen_outputs: HashMap<
-            ParticipantIdentifier,
-            <KeygenParticipant as ProtocolParticipant>::Output,
-        > = HashMap::new();
-
-        // Initialize keygen for all participants
-        for participant in &keygen_quorum {
-            let inbox = inboxes.get_mut(&participant.id).unwrap();
-            inbox.push(participant.initialize_message()?);
-        }
-
-        // Run keygen until all parties have outputs
-        while keygen_outputs.len() < QUORUM_SIZE {
-            let output = process_random_message(&mut keygen_quorum, &mut inboxes, &mut rng)?;
-
-            if let Some((pid, output)) = output {
-                // Save the output, and make sure this participant didn't already return an
-                // output.
-                assert!(keygen_outputs.insert(pid, output).is_none());
-            }
-        }
-
-        // Keygen is done! Make sure there are no more messages.
-        assert!(inboxes_are_empty(&inboxes));
-        // And make sure all participants have successfully terminated.
-        assert!(keygen_quorum
-            .iter()
-            .all(|p| *p.status() == Status::TerminatedSuccessfully));
-
         // Tshare protocol
         // After the Tshare protocol, we will have a set of t-out-of-t shares
         // Therefore we need to remove some participants from the configs, and from
         // keygen and auxinfo outputs
-        let mut keygen_outputs_tshare = keygen_outputs.clone();
         let auxinfo_outputs_tshare = auxinfo_outputs.clone();
         let tshare_sid = Identifier::random(&mut rng);
 
         let tshare_inputs = configs
             .iter()
-            .map(|config| {
-                (
-                    auxinfo_outputs.remove(&config.id()).unwrap(),
-                    keygen_outputs_tshare.remove(&config.id()).unwrap(),
-                )
-            })
-            .map(|(auxinfo_output, keygen_output)| {
-                // convert the private share to CoeffPrivate
-                let secret = keygen_output.private_key_share().as_ref();
+            .map(|config| auxinfo_outputs.remove(&config.id()).unwrap())
+            .map(|auxinfo_output| {
+                // generate the secret simply as a random scalar
+                let secret = Scalar::random(&mut rng);
                 tshare::Input::new(
                     auxinfo_output,
-                    Some(CoeffPrivate {
-                        x: bn_to_scalar(secret).unwrap(),
-                    }),
+                    Some(CoeffPrivate { x: secret }),
                     QUORUM_THRESHOLD,
                 )
                 .unwrap()
@@ -1064,7 +1018,12 @@ mod tests {
         let all_participants = configs.first().unwrap().all_participants();
 
         // t-out-of-t conversion
-        let rid = keygen_outputs[&configs[0].id()].rid();
+        // read rid from first output from tshare protocol
+        let rid = tshare_outputs
+            .get(&configs.first().unwrap().id())
+            .unwrap()
+            .rid();
+
         let (mut toft_keygen_outputs, _toft_public_keys) =
             TshareParticipant::convert_to_t_out_of_t_shares(
                 tshare_outputs.clone(),

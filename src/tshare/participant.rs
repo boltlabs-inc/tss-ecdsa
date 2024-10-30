@@ -295,6 +295,8 @@ impl TshareParticipant {
             if let Some(private) = self.input.share() {
                 privates[0] = private.clone();
                 publics[0] = private.to_public();
+            } else {
+                dbg!("ENTROU NO ELSE MESMO");
             }
 
             (privates, publics)
@@ -605,29 +607,6 @@ impl TshareParticipant {
     #[instrument(skip_all, err(Debug))]
     fn gen_round_three_msgs(&mut self) -> Result<Vec<Message>> {
         info!("Generating round three tshare messages.");
-
-        // Construct `global rid` out of each participant's `rid`s.
-        /*let my_rid = self
-            .local_storage
-            .retrieve::<storage::Decommit>(self.id())?
-            .rid;
-        let rids: Vec<[u8; 32]> = self
-            .other_ids()
-            .iter()
-            .map(|&other_participant_id| {
-                let decom = self
-                    .local_storage
-                    .retrieve::<storage::Decommit>(other_participant_id)?;
-                Ok(decom.rid)
-            })
-            .collect::<Result<Vec<[u8; 32]>>>()?;
-        let mut global_rid = my_rid;
-        // xor all the rids together.
-        for rid in rids.iter() {
-            for i in 0..32 {
-                global_rid[i] ^= rid[i];
-            }
-        }*/
 
         // Auxiliary macro to xor two 256-bit arrays given as Vectors of 32 bytes
         macro_rules! xor_256_bits {
@@ -949,12 +928,14 @@ impl TshareParticipant {
             let global_chain_code = *self
                 .local_storage
                 .retrieve::<storage::GlobalChainCode>(self.id)?;
+            let global_rid = *self.local_storage.retrieve::<storage::GlobalRid>(self.id)?;
 
             let output = Output::from_parts(
                 all_public_coeffs.clone(),
                 all_public_keys,
                 my_private_share.x,
                 global_chain_code,
+                global_rid,
             )?;
 
             self.status = Status::TerminatedSuccessfully;
