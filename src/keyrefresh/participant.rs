@@ -797,7 +797,13 @@ impl KeyrefreshParticipant {
 
             // Return the output and stop.
             let rid_before = *self.input.keygen_output().rid();
-            let output = Output::from_parts(new_public_shares, my_new_share, rid_before)?;
+            let chain_code_before = *self.input.keygen_output().chain_code();
+            let output = Output::from_parts(
+                new_public_shares,
+                my_new_share,
+                rid_before,
+                chain_code_before,
+            )?;
 
             // Final validation that the public key of the quorum has not changed. This
             // should never fail because this is already verified in round 2 by

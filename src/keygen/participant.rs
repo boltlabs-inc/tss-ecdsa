@@ -51,6 +51,10 @@ mod storage {
     impl TypeTag for GlobalRid {
         type Value = [u8; 32];
     }
+    pub(super) struct GlobalChainCode;
+    impl TypeTag for GlobalChainCode {
+        type Value = [u8; 32];
+    }
     pub(super) struct PrivateKeyshare;
     impl TypeTag for PrivateKeyshare {
         type Value = KeySharePrivate;
@@ -476,17 +480,22 @@ impl KeygenParticipant {
 
         // Compute the global chain code and random identifier from individual
         // contributions
+        let mut global_chain_code = my_decom.chain_code;
         let mut global_rid = my_decom.rid;
         for &other_participant_id in self.other_participant_ids.iter() {
             let decom = self
                 .local_storage
                 .retrieve::<storage::Decommit>(other_participant_id)?;
+            global_chain_code = xor_256_bits!(global_chain_code, decom.chain_code);
             global_rid = xor_256_bits!(global_rid, decom.rid);
         }
 
         self.local_storage
+            .store::<storage::GlobalChainCode>(self.id, global_chain_code);
+        self.local_storage
             .store::<storage::GlobalRid>(self.id, global_rid);
-        let transcript = schnorr_proof_transcript(self.sid(), &global_rid, self.id())?;
+        let transcript =
+            schnorr_proof_transcript(self.sid(), &global_chain_code, &global_rid, self.id())?;
 
         let precom = self
             .local_storage
@@ -536,6 +545,9 @@ impl KeygenParticipant {
         }
         let proof = PiSchProof::from_message(message)?;
         let global_rid = *self.local_storage.retrieve::<storage::GlobalRid>(self.id)?;
+        let global_chain_code = *self
+            .local_storage
+            .retrieve::<storage::GlobalChainCode>(self.id)?;
         let decom = self
             .local_storage
             .retrieve::<storage::Decommit>(message.from())?;
@@ -543,7 +555,8 @@ impl KeygenParticipant {
 
         let input = CommonInput::new(&decom.pk);
 
-        let mut transcript = schnorr_proof_transcript(self.sid(), &global_rid, message.from())?;
+        let mut transcript =
+            schnorr_proof_transcript(self.sid(), &global_chain_code, &global_rid, message.from())?;
         proof.verify_with_precommit(input, &self.retrieve_context(), &mut transcript, precommit)?;
 
         // Only if the proof verifies do we store the participant's public key
@@ -569,7 +582,12 @@ impl KeygenParticipant {
                 .remove::<storage::PrivateKeyshare>(self.id)?;
             self.status = Status::TerminatedSuccessfully;
 
-            let output = Output::from_parts(public_key_shares, private_key_share, global_rid)?;
+            let output = Output::from_parts(
+                public_key_shares,
+                private_key_share,
+                global_rid,
+                global_chain_code,
+            )?;
             Ok(ProcessOutcome::Terminated(output))
         } else {
             // Otherwise, we'll have to wait for more round three messages.
@@ -581,11 +599,13 @@ impl KeygenParticipant {
 /// Generate a [`Transcript`] for [`PiSchProof`].
 fn schnorr_proof_transcript(
     sid: Identifier,
+    global_chain_code: &[u8; 32],
     global_rid: &[u8; 32],
     sender_id: ParticipantIdentifier,
 ) -> Result<Transcript> {
     let mut transcript = Transcript::new(b"keygen schnorr");
     transcript.append_message(b"sid", &serialize!(&sid)?);
+    transcript.append_message(b"chain_code", &serialize!(global_chain_code)?);
     transcript.append_message(b"rid", &serialize!(global_rid)?);
     transcript.append_message(b"sender_id", &serialize!(&sender_id)?);
     Ok(transcript)

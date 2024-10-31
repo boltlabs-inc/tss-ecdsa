@@ -24,6 +24,7 @@ pub struct Output {
     public_key_shares: Vec<KeySharePublic>,
     private_key_share: KeySharePrivate,
     rid: [u8; 32],
+    chain_code: [u8; 32],
 }
 
 impl Output {
@@ -72,6 +73,11 @@ impl Output {
         &self.rid
     }
 
+    /// Get the chain code generated during key generation.
+    pub(crate) fn chain_code(&self) -> &[u8; 32] {
+        &self.chain_code
+    }
+
     /// Create a new `Output` from its constitutent parts.
     ///
     /// This method should only be used with components that were previously
@@ -86,6 +92,7 @@ impl Output {
         public_key_shares: Vec<KeySharePublic>,
         private_key_share: KeySharePrivate,
         rid: [u8; 32],
+        chain_code: [u8; 32],
     ) -> Result<Self> {
         let pids = public_key_shares
             .iter()
@@ -109,6 +116,7 @@ impl Output {
             public_key_shares,
             private_key_share,
             rid,
+            chain_code,
         })
     }
 
@@ -121,8 +129,13 @@ impl Output {
     ///
     /// The public components (including the byte array and the public key
     /// shares) can be stored in the clear.
-    pub fn into_parts(self) -> (Vec<KeySharePublic>, KeySharePrivate, [u8; 32]) {
-        (self.public_key_shares, self.private_key_share, self.rid)
+    pub fn into_parts(self) -> (Vec<KeySharePublic>, KeySharePrivate, [u8; 32], [u8; 32]) {
+        (
+            self.public_key_shares,
+            self.private_key_share,
+            self.rid,
+            self.chain_code,
+        )
     }
 }
 
@@ -153,8 +166,15 @@ mod tests {
                 .unzip();
 
             let rid = rng.gen();
+            let chain_code = rng.gen();
 
-            Self::from_parts(public_key_shares, private_key_shares.pop().unwrap(), rid).unwrap()
+            Self::from_parts(
+                public_key_shares,
+                private_key_shares.pop().unwrap(),
+                rid,
+                chain_code,
+            )
+            .unwrap()
         }
 
         /// Simulate a consistent, valid output of a keygen run with the given
@@ -178,11 +198,18 @@ mod tests {
                 .unzip();
 
             let rid = rng.gen();
+            let chain_code = rng.gen();
 
             private_key_shares
                 .into_iter()
                 .map(|private_key_share| {
-                    Self::from_parts(public_key_shares.clone(), private_key_share, rid).unwrap()
+                    Self::from_parts(
+                        public_key_shares.clone(),
+                        private_key_share,
+                        rid,
+                        chain_code,
+                    )
+                    .unwrap()
                 })
                 .collect()
         }
@@ -196,8 +223,8 @@ mod tests {
             .collect::<Vec<_>>();
         let output = Output::simulate(&pids, rng);
 
-        let (public, private, rid) = output.into_parts();
-        assert!(Output::from_parts(public, private, rid).is_ok());
+        let (public, private, rid, chain_code) = output.into_parts();
+        assert!(Output::from_parts(public, private, rid, chain_code).is_ok());
     }
 
     #[test]
@@ -214,10 +241,13 @@ mod tests {
         // the public keys but it's so unlikely that we won't check it.
         let bad_private_key_share = KeySharePrivate::random(rng);
 
-        assert!(
-            Output::from_parts(output.public_key_shares, bad_private_key_share, output.rid)
-                .is_err()
+        assert!(Output::from_parts(
+            output.public_key_shares,
+            bad_private_key_share,
+            output.rid,
+            output.chain_code
         )
+        .is_err())
     }
 
     #[test]
@@ -242,9 +272,14 @@ mod tests {
             .unzip();
 
         let rid = rng.gen();
+        let chain_code = rng.gen();
 
-        assert!(
-            Output::from_parts(public_key_shares, private_key_shares.pop().unwrap(), rid).is_err()
-        );
+        assert!(Output::from_parts(
+            public_key_shares,
+            private_key_shares.pop().unwrap(),
+            rid,
+            chain_code
+        )
+        .is_err());
     }
 }

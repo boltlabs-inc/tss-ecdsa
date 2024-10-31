@@ -1023,12 +1023,17 @@ mod tests {
             .get(&configs.first().unwrap().id())
             .unwrap()
             .rid();
+        let chain_code = tshare_outputs
+            .get(&configs.first().unwrap().id())
+            .unwrap()
+            .chain_code();
 
         let (mut toft_keygen_outputs, _toft_public_keys) =
             TshareParticipant::convert_to_t_out_of_t_shares(
                 tshare_outputs.clone(),
                 all_participants.clone(),
                 *rid,
+                *chain_code,
             )?;
 
         if QUORUM_REAL >= QUORUM_THRESHOLD {

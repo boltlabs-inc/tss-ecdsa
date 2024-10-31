@@ -36,6 +36,7 @@ pub(crate) struct KeygenDecommit {
     ///`sid` corresponds to a unique session identifier.
     pub sid: Identifier,
     pub sender: ParticipantIdentifier,
+    pub chain_code: [u8; 32],
     pub rid: [u8; 32],
     pub u_i: [u8; 32],
     pub pk: KeySharePublic,
@@ -51,13 +52,16 @@ impl KeygenDecommit {
         pk: &KeySharePublic,
         sch_precom: &PiSchPrecommit,
     ) -> Self {
+        let mut chain_code = [0u8; 32];
         let mut rid = [0u8; 32];
         let mut u_i = [0u8; 32];
+        rng.fill_bytes(chain_code.as_mut_slice());
         rng.fill_bytes(rid.as_mut_slice());
         rng.fill_bytes(u_i.as_mut_slice());
         Self {
             sid: *sid,
             sender: *sender,
+            chain_code,
             rid,
             u_i,
             pk: pk.clone(),
