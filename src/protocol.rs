@@ -845,48 +845,53 @@ mod tests {
         inboxes.iter().all(|(_pid, messages)| messages.is_empty())
     }
 
+    #[cfg_attr(feature = "flame_it", flame)]
+    #[test]
+    fn test_full_noninteractive_signing_works_with_keygen() {
+        assert!(full_noninteractive_signing_works(3, 3, 3, None).is_ok());
+        assert!(full_noninteractive_signing_works(3, 2, 3, None).is_ok());
+        assert!(full_noninteractive_signing_works(2, 2, 3, None).is_ok());
+    }
+
     #[ignore]
     #[test]
-    fn test_full_protocol_execution_with_noninteractive_signing_works_larger_values() {
-        assert!(full_protocol_execution_with_noninteractive_signing_works(5, 5, 5, 42).is_ok());
-        assert!(full_protocol_execution_with_noninteractive_signing_works(5, 4, 5, 42).is_ok());
-        assert!(full_protocol_execution_with_noninteractive_signing_works(4, 4, 5, 42).is_ok());
-        assert!(full_protocol_execution_with_noninteractive_signing_works(5, 3, 5, 42).is_ok());
-        assert!(full_protocol_execution_with_noninteractive_signing_works(4, 3, 5, 42).is_ok());
-        assert!(full_protocol_execution_with_noninteractive_signing_works(3, 3, 5, 42).is_ok());
+    fn test_full_noninteractive_signing_works_with_hd_wallet_larger_values() {
+        assert!(full_noninteractive_signing_works(5, 5, 5, Some(42)).is_ok());
+        assert!(full_noninteractive_signing_works(5, 4, 5, Some(42)).is_ok());
+        assert!(full_noninteractive_signing_works(4, 4, 5, Some(42)).is_ok());
+        assert!(full_noninteractive_signing_works(5, 3, 5, Some(42)).is_ok());
+        assert!(full_noninteractive_signing_works(4, 3, 5, Some(42)).is_ok());
+        assert!(full_noninteractive_signing_works(3, 3, 5, Some(42)).is_ok());
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
-    fn test_full_protocol_execution_with_noninteractive_signing_works() {
-        assert!(full_protocol_execution_with_noninteractive_signing_works(3, 3, 3, 42).is_ok());
-        assert!(full_protocol_execution_with_noninteractive_signing_works(3, 2, 3, 42).is_ok());
-        assert!(full_protocol_execution_with_noninteractive_signing_works(2, 2, 3, 42).is_ok());
+    fn test_full_noninteractive_signing_works_with_hd_wallet() {
+        assert!(full_noninteractive_signing_works(3, 3, 3, Some(42)).is_ok());
+        assert!(full_noninteractive_signing_works(3, 2, 3, Some(42)).is_ok());
+        assert!(full_noninteractive_signing_works(2, 2, 3, Some(42)).is_ok());
         // 2**31
         let invalid_index = 1 << 31;
-        assert!(
-            full_protocol_execution_with_noninteractive_signing_works(3, 3, 3, invalid_index)
-                .is_err()
-        );
+        assert!(full_noninteractive_signing_works(3, 3, 3, Some(invalid_index)).is_err());
     }
 
     #[ignore]
     #[test]
-    fn test_full_protocol_execution_with_noninteractive_signing_works_err_larger_values() {
-        assert!(full_protocol_execution_with_noninteractive_signing_works(3, 4, 5, 42).is_err());
-        assert!(full_protocol_execution_with_noninteractive_signing_works(2, 4, 5, 42).is_err());
+    fn test_full_noninteractive_signing_works_with_hd_wallet_err_larger_values() {
+        assert!(full_noninteractive_signing_works(3, 4, 5, Some(42)).is_err());
+        assert!(full_noninteractive_signing_works(2, 4, 5, Some(42)).is_err());
     }
 
     #[test]
-    fn test_full_protocol_execution_with_noninteractive_signing_works_err() {
-        assert!(full_protocol_execution_with_noninteractive_signing_works(2, 3, 4, 42).is_err());
+    fn test_full_noninteractive_signing_works_with_hd_wallet_err() {
+        assert!(full_noninteractive_signing_works(2, 3, 4, Some(42)).is_err());
     }
 
-    fn full_protocol_execution_with_noninteractive_signing_works(
+    fn full_noninteractive_signing_works(
         r: usize,
         t: usize,
         n: usize,
-        child_index: u32,
+        child_index: Option<u32>, // if None, the keygen is normal, otherwise we use HD wallet
     ) -> Result<()> {
         let mut rng = init_testing();
         let QUORUM_REAL = r; // The real quorum size, which is the number of participants that will actually
@@ -943,19 +948,68 @@ mod tests {
             .iter()
             .all(|p| *p.status() == Status::TerminatedSuccessfully));
 
+        // Set up keygen participants
+        let keygen_sid = Identifier::random(&mut rng);
+        let mut keygen_quorum = configs
+            .clone()
+            .into_iter()
+            .map(|config| {
+                Participant::<KeygenParticipant>::from_config(config, keygen_sid, ()).unwrap()
+            })
+            .collect::<Vec<_>>();
+        let mut keygen_outputs: HashMap<
+            ParticipantIdentifier,
+            <KeygenParticipant as ProtocolParticipant>::Output,
+        > = HashMap::new();
+
+        // Initialize keygen for all participants
+        for participant in &keygen_quorum {
+            let inbox = inboxes.get_mut(&participant.id).unwrap();
+            inbox.push(participant.initialize_message()?);
+        }
+
+        // Run keygen until all parties have outputs
+        while keygen_outputs.len() < QUORUM_SIZE {
+            let output = process_random_message(&mut keygen_quorum, &mut inboxes, &mut rng)?;
+
+            if let Some((pid, output)) = output {
+                // Save the output, and make sure this participant didn't already return an
+                // output.
+                assert!(keygen_outputs.insert(pid, output).is_none());
+            }
+        }
+
+        // Keygen is done! Makre sure there are no more messages.
+        assert!(inboxes_are_empty(&inboxes));
+        // And make sure all participants have successfully terminated.
+        assert!(keygen_quorum
+            .iter()
+            .all(|p| *p.status() == Status::TerminatedSuccessfully));
+
         // Tshare protocol
         // After the Tshare protocol, we will have a set of t-out-of-t shares
         // Therefore we need to remove some participants from the configs, and from
         // keygen and auxinfo outputs
+        let mut keygen_outputs_tshare = keygen_outputs.clone();
         let auxinfo_outputs_tshare = auxinfo_outputs.clone();
         let tshare_sid = Identifier::random(&mut rng);
 
         let tshare_inputs = configs
             .iter()
-            .map(|config| auxinfo_outputs.remove(&config.id()).unwrap())
-            .map(|auxinfo_output| {
-                // generate the secret simply as a random scalar
-                let secret = Scalar::random(&mut rng);
+            .map(|config| {
+                (
+                    auxinfo_outputs.remove(&config.id()).unwrap(),
+                    keygen_outputs_tshare.remove(&config.id()).unwrap(),
+                )
+            })
+            .map(|(auxinfo_output, keygen_output)| {
+                let secret: Scalar = if child_index.is_some() {
+                    // if child_index is Some(...), generate the secret simply as a random scalar
+                    // generate the secret simply as a random scalar
+                    Scalar::random(&mut rng)
+                } else {
+                    bn_to_scalar(keygen_output.private_key_share().as_ref()).unwrap()
+                };
                 tshare::Input::new(
                     auxinfo_output,
                     Some(CoeffPrivate { x: secret }),
@@ -1149,11 +1203,14 @@ mod tests {
 
         let saved_public_key_bytes: Vec<u8> = saved_public_key.clone().to_sec1_bytes().to_vec();
 
+        // if child_index is None, index is zero, otherwise it is child_index
+        let index = child_index.unwrap_or(0);
+
         let shift_input = slip0010::ckd::CKDInput::new(
             None,
             saved_public_key_bytes.to_vec(),
             *chain_code,
-            child_index,
+            index,
         )?;
         let ckd_output = slip0010::ckd::CKDInput::derive_public_shift(&shift_input);
         let shift_scalar = ckd_output.private_key;
