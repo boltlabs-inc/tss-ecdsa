@@ -1269,56 +1269,6 @@ mod tests {
             }
         }
 
-        /*let presign_sid = Identifier::random(&mut rng);
-
-        // Prepare presign inputs: a pair of outputs from keygen and auxinfo.
-        let presign_inputs = configs
-            .iter()
-            .map(|config| {
-                (
-                    auxinfo_outputs_presign.remove(&config.id()).unwrap(),
-                    toft_keygen_outputs.remove(&config.id()).unwrap(),
-                )
-            })
-            .map(|(auxinfo_output, keygen_output)| {
-                presign::Input::new(auxinfo_output, keygen_output).unwrap()
-            })
-            .collect::<Vec<_>>();
-
-        let mut presign_quorum = configs
-            .clone()
-            .into_iter()
-            .zip(presign_inputs)
-            .map(|(config, input)| {
-                Participant::<PresignParticipant>::from_config(config, presign_sid, input).unwrap()
-            })
-            .collect::<Vec<_>>();
-        let mut presign_outputs: HashMap<
-            ParticipantIdentifier,
-            <PresignParticipant as ProtocolParticipant>::Output,
-        > = HashMap::new();
-
-        for participant in &mut presign_quorum {
-            let inbox = inboxes.get_mut(&participant.id).unwrap();
-            inbox.push(participant.initialize_message()?);
-        }
-
-        while presign_outputs.len() < QUORUM_REAL {
-            let output = process_random_message(&mut presign_quorum, &mut inboxes, &mut rng)?;
-
-            if let Some((pid, output)) = output {
-                // Save the output, and make sure this participant didn't already return an
-                // output.
-                assert!(presign_outputs.insert(pid, output).is_none());
-            }
-        }
-
-        // Presigning is done! Make sure there are no more messages.
-        assert!(inboxes_are_empty(&inboxes));
-        // And make sure all participants have successfully terminated.
-        assert!(presign_quorum
-            .iter()
-            .all(|p| *p.status() == Status::TerminatedSuccessfully));*/
         let mut presign_outputs = presign_helper(
             configs.clone(),
             auxinfo_outputs_presign,
@@ -1326,10 +1276,6 @@ mod tests {
             &mut inboxes,
             rng.clone(),
         )?;
-
-        //let presign_outputs =
-        //    presign_helper(auxinfo_outputs_presign, toft_keygen_outputs,
-        // rng.clone())?;
 
         // Set the message and SID
         let message = b"Testing full protocol execution with non-interactive signing protocol";
