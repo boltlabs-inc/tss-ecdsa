@@ -138,7 +138,6 @@ impl Proof for PiSchProof {
         // Verifier samples e in F_q
         let challenge = positive_challenge_from_transcript(transcript, &k256_order())?;
         if challenge != self.challenge {
-            dbg!("xoiiiiiinicht");
             error!("Fiat-Shamir consistency check failed");
             return Err(InternalError::ProtocolError(None));
         }

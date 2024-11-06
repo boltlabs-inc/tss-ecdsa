@@ -26,7 +26,7 @@ use crate::{
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
     tshare::share::EvalPublic,
-    utils::{bn_to_scalar, scalar_to_bn, CurvePoint},
+    utils::{bn_to_scalar, k256_order, scalar_to_bn, CurvePoint},
     zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
     Identifier, ParticipantConfig,
 };
@@ -123,6 +123,16 @@ pub struct TshareParticipant {
     broadcast_participant: BroadcastParticipant,
     /// Status of the protocol execution.
     status: Status,
+}
+
+#[derive(Debug)]
+pub struct ToutofTHelper {
+    pub keygen_outputs:
+        HashMap<ParticipantIdentifier, <KeygenParticipant as ProtocolParticipant>::Output>,
+    pub public_keys: Vec<KeySharePublic>,
+    pub all_participants: Vec<ParticipantIdentifier>,
+    pub rid: [u8; 32],
+    pub chain_code: [u8; 32],
 }
 
 impl ProtocolParticipant for TshareParticipant {
@@ -758,10 +768,10 @@ impl TshareParticipant {
         all_participants: Vec<ParticipantIdentifier>,
         rid: [u8; 32],
         chain_code: [u8; 32],
-    ) -> Result<(
-        HashMap<ParticipantIdentifier, <KeygenParticipant as ProtocolParticipant>::Output>,
-        Vec<KeySharePublic>,
-    )> {
+        sum_tshare_input: Scalar,
+        threshold: usize,
+    ) -> Result<ToutofTHelper> {
+        let real = all_participants.len();
         let mut new_private_shares = HashMap::new();
         let mut public_keys = vec![];
 
@@ -797,7 +807,31 @@ impl TshareParticipant {
             )?;
             assert!(keygen_outputs.insert(pid, output).is_none());
         }
-        Ok((keygen_outputs, public_keys))
+
+        let mut sum_toft_private_shares = keygen_outputs
+            .values()
+            .map(|output| output.private_key_share().as_ref().clone())
+            .fold(BigNumber::zero(), |acc, x| acc + x);
+        sum_toft_private_shares %= k256_order();
+
+        // Check the sum is indeed the sum of original private keys used as input of
+        // tshare reduced mod the order
+        dbg!(real);
+        dbg!(threshold);
+        if real >= threshold {
+            assert_eq!(
+                bn_to_scalar(&sum_toft_private_shares).unwrap(),
+                sum_tshare_input
+            );
+        }
+
+        Ok(ToutofTHelper {
+            keygen_outputs,
+            public_keys,
+            all_participants,
+            rid,
+            chain_code,
+        })
     }
 
     /// Reconstruct the secret from the shares.
