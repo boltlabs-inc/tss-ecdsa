@@ -639,7 +639,7 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo::{self, AuxInfoParticipant, AuxInfoPublic},
-        keygen::KeygenParticipant,
+        keygen::{KeySharePublic, KeygenParticipant},
         messages,
         participant::Status,
         presign,
@@ -650,7 +650,11 @@ mod tests {
         PresignParticipant,
     };
     use core::panic;
-    use k256::{ecdsa::signature::DigestVerifier, elliptic_curve::Field, Scalar};
+    use k256::{
+        ecdsa::{signature::DigestVerifier, VerifyingKey},
+        elliptic_curve::Field,
+        Scalar,
+    };
     use rand::{rngs::StdRng, seq::IteratorRandom};
     use sha3::{Digest, Keccak256};
     use std::{collections::HashMap, vec};
@@ -844,6 +848,16 @@ mod tests {
 
     fn inboxes_are_empty(inboxes: &HashMap<ParticipantIdentifier, Vec<Message>>) -> bool {
         inboxes.iter().all(|(_pid, messages)| messages.is_empty())
+    }
+
+    #[test]
+    fn test_basic_noninteractive_signing_works() {
+        assert!(basic_noninteractive_signing_works(3).is_ok());
+    }
+
+    #[test]
+    fn test_hd_wallet_noninteractive_signing_works() {
+        assert!(hd_wallet_noninteractive_signing_works(3, 42).is_ok());
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -1174,131 +1188,45 @@ mod tests {
         Ok(presign_outputs)
     }
 
-    fn full_noninteractive_signing_works(
-        r: usize,
-        t: usize,
-        n: usize,
-        child_index: Option<u32>, // if None, the keygen is normal, otherwise we use HD wallet
-    ) -> Result<()> {
-        let mut rng = init_testing();
-        let QUORUM_REAL = r; // The real quorum size, which is the number of participants that will actually
-                             // participate in the protocol
-        let QUORUM_THRESHOLD = t; // threshold t, which is the minimum quorum allowed to complete the protocol
-        let QUORUM_SIZE = n; // total number of participants in the protocol
+    pub struct SignHelperInput {
+        chain_code: [u8; 32],
+        presign_outputs:
+            HashMap<ParticipantIdentifier, <PresignParticipant as ProtocolParticipant>::Output>,
+        public_key_shares: Vec<KeySharePublic>,
+        saved_public_key: VerifyingKey,
+        child_index: Option<u32>,
+        threshold: usize,
+        inboxes: HashMap<ParticipantIdentifier, Vec<Message>>,
+    }
 
-        // Set GLOBAL config for participants
-        let mut configs = ParticipantConfig::random_quorum(QUORUM_SIZE, &mut rng).unwrap();
-
-        let auxinfo_helper_output = auxinfo_helper(configs.clone(), rng.clone())?;
-        let auxinfo_outputs = auxinfo_helper_output.auxinfo_outputs;
-        let mut inboxes = auxinfo_helper_output.inboxes;
-
-        let keygen_helper_output = keygen_helper(configs.clone(), inboxes.clone(), rng.clone())?;
-        let keygen_outputs = keygen_helper_output.keygen_outputs;
-
-        let auxinfo_outputs_tshare = auxinfo_outputs.clone();
-
-        let tshare_helper_outputs = tshare_helper(
-            configs.clone(),
-            child_index,
-            auxinfo_outputs,
-            keygen_outputs,
-            QUORUM_THRESHOLD,
-            rng.clone(),
-        )?;
-        let tshare_outputs = tshare_helper_outputs.tshare_outputs;
-        let tshare_inputs = tshare_helper_outputs.tshare_inputs;
-
-        // remove QUORUM_SIZE - QUORUM_REAL elements from the configs (the last ones)
-        assert!(QUORUM_REAL > 1);
-        assert!(QUORUM_SIZE >= QUORUM_REAL);
-        for _ in 0..(QUORUM_SIZE - QUORUM_REAL) {
-            configs = configs.clone().last().unwrap().remove().unwrap();
-        }
-        assert!(configs.len() == QUORUM_REAL);
-
-        let all_participants = configs.first().unwrap().all_participants();
-
-        // t-out-of-t conversion
-        // read rid from first output from tshare protocol
-        let first_output = tshare_outputs.get(&configs.first().unwrap().id()).unwrap();
-        let rid = first_output.rid();
-        let chain_code = first_output.chain_code();
-
-        let sum_tshare_input = tshare_inputs
-            .iter()
-            .map(|input| input.share().unwrap().x)
-            .fold(Scalar::ZERO, |acc, x| acc + x);
-
-        let toft_outputs = TshareParticipant::convert_to_t_out_of_t_shares(
-            tshare_outputs.clone(),
-            all_participants.clone(),
-            *rid,
-            *chain_code,
-            sum_tshare_input,
-            QUORUM_THRESHOLD,
-        )?;
-        let toft_keygen_outputs = toft_outputs.keygen_outputs;
-
-        let public_key_shares = toft_keygen_outputs
-            .get(&configs.first().unwrap().id())
-            .unwrap()
-            .public_key_shares()
-            .to_vec();
-        let saved_public_key = toft_keygen_outputs
-            .get(&configs.first().unwrap().id())
-            .unwrap()
-            .public_key()?;
-
-        // Set up presign participants
-        let mut auxinfo_outputs_presign = HashMap::new();
-
-        // remove elements not in `all-participants` from auxinfo_outputs_presign
-        for pid in auxinfo_outputs_tshare.keys() {
-            if all_participants.contains(pid) {
-                let output = auxinfo_outputs_tshare.get(pid).unwrap();
-                let new_aux_pk: Vec<AuxInfoPublic> = output
-                    .public_auxinfo()
-                    .iter()
-                    .filter(|auxinfo| all_participants.contains(&auxinfo.participant()))
-                    .cloned()
-                    .collect();
-                let new_output =
-                    auxinfo::Output::from_parts(new_aux_pk, output.private_auxinfo().clone())?;
-                assert!(auxinfo_outputs_presign.insert(*pid, new_output).is_none());
-            }
-        }
-
-        let mut presign_outputs = presign_helper(
-            configs.clone(),
-            auxinfo_outputs_presign,
-            toft_keygen_outputs,
-            &mut inboxes,
-            rng.clone(),
-        )?;
-
-        // Set the message and SID
+    // Sign helper receives as input the configs and a special struct containg
+    // all the information needed for signature generation.
+    // INFO: this function is used to test the full non-interactive signing protocol
+    fn sign_helper(
+        configs: Vec<ParticipantConfig>,
+        sign_helper_input: SignHelperInput,
+        mut rng: StdRng,
+    ) -> Result<bool> {
         let message = b"Testing full protocol execution with non-interactive signing protocol";
+        let QUORUM_REAL = configs.len();
         let digest = Keccak256::new_with_prefix(message);
         let sign_sid = Identifier::random(&mut rng);
 
-        // read chain_code from first output from tshare protocol
-        let chain_code = tshare_outputs
-            .get(&configs.first().unwrap().id())
-            .unwrap()
-            .chain_code();
+        let mut presign_outputs = sign_helper_input.presign_outputs;
+        let public_key_shares = sign_helper_input.public_key_shares;
+        let saved_public_key = sign_helper_input.saved_public_key;
+        let child_index = sign_helper_input.child_index;
+        let threshold = sign_helper_input.threshold;
+        let mut inboxes = sign_helper_input.inboxes;
+        let chain_code = sign_helper_input.chain_code;
 
         let saved_public_key_bytes: Vec<u8> = saved_public_key.clone().to_sec1_bytes().to_vec();
 
         // if child_index is None, index is zero, otherwise it is child_index
         let index = child_index.unwrap_or(0);
 
-        let shift_input = slip0010::ckd::CKDInput::new(
-            None,
-            saved_public_key_bytes.to_vec(),
-            *chain_code,
-            index,
-        )?;
+        let shift_input =
+            slip0010::ckd::CKDInput::new(None, saved_public_key_bytes.to_vec(), chain_code, index)?;
         let ckd_output = slip0010::ckd::CKDInput::derive_public_shift(&shift_input);
         let shift_scalar = ckd_output.private_key;
 
@@ -1312,7 +1240,7 @@ mod tests {
                     message,
                     record,
                     public_key_shares.clone(),
-                    QUORUM_THRESHOLD,
+                    threshold,
                     Some(shift_scalar),
                 );
                 Participant::<SignParticipant>::from_config(config, sign_sid, input)
@@ -1320,7 +1248,7 @@ mod tests {
             .collect::<Result<Vec<_>>>()?;
 
         // Prepare output storage and initial "ready" messages
-        let mut sign_outputs = Vec::with_capacity(QUORUM_SIZE);
+        let mut sign_outputs = Vec::with_capacity(QUORUM_REAL);
         for participant in &mut sign_quorum {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(participant.initialize_message()?);
@@ -1354,8 +1282,220 @@ mod tests {
             .verify_digest(digest, sign_outputs[0].as_ref())
             .is_ok());
 
-        #[cfg(feature = "flame_it")]
-        flame::dump_html(&mut std::fs::File::create("dev/flame-graph.html").unwrap()).unwrap();
+        Ok(true)
+    }
+
+    fn adjust_auxinfo(
+        all_participants: &[ParticipantIdentifier],
+        auxinfo_outputs: HashMap<ParticipantIdentifier, auxinfo::Output>,
+    ) -> Result<HashMap<ParticipantIdentifier, auxinfo::Output>> {
+        // Set up presign participants
+        let mut auxinfo_outputs_presign = HashMap::new();
+
+        // remove elements not in `all-participants` from auxinfo_outputs_presign
+        for pid in auxinfo_outputs.keys() {
+            if all_participants.contains(pid) {
+                let output = auxinfo_outputs.get(pid).unwrap();
+                let new_aux_pk: Vec<AuxInfoPublic> = output
+                    .public_auxinfo()
+                    .iter()
+                    .filter(|auxinfo| all_participants.contains(&auxinfo.participant()))
+                    .cloned()
+                    .collect();
+                let new_output =
+                    auxinfo::Output::from_parts(new_aux_pk, output.private_auxinfo().clone())?;
+                assert!(auxinfo_outputs_presign.insert(*pid, new_output).is_none());
+            }
+        }
+
+        Ok(auxinfo_outputs_presign)
+    }
+
+    fn basic_noninteractive_signing_works(
+        n: usize, // Total number of participants in the protocol
+    ) -> Result<()> {
+        let mut rng = init_testing();
+
+        // Set GLOBAL config for participants
+        let configs = ParticipantConfig::random_quorum(n, &mut rng).unwrap();
+
+        let auxinfo_helper_output = auxinfo_helper(configs.clone(), rng.clone())?;
+        let auxinfo_outputs = auxinfo_helper_output.auxinfo_outputs;
+        let mut inboxes = auxinfo_helper_output.inboxes;
+
+        let keygen_helper_output = keygen_helper(configs.clone(), inboxes.clone(), rng.clone())?;
+        let keygen_outputs = keygen_helper_output.keygen_outputs;
+
+        let first_keygen_output = keygen_outputs.get(&configs.first().unwrap().id()).unwrap();
+        let public_key_shares = first_keygen_output.public_key_shares().to_vec();
+        let saved_public_key = first_keygen_output.public_key()?;
+
+        let presign_outputs = presign_helper(
+            configs.clone(),
+            auxinfo_outputs,
+            keygen_outputs.clone(),
+            &mut inboxes,
+            rng.clone(),
+        )?;
+
+        let chain_code = *first_keygen_output.chain_code();
+
+        let sign_helper_input = SignHelperInput {
+            public_key_shares,
+            saved_public_key,
+            presign_outputs,
+            chain_code,
+            inboxes,
+            child_index: None,
+            threshold: n,
+        };
+
+        // Set the message and SID
+        assert!(sign_helper(configs, sign_helper_input, rng)?);
+
+        Ok(())
+    }
+
+    fn hd_wallet_noninteractive_signing_works(
+        n: usize, // Total number of participants in the protocol
+        child_index: u32,
+    ) -> Result<()> {
+        let mut rng = init_testing();
+
+        // Set GLOBAL config for participants
+        let configs = ParticipantConfig::random_quorum(n, &mut rng).unwrap();
+
+        let auxinfo_helper_output = auxinfo_helper(configs.clone(), rng.clone())?;
+        let auxinfo_outputs = auxinfo_helper_output.auxinfo_outputs;
+        let mut inboxes = auxinfo_helper_output.inboxes;
+
+        let keygen_helper_output = keygen_helper(configs.clone(), inboxes.clone(), rng.clone())?;
+        let keygen_outputs = keygen_helper_output.keygen_outputs;
+
+        let first_keygen_output = keygen_outputs.get(&configs.first().unwrap().id()).unwrap();
+        let public_key_shares = first_keygen_output.public_key_shares().to_vec();
+        let saved_public_key = first_keygen_output.public_key()?;
+
+        let presign_outputs = presign_helper(
+            configs.clone(),
+            auxinfo_outputs,
+            keygen_outputs.clone(),
+            &mut inboxes,
+            rng.clone(),
+        )?;
+
+        let chain_code = *first_keygen_output.chain_code();
+
+        let sign_helper_input = SignHelperInput {
+            public_key_shares,
+            saved_public_key,
+            presign_outputs,
+            chain_code,
+            inboxes,
+            child_index: Some(child_index),
+            threshold: n,
+        };
+
+        // Set the message and SID
+        assert!(sign_helper(configs, sign_helper_input, rng)?);
+
+        Ok(())
+    }
+
+    fn full_noninteractive_signing_works(
+        r: usize, // The real quorum size, which is the number of participants that will actually
+        // participate in the protocol
+        t: usize,                 // The minimum quorum allowed to complete the protocol
+        n: usize,                 // Total number of participants in the protocol
+        child_index: Option<u32>, // if None, the keygen is normal, otherwise we use HD wallet
+    ) -> Result<()> {
+        let mut rng = init_testing();
+
+        // Set GLOBAL config for participants
+        let mut configs = ParticipantConfig::random_quorum(n, &mut rng).unwrap();
+
+        let auxinfo_helper_output = auxinfo_helper(configs.clone(), rng.clone())?;
+        let auxinfo_outputs = auxinfo_helper_output.auxinfo_outputs;
+        let mut inboxes = auxinfo_helper_output.inboxes;
+
+        let keygen_helper_output = keygen_helper(configs.clone(), inboxes.clone(), rng.clone())?;
+        let keygen_outputs = keygen_helper_output.keygen_outputs;
+
+        let auxinfo_outputs_tshare = auxinfo_outputs.clone();
+
+        let tshare_helper_outputs = tshare_helper(
+            configs.clone(),
+            child_index,
+            auxinfo_outputs,
+            keygen_outputs,
+            t,
+            rng.clone(),
+        )?;
+        let tshare_outputs = tshare_helper_outputs.tshare_outputs;
+        let tshare_inputs = tshare_helper_outputs.tshare_inputs;
+
+        // remove n - r elements from the configs (the last ones)
+        assert!(r > 1);
+        assert!(n >= r);
+        for _ in 0..(n - r) {
+            configs = configs.clone().last().unwrap().remove().unwrap();
+        }
+        assert!(configs.len() == r);
+
+        let all_participants = configs.first().unwrap().all_participants();
+
+        // t-out-of-t conversion
+        // read rid from first output from tshare protocol
+        let first_output = tshare_outputs.get(&configs.first().unwrap().id()).unwrap();
+        let rid = first_output.rid();
+        let chain_code = first_output.chain_code();
+
+        let sum_tshare_input = tshare_inputs
+            .iter()
+            .map(|input| input.share().unwrap().x)
+            .fold(Scalar::ZERO, |acc, x| acc + x);
+
+        let toft_outputs = TshareParticipant::convert_to_t_out_of_t_shares(
+            tshare_outputs.clone(),
+            all_participants.clone(),
+            *rid,
+            *chain_code,
+            sum_tshare_input,
+            t,
+        )?;
+        let toft_keygen_outputs = toft_outputs.keygen_outputs;
+
+        let first_keygen_output = toft_keygen_outputs
+            .get(&configs.first().unwrap().id())
+            .unwrap();
+        let public_key_shares = first_keygen_output.public_key_shares().to_vec();
+        let saved_public_key = first_keygen_output.public_key()?;
+
+        let auxinfo_outputs_presign = adjust_auxinfo(&all_participants, auxinfo_outputs_tshare)?;
+
+        let presign_outputs = presign_helper(
+            configs.clone(),
+            auxinfo_outputs_presign,
+            toft_keygen_outputs.clone(),
+            &mut inboxes,
+            rng.clone(),
+        )?;
+
+        let chain_code = *first_keygen_output.chain_code();
+
+        let sign_helper_input = SignHelperInput {
+            public_key_shares,
+            saved_public_key,
+            presign_outputs,
+            chain_code,
+            inboxes,
+            child_index,
+            threshold: t,
+        };
+
+        // Set the message and SID
+        assert!(sign_helper(configs, sign_helper_input, rng)?);
+
         Ok(())
     }
 
