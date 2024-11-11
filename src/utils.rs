@@ -40,7 +40,6 @@ impl From<CurvePoint> for EncodedPoint {
     fn from(value: CurvePoint) -> EncodedPoint {
         value.0.to_affine().into()
     }
-
 }
 
 impl AsRef<CurvePoint> for CurvePoint {

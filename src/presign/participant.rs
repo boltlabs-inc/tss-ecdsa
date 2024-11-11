@@ -1042,9 +1042,12 @@ impl PresignKeyShareAndInfo {
         let g = CurvePoint::GENERATOR;
         let Gamma = g.multiply_by_bignum(&sender_r1_priv.gamma)?;
         // create SerdePoint from Gamma
-        //let serdeGamma = SerdePoint::<generic_ec::curves::Secp256k1> {  
-            //point: generic_ec::curves::Secp256k1::point::from_bytes(Gamma.to_bytes()),
-            //point: <generic_ec_curves::rust_crypto::RustCryptoCurve<Secp256k1, ExpandMsgXmd<CoreWrapper<CtVariableCoreWrapper<Sha256VarCore, UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>, OidSha256>>>> as Example>::point::from_bytes(Gamma.to_bytes()),
+        //let serdeGamma = SerdePoint::<generic_ec::curves::Secp256k1> {
+        //point: generic_ec::curves::Secp256k1::point::from_bytes(Gamma.to_bytes()),
+        //point: <generic_ec_curves::rust_crypto::RustCryptoCurve<Secp256k1,
+        // ExpandMsgXmd<CoreWrapper<CtVariableCoreWrapper<Sha256VarCore,
+        // UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>,
+        // OidSha256>>>> as Example>::point::from_bytes(Gamma.to_bytes()),
         //};
         //let serdeGamma = SerdePoint::new(point_from_bytes(Gamma.to_bytes()));
         let serdeGamma = SerdePoint::from_curve_point(Gamma);
