@@ -646,7 +646,7 @@ mod tests {
         sign::{self, InteractiveSignParticipant, SignParticipant},
         slip0010,
         tshare::{self, CoeffPrivate, TshareParticipant},
-        utils::{bn_to_scalar, testing::init_testing},
+        utils::testing::init_testing,
         PresignParticipant,
     };
     use core::panic;
@@ -863,43 +863,43 @@ mod tests {
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
     fn test_full_noninteractive_signing_works_with_keygen() {
-        assert!(noninteractive_threshold_signing_works(3, 3, 3, None).is_ok());
-        assert!(noninteractive_threshold_signing_works(3, 2, 3, None).is_ok());
-        assert!(noninteractive_threshold_signing_works(2, 2, 3, None).is_ok());
+        assert!(noninteractive_threshold_signing_works(3, 3, 3, 0).is_ok());
+        assert!(noninteractive_threshold_signing_works(3, 2, 3, 0).is_ok());
+        assert!(noninteractive_threshold_signing_works(2, 2, 3, 0).is_ok());
     }
 
     #[ignore]
     #[test]
     fn test_full_noninteractive_signing_works_with_hd_wallet_larger_values() {
-        assert!(noninteractive_threshold_signing_works(5, 5, 5, Some(42)).is_ok());
-        assert!(noninteractive_threshold_signing_works(5, 4, 5, Some(42)).is_ok());
-        assert!(noninteractive_threshold_signing_works(4, 4, 5, Some(42)).is_ok());
-        assert!(noninteractive_threshold_signing_works(5, 3, 5, Some(42)).is_ok());
-        assert!(noninteractive_threshold_signing_works(4, 3, 5, Some(42)).is_ok());
-        assert!(noninteractive_threshold_signing_works(3, 3, 5, Some(42)).is_ok());
+        assert!(noninteractive_threshold_signing_works(5, 5, 5, 42).is_ok());
+        assert!(noninteractive_threshold_signing_works(5, 4, 5, 42).is_ok());
+        assert!(noninteractive_threshold_signing_works(4, 4, 5, 42).is_ok());
+        assert!(noninteractive_threshold_signing_works(5, 3, 5, 42).is_ok());
+        assert!(noninteractive_threshold_signing_works(4, 3, 5, 42).is_ok());
+        assert!(noninteractive_threshold_signing_works(3, 3, 5, 42).is_ok());
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
     fn test_full_noninteractive_signing_works_with_hd_wallet() {
-        assert!(noninteractive_threshold_signing_works(3, 3, 3, Some(42)).is_ok());
-        assert!(noninteractive_threshold_signing_works(3, 2, 3, Some(42)).is_ok());
-        assert!(noninteractive_threshold_signing_works(2, 2, 3, Some(42)).is_ok());
+        assert!(noninteractive_threshold_signing_works(3, 3, 3, 42).is_ok());
+        assert!(noninteractive_threshold_signing_works(3, 2, 3, 42).is_ok());
+        assert!(noninteractive_threshold_signing_works(2, 2, 3, 42).is_ok());
         // 2**31
         let invalid_index = 1 << 31;
-        assert!(noninteractive_threshold_signing_works(3, 3, 3, Some(invalid_index)).is_err());
+        assert!(noninteractive_threshold_signing_works(3, 3, 3, invalid_index).is_err());
     }
 
     #[ignore]
     #[test]
     fn test_full_noninteractive_signing_works_with_hd_wallet_err_larger_values() {
-        assert!(noninteractive_threshold_signing_works(3, 4, 5, Some(42)).is_err());
-        assert!(noninteractive_threshold_signing_works(2, 4, 5, Some(42)).is_err());
+        assert!(noninteractive_threshold_signing_works(3, 4, 5, 42).is_err());
+        assert!(noninteractive_threshold_signing_works(2, 4, 5, 42).is_err());
     }
 
     #[test]
     fn test_full_noninteractive_signing_works_with_hd_wallet_err() {
-        assert!(noninteractive_threshold_signing_works(2, 3, 4, Some(42)).is_err());
+        assert!(noninteractive_threshold_signing_works(2, 3, 4, 42).is_err());
     }
 
     struct AuxInfoHelperOutput {
@@ -1030,17 +1030,12 @@ mod tests {
     }
     // Receive as input a vector of configs, the child_index, the auxinfo outputs
     // and the keygen outputs It returns a struct containing and the tshare
-    // outputs
+    // outputs.
     fn tshare_helper(
         configs: Vec<ParticipantConfig>,
-        child_index: Option<u32>,
         auxinfo_outputs: HashMap<
             ParticipantIdentifier,
             <AuxInfoParticipant as ProtocolParticipant>::Output,
-        >,
-        keygen_outputs: HashMap<
-            ParticipantIdentifier,
-            <KeygenParticipant as ProtocolParticipant>::Output,
         >,
         threshold: usize,
         mut rng: StdRng,
@@ -1052,13 +1047,7 @@ mod tests {
             .iter()
             .map(|config| {
                 let auxinfo_output = auxinfo_outputs.get(&config.id()).unwrap();
-                let keygen_output = keygen_outputs.get(&config.id()).unwrap();
-                let secret: Scalar = if child_index.is_some() {
-                    // generate the secret simply as a random scalar
-                    Scalar::random(&mut rng)
-                } else {
-                    bn_to_scalar(keygen_output.private_key_share().as_ref()).unwrap()
-                };
+                let secret: Scalar = Scalar::random(&mut rng);
                 tshare::Input::new(
                     auxinfo_output.clone(),
                     Some(CoeffPrivate { x: secret }),
@@ -1194,7 +1183,7 @@ mod tests {
             HashMap<ParticipantIdentifier, <PresignParticipant as ProtocolParticipant>::Output>,
         public_key_shares: Vec<KeySharePublic>,
         saved_public_key: VerifyingKey,
-        child_index: Option<u32>,
+        child_index: u32,
         threshold: usize,
         inboxes: HashMap<ParticipantIdentifier, Vec<Message>>,
     }
@@ -1223,7 +1212,7 @@ mod tests {
         let saved_public_key_bytes: Vec<u8> = saved_public_key.clone().to_sec1_bytes().to_vec();
 
         // if child_index is None, index is zero, otherwise it is child_index
-        let index = child_index.unwrap_or(0);
+        let index = child_index;
 
         let shift_input =
             slip0010::ckd::CKDInput::new(None, saved_public_key_bytes.to_vec(), chain_code, index)?;
@@ -1352,7 +1341,7 @@ mod tests {
             presign_outputs,
             chain_code,
             inboxes,
-            child_index: None,
+            child_index: 0,
             threshold: n,
         };
 
@@ -1401,7 +1390,7 @@ mod tests {
             presign_outputs,
             chain_code,
             inboxes,
-            child_index: Some(child_index),
+            child_index,
             threshold: n,
         };
 
@@ -1418,9 +1407,9 @@ mod tests {
     fn noninteractive_threshold_signing_works(
         r: usize, // The real quorum size, which is the number of participants that will actually
         // participate in the protocol
-        t: usize,                 // The minimum quorum allowed to complete the protocol
-        n: usize,                 // Total number of participants in the protocol
-        child_index: Option<u32>, // if None, the keygen is normal, otherwise we use HD wallet
+        t: usize,         // The minimum quorum allowed to complete the protocol
+        n: usize,         // Total number of participants in the protocol
+        child_index: u32, // The child index for the HD wallet
     ) -> Result<()> {
         let mut rng = init_testing();
 
@@ -1432,19 +1421,9 @@ mod tests {
         let auxinfo_outputs = auxinfo_helper_output.auxinfo_outputs;
         let mut inboxes = auxinfo_helper_output.inboxes;
 
-        // Call the keygen helper to run its subprotocol
-        let keygen_helper_output = keygen_helper(configs.clone(), inboxes.clone(), rng.clone())?;
-        let keygen_outputs = keygen_helper_output.keygen_outputs;
-
         // Call the tshare helper to run its subprotocol
-        let tshare_helper_outputs = tshare_helper(
-            configs.clone(),
-            child_index,
-            auxinfo_outputs.clone(),
-            keygen_outputs,
-            t,
-            rng.clone(),
-        )?;
+        let tshare_helper_outputs =
+            tshare_helper(configs.clone(), auxinfo_outputs.clone(), t, rng.clone())?;
         let tshare_outputs = tshare_helper_outputs.tshare_outputs;
         let tshare_inputs = tshare_helper_outputs.tshare_inputs;
 
