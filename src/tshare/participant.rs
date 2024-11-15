@@ -1023,7 +1023,7 @@ fn schnorr_proof_transcript(
 #[cfg(test)]
 mod tests {
     use super::{super::input::Input, *};
-    use crate::{auxinfo, utils::testing::init_testing_with_seed, Identifier, ParticipantConfig};
+    use crate::{auxinfo, utils::testing::init_testing, Identifier, ParticipantConfig};
     use k256::elliptic_curve::{Field, PrimeField};
     use rand::{thread_rng, CryptoRng, Rng, RngCore};
     use std::{collections::HashMap, iter::zip};
@@ -1119,7 +1119,7 @@ mod tests {
     }
 
     fn tshare_produces_valid_outputs(quorum_size: usize) -> Result<()> {
-        let mut rng = init_testing_with_seed(Default::default());
+        let mut rng = init_testing();
         let sid = Identifier::random(&mut rng);
         let test_share = Some(CoeffPrivate {
             x: Scalar::from_u128(42),

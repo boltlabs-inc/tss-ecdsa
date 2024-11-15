@@ -452,8 +452,29 @@ pub(crate) mod testing {
         StdRng::from_seed(seed)
     }
 
-    /// A seeded version of init_testing. Additionally, turns on logging by
-    /// default.
+    /// A seeded version of [`init_testing`]. This function can be used when a
+    /// test fails unexpectedly, and you want to reproduce the run using a
+    /// specific RNG seed.
+    ///
+    /// **Additionally, turns on logging by default.**
+    ///
+    /// This function should only be called when debugging. Avoid calling as
+    /// part of a normal unit test execution. Otherwise, it will turn on
+    /// logging for all tests. This will be confusing as some tests
+    /// purposely give bad input to functions, which triggers an error and a
+    /// logging event. This is then confusing to developers as they will see:
+    /// ```
+    /// test paillier::test::paillier_encryption_works ... ok
+    ///   2024-11-15T23:16:21.753194Z ERROR tss_ecdsa::tshare::share: EvalEncrypted decryption failed, plaintext out of range (x=0)
+    ///     at src/tshare/share.rs:52
+    ///
+    ///   2024-11-15T23:16:21.822124Z ERROR tss_ecdsa::tshare::share: EvalEncrypted decryption failed, plaintext out of range (x=0)
+    ///     at src/tshare/share.rs:52
+    ///
+    /// test tshare::share::tests::coeff_decrypt_unexpected ... ok
+    /// ```
+    /// Which looks like something went wrong with the test but the test also
+    /// reported `ok`.
     #[allow(unused)]
     pub(crate) fn init_testing_with_seed(seed: [u8; 32]) -> StdRng {
         let logging_level = EnvFilter::from_default_env()
