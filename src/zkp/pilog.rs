@@ -23,31 +23,33 @@ use crate::{
     parameters::{ELL, EPSILON},
     ring_pedersen::{Commitment, MaskedRandomness, RingPedersen},
     utils::{
-        self, plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size,
+        plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size,
+        CurvePoint,
     },
     zkp::{Proof, ProofContext},
 };
+use generic_ec::{core::CompressedEncoding, Curve};
+use k256::elliptic_curve::{group::GroupEncoding, CurveArithmetic};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use serde::{ser::SerializeStruct, Deserialize, Deserializer, Serialize};
+use std::{fmt::Debug, ops::Add};
 use tracing::error;
-use utils::CurvePoint;
 
 /// Proof of knowledge that:
 /// 1. the committed value in a discrete log commitment and the plaintext value
 /// of a Paillier encryption are equal, and
 /// 2. the plaintext value is in the valid range (in this case `± 2^{ℓ + ε}`).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PiLogProof {
+#[derive(Clone)]
+pub(crate) struct PiLogProof<E: Curve + CurveArithmetic> {
     /// Commitment to the (secret) [plaintext](ProverSecret::plaintext) (`S` in
     /// the paper).
     plaintext_commit: Commitment,
     /// Paillier encryption of mask value (`A` in the paper).
     mask_ciphertext: Ciphertext,
     /// Discrete log commitment of mask value (`Y` in the paper).
-    mask_dlog_commit: CurvePoint,
+    mask_dlog_commit: SerdePoint<E>,
     /// Ring-Pedersen commitment of mask value (`D` in the paper).
     mask_commit: Commitment,
     /// Fiat-Shamir challenge (`e` in the paper).
@@ -63,18 +65,114 @@ pub(crate) struct PiLogProof {
     plaintext_commit_response: MaskedRandomness,
 }
 
+// implement Debug for PiLogProof
+impl<E: Curve + CurveArithmetic> Debug for PiLogProof<E>
+where
+    E::Point: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PiLogProof")
+            .field("plaintext_commit", &self.plaintext_commit)
+            .field("mask_ciphertext", &self.mask_ciphertext)
+            .field("mask_dlog_commit", &self.mask_dlog_commit)
+            .field("mask_commit", &self.mask_commit)
+            .field("challenge", &self.challenge)
+            .field("plaintext_response", &self.plaintext_response)
+            .field("nonce_response", &self.nonce_response)
+            .field("plaintext_commit_response", &self.plaintext_commit_response)
+            .finish()
+    }
+}
+
+// TODO: move this to a different file
+#[derive(Clone, PartialEq)]
+pub struct SerdePoint<E: Curve + CurveArithmetic> {
+    pub point: E::Point,
+}
+
+impl<E: Curve + CurveArithmetic> SerdePoint<E> {
+    pub fn new(point: E::Point) -> Self {
+        SerdePoint { point }
+    }
+
+    // convert from CurvePoint
+    pub fn from_curve_point(curve_point: CurvePoint) -> Self {
+        let point = curve_point.inner_value();
+        let point_affine = point.to_affine();
+        let point_bytes = point.to_affine().to_bytes();
+
+        let point = E::ProjectivePoint::from(point_affine);
+
+        SerdePoint { point }
+    }
+
+    // implement * for SerdePoint, where the scalar is a BigNumber
+    pub fn multiply_by_bignum(&self, scalar: &BigNumber) -> Result<Self> {
+        let generic_scalar = generic_ec::Scalar::from_be_bytes_mod_order(scalar.to_bytes());
+        let point = self.point * generic_scalar;
+        Ok(SerdePoint { point })
+    }
+
+    // use multiply_by_bignum to implement *
+    pub fn multiply(&self, scalar: &BigNumber) -> Self {
+        let point = self.multiply_by_bignum(scalar).unwrap().point;
+        SerdePoint { point }
+    }
+}
+
+impl<E: Curve + CurveArithmetic> Add for SerdePoint<E> {
+    type Output = SerdePoint<E>;
+    fn add(self, rhs: SerdePoint<E>) -> SerdePoint<E> {
+        SerdePoint {
+            point: self.point + rhs.point,
+        }
+    }
+}
+
+impl<E: Curve + CurveArithmetic> Serialize for SerdePoint<E> {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::Error;
+        let bytes = self.point.to_bytes_compressed();
+        serializer.serialize_bytes(&bytes).map_err(Error::custom)
+    }
+}
+
+impl<'de, E: Curve + CurveArithmetic> Deserialize<'de> for SerdePoint<E> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let bytes: Vec<u8> = Deserialize::deserialize(deserializer)?;
+        let point = E::Point::from_bytes(&bytes).map_err(D::Error::custom)?;
+        Ok(SerdePoint { point })
+    }
+}
+
+// implement Debug
+impl<E: Curve + CurveArithmetic> Debug for SerdePoint<E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SerdePoint")
+            .field("point", &self.point)
+            .finish()
+    }
+}
+
 /// Common input and setup parameters known to both the prover and the verifier.
 ///
 /// Copying/Cloning references is harmless and sometimes necessary. So we
 /// implement Clone and Copy for this type.
 #[derive(Serialize, Clone, Copy)]
-pub(crate) struct CommonInput<'a> {
+pub(crate) struct CommonInput<'a, E: Curve + CurveArithmetic> {
     /// Claimed ciphertext of the (secret) [plaintext](ProverSecret::plaintext)
     /// (`C` in the paper).
     ciphertext: &'a Ciphertext,
     /// Claimed discrete log commitment of the (secret)
     /// [plaintext](ProverSecret::plaintext) (`X` in the paper).
-    dlog_commit: &'a CurvePoint,
+    dlog_commit: &'a SerdePoint<E>,
     /// Ring-Pedersen commitment scheme (`(Nhat, s, t)` in the paper).
     ring_pedersen: &'a RingPedersen,
     /// Paillier public key (`N_0` in the paper).
@@ -83,7 +181,7 @@ pub(crate) struct CommonInput<'a> {
     generator: &'a CurvePoint,
 }
 
-impl<'a> CommonInput<'a> {
+impl<'a, E: Curve + CurveArithmetic> CommonInput<'a, E> {
     /// Collect common parameters for proving or verifying a [`PiLogProof`]
     /// about `ciphertext` and `dlog_commit`.
     ///
@@ -95,11 +193,12 @@ impl<'a> CommonInput<'a> {
     /// 3. `generator` is a group generator.
     pub(crate) fn new(
         ciphertext: &'a Ciphertext,
-        dlog_commit: &'a CurvePoint,
+        dlog_commit: &'a SerdePoint<E>,
         verifier_ring_pedersen: &'a RingPedersen,
         prover_encryption_key: &'a EncryptionKey,
         generator: &'a CurvePoint,
-    ) -> CommonInput<'a> {
+    ) -> CommonInput<'a, E> {
+        //let generator = SerdePoint::<Secp256k1>::from_curve_point(*generator);
         Self {
             ciphertext,
             dlog_commit,
@@ -136,13 +235,13 @@ impl<'a> ProverSecret<'a> {
 
 /// Generates a challenge from a [`Transcript`] and the values generated in the
 /// proof.
-fn generate_challenge(
+fn generate_challenge<E: Curve + CurveArithmetic>(
     transcript: &mut Transcript,
     context: &dyn ProofContext,
-    common_input: CommonInput,
+    common_input: CommonInput<E>,
     plaintext_commit: &Commitment,
     mask_encryption: &Ciphertext,
-    mask_dlog_commit: &CurvePoint,
+    mask_dlog_commit: &SerdePoint<E>,
     mask_commit: &Commitment,
 ) -> Result<BigNumber> {
     transcript.append_message(b"PiLog ProofContext", &context.as_bytes()?);
@@ -163,8 +262,47 @@ fn generate_challenge(
     Ok(challenge)
 }
 
-impl Proof for PiLogProof {
-    type CommonInput<'a> = CommonInput<'a>;
+// implement Serialize for PiLogProof
+impl<E: Curve + CurveArithmetic> Serialize for PiLogProof<E> {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("PiLogProof", 8)?;
+        state.serialize_field("plaintext_commit", &self.plaintext_commit)?;
+        state.serialize_field("mask_ciphertext", &self.mask_ciphertext)?;
+        state.serialize_field("mask_dlog_commit", &self.mask_dlog_commit)?;
+        state.serialize_field("mask_commit", &self.mask_commit)?;
+        state.serialize_field("challenge", &self.challenge)?;
+        state.serialize_field("plaintext_response", &self.plaintext_response)?;
+        state.serialize_field("nonce_response", &self.nonce_response)?;
+        state.serialize_field("plaintext_commit_response", &self.plaintext_commit_response)?;
+        state.end()
+    }
+}
+
+// implement Deserialize for PiLogProof
+impl<'de, E: Curve + CurveArithmetic> Deserialize<'de> for PiLogProof<E> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<PiLogProof<E>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let proof = PiLogProof {
+            plaintext_commit: Deserialize::deserialize(deserializer)?,
+            mask_ciphertext: Deserialize::deserialize(deserializer)?,
+            mask_dlog_commit: Deserialize::deserialize(deserializer)?,
+            mask_commit: Deserialize::deserialize(deserializer)?,
+            challenge: Deserialize::deserialize(deserializer)?,
+            plaintext_response: Deserialize::deserialize(deserializer)?,
+            nonce_response: Deserialize::deserialize(deserializer)?,
+            plaintext_commit_response: Deserialize::deserialize(deserializer)?,
+        };
+        Ok(proof)
+    }
+}
+
+impl<E: Curve + CurveArithmetic> Proof for PiLogProof<E> {
+    type CommonInput<'a> = CommonInput<'a, E>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiLogProof"))]
     fn prove<'a, R: RngCore + CryptoRng>(
@@ -227,6 +365,7 @@ impl Proof for PiLogProof {
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Commit to the random plaintext using discrete log (`Y` in the paper).
         let mask_dlog_commit = input.generator.multiply_by_bignum(&mask)?;
+        let mask_dlog_commit = SerdePoint::from_curve_point(mask_dlog_commit);
         // Commit to the random plaintext using ring-Pedersen (producing variables `D`
         // and `ɣ` in the paper).
         let (mask_commit, mask_commit_randomness) =
@@ -311,8 +450,11 @@ impl Proof for PiLogProof {
             let lhs = input
                 .generator
                 .multiply_by_bignum(&self.plaintext_response)?;
-            let rhs =
-                self.mask_dlog_commit + input.dlog_commit.multiply_by_bignum(&self.challenge)?;
+            let lhs = SerdePoint::from_curve_point(lhs);
+
+            let mul_result = input.dlog_commit.multiply_by_bignum(&self.challenge)?;
+            let rhs = mul_result.add(self.mask_dlog_commit);
+
             lhs == rhs
         };
         if !group_exponentiation_is_valid {
@@ -357,6 +499,7 @@ mod tests {
         utils::{random_plusminus_by_size_with_minimum, testing::init_testing},
         zkp::BadContext,
     };
+    use generic_ec::curves::Secp256k1;
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
     fn transcript() -> Transcript {
@@ -366,14 +509,15 @@ mod tests {
     fn with_random_paillier_log_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
         x: &BigNumber,
-        mut f: impl FnMut(PiLogProof, CommonInput) -> Result<()>,
+        mut f: impl FnMut(PiLogProof<Secp256k1>, CommonInput<Secp256k1>) -> Result<()>,
     ) -> Result<()> {
         let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
         let pk = decryption_key.encryption_key();
 
         let g = CurvePoint::GENERATOR;
 
-        let X = g.multiply_by_bignum(x)?;
+        let X = g.multiply_by_bignum(&x)?;
+        let X = SerdePoint::from_curve_point(X);
         let (ciphertext, rho) = pk.encrypt(rng, x).unwrap();
 
         let setup_params = VerifiedRingPedersen::gen(rng, &())?;
@@ -394,7 +538,7 @@ mod tests {
         rng: &mut R,
         x: &BigNumber,
     ) -> Result<()> {
-        let f = |proof: PiLogProof, input: CommonInput| {
+        let f = |proof: PiLogProof<Secp256k1>, input: CommonInput<Secp256k1>| {
             proof.verify(input, &(), &mut transcript())?;
             Ok(())
         };
@@ -415,7 +559,7 @@ mod tests {
             // If the input value is larger than the top of the range, the proof won't
             // verify
             if too_large > upper_bound {
-                let f = |bad_proof: PiLogProof, input: CommonInput| {
+                let f = |bad_proof: PiLogProof<Secp256k1>, input: CommonInput<Secp256k1>| {
                     assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
                     Ok(())
                 };
@@ -448,6 +592,7 @@ mod tests {
         let pk = decryption_key.encryption_key();
         let g = CurvePoint::GENERATOR;
         let dlog_commit = g.multiply_by_bignum(&x)?;
+        let dlog_commit: SerdePoint<Secp256k1> = SerdePoint::from_curve_point(dlog_commit);
         let (ciphertext, rho) = pk.encrypt(&mut rng, &x).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
@@ -534,6 +679,7 @@ mod tests {
         // Swap dlog_commit with a random [`CurvePoint`]
         let mask = random_plusminus_by_size(&mut rng, ELL);
         let bad_dlog_commit = input.generator.multiply_by_bignum(&mask)?;
+        let bad_dlog_commit = SerdePoint::from_curve_point(bad_dlog_commit);
         assert_ne!(&bad_dlog_commit, input.dlog_commit);
         let bad_input = CommonInput::new(
             &ciphertext,
@@ -565,8 +711,10 @@ mod tests {
 
         // Make a valid common input
         let dlog_commit = g.multiply_by_bignum(&x)?;
+        let dlog_commit: SerdePoint<Secp256k1> = SerdePoint::from_curve_point(dlog_commit);
         let (ciphertext, rho) = pk.encrypt(&mut rng, &x).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
+        //let serde_g: SerdePoint<Secp256k1> = SerdePoint { point: g.to_point() };
         let input = CommonInput::new(&ciphertext, &dlog_commit, setup_params.scheme(), &pk, &g);
 
         // Generate a random plaintext for the secret
@@ -605,7 +753,7 @@ mod tests {
         let mut rng2 = StdRng::from_seed(rng.gen());
         let x = random_plusminus_by_size(&mut rng2, ELL);
 
-        let f = |proof: PiLogProof, input: CommonInput| {
+        let f = |proof: PiLogProof<Secp256k1>, input: CommonInput<Secp256k1>| {
             let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
 
             // Generate some random elements to use as replacements
@@ -651,7 +799,8 @@ mod tests {
             // Swap mask_dlog_commit with a random [`CurvePoint`]
             let mut bad_proof = proof.clone();
             let mask = random_plusminus_by_size(&mut rng, ELL);
-            bad_proof.mask_dlog_commit = input.generator.multiply_by_bignum(&mask)?;
+            bad_proof.mask_dlog_commit =
+                SerdePoint::from_curve_point(input.generator.multiply_by_bignum(&mask)?);
             assert_ne!(bad_proof.mask_dlog_commit, proof.mask_dlog_commit);
             assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
@@ -683,7 +832,7 @@ mod tests {
 
         let context = BadContext {};
         let x_small = random_plusminus_by_size(&mut rng, ELL);
-        let f = |proof: PiLogProof, input: CommonInput| {
+        let f = |proof: PiLogProof<Secp256k1>, input: CommonInput<Secp256k1>| {
             let result = proof.verify(input, &context, &mut transcript());
             assert!(result.is_err());
             Ok(())

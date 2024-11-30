@@ -19,10 +19,11 @@ use crate::{
     utils::CurvePoint,
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof},
-        pilog::{CommonInput, PiLogProof},
+        pilog::{CommonInput, PiLogProof, SerdePoint},
         Proof,
     },
 };
+use generic_ec::curves::Secp256k1;
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
@@ -59,7 +60,7 @@ pub(crate) struct Public {
     pub Gamma: CurvePoint,
     pub psi: PiAffgProof,
     pub psi_hat: PiAffgProof,
-    pub psi_prime: PiLogProof,
+    pub psi_prime: PiLogProof<Secp256k1>,
 }
 
 impl Public {
@@ -106,9 +107,10 @@ impl Public {
             .verify(psi_hat_input, context, &mut transcript)?;
 
         // Verify the psi_prime proof
+        let Gamma = SerdePoint::from_curve_point(self.Gamma);
         let psi_prime_input = CommonInput::new(
             &prover_r1_public_broadcast.G,
-            &self.Gamma,
+            &Gamma,
             verifier_auxinfo_public.params().scheme(),
             prover_auxinfo_public.pk(),
             &g,

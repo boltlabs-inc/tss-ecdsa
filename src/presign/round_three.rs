@@ -17,10 +17,11 @@ use crate::{
     },
     utils::CurvePoint,
     zkp::{
-        pilog::{CommonInput, PiLogProof},
+        pilog::{CommonInput, PiLogProof, SerdePoint},
         Proof,
     },
 };
+use generic_ec::curves::Secp256k1;
 use k256::{elliptic_curve::PrimeField, Scalar};
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
@@ -65,7 +66,7 @@ impl Debug for Private {
 pub(crate) struct Public {
     pub delta: Scalar,
     pub Delta: CurvePoint,
-    pub psi_double_prime: PiLogProof,
+    pub psi_double_prime: PiLogProof<Secp256k1>,
     /// Gamma value included for convenience
     pub Gamma: CurvePoint,
 }
@@ -82,9 +83,10 @@ impl Public {
         prover_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
         let mut transcript = Transcript::new(b"PiLogProof");
+        let deltaSerde = SerdePoint::from_curve_point(self.Delta);
         let psi_double_prime_input = CommonInput::new(
             &prover_r1_public_broadcast.K,
-            &self.Delta,
+            &deltaSerde,
             verifier_auxinfo_public.params().scheme(),
             prover_auxinfo_public.pk(),
             &self.Gamma,
