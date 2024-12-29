@@ -11,11 +11,11 @@
 //! This module includes the main [`Participant`] driver.
 
 use crate::{
+    curve::CT,
     errors::{CallerError, InternalError, Result},
     messages::{Message, MessageType},
     participant::{InnerProtocolParticipant, ProtocolParticipant, Status},
     protocol::participant_config::ParticipantConfig,
-    utils::{k256_order, CurvePoint},
     zkp::ProofContext,
 };
 use libpaillier::unknown_order::BigNumber;
@@ -461,14 +461,14 @@ impl ParticipantIdentifier {
 /// The `SharedContext` contains fixed known parameters across the entire
 /// protocol. It does not however contain the entire protocol context.
 #[derive(Debug, Clone)]
-pub(crate) struct SharedContext {
+pub(crate) struct SharedContext<C> {
     sid: Identifier,
     participants: Vec<ParticipantIdentifier>,
-    generator: CurvePoint,
+    generator: C,
     order: BigNumber,
 }
 
-impl ProofContext for SharedContext {
+impl<C: CT> ProofContext for SharedContext<C> {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
             self.sid.0.to_be_bytes().into_iter().collect(),
@@ -484,7 +484,7 @@ impl ProofContext for SharedContext {
     }
 }
 
-impl SharedContext {
+impl<C: CT> SharedContext<C> {
     /// This function should not be used outside of the tests.
     #[cfg(test)]
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
@@ -492,8 +492,8 @@ impl SharedContext {
         let participant = ParticipantIdentifier::random(rng);
         let participant2 = ParticipantIdentifier::random(rng);
         let participants = vec![participant, participant2];
-        let generator = CurvePoint::GENERATOR;
-        let order = k256_order();
+        let generator = C::GENERATOR;
+        let order = C::order();
         SharedContext {
             sid,
             participants,
@@ -505,8 +505,8 @@ impl SharedContext {
     pub(crate) fn collect<P: InnerProtocolParticipant>(p: &P) -> Self {
         let mut participants = p.all_participants();
         participants.sort();
-        let generator = CurvePoint::GENERATOR;
-        let order = k256_order();
+        let generator = C::GENERATOR;
+        let order = C::order();
         SharedContext {
             sid: p.sid(),
             participants,
@@ -520,8 +520,8 @@ impl SharedContext {
         SharedContext {
             sid,
             participants,
-            generator: CurvePoint::GENERATOR,
-            order: k256_order(),
+            generator: C::GENERATOR,
+            order: C::order(),
         }
     }
 }
@@ -639,13 +639,14 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo::{self, AuxInfoParticipant, AuxInfoPublic},
+        curve::{TestCT as C, TestST},
         keygen::{KeySharePublic, KeygenParticipant},
         messages,
         participant::Status,
         presign,
-        sign::{self, InteractiveSignParticipant, SignParticipant},
+        sign::{self, InteractiveSignParticipant},
         slip0010,
-        tshare::{self, CoeffPrivate, TshareParticipant},
+        tshare::{self, CoeffPrivate},
         utils::testing::init_testing,
         PresignParticipant,
     };
@@ -653,12 +654,13 @@ mod tests {
     use k256::{
         ecdsa::{signature::DigestVerifier, VerifyingKey},
         elliptic_curve::Field,
-        Scalar,
     };
     use rand::{rngs::StdRng, seq::IteratorRandom};
     use sha3::{Digest, Keccak256};
-    use std::{collections::HashMap, vec};
+    use std::{collections::HashMap, marker::PhantomData, vec};
     use tracing::debug;
+    type SignParticipant = sign::SignParticipant<C>;
+    type TshareParticipant = tshare::TshareParticipant<C>;
 
     // Negative test checking whether the message has the correct session id
     #[test]
@@ -969,7 +971,7 @@ mod tests {
 
     struct KeygenHelperOutput {
         keygen_outputs:
-            HashMap<ParticipantIdentifier, <KeygenParticipant as ProtocolParticipant>::Output>,
+            HashMap<ParticipantIdentifier, <KeygenParticipant<C> as ProtocolParticipant>::Output>,
     }
 
     // Receive as input a vector of configs and the inboxes from auxinfo_helper
@@ -986,13 +988,13 @@ mod tests {
             .clone()
             .into_iter()
             .map(|config| {
-                Participant::<KeygenParticipant>::from_config(config, keygen_sid, ()).unwrap()
+                Participant::<KeygenParticipant<C>>::from_config(config, keygen_sid, ()).unwrap()
             })
             .collect::<Vec<_>>();
 
         let mut keygen_outputs: HashMap<
             ParticipantIdentifier,
-            <KeygenParticipant as ProtocolParticipant>::Output,
+            <KeygenParticipant<C> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         // Initialize keygen for all participants
@@ -1024,7 +1026,7 @@ mod tests {
     }
 
     struct TshareHelperOutput {
-        tshare_inputs: Vec<tshare::Input>,
+        tshare_inputs: Vec<tshare::Input<C>>,
         tshare_outputs:
             HashMap<ParticipantIdentifier, <TshareParticipant as ProtocolParticipant>::Output>,
     }
@@ -1047,10 +1049,13 @@ mod tests {
             .iter()
             .map(|config| {
                 let auxinfo_output = auxinfo_outputs.get(&config.id()).unwrap();
-                let secret: Scalar = Scalar::random(&mut rng);
+                let secret = TestST::random(&mut rng);
                 tshare::Input::new(
                     auxinfo_output.clone(),
-                    Some(CoeffPrivate { x: secret }),
+                    Some(CoeffPrivate {
+                        x: secret,
+                        phantom: PhantomData,
+                    }),
                     threshold,
                 )
                 .unwrap()
@@ -1115,7 +1120,7 @@ mod tests {
         >,
         mut keygen_outputs: HashMap<
             ParticipantIdentifier,
-            <KeygenParticipant as ProtocolParticipant>::Output,
+            <KeygenParticipant<C> as ProtocolParticipant>::Output,
         >,
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         mut rng: StdRng,
@@ -1181,7 +1186,7 @@ mod tests {
         chain_code: [u8; 32],
         presign_outputs:
             HashMap<ParticipantIdentifier, <PresignParticipant as ProtocolParticipant>::Output>,
-        public_key_shares: Vec<KeySharePublic>,
+        public_key_shares: Vec<KeySharePublic<C>>,
         saved_public_key: VerifyingKey,
         child_index: u32,
         threshold: usize,
@@ -1216,7 +1221,7 @@ mod tests {
 
         let shift_input =
             slip0010::ckd::CKDInput::new(None, saved_public_key_bytes.to_vec(), chain_code, index)?;
-        let ckd_output = slip0010::ckd::CKDInput::derive_public_shift(&shift_input);
+        let ckd_output = slip0010::ckd::CKDInput::derive_public_shift::<C>(&shift_input);
         let shift_scalar = ckd_output.private_key;
 
         // Make signing participants
@@ -1446,7 +1451,7 @@ mod tests {
         let sum_tshare_input = tshare_inputs
             .iter()
             .map(|input| input.share().unwrap().x)
-            .fold(Scalar::ZERO, |acc, x| acc + x);
+            .fold(TestST::ZERO, |acc, x| acc + x);
 
         // t-out-of-t conversion
         let toft_outputs = TshareParticipant::convert_to_t_out_of_t_shares(
@@ -1507,12 +1512,12 @@ mod tests {
             .clone()
             .into_iter()
             .map(|config| {
-                Participant::<KeygenParticipant>::from_config(config, keygen_sid, ()).unwrap()
+                Participant::<KeygenParticipant<C>>::from_config(config, keygen_sid, ()).unwrap()
             })
             .collect::<Vec<_>>();
         let mut keygen_outputs: HashMap<
             ParticipantIdentifier,
-            <KeygenParticipant as ProtocolParticipant>::Output,
+            <KeygenParticipant<C> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         // Initialize keygen for all participants

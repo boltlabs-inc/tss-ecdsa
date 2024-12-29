@@ -10,9 +10,11 @@ use tracing::error;
 
 use crate::{
     auxinfo::{self, AuxInfoPrivate, AuxInfoPublic},
+    curve::TestCT as C, // TODO: generalize.
     errors::{CallerError, InternalError, Result},
     keygen::{self, KeySharePrivate, KeySharePublic},
-    ParticipantConfig, ParticipantIdentifier,
+    ParticipantConfig,
+    ParticipantIdentifier,
 };
 
 /// Input needed for a
@@ -20,7 +22,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Input {
     /// The key share material for the key that will be refreshed.
-    keygen_output: keygen::Output,
+    keygen_output: keygen::Output<C>,
     /// The auxiliary info to encrypt/decrypt messages with other participants.
     auxinfo_output: auxinfo::Output,
 }
@@ -29,7 +31,7 @@ impl Input {
     /// Creates a new [`Input`] from the outputs of the
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
-    pub fn new(auxinfo_output: auxinfo::Output, keygen_output: keygen::Output) -> Result<Self> {
+    pub fn new(auxinfo_output: auxinfo::Output, keygen_output: keygen::Output<C>) -> Result<Self> {
         // The constructors for keygen and auxinfo output already check other important
         // properties, like that the private component maps to one of public
         // components for each one.
@@ -54,7 +56,7 @@ impl Input {
         Ok(input)
     }
 
-    pub fn keygen_output(&self) -> &keygen::Output {
+    pub fn keygen_output(&self) -> &keygen::Output<C> {
         &self.keygen_output
     }
 
@@ -94,7 +96,7 @@ impl Input {
         Ok(())
     }
 
-    pub(crate) fn public_key_shares(&self) -> &[KeySharePublic] {
+    pub(crate) fn public_key_shares(&self) -> &[KeySharePublic<C>] {
         self.keygen_output.public_key_shares()
     }
 
@@ -112,7 +114,7 @@ impl Input {
             })
     }
 
-    pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
+    pub(crate) fn private_key_share(&self) -> &KeySharePrivate<C> {
         self.keygen_output.private_key_share()
     }
 }

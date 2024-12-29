@@ -8,6 +8,7 @@
 
 use crate::{
     auxinfo::AuxInfoPublic,
+    curve::CT,
     errors::{InternalError, Result},
     keygen::KeySharePublic,
     messages::{Message, MessageType, PresignMessageType},
@@ -16,7 +17,6 @@ use crate::{
         participant::ParticipantPresignContext,
         round_one::{Private as RoundOnePrivate, PublicBroadcast as RoundOnePublicBroadcast},
     },
-    utils::CurvePoint,
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof},
         pilog::{CommonInput, PiLogProof},
@@ -51,18 +51,18 @@ impl Debug for Private {
 /// necessarily valid (i.e., that all the components are valid with respect to
 /// each other); use [`Public::verify`] to check this latter condition.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct Public {
+pub(crate) struct Public<C> {
     pub D: Ciphertext,
     pub D_hat: Ciphertext,
     pub F: Ciphertext,
     pub F_hat: Ciphertext,
-    pub Gamma: CurvePoint,
-    pub psi: PiAffgProof,
-    pub psi_hat: PiAffgProof,
-    pub psi_prime: PiLogProof,
+    pub Gamma: C,
+    pub psi: PiAffgProof<C>,
+    pub psi_hat: PiAffgProof<C>,
+    pub psi_prime: PiLogProof<C>,
 }
 
-impl Public {
+impl<C: CT + 'static> Public<C> {
     /// Verify the validity of [`Public`] against the sender's
     /// [`AuxInfoPublic`], [`KeySharePublic`], and
     /// [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast) values.
@@ -72,10 +72,10 @@ impl Public {
         verifier_auxinfo_public: &AuxInfoPublic,
         verifier_r1_private: &RoundOnePrivate,
         prover_auxinfo_public: &AuxInfoPublic,
-        prover_keyshare_public: &KeySharePublic,
+        prover_keyshare_public: &KeySharePublic<C>,
         prover_r1_public_broadcast: &RoundOnePublicBroadcast,
     ) -> Result<()> {
-        let g = CurvePoint::GENERATOR;
+        let g = C::GENERATOR;
 
         // Verify the psi proof
         let psi_input = PiAffgInput::new(
@@ -121,7 +121,7 @@ impl Public {
     }
 }
 
-impl TryFrom<&Message> for Public {
+impl<C: CT> TryFrom<&Message> for Public<C> {
     type Error = InternalError;
 
     fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {

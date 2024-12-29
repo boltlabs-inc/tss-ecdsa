@@ -10,6 +10,7 @@ use tracing::error;
 
 use crate::{
     auxinfo::{self, AuxInfoPrivate, AuxInfoPublic},
+    curve::CT,
     errors::{CallerError, InternalError, Result},
     keygen::{self, KeySharePrivate, KeySharePublic},
     ParticipantIdentifier,
@@ -18,18 +19,18 @@ use crate::{
 /// Input needed for a
 /// [`PresignParticipant`](crate::presign::PresignParticipant) to run.
 #[derive(Debug, Clone)]
-pub struct Input {
+pub struct Input<C> {
     /// The key share material for the key that will be used in the presign run.
-    keygen_output: keygen::Output,
+    keygen_output: keygen::Output<C>,
     /// The auxiliary info for the key that will be used in the presign run.
     auxinfo_output: auxinfo::Output,
 }
 
-impl Input {
+impl<C: CT> Input<C> {
     /// Creates a new [`Input`] from the outputs of the
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
-    pub fn new(auxinfo_output: auxinfo::Output, keygen_output: keygen::Output) -> Result<Self> {
+    pub fn new(auxinfo_output: auxinfo::Output, keygen_output: keygen::Output<C>) -> Result<Self> {
         if auxinfo_output.public_auxinfo().len() != keygen_output.public_key_shares().len() {
             error!(
                 "Number of auxinfo ({:?}) and keyshare ({:?}) public entries is not equal",
@@ -48,7 +49,7 @@ impl Input {
         let key_pids = keygen_output
             .public_key_shares()
             .iter()
-            .map(KeySharePublic::participant)
+            .map(KeySharePublic::<C>::participant)
             .collect::<HashSet<_>>();
         if aux_pids != key_pids {
             error!("Public auxinfo and keyshare inputs to presign weren't from the same set of parties.");
@@ -85,7 +86,7 @@ impl Input {
         self.keygen_output.rid()
     }
 
-    pub(crate) fn public_key_shares(&self) -> &[KeySharePublic] {
+    pub(crate) fn public_key_shares(&self) -> &[KeySharePublic<C>] {
         self.keygen_output.public_key_shares()
     }
 
@@ -115,7 +116,7 @@ impl Input {
             })
     }
 
-    pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
+    pub(crate) fn private_key_share(&self) -> &KeySharePrivate<C> {
         self.keygen_output.private_key_share()
     }
 
@@ -124,7 +125,7 @@ impl Input {
     pub(crate) fn find_keyshare_public(
         &self,
         pid: ParticipantIdentifier,
-    ) -> Result<&KeySharePublic> {
+    ) -> Result<&KeySharePublic<C>> {
         self.keygen_output
             .public_key_shares()
             .iter()
@@ -156,15 +157,16 @@ impl Input {
 
 #[cfg(test)]
 mod test {
-    use super::Input;
     use crate::{
         auxinfo,
+        curve::TestCT as C,
         errors::{CallerError, InternalError, Result},
         keygen,
         utils::testing::init_testing,
         Identifier, ParticipantConfig, ParticipantIdentifier, PresignParticipant,
         ProtocolParticipant,
     };
+    type Input = super::Input<C>;
 
     #[test]
     fn inputs_must_be_same_length() {

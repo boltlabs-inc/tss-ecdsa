@@ -480,6 +480,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        curve::{TestCT as C, CT},
         paillier::{prime_gen, DecryptionKey},
         parameters::SOUNDNESS_PARAMETER,
         utils::testing::init_testing,
@@ -825,7 +826,7 @@ mod tests {
     #[test]
     fn challenges_must_be_derived_from_transcript() -> Result<()> {
         let test_fn: TestFn = |mut proof, input, mut rng| {
-            let new_challenge = random_positive_bn(&mut rng, &k256_order());
+            let new_challenge = random_positive_bn(&mut rng, &C::order());
             if let Some(first_element) = proof.elements.get_mut(0) {
                 first_element.challenge = new_challenge;
             } else {
@@ -842,7 +843,7 @@ mod tests {
     #[test]
     fn commitment_must_be_correct() -> Result<()> {
         let test_fn: TestFn = |mut proof: PiModProof, input, mut rng| {
-            proof.random_jacobi_one = random_positive_bn(&mut rng, &k256_order());
+            proof.random_jacobi_one = random_positive_bn(&mut rng, &C::order());
             assert!(proof.verify(input, &(), &mut transcript()).is_err());
             Ok(())
         };
@@ -855,7 +856,7 @@ mod tests {
     fn responses_must_be_correct() -> Result<()> {
         let test_fn: TestFn = |proof: PiModProof, input: CommonInput, mut rng| {
             // Challenge-secret link must be correct
-            let new_challenge_secret_link = random_positive_bn(&mut rng, &k256_order());
+            let new_challenge_secret_link = random_positive_bn(&mut rng, &C::order());
             let mut bad_proof = proof.clone();
             if let Some(first_element) = bad_proof.elements.get_mut(0) {
                 first_element.challenge_secret_link = new_challenge_secret_link;
@@ -885,7 +886,7 @@ mod tests {
             assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
             // Fourth root must be correct
-            let new_fourth_root = random_positive_bn(&mut rng, &k256_order());
+            let new_fourth_root = random_positive_bn(&mut rng, &C::order());
             let mut bad_proof = proof.clone();
             if let Some(first_element) = bad_proof.elements.get_mut(0) {
                 first_element.fourth_root = new_fourth_root;
@@ -902,7 +903,7 @@ mod tests {
     #[test]
     fn common_input_must_be_same_for_proving_and_verifying() -> Result<()> {
         let test_fn: TestFn = |proof: PiModProof, input, mut rng| {
-            let random_bn = random_positive_bn(&mut rng, &k256_order());
+            let random_bn = random_positive_bn(&mut rng, &C::order());
             let bad_input = CommonInput::new(&random_bn);
             assert_ne!(input, bad_input);
             assert!(proof.verify(bad_input, &(), &mut transcript()).is_err());

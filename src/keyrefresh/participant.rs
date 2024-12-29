@@ -10,6 +10,7 @@
 
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
+    curve::TestCT as C, // TODO: generalize.
     errors::{CallerError, InternalError, Result},
     keyrefresh::{
         keyrefresh_commit::{KeyrefreshCommit, KeyrefreshDecommit},
@@ -23,7 +24,8 @@ use crate::{
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
     zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
-    Identifier, ParticipantConfig,
+    Identifier,
+    ParticipantConfig,
 };
 
 use merlin::Transcript;
@@ -33,6 +35,8 @@ use tracing::{error, info, instrument, warn};
 use super::{input::Input, Output};
 
 mod storage {
+    use std::marker::PhantomData;
+
     use super::*;
     use crate::local_storage::TypeTag;
 
@@ -40,29 +44,29 @@ mod storage {
     impl TypeTag for Commit {
         type Value = KeyrefreshCommit;
     }
-    pub(super) struct Decommit;
-    impl TypeTag for Decommit {
-        type Value = KeyrefreshDecommit;
+    pub(super) struct Decommit<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for Decommit<C> {
+        type Value = KeyrefreshDecommit<C>;
     }
-    pub(super) struct VecSchnorrPrecom;
-    impl TypeTag for VecSchnorrPrecom {
-        type Value = Vec<PiSchPrecommit>;
+    pub(super) struct VecSchnorrPrecom<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for VecSchnorrPrecom<C> {
+        type Value = Vec<PiSchPrecommit<C>>;
     }
     pub(super) struct GlobalRid;
     impl TypeTag for GlobalRid {
         type Value = [u8; 32];
     }
-    pub(super) struct PrivateUpdatesForOthers;
-    impl TypeTag for PrivateUpdatesForOthers {
-        type Value = Vec<super::KeyUpdatePrivate>;
+    pub(super) struct PrivateUpdatesForOthers<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for PrivateUpdatesForOthers<C> {
+        type Value = Vec<super::KeyUpdatePrivate<C>>;
     }
-    pub(super) struct ValidPublicUpdates;
-    impl TypeTag for ValidPublicUpdates {
-        type Value = Vec<super::KeyUpdatePublic>;
+    pub(super) struct ValidPublicUpdates<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for ValidPublicUpdates<C> {
+        type Value = Vec<super::KeyUpdatePublic<C>>;
     }
-    pub(super) struct ValidPrivateUpdate;
-    impl TypeTag for ValidPrivateUpdate {
-        type Value = super::KeyUpdatePrivate;
+    pub(super) struct ValidPrivateUpdate<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for ValidPrivateUpdate<C> {
+        type Value = super::KeyUpdatePrivate<C>;
     }
 }
 
@@ -105,7 +109,7 @@ pub struct KeyrefreshParticipant {
 
 impl ProtocolParticipant for KeyrefreshParticipant {
     type Input = Input;
-    type Output = Output;
+    type Output = Output<C>;
 
     fn new(
         sid: Identifier,
@@ -204,7 +208,7 @@ impl ProtocolParticipant for KeyrefreshParticipant {
 }
 
 impl InnerProtocolParticipant for KeyrefreshParticipant {
-    type Context = SharedContext;
+    type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
         SharedContext::collect(self)
@@ -303,21 +307,21 @@ impl KeyrefreshParticipant {
 
         // Store the beginning of our proofs so we can continue the proofs later.
         self.local_storage
-            .store::<storage::VecSchnorrPrecom>(self.id(), sch_precoms);
+            .store::<storage::VecSchnorrPrecom<C>>(self.id(), sch_precoms);
 
         // Mark our own public updates as verified.
         self.local_storage
-            .store::<storage::ValidPublicUpdates>(self.id(), decom.update_publics.clone());
+            .store::<storage::ValidPublicUpdates<C>>(self.id(), decom.update_publics.clone());
 
         // Store the private update from ourselves to ourselves.
-        self.local_storage.store::<storage::ValidPrivateUpdate>(
+        self.local_storage.store::<storage::ValidPrivateUpdate<C>>(
             self.id(),
             update_privates[update_privates.len() - 1].clone(),
         );
 
         // Store the private updates from us to others so we can share them later.
         self.local_storage
-            .store::<storage::PrivateUpdatesForOthers>(self.id(), update_privates);
+            .store::<storage::PrivateUpdatesForOthers<C>>(self.id(), update_privates);
 
         // Mark our own commitment as ready. This corresponds to `V_i` in the paper.
         let com = decom.commit()?;
@@ -326,7 +330,7 @@ impl KeyrefreshParticipant {
 
         // Store our committed values so we can open the commitment later.
         self.local_storage
-            .store::<storage::Decommit>(self.id(), decom);
+            .store::<storage::Decommit<C>>(self.id(), decom);
 
         let messages = self.broadcast(
             rng,
@@ -418,14 +422,17 @@ impl KeyrefreshParticipant {
         // `PublicKeyshare` and `Decommit`). This check forces that behavior.
         // Without it we'll get a `InternalInvariantFailed` error when trying to
         // retrieve `Decommit` below.
-        if !self.local_storage.contains::<storage::Decommit>(self.id()) {
+        if !self
+            .local_storage
+            .contains::<storage::Decommit<C>>(self.id())
+        {
             let more_messages = run_only_once!(self.gen_round_one_msgs(rng, sid))?;
             messages.extend_from_slice(&more_messages);
         }
 
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(self.id())?;
+            .retrieve::<storage::Decommit<C>>(self.id())?;
         let more_messages = self.message_for_other_participants(
             MessageType::Keyrefresh(KeyrefreshMessageType::R2Decommit),
             decom,
@@ -444,7 +451,7 @@ impl KeyrefreshParticipant {
         rng: &mut R,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        self.check_for_duplicate_msg::<storage::Decommit>(message.from())?;
+        self.check_for_duplicate_msg::<storage::Decommit<C>>(message.from())?;
         info!("Handling round two keyrefresh message.");
 
         // We must receive all commitments in round 1 before we start processing
@@ -464,12 +471,12 @@ impl KeyrefreshParticipant {
             .retrieve::<storage::Commit>(message.from())?;
         let decom = KeyrefreshDecommit::from_message(message, com, &self.all_participants())?;
         self.local_storage
-            .store_once::<storage::Decommit>(message.from(), decom)?;
+            .store_once::<storage::Decommit<C>>(message.from(), decom)?;
 
         // Check if we've received all the decommits
         let r2_done = self
             .local_storage
-            .contains_for_all_ids::<storage::Decommit>(&self.all_participants());
+            .contains_for_all_ids::<storage::Decommit<C>>(&self.all_participants());
 
         if r2_done {
             // Generate messages for round 3...
@@ -514,7 +521,7 @@ impl KeyrefreshParticipant {
         // Construct `global rid` out of each participant's `rid`s.
         let my_rid = self
             .local_storage
-            .retrieve::<storage::Decommit>(self.id())?
+            .retrieve::<storage::Decommit<C>>(self.id())?
             .rid;
         let rids: Vec<[u8; 32]> = self
             .other_ids()
@@ -522,7 +529,7 @@ impl KeyrefreshParticipant {
             .map(|&other_participant_id| {
                 let decom = self
                     .local_storage
-                    .retrieve::<storage::Decommit>(other_participant_id)?;
+                    .retrieve::<storage::Decommit<C>>(other_participant_id)?;
                 Ok(decom.rid)
             })
             .collect::<Result<Vec<[u8; 32]>>>()?;
@@ -538,23 +545,23 @@ impl KeyrefreshParticipant {
 
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(self.id())?;
+            .retrieve::<storage::Decommit<C>>(self.id())?;
 
         let transcript = schnorr_proof_transcript(self.sid(), &global_rid, self.id())?;
 
         // Generate proofs for each update.
         let precoms = self
             .local_storage
-            .retrieve::<storage::VecSchnorrPrecom>(self.id())?;
+            .retrieve::<storage::VecSchnorrPrecom<C>>(self.id())?;
 
         let private_updates = self
             .local_storage
-            .retrieve::<storage::PrivateUpdatesForOthers>(self.id())?;
+            .retrieve::<storage::PrivateUpdatesForOthers<C>>(self.id())?;
 
-        let mut proofs: Vec<PiSchProof> = vec![];
+        let mut proofs: Vec<PiSchProof<C>> = vec![];
         for i in 0..precoms.len() {
             let pk = &decom.update_publics[i];
-            let input = CommonInput::new(pk);
+            let input = CommonInput::<C>::new(pk);
             let precom = &precoms[i];
             let sk = &private_updates[i];
 
@@ -620,7 +627,7 @@ impl KeyrefreshParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        self.check_for_duplicate_msg::<storage::ValidPublicUpdates>(message.from())?;
+        self.check_for_duplicate_msg::<storage::ValidPublicUpdates<C>>(message.from())?;
 
         if !self.can_handle_round_three_msg() {
             info!("Not yet ready to handle round three keyrefresh broadcast message.");
@@ -636,7 +643,7 @@ impl KeyrefreshParticipant {
         let proofs = PiSchProof::from_message_multi(message)?;
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(message.from())?;
+            .retrieve::<storage::Decommit<C>>(message.from())?;
 
         // Check that there is one proof per participant.
         if proofs.len() != self.all_participants().len() {
@@ -651,7 +658,7 @@ impl KeyrefreshParticipant {
         {
             let mut transcript = schnorr_proof_transcript(self.sid(), &global_rid, message.from())?;
             proof.verify_with_precommit(
-                CommonInput::new(update_public),
+                CommonInput::<C>::new(update_public),
                 &self.retrieve_context(),
                 &mut transcript,
                 precommit,
@@ -660,7 +667,7 @@ impl KeyrefreshParticipant {
 
         // Only if the proof verifies do we store the participant's updates.
         self.local_storage
-            .store_once::<storage::ValidPublicUpdates>(
+            .store_once::<storage::ValidPublicUpdates<C>>(
                 message.from(),
                 decom.update_publics.clone(),
             )?;
@@ -677,7 +684,7 @@ impl KeyrefreshParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        self.check_for_duplicate_msg::<storage::ValidPrivateUpdate>(message.from())?;
+        self.check_for_duplicate_msg::<storage::ValidPrivateUpdate<C>>(message.from())?;
 
         if !self.can_handle_round_three_msg() {
             info!("Not yet ready to handle round three keyrefresh private message.");
@@ -702,7 +709,7 @@ impl KeyrefreshParticipant {
         let implied_public = update_private.public_point()?;
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(message.from())?;
+            .retrieve::<storage::Decommit<C>>(message.from())?;
         let expected_public = decom
             .update_publics
             .iter()
@@ -715,7 +722,7 @@ impl KeyrefreshParticipant {
         }
 
         self.local_storage
-            .store::<storage::ValidPrivateUpdate>(message.from(), update_private);
+            .store::<storage::ValidPrivateUpdate<C>>(message.from(), update_private);
 
         self.maybe_finish()
     }
@@ -724,12 +731,12 @@ impl KeyrefreshParticipant {
         // Have we validated and stored the public updates from everybody to everybody?
         let got_all_public_updates = self
             .local_storage
-            .contains_for_all_ids::<storage::ValidPublicUpdates>(&self.all_participants());
+            .contains_for_all_ids::<storage::ValidPublicUpdates<C>>(&self.all_participants());
 
         // Have we got the private updates from everybody to us?
         let got_all_private_updates = self
             .local_storage
-            .contains_for_all_ids::<storage::ValidPrivateUpdate>(&self.all_participants());
+            .contains_for_all_ids::<storage::ValidPrivateUpdate<C>>(&self.all_participants());
 
         // If so, we completed the protocol! Return the outputs.
         if got_all_public_updates && got_all_private_updates {
@@ -739,7 +746,7 @@ impl KeyrefreshParticipant {
                 .iter()
                 .map(|pid| {
                     self.local_storage
-                        .remove::<storage::ValidPublicUpdates>(*pid)
+                        .remove::<storage::ValidPublicUpdates<C>>(*pid)
                 })
                 .collect::<Result<Vec<_>>>()?;
             let all_public_updates =
@@ -766,7 +773,7 @@ impl KeyrefreshParticipant {
                 .iter()
                 .map(|pid| {
                     self.local_storage
-                        .remove::<storage::ValidPrivateUpdate>(*pid)
+                        .remove::<storage::ValidPrivateUpdate<C>>(*pid)
                 })
                 .collect::<Result<Vec<_>>>()?;
             let my_private_update = Self::aggregate_private_updates(&from_all_to_me_private);
@@ -802,14 +809,14 @@ impl KeyrefreshParticipant {
         }
     }
 
-    fn aggregate_private_updates(update_privates: &[KeyUpdatePrivate]) -> KeyUpdatePrivate {
+    fn aggregate_private_updates(update_privates: &[KeyUpdatePrivate<C>]) -> KeyUpdatePrivate<C> {
         KeyUpdatePrivate::sum(update_privates)
     }
 
     fn aggregate_public_updates(
         participants: &[ParticipantIdentifier],
-        from_all_to_all: &[Vec<KeyUpdatePublic>],
-    ) -> Result<Vec<KeyUpdatePublic>> {
+        from_all_to_all: &[Vec<KeyUpdatePublic<C>>],
+    ) -> Result<Vec<KeyUpdatePublic<C>>> {
         participants
             .iter()
             .map(|p_i| {
@@ -823,8 +830,8 @@ impl KeyrefreshParticipant {
 
     fn find_updates_for_participant(
         p_i: ParticipantIdentifier,
-        from_all_to_all: &[Vec<KeyUpdatePublic>],
-    ) -> Result<Vec<KeyUpdatePublic>> {
+        from_all_to_all: &[Vec<KeyUpdatePublic<C>>],
+    ) -> Result<Vec<KeyUpdatePublic<C>>> {
         let from_all_to_i = from_all_to_all
             .iter()
             .map(|from_j_to_all| {
@@ -857,10 +864,8 @@ fn schnorr_proof_transcript(
 mod tests {
     use super::*;
     use crate::{
-        auxinfo, keygen,
-        keyrefresh::input::Input,
-        utils::{testing::init_testing, CurvePoint},
-        Identifier, ParticipantConfig,
+        auxinfo, keygen, keyrefresh::input::Input, utils::testing::init_testing, Identifier,
+        ParticipantConfig,
     };
     use rand::{CryptoRng, Rng, RngCore};
     use std::{
@@ -932,7 +937,7 @@ mod tests {
         quorum: &mut [KeyrefreshParticipant],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
-    ) -> Option<(usize, ProcessOutcome<Output>)> {
+    ) -> Option<(usize, ProcessOutcome<Output<C>>)> {
         // Pick a random participant to process
         let index = rng.gen_range(0..quorum.len());
         let participant = quorum.get_mut(index).unwrap();
@@ -974,7 +979,7 @@ mod tests {
 
         let mut outputs = std::iter::repeat_with(|| None)
             .take(quorum_size)
-            .collect::<Vec<_>>();
+            .collect::<Vec<Option<Output<C>>>>();
 
         for participant in &quorum {
             let inbox = inboxes.get_mut(&participant.id()).unwrap();
@@ -1049,7 +1054,7 @@ mod tests {
             assert!(public_share.is_some());
 
             let expected_public_share =
-                CurvePoint::GENERATOR.multiply_by_bignum(output.private_key_share().as_ref())?;
+                C::GENERATOR.multiply_by_bignum(output.private_key_share().as_ref())?;
             assert_eq!(public_share.unwrap().as_ref(), &expected_public_share);
         }
 

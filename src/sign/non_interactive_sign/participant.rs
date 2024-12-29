@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt::Debug};
 
 use generic_array::{typenum::U32, GenericArray};
 use k256::{
@@ -19,6 +19,8 @@ use tracing::{error, info};
 use zeroize::Zeroize;
 
 use crate::{
+    curve::TestCT as C, // TODO: generalize.
+    curve::CT,
     errors::{CallerError, InternalError, Result},
     keygen::KeySharePublic,
     local_storage::LocalStorage,
@@ -27,9 +29,12 @@ use crate::{
     protocol::{ProtocolType, SharedContext},
     run_only_once,
     sign::{non_interactive_sign::share::SignatureShare, Signature},
-    utils::CurvePoint,
     zkp::ProofContext,
-    Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
+    Identifier,
+    ParticipantConfig,
+    ParticipantIdentifier,
+    PresignRecord,
+    ProtocolParticipant,
 };
 
 /// A participant that runs the non-interactive signing protocol.
@@ -55,33 +60,33 @@ use crate::{
 /// The [`PresignRecord`] provided as input must be discarded; no copies should
 /// remain after use.
 #[derive(Debug)]
-pub struct SignParticipant {
+pub struct SignParticipant<C: CT> {
     sid: Identifier,
     storage: LocalStorage,
-    input: Input,
+    input: Input<C>,
     config: ParticipantConfig,
     status: Status,
 }
 
 /// Input for the non-interactive signing protocol.
 #[derive(Debug)]
-pub struct Input {
+pub struct Input<C: CT> {
     digest: Keccak256,
-    presign_record: PresignRecord,
-    public_key_shares: Vec<KeySharePublic>,
+    presign_record: PresignRecord<C>,
+    public_key_shares: Vec<KeySharePublic<C>>,
     threshold: usize,
-    shift: Option<Scalar>,
+    shift: Option<Scalar>, // TODO: C::Scalar
 }
 
-impl Input {
+impl<C: CT> Input<C> {
     /// Construct a new input for signing.
     ///
     /// The `public_key_shares` should be the same ones used to generate the
     /// [`PresignRecord`].
     pub fn new(
         message: &[u8],
-        record: PresignRecord,
-        public_key_shares: Vec<KeySharePublic>,
+        record: PresignRecord<C>,
+        public_key_shares: Vec<KeySharePublic<C>>,
         threshold: usize,
         shift: Option<Scalar>,
     ) -> Self {
@@ -100,8 +105,8 @@ impl Input {
     /// they receive it, rather that waiting until presigning completes.
     pub(crate) fn new_from_digest(
         digest: Keccak256,
-        record: PresignRecord,
-        public_key_shares: Vec<KeySharePublic>,
+        record: PresignRecord<C>,
+        public_key_shares: Vec<KeySharePublic<C>>,
         threshold: usize,
         shift: Option<Scalar>,
     ) -> Self {
@@ -115,7 +120,7 @@ impl Input {
     }
 
     /// Retrieve the presign record.
-    pub(crate) fn presign_record(&self) -> &PresignRecord {
+    pub(crate) fn presign_record(&self) -> &PresignRecord<C> {
         &self.presign_record
     }
 
@@ -136,9 +141,10 @@ impl Input {
         let public_key_point = self
             .public_key_shares
             .iter()
-            .fold(CurvePoint::IDENTITY, |sum, share| sum + *share.as_ref());
+            .fold(C::IDENTITY, |sum, share| sum + share.as_ref().clone())
+            .into();
 
-        VerifyingKey::from_encoded_point(&public_key_point.into()).map_err(|_| {
+        VerifyingKey::from_encoded_point(&public_key_point).map_err(|_| {
             error!("Keygen output does not produce a valid public key");
             CallerError::BadInput.into()
         })
@@ -152,7 +158,7 @@ impl Input {
 /// yet implemented. A correct execution of signing does not involve any ZK
 /// proofs.
 pub(crate) struct SignContext {
-    shared_context: SharedContext,
+    shared_context: SharedContext<C>,
     message_digest: [u8; 32],
 }
 
@@ -168,7 +174,7 @@ impl ProofContext for SignContext {
 
 impl SignContext {
     /// Build a [`SignContext`] from a [`SignParticipant`].
-    pub(crate) fn collect(p: &SignParticipant) -> Self {
+    pub(crate) fn collect<C: CT>(p: &SignParticipant<C>) -> Self {
         Self {
             shared_context: SharedContext::collect(p),
             message_digest: p.input.digest_hash().into(),
@@ -192,8 +198,8 @@ mod storage {
     }
 }
 
-impl ProtocolParticipant for SignParticipant {
-    type Input = Input;
+impl<C: CT> ProtocolParticipant for SignParticipant<C> {
+    type Input = Input<C>;
     type Output = Signature;
 
     fn ready_type() -> MessageType {
@@ -289,7 +295,7 @@ impl ProtocolParticipant for SignParticipant {
     }
 }
 
-impl InnerProtocolParticipant for SignParticipant {
+impl<C: CT> InnerProtocolParticipant for SignParticipant<C> {
     type Context = SignContext;
 
     fn retrieve_context(&self) -> Self::Context {
@@ -309,19 +315,19 @@ impl InnerProtocolParticipant for SignParticipant {
     }
 }
 
-impl SignParticipant {
+impl<C: CT> SignParticipant<C> {
     /// Compute the public key with the shift value applied.
     pub fn shifted_public_key(
         &self,
-        public_key_shares: Vec<KeySharePublic>,
+        public_key_shares: Vec<KeySharePublic<C>>,
         shift: Scalar,
     ) -> Result<VerifyingKey> {
         // Add up all the key shares
         let public_key_point = public_key_shares
             .iter()
-            .fold(CurvePoint::IDENTITY, |sum, share| sum + *share.as_ref());
+            .fold(C::IDENTITY, |sum, share| sum + share.as_ref().clone());
 
-        let shifted_point = CurvePoint::GENERATOR.multiply_by_scalar(&shift);
+        let shifted_point = C::GENERATOR.scale2(&shift);
         let shifted_public_key_point = public_key_point + shifted_point;
 
         VerifyingKey::from_encoded_point(&shifted_public_key_point.into()).map_err(|_| {
@@ -480,17 +486,19 @@ mod test {
     use tracing::debug;
 
     use crate::{
+        curve::TestCT as C,
         errors::Result,
         keygen,
         messages::{Message, MessageType},
         participant::{ProcessOutcome, Status},
-        presign::PresignRecord,
+        presign,
         sign::{self, Signature},
         utils::{bn_to_scalar, testing::init_testing},
         Identifier, ParticipantConfig, ProtocolParticipant,
     };
+    type PresignRecord = presign::PresignRecord<C>;
 
-    use super::SignParticipant;
+    type SignParticipant = super::SignParticipant<C>;
 
     /// Pick a random incoming message and have the correct participant process
     /// it.
@@ -534,7 +542,7 @@ mod test {
     fn compute_non_distributed_ecdsa(
         message: &[u8],
         records: &[PresignRecord],
-        keygen_outputs: &[keygen::Output],
+        keygen_outputs: &[keygen::Output<C>],
     ) -> k256::ecdsa::Signature {
         let k = records
             .iter()

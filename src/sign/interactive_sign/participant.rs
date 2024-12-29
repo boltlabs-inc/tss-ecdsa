@@ -11,6 +11,7 @@ use tracing::{error, info};
 
 use crate::{
     auxinfo,
+    curve::{TestCT as C, CT}, // TODO: generalize.
     errors::{CallerError, InternalError, Result},
     keygen::{self, KeySharePublic},
     message_queue::MessageQueue,
@@ -19,7 +20,9 @@ use crate::{
     presign::{self, PresignParticipant, PresignRecord},
     protocol::ProtocolType,
     sign::{self, non_interactive_sign::participant::SignParticipant, Signature},
-    Identifier, ParticipantIdentifier, ProtocolParticipant,
+    Identifier,
+    ParticipantIdentifier,
+    ProtocolParticipant,
 };
 
 /// A participant that runs the interactive signing protocol in
@@ -76,16 +79,16 @@ enum SigningMaterial {
     PartialInput {
         // Boxed at the behest of compiler. This type is quite large.
         digest: Box<Keccak256>,
-        public_keys: Vec<KeySharePublic>,
+        public_keys: Vec<KeySharePublic<C>>,
     },
     Signer {
         // Boxed at the behest of compiler. This type is quite large.
-        signer: Box<SignParticipant>,
+        signer: Box<SignParticipant<C>>,
     },
 }
 
 impl SigningMaterial {
-    fn new_partial_input(digest: Keccak256, public_keys: Vec<KeySharePublic>) -> Self {
+    fn new_partial_input(digest: Keccak256, public_keys: Vec<KeySharePublic<C>>) -> Self {
         Self::PartialInput {
             digest: Box::new(digest),
             public_keys,
@@ -95,7 +98,7 @@ impl SigningMaterial {
     /// Update from `PartialInput` to `Signer`.
     fn update(
         &mut self,
-        record: PresignRecord,
+        record: PresignRecord<C>,
         id: ParticipantIdentifier,
         other_ids: Vec<ParticipantIdentifier>,
         sid: Identifier,
@@ -133,7 +136,7 @@ impl SigningMaterial {
         }
     }
 
-    fn as_mut_signer(&mut self) -> Result<&mut SignParticipant> {
+    fn as_mut_signer(&mut self) -> Result<&mut SignParticipant<C>> {
         match self {
             SigningMaterial::Signer { ref mut signer } => Ok(signer),
             _ => {
@@ -146,12 +149,12 @@ impl SigningMaterial {
 
 /// Input for the interactive signing protocol.
 #[derive(Debug)]
-pub struct Input {
+pub struct Input<C> {
     message_digest: Keccak256,
-    presign_input: presign::Input,
+    presign_input: presign::Input<C>,
 }
 
-impl Input {
+impl<C: CT> Input<C> {
     /// Construct a new input for interactive signing from the outputs of the
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
@@ -165,7 +168,7 @@ impl Input {
     /// "pre-hash" the message. It is hashed here using SHA2-256.
     pub fn new(
         message: &[u8],
-        keygen_output: keygen::Output,
+        keygen_output: keygen::Output<C>,
         auxinfo_output: auxinfo::Output,
     ) -> Result<Self> {
         let presign_input = presign::Input::new(auxinfo_output, keygen_output)?;
@@ -178,7 +181,7 @@ impl Input {
 }
 
 impl ProtocolParticipant for InteractiveSignParticipant {
-    type Input = Input;
+    type Input = Input<C>;
     type Output = Signature;
 
     fn ready_type() -> MessageType {

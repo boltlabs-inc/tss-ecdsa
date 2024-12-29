@@ -18,13 +18,12 @@
 //! [EPrint archive, 2021](https://eprint.iacr.org/archive/2021/060/1634824619.pdf).
 
 use crate::{
+    curve::CT,
     errors::*,
     paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce},
     parameters::{ELL, EPSILON},
     ring_pedersen::{Commitment, MaskedRandomness, RingPedersen},
-    utils::{
-        self, plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size,
-    },
+    utils::{plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size},
     zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -33,21 +32,20 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
-use utils::CurvePoint;
 
 /// Proof of knowledge that:
 /// 1. the committed value in a discrete log commitment and the plaintext value
 /// of a Paillier encryption are equal, and
 /// 2. the plaintext value is in the valid range (in this case `± 2^{ℓ + ε}`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PiLogProof {
+pub(crate) struct PiLogProof<C> {
     /// Commitment to the (secret) [plaintext](ProverSecret::plaintext) (`S` in
     /// the paper).
     plaintext_commit: Commitment,
     /// Paillier encryption of mask value (`A` in the paper).
     mask_ciphertext: Ciphertext,
     /// Discrete log commitment of mask value (`Y` in the paper).
-    mask_dlog_commit: CurvePoint,
+    mask_dlog_commit: C,
     /// Ring-Pedersen commitment of mask value (`D` in the paper).
     mask_commit: Commitment,
     /// Fiat-Shamir challenge (`e` in the paper).
@@ -68,22 +66,22 @@ pub(crate) struct PiLogProof {
 /// Copying/Cloning references is harmless and sometimes necessary. So we
 /// implement Clone and Copy for this type.
 #[derive(Serialize, Clone, Copy)]
-pub(crate) struct CommonInput<'a> {
+pub(crate) struct CommonInput<'a, C> {
     /// Claimed ciphertext of the (secret) [plaintext](ProverSecret::plaintext)
     /// (`C` in the paper).
     ciphertext: &'a Ciphertext,
     /// Claimed discrete log commitment of the (secret)
     /// [plaintext](ProverSecret::plaintext) (`X` in the paper).
-    dlog_commit: &'a CurvePoint,
+    dlog_commit: &'a C,
     /// Ring-Pedersen commitment scheme (`(Nhat, s, t)` in the paper).
     ring_pedersen: &'a RingPedersen,
     /// Paillier public key (`N_0` in the paper).
     prover_encryption_key: &'a EncryptionKey,
     // Group generator for discrete log commitments (`g` in the paper).
-    generator: &'a CurvePoint,
+    generator: &'a C,
 }
 
-impl<'a> CommonInput<'a> {
+impl<'a, C> CommonInput<'a, C> {
     /// Collect common parameters for proving or verifying a [`PiLogProof`]
     /// about `ciphertext` and `dlog_commit`.
     ///
@@ -95,11 +93,11 @@ impl<'a> CommonInput<'a> {
     /// 3. `generator` is a group generator.
     pub(crate) fn new(
         ciphertext: &'a Ciphertext,
-        dlog_commit: &'a CurvePoint,
+        dlog_commit: &'a C,
         verifier_ring_pedersen: &'a RingPedersen,
         prover_encryption_key: &'a EncryptionKey,
-        generator: &'a CurvePoint,
-    ) -> CommonInput<'a> {
+        generator: &'a C,
+    ) -> CommonInput<'a, C> {
         Self {
             ciphertext,
             dlog_commit,
@@ -136,17 +134,17 @@ impl<'a> ProverSecret<'a> {
 
 /// Generates a challenge from a [`Transcript`] and the values generated in the
 /// proof.
-fn generate_challenge(
+fn generate_challenge<C: Serialize>(
     transcript: &mut Transcript,
     context: &dyn ProofContext,
-    common_input: CommonInput,
+    common_input: &CommonInput<C>,
     plaintext_commit: &Commitment,
     mask_encryption: &Ciphertext,
-    mask_dlog_commit: &CurvePoint,
+    mask_dlog_commit: &C,
     mask_commit: &Commitment,
 ) -> Result<BigNumber> {
     transcript.append_message(b"PiLog ProofContext", &context.as_bytes()?);
-    transcript.append_message(b"PiLog Common input", &serialize!(&common_input)?);
+    transcript.append_message(b"PiLog Common input", &serialize!(common_input)?);
     transcript.append_message(
         b"(plaintext commit, mask encryption, mask dlog commit, mask commit)",
         &[
@@ -163,8 +161,8 @@ fn generate_challenge(
     Ok(challenge)
 }
 
-impl Proof for PiLogProof {
-    type CommonInput<'a> = CommonInput<'a>;
+impl<C: CT + 'static> Proof for PiLogProof<C> {
+    type CommonInput<'a> = CommonInput<'a, C>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiLogProof"))]
     fn prove<'a, R: RngCore + CryptoRng>(
@@ -226,7 +224,8 @@ impl Proof for PiLogProof {
             .encrypt(rng, &mask)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Commit to the random plaintext using discrete log (`Y` in the paper).
-        let mask_dlog_commit = input.generator.multiply_by_bignum(&mask)?;
+        // TODO: generalize.
+        let mask_dlog_commit = input.generator.scale(&mask)?;
         // Commit to the random plaintext using ring-Pedersen (producing variables `D`
         // and `ɣ` in the paper).
         let (mask_commit, mask_commit_randomness) =
@@ -235,7 +234,7 @@ impl Proof for PiLogProof {
         let challenge = generate_challenge(
             transcript,
             context,
-            input,
+            &input,
             &plaintext_commit,
             &mask_ciphertext,
             &mask_dlog_commit,
@@ -278,7 +277,7 @@ impl Proof for PiLogProof {
         let challenge = generate_challenge(
             transcript,
             context,
-            input,
+            &input,
             &self.plaintext_commit,
             &self.mask_ciphertext,
             &self.mask_dlog_commit,
@@ -308,11 +307,8 @@ impl Proof for PiLogProof {
         }
         // Check that the group exponentiation of the secret plaintext is valid.
         let group_exponentiation_is_valid = {
-            let lhs = input
-                .generator
-                .multiply_by_bignum(&self.plaintext_response)?;
-            let rhs =
-                self.mask_dlog_commit + input.dlog_commit.multiply_by_bignum(&self.challenge)?;
+            let lhs = input.generator.scale(&self.plaintext_response)?;
+            let rhs = self.mask_dlog_commit + input.dlog_commit.scale(&self.challenge)?;
             lhs == rhs
         };
         if !group_exponentiation_is_valid {
@@ -352,12 +348,15 @@ impl Proof for PiLogProof {
 mod tests {
     use super::*;
     use crate::{
+        curve::TestCT as C,
         paillier::{DecryptionKey, Nonce},
         ring_pedersen::VerifiedRingPedersen,
         utils::{random_plusminus_by_size_with_minimum, testing::init_testing},
         zkp::BadContext,
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};
+    type PiLogProof = super::PiLogProof<C>;
+    type CommonInput<'a> = super::CommonInput<'a, C>;
 
     fn transcript() -> Transcript {
         Transcript::new(b"PiLogProof Test")
@@ -371,7 +370,7 @@ mod tests {
         let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
         let pk = decryption_key.encryption_key();
 
-        let g = CurvePoint::GENERATOR;
+        let g = C::GENERATOR;
 
         let X = g.multiply_by_bignum(x)?;
         let (ciphertext, rho) = pk.encrypt(rng, x).unwrap();
@@ -446,7 +445,7 @@ mod tests {
         let x = random_plusminus_by_size(&mut rng, ELL);
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let pk = decryption_key.encryption_key();
-        let g = CurvePoint::GENERATOR;
+        let g = C::GENERATOR;
         let dlog_commit = g.multiply_by_bignum(&x)?;
         let (ciphertext, rho) = pk.encrypt(&mut rng, &x).unwrap();
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
@@ -561,7 +560,7 @@ mod tests {
         let x = random_plusminus_by_size(&mut rng, ELL);
         let (decryption_key, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let pk = decryption_key.encryption_key();
-        let g = CurvePoint::GENERATOR;
+        let g = C::GENERATOR;
 
         // Make a valid common input
         let dlog_commit = g.multiply_by_bignum(&x)?;

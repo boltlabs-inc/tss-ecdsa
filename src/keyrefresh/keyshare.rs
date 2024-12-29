@@ -7,16 +7,16 @@
 // of this source tree.
 
 use crate::{
+    curve::{TestCT as C, CT}, // TODO: generalize.
     errors::{CallerError, InternalError, Result},
     keygen::{KeySharePrivate, KeySharePublic},
     paillier::{Ciphertext, DecryptionKey, EncryptionKey},
-    utils::{k256_order, CurvePoint},
     ParticipantIdentifier,
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{fmt::Debug, marker::PhantomData};
 use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -28,11 +28,11 @@ pub struct KeyUpdateEncrypted {
 
 impl KeyUpdateEncrypted {
     pub fn encrypt<R: RngCore + CryptoRng>(
-        update: &KeyUpdatePrivate,
+        update: &KeyUpdatePrivate<C>,
         pk: &EncryptionKey,
         rng: &mut R,
     ) -> Result<Self> {
-        if &(k256_order() * 2) >= pk.modulus() {
+        if &(C::order() * 2) >= pk.modulus() {
             error!("KeyUpdateEncrypted encryption failed, pk.modulus() is too small");
             Err(InternalError::InternalInvariantFailed)?;
         }
@@ -44,37 +44,44 @@ impl KeyUpdateEncrypted {
         Ok(KeyUpdateEncrypted { ciphertext })
     }
 
-    pub fn decrypt(&self, dk: &DecryptionKey) -> Result<KeyUpdatePrivate> {
+    pub fn decrypt(&self, dk: &DecryptionKey) -> Result<KeyUpdatePrivate<C>> {
         let x = dk.decrypt(&self.ciphertext).map_err(|_| {
             error!("KeyUpdateEncrypted decryption failed, ciphertext out of range",);
             CallerError::DeserializationFailed
         })?;
-        if x >= k256_order() || x < BigNumber::one() {
+        if x >= C::order() || x < BigNumber::one() {
             error!("KeyUpdateEncrypted decryption failed, plaintext out of range");
             Err(CallerError::DeserializationFailed)?;
         }
-        Ok(KeyUpdatePrivate { x })
+        Ok(KeyUpdatePrivate {
+            x,
+            phantom: PhantomData,
+        })
     }
 }
 
 /// Private update corresponding to a given
 /// [`Participant`](crate::Participant)'s.
 #[derive(Clone, ZeroizeOnDrop, PartialEq, Eq, Serialize, Deserialize)]
-pub struct KeyUpdatePrivate {
+pub struct KeyUpdatePrivate<C> {
     x: BigNumber, // in the range [1, q)
+    phantom: PhantomData<C>,
 }
 
-impl Debug for KeyUpdatePrivate {
+impl<C> Debug for KeyUpdatePrivate<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("KeyUpdatePrivate([redacted])")
     }
 }
 
-impl KeyUpdatePrivate {
+impl<C: CT> KeyUpdatePrivate<C> {
     /// Sample a private key share uniformly at random.
     pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
-        let random_bn = BigNumber::from_rng(&k256_order(), rng);
-        KeyUpdatePrivate { x: random_bn }
+        let random_bn = BigNumber::from_rng(&C::order(), rng);
+        KeyUpdatePrivate {
+            x: random_bn,
+            phantom: PhantomData,
+        }
     }
 
     /// Compute a private key share such that the sum of all shares equals 0 mod
@@ -83,19 +90,25 @@ impl KeyUpdatePrivate {
         let sum = others
             .iter()
             .fold(BigNumber::zero(), |sum, o| sum + o.x.clone());
-        let balance = (-sum).nmod(&k256_order());
-        KeyUpdatePrivate { x: balance }
+        let balance = (-sum).nmod(&C::order());
+        KeyUpdatePrivate {
+            x: balance,
+            phantom: PhantomData,
+        }
     }
 
     pub(crate) fn sum(shares: &[Self]) -> Self {
         let sum = shares
             .iter()
             .fold(BigNumber::zero(), |sum, o| sum + o.x.clone())
-            .nmod(&k256_order());
-        KeyUpdatePrivate { x: sum }
+            .nmod(&C::order());
+        KeyUpdatePrivate {
+            x: sum,
+            phantom: PhantomData,
+        }
     }
 
-    pub(crate) fn apply(self, current_sk: &KeySharePrivate) -> KeySharePrivate {
+    pub(crate) fn apply(self, current_sk: &KeySharePrivate<C>) -> KeySharePrivate<C> {
         let mut sum = current_sk.as_ref() + &self.x;
         let share = KeySharePrivate::from_bigint(&sum);
         sum.zeroize();
@@ -103,12 +116,12 @@ impl KeyUpdatePrivate {
     }
 
     /// Computes the "raw" curve point corresponding to this private key.
-    pub(crate) fn public_point(&self) -> Result<CurvePoint> {
-        CurvePoint::GENERATOR.multiply_by_bignum(&self.x)
+    pub(crate) fn public_point(&self) -> Result<C> {
+        C::scale_generator(&self.x)
     }
 }
 
-impl AsRef<BigNumber> for KeyUpdatePrivate {
+impl<C> AsRef<BigNumber> for KeyUpdatePrivate<C> {
     /// Get the private key share.
     fn as_ref(&self) -> &BigNumber {
         &self.x
@@ -118,13 +131,13 @@ impl AsRef<BigNumber> for KeyUpdatePrivate {
 /// A curve point representing a given [`Participant`](crate::Participant)'s
 /// public key.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct KeyUpdatePublic {
+pub struct KeyUpdatePublic<C> {
     participant: ParticipantIdentifier,
-    X: CurvePoint,
+    X: C,
 }
 
-impl KeyUpdatePublic {
-    pub(crate) fn new(participant: ParticipantIdentifier, share: CurvePoint) -> Self {
+impl<C: CT> KeyUpdatePublic<C> {
+    pub(crate) fn new(participant: ParticipantIdentifier, share: C) -> Self {
         Self {
             participant,
             X: share,
@@ -141,8 +154,8 @@ impl KeyUpdatePublic {
     pub(crate) fn new_keyshare<R: RngCore + CryptoRng>(
         participant: ParticipantIdentifier,
         rng: &mut R,
-    ) -> Result<(KeyUpdatePrivate, KeyUpdatePublic)> {
-        let private_share = KeyUpdatePrivate::random(rng);
+    ) -> Result<(KeyUpdatePrivate<C>, KeyUpdatePublic<C>)> {
+        let private_share = KeyUpdatePrivate::<C>::random(rng);
         let public_share = private_share.public_point()?;
 
         Ok((
@@ -152,22 +165,22 @@ impl KeyUpdatePublic {
     }
 
     pub(crate) fn sum(participant: ParticipantIdentifier, shares: &[Self]) -> Self {
-        let sum = shares.iter().fold(CurvePoint::IDENTITY, |sum, o| sum + o.X);
+        let sum = shares.iter().fold(C::IDENTITY, |sum, o| sum + o.X.clone());
         Self {
             participant,
             X: sum,
         }
     }
 
-    pub(crate) fn apply(&self, current_pk: &KeySharePublic) -> KeySharePublic {
-        let sum = *current_pk.as_ref() + self.X;
+    pub(crate) fn apply(&self, current_pk: &KeySharePublic<C>) -> KeySharePublic<C> {
+        let sum = current_pk.as_ref().clone() + self.X.clone();
         KeySharePublic::new(current_pk.participant(), sum)
     }
 }
 
-impl AsRef<CurvePoint> for KeyUpdatePublic {
+impl<C> AsRef<C> for KeyUpdatePublic<C> {
     /// Get the public curvepoint which is the public key share.
-    fn as_ref(&self) -> &CurvePoint {
+    fn as_ref(&self) -> &C {
         &self.X
     }
 }
@@ -175,10 +188,7 @@ impl AsRef<CurvePoint> for KeyUpdatePublic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        auxinfo,
-        utils::{k256_order, testing::init_testing},
-    };
+    use crate::{auxinfo, curve::TestCT as C, utils::testing::init_testing};
     use rand::rngs::StdRng;
 
     /// Generate an encryption key pair.
@@ -189,7 +199,7 @@ mod tests {
         let dk = auxinfo.private_auxinfo().decryption_key();
         let pk = auxinfo.find_public(pid).unwrap().pk();
         assert!(
-            &(k256_order() * 2) < pk.modulus(),
+            &(C::order() * 2) < pk.modulus(),
             "the Paillier modulus is supposed to be much larger than the k256 order"
         );
         (rng, pk.clone(), dk.clone())
@@ -214,8 +224,11 @@ mod tests {
         let rng = &mut rng;
 
         // Encrypt invalid shares.
-        for x in [BigNumber::zero(), -BigNumber::one(), k256_order()].iter() {
-            let share = KeyUpdatePrivate { x: x.clone() };
+        for x in [BigNumber::zero(), -BigNumber::one(), C::order()].iter() {
+            let share = KeyUpdatePrivate {
+                x: x.clone(),
+                phantom: PhantomData,
+            };
             let encrypted =
                 KeyUpdateEncrypted::encrypt(&share, &pk, rng).expect("encryption failed");
             // Decryption reports an error.
@@ -229,7 +242,7 @@ mod tests {
         // Random shares do not sum to zero.
         let rng = &mut init_testing();
         let mut shares = (0..5)
-            .map(|_| KeyUpdatePrivate::random(rng))
+            .map(|_| KeyUpdatePrivate::<C>::random(rng))
             .collect::<Vec<_>>();
         assert_ne!(KeyUpdatePrivate::sum(&shares).x, BigNumber::zero());
 

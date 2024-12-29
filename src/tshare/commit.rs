@@ -6,12 +6,14 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use std::fmt::Debug;
+
 use super::share::CoeffPublic;
 use crate::{
+    curve::CT,
     errors::{InternalError, Result},
     messages::{Message, MessageType, TshareMessageType},
     protocol::{Identifier, ParticipantIdentifier},
-    utils::CurvePoint,
 };
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
@@ -33,24 +35,24 @@ impl TshareCommit {
 
 /// Decommitment published in round 2.
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct TshareDecommit {
+pub(crate) struct TshareDecommit<C> {
     sid: Identifier,
     sender: ParticipantIdentifier,
     u_i: [u8; 32], // The blinding factor is never read but it is included in the commitment.
     pub chain_code: [u8; 32],
     pub rid: [u8; 32],
-    pub coeff_publics: Vec<CoeffPublic>,
-    pub precom: CurvePoint,
+    pub coeff_publics: Vec<CoeffPublic<C>>,
+    pub precom: C,
 }
 
-impl TshareDecommit {
+impl<C: CT> TshareDecommit<C> {
     ///`sid` corresponds to a unique session identifier.
     pub(crate) fn new<R: RngCore + CryptoRng>(
         rng: &mut R,
         sid: &Identifier,
         sender: &ParticipantIdentifier,
-        coeff_publics: &[CoeffPublic],
-        sch_precom: CurvePoint,
+        coeff_publics: &[CoeffPublic<C>],
+        sch_precom: C,
     ) -> Self {
         let mut chain_code = [0u8; 32];
         let mut rid = [0u8; 32];
@@ -72,7 +74,7 @@ impl TshareDecommit {
     /// Deserialize a TshareDecommit from a message and verify it.
     pub(crate) fn from_message(message: &Message, com: &TshareCommit) -> Result<Self> {
         message.check_type(MessageType::Tshare(TshareMessageType::R2Decommit))?;
-        let tshare_decommit: TshareDecommit = deserialize!(&message.unverified_bytes)?;
+        let tshare_decommit: TshareDecommit<C> = deserialize!(&message.unverified_bytes)?;
         tshare_decommit.verify(message.id(), message.from(), com)?;
         Ok(tshare_decommit)
     }
@@ -115,7 +117,7 @@ impl TshareDecommit {
 }
 
 // Implement custom Debug to avoid leaking secret information.
-impl std::fmt::Debug for TshareDecommit {
+impl<C: Debug> std::fmt::Debug for TshareDecommit<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TshareDecommit")
             .field("sid", &self.sid)

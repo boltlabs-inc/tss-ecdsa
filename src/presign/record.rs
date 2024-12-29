@@ -7,22 +7,23 @@
 // of this source tree.
 
 use crate::{
+    curve::CT,
     errors::{
         CallerError,
         InternalError::{InternalInvariantFailed, ProtocolError},
         Result,
     },
     presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
-    utils::{bn_to_scalar, CurvePoint, ParseBytes},
+    utils::{bn_to_scalar, ParseBytes},
 };
 use k256::{elliptic_curve::PrimeField, Scalar};
 use std::fmt::Debug;
 use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-pub(crate) struct RecordPair {
-    pub(crate) private: RoundThreePrivate,
-    pub(crate) publics: Vec<RoundThreePublic>,
+pub(crate) struct RecordPair<C> {
+    pub(crate) private: RoundThreePrivate<C>,
+    pub(crate) publics: Vec<RoundThreePublic<C>>,
 }
 
 /// The precomputation used to create a partial signature.
@@ -52,15 +53,15 @@ pub(crate) struct RecordPair {
 ///
 /// [^cite]: [Wikipedia](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm#Signature_generation_algorithm)
 #[derive(Zeroize, ZeroizeOnDrop, PartialEq, Eq)]
-pub struct PresignRecord {
-    R: CurvePoint,
-    k: Scalar,
-    chi: Scalar,
+pub struct PresignRecord<C: CT> {
+    R: C,
+    k: Scalar,   // TODO: C::Scalar
+    chi: Scalar, // TODO: C::Scalar
 }
 
 const RECORD_TAG: &[u8] = b"Presign Record";
 
-impl Debug for PresignRecord {
+impl<C: CT> Debug for PresignRecord<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Redacting all the fields because I'm not sure how sensitive they are. If
         // later analysis suggests they're fine to print, please udpate
@@ -73,18 +74,18 @@ impl Debug for PresignRecord {
     }
 }
 
-impl TryFrom<RecordPair> for PresignRecord {
+impl<C: CT> TryFrom<RecordPair<C>> for PresignRecord<C> {
     type Error = crate::errors::InternalError;
-    fn try_from(RecordPair { private, publics }: RecordPair) -> Result<Self> {
+    fn try_from(RecordPair { private, publics }: RecordPair<C>) -> Result<Self> {
         let mut delta = private.delta;
-        let mut Delta = private.Delta;
+        let mut Delta = private.Delta.clone();
         for p in publics {
             delta += &p.delta;
             Delta = Delta + p.Delta;
         }
 
-        let g = CurvePoint::GENERATOR;
-        if g.multiply_by_scalar(&delta) != Delta {
+        let g = C::GENERATOR;
+        if g.scale2(&delta) != Delta {
             error!("Could not create PresignRecord: mismatch between calculated private and public deltas");
             return Err(ProtocolError(None));
         }
@@ -93,7 +94,7 @@ impl TryFrom<RecordPair> for PresignRecord {
             error!("Could not invert delta as it is 0. Either you got profoundly unlucky or more likely there's a bug");
             InternalInvariantFailed
         })?;
-        let R = private.Gamma.multiply_by_scalar(&delta_inv);
+        let R = private.Gamma.scale2(&delta_inv);
 
         Ok(PresignRecord {
             R,
@@ -103,7 +104,7 @@ impl TryFrom<RecordPair> for PresignRecord {
     }
 }
 
-impl PresignRecord {
+impl<C: CT> PresignRecord<C> {
     /// Get the mask share (`k` in the paper) from the record.
     pub(crate) fn mask_share(&self) -> &Scalar {
         &self.k
@@ -116,15 +117,7 @@ impl PresignRecord {
     /// Compute the x-projection of the randomly-selected point `R` from the
     /// [`PresignRecord`].
     pub(crate) fn x_projection(&self) -> Result<Scalar> {
-        let x_projection = self.R.x_affine();
-
-        // Note: I don't think this is a foolproof transformation. The `from_repr`
-        // method expects a scalar in the range `[0, q)`, but there's no
-        // guarantee that the x-coordinate of `R` will be in that range.
-        Option::from(Scalar::from_repr(x_projection)).ok_or_else(|| {
-            error!("Unable to compute x-projection of curve point: failed to convert x coord to `Scalar`");
-            InternalInvariantFailed
-        })
+        self.R.x_projection()
     }
 
     /// Convert private material into bytes.
@@ -141,7 +134,7 @@ impl PresignRecord {
         // chi share length in bytes (8 bytes)
         // chi share
 
-        let mut point = self.R.to_bytes();
+        let mut point = self.R.clone().to_bytes();
         let point_len = point.len().to_le_bytes();
 
         let mut random_share = self.k.to_bytes();
@@ -185,7 +178,7 @@ impl PresignRecord {
         //    whether parsing succeeded; and
         // 2. We can log the error message once at the end, rather than duplicating it
         //    across all the parsing code
-        let mut parse = || -> Result<PresignRecord> {
+        let mut parse = || -> Result<PresignRecord<C>> {
             // Make sure the RECORD_TAG is correct.
             let actual_tag = parser.take_bytes(RECORD_TAG.len())?;
             if actual_tag != RECORD_TAG {
@@ -195,7 +188,7 @@ impl PresignRecord {
             // Parse the curve point
             let point_len = parser.take_len()?;
             let point_bytes = parser.take_bytes(point_len)?;
-            let point = CurvePoint::try_from_bytes(point_bytes)?;
+            let point = C::try_from_bytes(point_bytes)?;
 
             // Parse the random share `k`
             let random_share_len = parser.take_len()?;
@@ -253,21 +246,23 @@ mod tests {
     use rand::{rngs::StdRng, CryptoRng, Rng, RngCore, SeedableRng};
 
     use crate::{
+        curve::TestCT as C,
         keygen,
         presign::{participant::presign_record_set_is_valid, record::RECORD_TAG},
-        utils::{bn_to_scalar, testing::init_testing, CurvePoint},
-        ParticipantConfig, PresignRecord,
+        utils::{bn_to_scalar, testing::init_testing},
+        ParticipantConfig,
     };
+    type PresignRecord = super::PresignRecord<C>;
 
     impl PresignRecord {
-        pub(crate) fn mask_point(&self) -> &CurvePoint {
+        pub(crate) fn mask_point(&self) -> &C {
             &self.R
         }
 
         /// Simulate creation of a random presign record. Do not use outside of
         /// testing.
         pub(crate) fn simulate(rng: &mut StdRng) -> PresignRecord {
-            let mask_point = CurvePoint::random(StdRng::from_seed(rng.gen()));
+            let mask_point = C::random(StdRng::from_seed(rng.gen()));
             let mask_share = Scalar::random(StdRng::from_seed(rng.gen()));
             let masked_key_share = Scalar::random(rng);
 
@@ -284,7 +279,7 @@ mod tests {
         /// For testing only; this does not check that the keygen output set is
         /// consistent or complete.
         pub(crate) fn simulate_set(
-            keygen_outputs: &[keygen::Output],
+            keygen_outputs: &[keygen::Output<C>],
             rng: &mut (impl CryptoRng + RngCore),
         ) -> Vec<Self> {
             // Note: using slightly-biased generation for faster tests
@@ -296,7 +291,7 @@ mod tests {
                 .fold(Scalar::ZERO, |sum, mask_share| sum + mask_share);
             let mask_inversion = Option::<Scalar>::from(mask.invert()).unwrap();
             // `R` in the paper.
-            let mask_point = CurvePoint::GENERATOR.multiply_by_scalar(&mask_inversion);
+            let mask_point = C::GENERATOR.multiply_by_scalar(&mask_inversion);
 
             // Compute the masked key shares as (secret_key_share * mask)
             let masked_key_shares = keygen_outputs

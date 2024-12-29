@@ -1,9 +1,6 @@
 //! Utilities for Child Key Derivation (CKD) according to SLIP-0010.
 
-use crate::{
-    errors::CallerError,
-    utils::{bn_to_scalar, CurvePoint},
-};
+use crate::{curve::CT, errors::CallerError, utils::bn_to_scalar};
 use generic_array::{
     typenum::{U32, U64},
     GenericArray,
@@ -58,7 +55,7 @@ impl MasterKeyInput {
     }
 
     /// Derive master key from seed.
-    pub fn derive_master_key(&self) -> CKDOutput {
+    pub fn derive_master_key<C: CT>(&self) -> CKDOutput {
         let hmac = HmacSha512::new_from_slice(self.curve.as_bytes())
             .expect("this never fails: hmac can handle keys of any size");
         let mut i = hmac
@@ -71,9 +68,8 @@ impl MasterKeyInput {
             let (i_left, i_right) = split_into_two_halfes(&i);
             if let Ok(private_key) = bn_to_scalar(&BigNumber::from_slice(i_left)) {
                 let master_private_key = private_key;
-                let master_public_key =
-                    CurvePoint::GENERATOR.multiply_by_scalar(&master_private_key);
-                if master_public_key != CurvePoint::IDENTITY {
+                let master_public_key = C::GENERATOR.scale2(&master_private_key);
+                if master_public_key != C::IDENTITY {
                     return CKDOutput {
                         chain_code: (*i_right).into(),
                         private_key: bn_to_scalar(&BigNumber::from_slice(*i_left)).unwrap(),
@@ -122,7 +118,7 @@ impl CKDInput {
     }
 
     /// Derives a shift for non-hardened child
-    pub fn derive_public_shift(&self) -> CKDOutput {
+    pub fn derive_public_shift<C: CT>(&self) -> CKDOutput {
         let hmac = HmacSha512::new_from_slice(&self.chain_code)
             .expect("this never fails: hmac can handle keys of any size");
         let i = hmac
@@ -131,10 +127,10 @@ impl CKDInput {
             .chain_update(self.index.to_be_bytes())
             .finalize()
             .into_bytes();
-        self.calculate_shift(&hmac, i)
+        self.calculate_shift::<C>(&hmac, i)
     }
 
-    fn calculate_shift(
+    fn calculate_shift<C: CT>(
         &self,
         hmac: &HmacSha512,
         mut i: hmac::digest::Output<HmacSha512>,
@@ -144,14 +140,13 @@ impl CKDInput {
 
             if let Ok(shift) = bn_to_scalar(&BigNumber::from_slice(i_left)) {
                 let parent_private_key: Scalar = self.private_key.unwrap_or(Scalar::ZERO);
-                let parent_public_key = CurvePoint::try_from_bytes(self.public_key.as_slice())
+                let parent_public_key = C::try_from_bytes(self.public_key.as_slice())
                     .expect("could not get the parent public key");
 
                 let child_private_key = parent_private_key + shift;
-                let child_public_key =
-                    parent_public_key + CurvePoint::GENERATOR.multiply_by_scalar(&shift);
+                let child_public_key = parent_public_key + C::GENERATOR.scale2(&shift);
 
-                if child_public_key != CurvePoint::IDENTITY {
+                if child_public_key != C::IDENTITY {
                     return CKDOutput {
                         private_key: child_private_key,
                         chain_code: (*i_right).into(),
@@ -190,12 +185,14 @@ public: 0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2 */
 
 #[test]
 fn test_derive_master_key() {
+    use crate::curve::TestCT as C;
+
     let seed = [
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
         0x0f,
     ];
     let mk_input = MasterKeyInput::new(&seed, "Bitcoin seed".into()).unwrap();
-    let master_key_output = MasterKeyInput::derive_master_key(&mk_input);
+    let master_key_output = MasterKeyInput::derive_master_key::<C>(&mk_input);
     assert_eq!(
         master_key_output.private_key.to_bytes(),
         [
@@ -223,6 +220,8 @@ public: 02fc9e5af0ac8d9b3cecfe2a888e2117ba3d089d8585886c9c826b6b22a98d12ea
 */
 #[test]
 fn test_derive_child_key() {
+    use crate::curve::TestCT as C;
+
     // seed:
     // fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542
     let seed = [
@@ -233,10 +232,10 @@ fn test_derive_child_key() {
         0x4b, 0x48, 0x45, 0x42,
     ];
     let mk_input = MasterKeyInput::new(&seed, "Bitcoin seed".into()).unwrap();
-    let master_key_output = MasterKeyInput::derive_master_key(&mk_input);
+    let master_key_output = MasterKeyInput::derive_master_key::<C>(&mk_input);
 
     // derive the child key
-    let pk = CurvePoint::GENERATOR.multiply_by_scalar(&master_key_output.private_key);
+    let pk = C::GENERATOR.scale2(&master_key_output.private_key);
     let private_key = master_key_output.private_key;
     let public_key: Vec<u8> = pk.to_bytes().to_vec();
 
@@ -281,7 +280,7 @@ fn test_derive_child_key() {
         0,
     )
     .unwrap();
-    let child_key_output = ckd_input.derive_public_shift();
+    let child_key_output = ckd_input.derive_public_shift::<C>();
     // assert the chain code
     assert_eq!(
         child_key_output.chain_code,

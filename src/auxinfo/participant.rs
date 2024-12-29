@@ -17,6 +17,7 @@ use crate::{
         Output,
     },
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
+    curve::TestCT as C, // TODO: generalize.
     errors::{CallerError, InternalError, Result},
     local_storage::LocalStorage,
     messages::{AuxinfoMessageType, Message, MessageType},
@@ -189,7 +190,7 @@ impl ProtocolParticipant for AuxInfoParticipant {
 }
 
 impl InnerProtocolParticipant for AuxInfoParticipant {
-    type Context = SharedContext;
+    type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
         SharedContext::collect(self)
@@ -589,9 +590,10 @@ impl AuxInfoParticipant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::testing::init_testing, Identifier, ParticipantConfig};
+    use crate::{curve::TestCT as C, utils::testing::init_testing, Identifier, ParticipantConfig};
     use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
+    type SharedContext = super::SharedContext<C>;
 
     impl AuxInfoParticipant {
         pub fn new_quorum<R: RngCore + CryptoRng>(

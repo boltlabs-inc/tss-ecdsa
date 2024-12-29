@@ -1,6 +1,7 @@
 //! Module to export and import key shares, with encryption in transit.
 
-use crate::{errors::Result, keygen::KeySharePrivate};
+// TODO: generalize curve.
+use crate::{curve::TestCT as C, errors::Result, keygen::KeySharePrivate};
 
 mod pke;
 pub use pke::Pke;
@@ -40,13 +41,14 @@ impl KeyShareEncrypted {
     /// ```
     /// use tss_ecdsa::keygen::KeySharePrivate;
     /// use tss_ecdsa::keyshare_export::{KeyShareEncrypted, SodiumPke};
+    /// use tss_ecdsa::curve::TestCT as C;
     /// use sodiumoxide::crypto::box_;
     ///
     /// sodiumoxide::init().expect("Failed to initialize sodiumoxide");
     /// let (sender_pk, sender_sk) = box_::gen_keypair();
     /// let (receiver_pk, receiver_sk) = box_::gen_keypair();
     /// let mut rng = rand::thread_rng();
-    /// let key_share = KeySharePrivate::random(&mut rng);
+    /// let key_share = KeySharePrivate::<C>::random(&mut rng);
     ///
     /// let exported = KeyShareEncrypted::export_keyshare::<SodiumPke>(&key_share, &receiver_pk, &sender_sk)
     ///     .expect("Failed to export keyshare");
@@ -59,7 +61,7 @@ impl KeyShareEncrypted {
     /// assert_eq!(imported, key_share);
     /// ```
     pub fn export_keyshare<T: Pke>(
-        key_share: &KeySharePrivate,
+        key_share: &KeySharePrivate<C>,
         receiver_pk: &T::PublicKey,
         sender_sk: &T::SecretKey,
     ) -> Result<Self> {
@@ -84,7 +86,7 @@ impl KeyShareEncrypted {
         &self,
         sender_pk: &T::PublicKey,
         receiver_sk: &T::SecretKey,
-    ) -> Result<KeySharePrivate> {
+    ) -> Result<KeySharePrivate<C>> {
         let decrypted_data = T::decrypt(&self.0, sender_pk, receiver_sk)?;
         KeySharePrivate::try_from_bytes(decrypted_data)
     }

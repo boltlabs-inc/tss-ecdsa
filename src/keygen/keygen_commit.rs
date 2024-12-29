@@ -7,11 +7,11 @@
 // of this source tree.
 
 use crate::{
+    curve::CT,
     errors::{InternalError, Result},
     keygen::keyshare::KeySharePublic,
     messages::{KeygenMessageType, Message, MessageType},
     protocol::{Identifier, ParticipantIdentifier},
-    utils::CurvePoint,
     zkp::pisch::PiSchPrecommit,
 };
 use merlin::Transcript;
@@ -32,25 +32,25 @@ impl KeygenCommit {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct KeygenDecommit {
+pub(crate) struct KeygenDecommit<C> {
     ///`sid` corresponds to a unique session identifier.
     pub sid: Identifier,
     pub sender: ParticipantIdentifier,
     pub chain_code: [u8; 32],
     pub rid: [u8; 32],
     pub u_i: [u8; 32],
-    pub pk: KeySharePublic,
-    pub A: CurvePoint,
+    pub pk: KeySharePublic<C>,
+    pub A: C,
 }
 
-impl KeygenDecommit {
+impl<C: CT> KeygenDecommit<C> {
     ///`sid` corresponds to a unique session identifier.
     pub(crate) fn new<R: RngCore + CryptoRng>(
         rng: &mut R,
         sid: &Identifier,
         sender: &ParticipantIdentifier,
-        pk: &KeySharePublic,
-        sch_precom: &PiSchPrecommit,
+        pk: &KeySharePublic<C>,
+        sch_precom: &PiSchPrecommit<C>,
     ) -> Self {
         let mut chain_code = [0u8; 32];
         let mut rid = [0u8; 32];
@@ -65,19 +65,19 @@ impl KeygenDecommit {
             rid,
             u_i,
             pk: pk.clone(),
-            A: *sch_precom.precommitment(),
+            A: sch_precom.precommitment().clone(),
         }
     }
 
     /// Deserialize a KeygenDecommit from a message and verify it.
     pub(crate) fn from_message(message: &Message, com: &KeygenCommit) -> Result<Self> {
         message.check_type(MessageType::Keygen(KeygenMessageType::R2Decommit))?;
-        let keygen_decommit: KeygenDecommit = deserialize!(&message.unverified_bytes)?;
+        let keygen_decommit: KeygenDecommit<C> = deserialize!(&message.unverified_bytes)?;
         keygen_decommit.verify(message.id(), message.from(), com)?;
         Ok(keygen_decommit)
     }
 
-    pub(crate) fn get_keyshare(&self) -> &KeySharePublic {
+    pub(crate) fn get_keyshare(&self) -> &KeySharePublic<C> {
         &self.pk
     }
 

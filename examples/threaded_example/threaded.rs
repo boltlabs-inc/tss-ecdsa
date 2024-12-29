@@ -37,6 +37,7 @@ use tracing::{debug, info, instrument, span, trace, Level};
 use tracing_subscriber::{self, EnvFilter};
 use tss_ecdsa::{
     auxinfo::AuxInfoParticipant,
+    curve::TestCT as C,
     keygen::{KeygenParticipant, Output},
     messages::Message,
     presign::{self, PresignParticipant},
@@ -320,13 +321,13 @@ struct Worker {
     /// Stored participants executed by this worker.
     participants: ParticipantStorage,
     /// Outputs of successful key generation.
-    key_gen_material: StoredOutput<KeygenParticipant>,
+    key_gen_material: StoredOutput<KeygenParticipant<C>>,
     /// Outputs of successful aux info.
     aux_info: StoredOutput<AuxInfoParticipant>,
     /// Outputs of successful presign.
     presign_records: StoredOutput<PresignParticipant>,
     /// Signatures generated from successful signing runs.
-    signatures: StoredOutput<SignParticipant>,
+    signatures: StoredOutput<SignParticipant<C>>,
     /// Channel for sending messages to the coordinator.
     outgoing: Sender<MessageFromWorker>,
 }
@@ -405,13 +406,13 @@ impl Worker {
 /// These functions fetch the required inputs from storage.
 impl Worker {
     fn new_keygen(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
-        self.new_sub_protocol::<KeygenParticipant>(sid, (), key_id)
+        self.new_sub_protocol::<KeygenParticipant<C>>(sid, (), key_id)
     }
 
     fn new_auxinfo(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
         // Note: Missing inputs to aux-info see issues
         // #242 and #243.
-        let _output: &Output = self.key_gen_material.retrieve(&key_id);
+        let _output: &Output<C> = self.key_gen_material.retrieve(&key_id);
         self.new_sub_protocol::<AuxInfoParticipant>(sid, (), key_id)
     }
 
@@ -429,14 +430,14 @@ impl Worker {
 
         let threshold = key_shares.len();
         let inputs = sign::Input::new(b"hello world", record, key_shares.to_vec(), threshold, None);
-        self.new_sub_protocol::<SignParticipant>(sid, inputs, key_id)
+        self.new_sub_protocol::<SignParticipant<C>>(sid, inputs, key_id)
     }
 }
 
 /// Sub-protocol wrappers around `process_message` method.
 impl Worker {
     fn process_keygen(&mut self, sid: SessionId, incoming: Message) -> anyhow::Result<()> {
-        let (p, key_id) = self.participants.get_mut::<KeygenParticipant>(&sid);
+        let (p, key_id) = self.participants.get_mut::<KeygenParticipant<C>>(&sid);
         Self::process_message(
             p,
             key_id,
@@ -463,7 +464,7 @@ impl Worker {
     }
 
     fn process_sign(&mut self, sid: SessionId, incoming: Message) -> anyhow::Result<()> {
-        let (p, key_id) = self.participants.get_mut::<SignParticipant>(&sid);
+        let (p, key_id) = self.participants.get_mut::<SignParticipant<C>>(&sid);
         Self::process_message(p, key_id, incoming, &mut self.signatures, &self.outgoing)
     }
 }

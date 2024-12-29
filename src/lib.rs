@@ -220,6 +220,7 @@ pub mod errors;
 
 pub mod auxinfo;
 mod broadcast;
+pub mod curve;
 mod gmp_zeroize;
 pub mod keygen;
 pub mod keyrefresh;

@@ -39,13 +39,12 @@
 //! 2021](https://eprint.iacr.org/archive/2021/060/1634824619.pdf).
 
 use crate::{
+    curve::CT,
     errors::*,
     paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce, PaillierError},
     parameters::{ELL, ELL_PRIME, EPSILON},
     ring_pedersen::{Commitment, MaskedRandomness, VerifiedRingPedersen},
-    utils::{
-        self, plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size,
-    },
+    utils::{plusminus_challenge_from_transcript, random_plusminus_by_size, within_bound_by_size},
     zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -54,7 +53,6 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
-use utils::CurvePoint;
 
 /// Zero-knowledge proof of knowledge of a Paillier affine operation with a
 /// group commitment where the encrypted and committed values are in a given
@@ -62,7 +60,7 @@ use utils::CurvePoint;
 ///
 /// See the [module-level documentation](crate::zkp::piaffg) for more details.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PiAffgProof {
+pub(crate) struct PiAffgProof<C> {
     /// A ring-Pedersen commitment to the multiplicative coefficient (`S` in the
     /// paper).
     mult_coeff_commit: Commitment,
@@ -75,7 +73,7 @@ pub(crate) struct PiAffgProof {
     random_affine_ciphertext_verifier: Ciphertext,
     /// A group exponentiation of the random multiplicative coefficient (`B_x`
     /// in the paper).
-    random_mult_coeff_exp: CurvePoint,
+    random_mult_coeff_exp: C,
     /// A Paillier ciphertext, under the prover's encryption key, of the
     /// random additive coefficient (`B_y` in the paper).
     random_add_coeff_ciphertext_prover: Ciphertext,
@@ -111,7 +109,7 @@ pub(crate) struct PiAffgProof {
 /// Copying/Cloning references is harmless and sometimes necessary. So we
 /// implement Clone and Copy for this type.
 #[derive(Serialize, Clone, Copy)]
-pub(crate) struct PiAffgInput<'a> {
+pub(crate) struct PiAffgInput<'a, C> {
     /// The verifier's commitment parameters (`(Nhat, s, t)` in the paper).
     verifier_setup_params: &'a VerifiedRingPedersen,
     /// The verifier's Paillier encryption key (`N_0` in the paper).
@@ -129,10 +127,10 @@ pub(crate) struct PiAffgInput<'a> {
     add_coeff_ciphertext_prover: &'a Ciphertext,
     /// Exponentiation of the prover's multiplicative coefficient (`X` in the
     /// paper).
-    mult_coeff_exp: &'a CurvePoint,
+    mult_coeff_exp: &'a C,
 }
 
-impl<'a> PiAffgInput<'a> {
+impl<'a, C> PiAffgInput<'a, C> {
     /// Construct a new [`PiAffgInput`] type.
     pub(crate) fn new(
         verifier_setup_params: &'a VerifiedRingPedersen,
@@ -141,8 +139,8 @@ impl<'a> PiAffgInput<'a> {
         original_ciphertext_verifier: &'a Ciphertext,
         transformed_ciphertext_verifier: &'a Ciphertext,
         add_coeff_ciphertext_prover: &'a Ciphertext,
-        mult_coeff_exp: &'a CurvePoint,
-    ) -> PiAffgInput<'a> {
+        mult_coeff_exp: &'a C,
+    ) -> PiAffgInput<'a, C> {
         Self {
             verifier_setup_params,
             verifier_encryption_key,
@@ -197,8 +195,8 @@ impl<'a> PiAffgSecret<'a> {
     }
 }
 
-impl Proof for PiAffgProof {
-    type CommonInput<'a> = PiAffgInput<'a>;
+impl<C: CT + 'static> Proof for PiAffgProof<C> {
+    type CommonInput<'a> = PiAffgInput<'a, C>;
     type ProverSecret<'b> = PiAffgSecret<'b>;
 
     #[cfg_attr(feature = "flame_it", flame("PiAffgProof"))]
@@ -284,7 +282,7 @@ impl Proof for PiAffgProof {
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Compute the exponentiation of the random multiplicative coefficient
         // (producing `B_x` in the paper)
-        let random_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_bignum(&random_mult_coeff)?;
+        let random_mult_coeff_exp = C::scale_generator(&random_mult_coeff)?;
         // Encrypt the random additive coefficient using the 1st encryption key
         // (producing `B_y` in the paper).
         let (random_add_coeff_ciphertext_prover, random_add_coeff_nonce_prover) = input
@@ -424,9 +422,8 @@ impl Proof for PiAffgProof {
         }
         // Check that the masked group exponentiation is valid.
         let masked_group_exponentiation_is_valid = {
-            let lhs = CurvePoint::GENERATOR.multiply_by_bignum(&self.masked_mult_coeff)?;
-            let rhs = self.random_mult_coeff_exp
-                + input.mult_coeff_exp.multiply_by_bignum(&self.challenge)?;
+            let lhs = C::scale_generator(&self.masked_mult_coeff)?;
+            let rhs = self.random_mult_coeff_exp + input.mult_coeff_exp.scale(&self.challenge)?;
             lhs == rhs
         };
         if !masked_group_exponentiation_is_valid {
@@ -504,16 +501,16 @@ impl Proof for PiAffgProof {
     }
 }
 
-impl PiAffgProof {
+impl<C: Serialize> PiAffgProof<C> {
     #[allow(clippy::too_many_arguments)]
     fn generate_challenge(
         transcript: &mut Transcript,
         context: &impl ProofContext,
-        input: &PiAffgInput,
+        input: &PiAffgInput<C>,
         mult_coeff_commit: &Commitment,
         add_coeff_commit: &Commitment,
         random_affine_ciphertext: &Ciphertext,
-        random_mult_coeff_exp: &CurvePoint,
+        random_mult_coeff_exp: &C,
         random_add_coeff_ciphertext_prover: &Ciphertext,
         random_mult_coeff_commit: &Commitment,
         random_add_coeff_commit: &Commitment,
@@ -548,14 +545,14 @@ impl PiAffgProof {
 mod tests {
     use super::*;
     use crate::{
+        curve::{TestCT as C, CT},
         paillier::DecryptionKey,
-        utils::{
-            k256_order, random_plusminus, random_plusminus_by_size_with_minimum,
-            testing::init_testing,
-        },
+        utils::{random_plusminus, random_plusminus_by_size_with_minimum, testing::init_testing},
         zkp::BadContext,
     };
     use rand::{rngs::StdRng, Rng, SeedableRng};
+    type PiAffgProof = super::PiAffgProof<C>;
+    type PiAffgInput<'a> = super::PiAffgInput<'a, C>;
 
     // Type of expected function for our code testing.
     type TestFn = fn(PiAffgProof, PiAffgInput) -> Result<()>;
@@ -576,7 +573,7 @@ mod tests {
         let (decryption_key_1, _, _) = DecryptionKey::new(rng).unwrap();
         let pk1 = decryption_key_1.encryption_key();
 
-        let mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_bignum(x)?;
+        let mult_coeff_exp = C::GENERATOR.multiply_by_bignum(x)?;
         let (add_coeff_ciphertext_prover, rho_y) = pk1
             .encrypt(rng, y)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
@@ -783,7 +780,7 @@ mod tests {
 
             // Swap multi coefficient exponent with a random [`CurvePoint`]
             let mask = random_plusminus_by_size(&mut rng, ELL);
-            let bad_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_bignum(&mask)?;
+            let bad_mult_coeff_exp = C::GENERATOR.multiply_by_bignum(&mask)?;
             assert_ne!(bad_mult_coeff_exp, input.mult_coeff_exp.clone());
             let bad_input = PiAffgInput::new(
                 input.verifier_setup_params,
@@ -813,7 +810,7 @@ mod tests {
         let (decryption_key_1, _, _) = DecryptionKey::new(&mut rng).unwrap();
         let pk1 = decryption_key_1.encryption_key();
 
-        let mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_bignum(&x)?;
+        let mult_coeff_exp = C::GENERATOR.multiply_by_bignum(&x)?;
         let (add_coeff_ciphertext_prover, rho_y) = pk1
             .encrypt(&mut rng, &y)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
@@ -846,7 +843,7 @@ mod tests {
         let secret = PiAffgSecret::new(&x, &y, &rho, &rho_y);
 
         // Generate some random elements to use as replacements
-        let random_bignumber = random_plusminus(&mut rng, &k256_order());
+        let random_bignumber = random_plusminus(&mut rng, &C::order());
         let random_nonce = Nonce::random(&mut rng, input.prover_encryption_key.modulus());
 
         // Swap multi coefficient with a random [`BigNumber`]
@@ -922,7 +919,7 @@ mod tests {
 
             // Swap challenge with a random [`Bignumber`]
             let mut bad_proof = proof.clone();
-            bad_proof.challenge = random_plusminus(&mut rng, &k256_order());
+            bad_proof.challenge = random_plusminus(&mut rng, &C::order());
             assert_ne!(bad_proof.challenge, proof.challenge);
             assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
@@ -966,10 +963,10 @@ mod tests {
             );
             assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 
-            // Swap random_mult_coeff_exp with a random [`CurvePoint`]
+            // Swap random_mult_coeff_exp with a random [`C`]
             let mut bad_proof = proof.clone();
             let mask = random_plusminus_by_size(&mut rng, ELL);
-            bad_proof.random_mult_coeff_exp = CurvePoint::GENERATOR.multiply_by_bignum(&mask)?;
+            bad_proof.random_mult_coeff_exp = C::GENERATOR.multiply_by_bignum(&mask)?;
             assert_ne!(bad_proof.random_mult_coeff_exp, proof.random_mult_coeff_exp);
             assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
 

@@ -19,17 +19,17 @@ use super::share::CoeffPrivate;
 /// Input needed for a
 /// [`TshareParticipant`](crate::tshare::TshareParticipant) to run.
 #[derive(Debug, Clone)]
-pub struct Input {
+pub struct Input<C> {
     /// How many parties are needed to sign.
     threshold: usize,
     /// An additive share to turn into Shamir sharing.
     /// Or None to generate a random share.
-    share: Option<CoeffPrivate>,
+    share: Option<CoeffPrivate<C>>,
     /// The auxiliary info to encrypt/decrypt messages with other participants.
     auxinfo_output: auxinfo::Output,
 }
 
-impl Input {
+impl<C> Input<C> {
     /// Creates [`Input`] needed to run the additive to threshold
     /// conversion protocol.
     ///
@@ -42,7 +42,7 @@ impl Input {
     /// is assumed to be additively shared which is a threshold of n.
     pub fn new(
         auxinfo_output: auxinfo::Output,
-        share: Option<CoeffPrivate>,
+        share: Option<CoeffPrivate<C>>,
         threshold: usize,
     ) -> Result<Self> {
         // The constructor for auxinfo output already check other important
@@ -56,7 +56,7 @@ impl Input {
     }
 
     /// Returns the share to be used in the protocol.
-    pub fn share(&self) -> Option<&CoeffPrivate> {
+    pub fn share(&self) -> Option<&CoeffPrivate<C>> {
         self.share.as_ref()
     }
 
@@ -111,13 +111,15 @@ impl Input {
 
 #[cfg(test)]
 mod test {
-    use super::{super::TshareParticipant, Input};
+    use super::super::TshareParticipant;
     use crate::{
         auxinfo,
+        curve::TestCT as C,
         errors::{CallerError, InternalError, Result},
         utils::testing::init_testing,
         Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
     };
+    type Input = super::Input<C>;
 
     #[test]
     fn protocol_participants_must_match_input_participants() -> Result<()> {

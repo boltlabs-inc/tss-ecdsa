@@ -7,14 +7,15 @@
 // of this source tree.
 
 use crate::{
+    curve::CT,
     errors::{CallerError, Result},
-    utils::{k256_order, CurvePoint, ParseBytes},
+    utils::ParseBytes,
     ParticipantIdentifier,
 };
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{fmt::Debug, marker::PhantomData};
 use tracing::error;
 use zeroize::Zeroize;
 
@@ -26,33 +27,40 @@ const KEYSHARE_TAG: &[u8] = b"KeySharePrivate";
 /// # 🔒 Storage requirements
 /// This type must be stored securely by the calling application.
 #[derive(Clone, PartialEq, Eq)]
-pub struct KeySharePrivate {
+pub struct KeySharePrivate<C> {
     x: BigNumber, // in the range [1, q)
+    phantom: PhantomData<C>,
 }
 
-impl Debug for KeySharePrivate {
+impl<C> Debug for KeySharePrivate<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("KeySharePrivate([redacted])")
     }
 }
 
-impl KeySharePrivate {
+impl<C: CT> KeySharePrivate<C> {
     /// Sample a private key share uniformly at random.
     pub fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
-        let random_bn = BigNumber::from_rng(&k256_order(), rng);
-        KeySharePrivate { x: random_bn }
+        let random_bn = BigNumber::from_rng(&C::order(), rng);
+        KeySharePrivate {
+            x: random_bn,
+            phantom: PhantomData,
+        }
     }
 
     /// Take a [`BigNumber`] as [`KeySharePrivate`]. `x_int` will be reduced
     /// modulo `q`.
     pub(crate) fn from_bigint(x_int: &BigNumber) -> Self {
-        let x = x_int.nmod(&k256_order());
-        Self { x }
+        let x = x_int.nmod(&C::order());
+        Self {
+            x,
+            phantom: PhantomData,
+        }
     }
 
     /// Computes the "raw" curve point corresponding to this private key.
-    pub(crate) fn public_share(&self) -> Result<CurvePoint> {
-        CurvePoint::GENERATOR.multiply_by_bignum(&self.x)
+    pub(crate) fn public_share(&self) -> Result<C> {
+        C::scale_generator(&self.x)
     }
 
     /// Convert private material into bytes.
@@ -106,11 +114,15 @@ impl KeySharePrivate {
 
             // Check that the share itself is valid
             let share = BigNumber::from_slice(share_bytes);
-            if share >= k256_order() || share < BigNumber::one() {
+            // TODO: order from C.
+            if share >= C::order() || share < BigNumber::one() {
                 Err(CallerError::DeserializationFailed)?
             }
 
-            Ok(Self { x: share })
+            Ok(Self {
+                x: share,
+                phantom: PhantomData,
+            })
         };
 
         let result = parse();
@@ -133,7 +145,7 @@ impl KeySharePrivate {
     }
 }
 
-impl AsRef<BigNumber> for KeySharePrivate {
+impl<C> AsRef<BigNumber> for KeySharePrivate<C> {
     /// Get the private key share.
     fn as_ref(&self) -> &BigNumber {
         &self.x
@@ -143,16 +155,18 @@ impl AsRef<BigNumber> for KeySharePrivate {
 /// A curve point representing a given [`Participant`](crate::Participant)'s
 /// public key.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct KeySharePublic {
+pub struct KeySharePublic<C> {
     participant: ParticipantIdentifier,
-    X: CurvePoint,
+    X: C,
+    phantom: PhantomData<C>,
 }
 
-impl KeySharePublic {
-    pub(crate) fn new(participant: ParticipantIdentifier, share: CurvePoint) -> Self {
+impl<C> KeySharePublic<C> {
+    pub(crate) fn new(participant: ParticipantIdentifier, share: C) -> Self {
         Self {
             participant,
             X: share,
+            phantom: PhantomData,
         }
     }
 
@@ -161,12 +175,14 @@ impl KeySharePublic {
     pub fn participant(&self) -> ParticipantIdentifier {
         self.participant
     }
+}
 
+impl<C: CT> KeySharePublic<C> {
     /// Generate a new [`KeySharePrivate`] and [`KeySharePublic`].
     pub(crate) fn new_keyshare<R: RngCore + CryptoRng>(
         participant: ParticipantIdentifier,
         rng: &mut R,
-    ) -> Result<(KeySharePrivate, KeySharePublic)> {
+    ) -> Result<(KeySharePrivate<C>, KeySharePublic<C>)> {
         let private_share = KeySharePrivate::random(rng);
         let public_share = private_share.public_share()?;
 
@@ -177,9 +193,9 @@ impl KeySharePublic {
     }
 }
 
-impl AsRef<CurvePoint> for KeySharePublic {
+impl<C> AsRef<C> for KeySharePublic<C> {
     /// Get the public curvepoint which is the public key share.
-    fn as_ref(&self) -> &CurvePoint {
+    fn as_ref(&self) -> &C {
         &self.X
     }
 }
@@ -187,9 +203,11 @@ impl AsRef<CurvePoint> for KeySharePublic {
 #[cfg(test)]
 mod tests {
     use crate::{
-        keygen::{keyshare::KEYSHARE_TAG, KeySharePrivate},
-        utils::{k256_order, testing::init_testing},
+        curve::{TestCT as C, CT},
+        keygen::keyshare::KEYSHARE_TAG,
+        utils::testing::init_testing,
     };
+    type KeySharePrivate = super::KeySharePrivate<C>;
 
     #[test]
     fn keyshare_private_bytes_conversion_works() {
@@ -205,8 +223,11 @@ mod tests {
 
     #[test]
     fn keyshare_private_bytes_must_be_in_range() {
-        // Share must be < k256_order()
-        let too_big = KeySharePrivate { x: k256_order() };
+        // Share must be < C::order()
+        let too_big = KeySharePrivate {
+            x: C::order(),
+            phantom: PhantomData,
+        };
         let bytes = too_big.into_bytes();
         assert!(KeySharePrivate::try_from_bytes(bytes).is_err());
 
@@ -281,7 +302,7 @@ mod tests {
         assert!(KeySharePrivate::try_from_bytes(KEYSHARE_TAG.to_vec()).is_err());
 
         // Length with no secret following doesn't pass
-        let share_len = k256_order().bit_length() / 8;
+        let share_len = C::order().bit_length() / 8;
         let bytes = [KEYSHARE_TAG, &share_len.to_le_bytes()].concat();
         assert!(KeySharePrivate::try_from_bytes(bytes).is_err());
 
@@ -295,6 +316,7 @@ mod tests {
     use libpaillier::unknown_order;
     use rand::{rngs::StdRng, SeedableRng};
     use std::{
+        marker::PhantomData,
         mem::{align_of, size_of},
         slice,
     };

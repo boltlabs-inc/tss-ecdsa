@@ -9,9 +9,9 @@ use k256::Scalar;
 use std::collections::HashSet;
 
 use crate::{
+    curve::CT,
     errors::{CallerError, InternalError, Result},
     keygen::KeySharePublic,
-    utils::CurvePoint,
 };
 
 use k256::ecdsa::VerifyingKey;
@@ -23,41 +23,42 @@ use super::CoeffPublic;
 /// this party's private key share, and the public commitment to the
 /// coefficients corresponding to the final shamir secret sharing.
 #[derive(Debug, Clone)]
-pub struct Output {
+pub struct Output<C> {
     // Public coefficients for the polynomial
-    public_coeffs: Vec<CoeffPublic>,
+    public_coeffs: Vec<CoeffPublic<C>>,
     // Public keys for each participant
-    public_key_shares: Vec<KeySharePublic>,
+    public_key_shares: Vec<KeySharePublic<C>>,
     // A Scalar representing the private share,
-    private_key_share: Scalar,
+    private_key_share: Scalar, // TODO: C::Scalar
     // The chain code for the HD wallet
     chain_code: [u8; 32],
     // The chain code for the HD wallet
     rid: [u8; 32],
 }
 
-impl Output {
+impl<C: CT> Output<C> {
     /// Construct the generated public key.
     pub fn public_key(&self) -> Result<VerifyingKey> {
         // Add up all the key shares
         let public_key_point = self
             .public_key_shares
             .iter()
-            .fold(CurvePoint::IDENTITY, |sum, share| sum + *share.as_ref());
+            .fold(C::IDENTITY, |sum, share| sum + share.as_ref().clone())
+            .into();
 
-        VerifyingKey::from_encoded_point(&public_key_point.into()).map_err(|_| {
+        VerifyingKey::from_encoded_point(&public_key_point).map_err(|_| {
             error!("Keygen output does not produce a valid public key.");
             InternalError::InternalInvariantFailed
         })
     }
 
     /// Get the individual shares of the public key.
-    pub fn public_key_shares(&self) -> &[KeySharePublic] {
+    pub fn public_key_shares(&self) -> &[KeySharePublic<C>] {
         &self.public_key_shares
     }
 
     /// Get the public coefficients (coefficients in the exponent).
-    pub fn public_coeffs(&self) -> &[CoeffPublic] {
+    pub fn public_coeffs(&self) -> &[CoeffPublic<C>] {
         &self.public_coeffs
     }
 
@@ -91,8 +92,8 @@ impl Output {
     ///   private ECDSA key share
     /// - The public key shares must be from a unique set of participants.
     pub fn from_parts(
-        public_coeffs: Vec<CoeffPublic>,
-        public_keys: Vec<KeySharePublic>,
+        public_coeffs: Vec<CoeffPublic<C>>,
+        public_keys: Vec<KeySharePublic<C>>,
         private_key_share: Scalar,
         chain_code: [u8; 32],
         rid: [u8; 32],
@@ -128,11 +129,12 @@ impl Output {
     ///
     /// The public components (including the byte array and the public key
     /// shares) can be stored in the clear.
+    #[allow(clippy::type_complexity)]
     pub fn into_parts(
         self,
     ) -> (
-        Vec<CoeffPublic>,
-        Vec<KeySharePublic>,
+        Vec<CoeffPublic<C>>,
+        Vec<KeySharePublic<C>>,
         Scalar,
         [u8; 32],
         [u8; 32],
@@ -149,16 +151,21 @@ impl Output {
 
 #[cfg(test)]
 mod tests {
+    use std::marker::PhantomData;
+
     use super::*;
     use crate::{
-        tshare::{CoeffPrivate, CoeffPublic, TshareParticipant},
-        utils::{bn_to_scalar, k256_order, testing::init_testing},
+        curve::{TestCT as C, CT},
+        tshare::{self, CoeffPublic, TshareParticipant},
+        utils::{bn_to_scalar, testing::init_testing},
         ParticipantIdentifier,
     };
     use itertools::Itertools;
     use k256::elliptic_curve::Field;
     use libpaillier::unknown_order::BigNumber;
     use rand::Rng;
+    type Output = super::Output<C>;
+    type CoeffPrivate = tshare::CoeffPrivate<C>;
 
     impl Output {
         /// Simulate the valid output of a keygen run with the given
@@ -171,8 +178,8 @@ mod tests {
                 .iter()
                 .map(|&pid| {
                     // TODO #340: Replace with KeyShare methods once they exist.
-                    let secret = BigNumber::random(&k256_order());
-                    let public = CurvePoint::GENERATOR
+                    let secret = BigNumber::random(&C::order());
+                    let public = C::GENERATOR
                         .multiply_by_bignum(&secret)
                         .expect("can't multiply by generator");
                     (secret, KeySharePublic::new(pid, public))
@@ -192,6 +199,7 @@ mod tests {
                 .iter()
                 .map(|x| CoeffPrivate {
                     x: bn_to_scalar(x).unwrap(),
+                    phantom: PhantomData,
                 })
                 .collect::<Vec<_>>();
             let eval_public_at_first_pid =
@@ -244,7 +252,7 @@ mod tests {
                 .map(|&pid| {
                     // TODO #340: Replace with KeyShare methods once they exist.
                     let secret = Scalar::random(&mut rng);
-                    let public = CurvePoint::GENERATOR.multiply_by_scalar(&secret);
+                    let public = C::GENERATOR.multiply_by_scalar(&secret);
                     (
                         secret,
                         KeySharePublic::new(pid, public),

@@ -27,9 +27,10 @@
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
 //! [EPrint archive, 2021](https://eprint.iacr.org/archive/2021/060/1634824619.pdf).
 use crate::{
+    curve::CT,
     errors::*,
     messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType, TshareMessageType},
-    utils::{self, k256_order, positive_challenge_from_transcript, random_positive_bn},
+    utils::{positive_challenge_from_transcript, random_positive_bn},
     zkp::{Proof, ProofContext},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -38,14 +39,13 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::{convert::AsRef, fmt::Debug};
 use tracing::error;
-use utils::CurvePoint;
 
 /// Proof of knowledge of discrete logarithm of a group element which is the
 /// commitment to the secret.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct PiSchProof {
+pub(crate) struct PiSchProof<C> {
     /// Commitment to the secret (`A` in the paper).
-    commitment: CurvePoint,
+    commitment: C,
     /// Fiat-Shamir challenge (`e` in the paper).
     challenge: BigNumber,
     /// Response binding the commitment randomness used in the commitment (`z`
@@ -59,9 +59,9 @@ pub(crate) struct PiSchProof {
 /// convenience; the mask must not be sent to the verifier at any point as this
 /// breaks the security of the proof.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct PiSchPrecommit {
+pub(crate) struct PiSchPrecommit<C> {
     /// Precommitment value (`A` in the paper).
-    precommitment: CurvePoint,
+    precommitment: C,
     /// Randomness mask for commitment (`alpha` in the paper).
     randomness_for_commitment: BigNumber,
 }
@@ -71,18 +71,18 @@ pub(crate) struct PiSchPrecommit {
 /// Copying/Cloning references is harmless and sometimes necessary. So we
 /// implement Clone and Copy for this type.
 #[derive(Serialize, Copy, Clone)]
-pub(crate) struct CommonInput<'a> {
-    x_commitment: &'a CurvePoint,
+pub(crate) struct CommonInput<'a, C> {
+    x_commitment: &'a C,
 }
 
-impl PiSchPrecommit {
-    pub(crate) fn precommitment(&self) -> &CurvePoint {
+impl<C> PiSchPrecommit<C> {
+    pub(crate) fn precommitment(&self) -> &C {
         &self.precommitment
     }
 }
 
-impl<'a> CommonInput<'a> {
-    pub(crate) fn new(x_commitment: &'a impl AsRef<CurvePoint>) -> CommonInput<'a> {
+impl<'a, C> CommonInput<'a, C> {
+    pub(crate) fn new(x_commitment: &'a impl AsRef<C>) -> Self {
         Self {
             x_commitment: x_commitment.as_ref(),
         }
@@ -109,8 +109,8 @@ impl<'a> ProverSecret<'a> {
     }
 }
 
-impl Proof for PiSchProof {
-    type CommonInput<'a> = CommonInput<'a>;
+impl<C: CT + 'static> Proof for PiSchProof<C> {
+    type CommonInput<'a> = CommonInput<'a, C>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiSchProof"))]
     fn prove<R: RngCore + CryptoRng>(
@@ -120,7 +120,7 @@ impl Proof for PiSchProof {
         transcript: &mut Transcript,
         rng: &mut R,
     ) -> Result<Self> {
-        let com = PiSchProof::precommit(rng)?;
+        let com = PiSchProof::<C>::precommit(rng)?;
         let proof = PiSchProof::prove_from_precommit(context, &com, &input, &secret, transcript)?;
         Ok(proof)
     }
@@ -136,17 +136,17 @@ impl Proof for PiSchProof {
         Self::fill_transcript(transcript, context, &input, &self.commitment)?;
 
         // Verifier samples e in F_q
-        let challenge = positive_challenge_from_transcript(transcript, &k256_order())?;
+        let challenge = positive_challenge_from_transcript(transcript, &C::order())?;
         if challenge != self.challenge {
             error!("Fiat-Shamir consistency check failed");
             return Err(InternalError::ProtocolError(None));
         }
 
         // Do equality checks
-
+        // TODO: generalize.
         let response_matches_commitment = {
-            let lhs = CurvePoint::GENERATOR.multiply_by_bignum(&self.response)?;
-            let rhs = self.commitment + input.x_commitment.multiply_by_bignum(&self.challenge)?;
+            let lhs = C::scale_generator(&self.response)?;
+            let rhs = self.commitment + input.x_commitment.scale(&self.challenge)?;
             lhs == rhs
         };
         if !response_matches_commitment {
@@ -159,13 +159,14 @@ impl Proof for PiSchProof {
     }
 }
 
-impl PiSchProof {
+impl<C: CT + 'static> PiSchProof<C> {
     /// "Commitment" phase of the PiSch proof.
-    pub fn precommit<R: RngCore + CryptoRng>(rng: &mut R) -> Result<PiSchPrecommit> {
+    pub fn precommit<R: RngCore + CryptoRng>(rng: &mut R) -> Result<PiSchPrecommit<C>> {
         // Sample alpha from F_q
-        let randomness_for_commitment = random_positive_bn(rng, &k256_order());
+        let randomness_for_commitment = random_positive_bn(rng, &C::order());
         // Form a commitment to the mask
-        let precommitment = CurvePoint::GENERATOR.multiply_by_bignum(&randomness_for_commitment)?;
+        // TODO: generalize.
+        let precommitment = C::scale_generator(&randomness_for_commitment)?;
         Ok(PiSchPrecommit {
             precommitment,
             randomness_for_commitment,
@@ -175,23 +176,23 @@ impl PiSchProof {
     /// "Challenge" and "Response" phases of the PiSch proof.
     pub fn prove_from_precommit(
         context: &impl ProofContext,
-        com: &PiSchPrecommit,
-        input: &CommonInput,
+        com: &PiSchPrecommit<C>,
+        input: &CommonInput<C>,
         secret: &ProverSecret,
         transcript: &Transcript,
     ) -> Result<Self> {
-        let commitment = com.precommitment;
+        let commitment = com.precommitment.clone();
         let mut local_transcript = transcript.clone();
 
         Self::fill_transcript(&mut local_transcript, context, input, &commitment)?;
 
         // Verifier samples e in F_q
-        let challenge = positive_challenge_from_transcript(&mut local_transcript, &k256_order())?;
+        let challenge = positive_challenge_from_transcript(&mut local_transcript, &C::order())?;
 
         // Create a response by masking the secret with the challenge and mask
         let response = com.randomness_for_commitment.modadd(
-            &challenge.modmul(secret.discrete_logarithm, &k256_order()),
-            &k256_order(),
+            &challenge.modmul(secret.discrete_logarithm, &C::order()),
+            &C::order(),
         );
 
         // Proof consists of all 3 messages in the 3 rounds
@@ -206,10 +207,10 @@ impl PiSchProof {
     /// Verify that the proof is valid and that it matches a precommitment.
     pub fn verify_with_precommit(
         self,
-        input: CommonInput,
+        input: CommonInput<C>,
         context: &impl ProofContext,
         transcript: &mut Transcript,
-        commitment: &CurvePoint,
+        commitment: &C,
     ) -> Result<()> {
         if commitment != &self.commitment {
             error!("the proof does not match the previous commitment");
@@ -222,13 +223,13 @@ impl PiSchProof {
     pub(crate) fn from_message_multi(message: &Message) -> Result<Vec<Self>> {
         message.check_type(MessageType::Keyrefresh(KeyrefreshMessageType::R3Proofs))?;
 
-        let pisch_proofs: Vec<PiSchProof> = deserialize!(&message.unverified_bytes)?;
+        let pisch_proofs: Vec<PiSchProof<C>> = deserialize!(&message.unverified_bytes)?;
         for pisch_proof in &pisch_proofs {
-            if pisch_proof.challenge >= k256_order() {
+            if pisch_proof.challenge >= C::order() {
                 error!("the challenge is not in the field");
                 return Err(InternalError::ProtocolError(None));
             }
-            if pisch_proof.response >= k256_order() {
+            if pisch_proof.response >= C::order() {
                 error!("the response is not in the field");
                 return Err(InternalError::ProtocolError(None));
             }
@@ -242,12 +243,12 @@ impl PiSchProof {
             MessageType::Tshare(TshareMessageType::R3Proof),
         ])?;
 
-        let pisch_proof: PiSchProof = deserialize!(&message.unverified_bytes)?;
-        if pisch_proof.challenge >= k256_order() {
+        let pisch_proof: PiSchProof<C> = deserialize!(&message.unverified_bytes)?;
+        if pisch_proof.challenge >= C::order() {
             error!("the challenge is not in the field");
             return Err(InternalError::ProtocolError(None));
         }
-        if pisch_proof.response >= k256_order() {
+        if pisch_proof.response >= C::order() {
             error!("the response is not in the field");
             return Err(InternalError::ProtocolError(None));
         }
@@ -256,8 +257,8 @@ impl PiSchProof {
     fn fill_transcript(
         transcript: &mut Transcript,
         context: &impl ProofContext,
-        input: &CommonInput,
-        commitment: &CurvePoint,
+        input: &CommonInput<C>,
+        commitment: &C,
     ) -> Result<()> {
         transcript.append_message(b"PiSch ProofContext", &context.as_bytes()?);
         transcript.append_message(b"PiSch CommonInput", &serialize!(&input)?);
@@ -269,20 +270,20 @@ impl PiSchProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::testing::init_testing, zkp::BadContext};
+    use crate::{curve::TestCT as C, utils::testing::init_testing, zkp::BadContext};
     fn transcript() -> Transcript {
         Transcript::new(b"PiSchProof Test")
     }
 
-    type TestFn = fn(PiSchProof, CommonInput) -> Result<()>;
+    type TestFn = fn(PiSchProof<C>, CommonInput<C>) -> Result<()>;
 
     fn with_random_schnorr_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
         additive: bool,
-        test_code: impl Fn(PiSchProof, CommonInput) -> Result<()>,
+        test_code: impl Fn(PiSchProof<C>, CommonInput<C>) -> Result<()>,
     ) -> Result<()> {
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = C::order();
+        let g = C::GENERATOR;
 
         let mut x = random_positive_bn(rng, &q);
         let x_commit = g.multiply_by_bignum(&x)?;
@@ -290,10 +291,11 @@ mod tests {
             x += random_positive_bn(rng, &q);
         }
 
-        let input = CommonInput::new(&x_commit);
+        let input = CommonInput::<C>::new(&x_commit);
 
         // Proving knowledge of the random secret x
-        let proof = PiSchProof::prove(input, ProverSecret::new(&x), &(), &mut transcript(), rng)?;
+        let proof =
+            PiSchProof::<C>::prove(input, ProverSecret::new(&x), &(), &mut transcript(), rng)?;
 
         test_code(proof, input)?;
         Ok(())
@@ -303,8 +305,8 @@ mod tests {
     fn proof_commitment_field_must_match_input() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = C::order();
+        let g = C::GENERATOR;
 
         let x = random_positive_bn(&mut rng, &q);
 
@@ -314,8 +316,8 @@ mod tests {
         let y = random_positive_bn(&mut rng, &q);
         let y_commit = g.multiply_by_bignum(&y)?;
 
-        let input = CommonInput::new(&x_commit);
-        let com = PiSchProof::precommit(&mut rng)?;
+        let input = CommonInput::<C>::new(&x_commit);
+        let com = PiSchProof::<C>::precommit(&mut rng)?;
         let mut proof = PiSchProof::prove_from_precommit(
             &(),
             &com,
@@ -332,15 +334,15 @@ mod tests {
     fn proof_response_field_must_match_input() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = C::order();
+        let g = C::GENERATOR;
 
         let x = random_positive_bn(&mut rng, &q);
 
         let x_commit = g.multiply_by_bignum(&x)?;
 
-        let input = CommonInput::new(&x_commit);
-        let com = PiSchProof::precommit(&mut rng)?;
+        let input = CommonInput::<C>::new(&x_commit);
+        let com = PiSchProof::<C>::precommit(&mut rng)?;
         let mut proof = PiSchProof::prove_from_precommit(
             &(),
             &com,
@@ -357,16 +359,16 @@ mod tests {
     fn generator_must_be_correct() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = C::order();
+        let g = C::GENERATOR;
 
         let x = random_positive_bn(&mut rng, &q);
 
         let x_commit = g.multiply_by_bignum(&x)?;
         let bad_generator = x_commit.multiply_by_bignum(&x)?;
 
-        let input = CommonInput::new(&bad_generator);
-        let com = PiSchProof::precommit(&mut rng)?;
+        let input = CommonInput::<C>::new(&bad_generator);
+        let com = PiSchProof::<C>::precommit(&mut rng)?;
         let proof = PiSchProof::prove_from_precommit(
             &(),
             &com,
@@ -382,8 +384,8 @@ mod tests {
     fn secret_input_must_be_the_same_proving_and_verifying() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = C::order();
+        let g = C::GENERATOR;
 
         let x = random_positive_bn(&mut rng, &q);
 
@@ -393,8 +395,8 @@ mod tests {
         let y = random_positive_bn(&mut rng, &q);
         assert_ne!(x, y);
 
-        let input = CommonInput::new(&x_commit);
-        let com = PiSchProof::precommit(&mut rng)?;
+        let input = CommonInput::<C>::new(&x_commit);
+        let com = PiSchProof::<C>::precommit(&mut rng)?;
         let proof = PiSchProof::prove_from_precommit(
             &(),
             &com,
@@ -411,8 +413,8 @@ mod tests {
     fn common_input_must_be_the_same_proving_and_verifying() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = C::order();
+        let g = C::GENERATOR;
 
         let x = random_positive_bn(&mut rng, &q);
 
@@ -424,8 +426,8 @@ mod tests {
         let y_commit = g.multiply_by_bignum(&y)?;
         assert_ne!(x_commit, y_commit);
 
-        let input = CommonInput::new(&x_commit);
-        let com = PiSchProof::precommit(&mut rng)?;
+        let input = CommonInput::<C>::new(&x_commit);
+        let com = PiSchProof::<C>::precommit(&mut rng)?;
         let proof = PiSchProof::prove_from_precommit(
             &(),
             &com,
@@ -433,7 +435,7 @@ mod tests {
             &ProverSecret::new(&y),
             &transcript(),
         )?;
-        let bad_input = CommonInput::new(&y_commit);
+        let bad_input = CommonInput::<C>::new(&y_commit);
         assert!(proof.verify(bad_input, &(), &mut transcript()).is_err());
 
         Ok(())
@@ -476,14 +478,14 @@ mod tests {
     fn test_precommit_proof() -> Result<()> {
         let mut rng = init_testing();
 
-        let q = k256_order();
-        let g = CurvePoint::GENERATOR;
+        let q = C::order();
+        let g = C::GENERATOR;
 
         let x = random_positive_bn(&mut rng, &q);
         let x_commit = g.multiply_by_bignum(&x)?;
 
-        let input = CommonInput::new(&x_commit);
-        let com = PiSchProof::precommit(&mut rng)?;
+        let input = CommonInput::<C>::new(&x_commit);
+        let com = PiSchProof::<C>::precommit(&mut rng)?;
         let proof = PiSchProof::prove_from_precommit(
             &(),
             &com,

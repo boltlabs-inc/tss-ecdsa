@@ -7,11 +7,11 @@
 // of this source tree.
 
 use crate::{
+    curve::CT, // TODO: generalize.
     errors::{InternalError, Result},
     keyrefresh::keyshare::KeyUpdatePublic,
     messages::{KeyrefreshMessageType, Message, MessageType},
     protocol::{Identifier, ParticipantIdentifier},
-    utils::CurvePoint,
 };
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
@@ -33,23 +33,23 @@ impl KeyrefreshCommit {
 
 /// Decommitment published in round 2.
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct KeyrefreshDecommit {
+pub(crate) struct KeyrefreshDecommit<C> {
     sid: Identifier,
     sender: ParticipantIdentifier,
     u_i: [u8; 32], // The blinding factor is never read but it is included in the commitment.
     pub rid: [u8; 32],
-    pub update_publics: Vec<KeyUpdatePublic>,
-    pub As: Vec<CurvePoint>,
+    pub update_publics: Vec<KeyUpdatePublic<C>>,
+    pub As: Vec<C>,
 }
 
-impl KeyrefreshDecommit {
+impl<C: CT> KeyrefreshDecommit<C> {
     ///`sid` corresponds to a unique session identifier.
     pub(crate) fn new<R: RngCore + CryptoRng>(
         rng: &mut R,
         sid: &Identifier,
         sender: &ParticipantIdentifier,
-        update_publics: Vec<KeyUpdatePublic>,
-        sch_precoms: Vec<CurvePoint>,
+        update_publics: Vec<KeyUpdatePublic<C>>,
+        sch_precoms: Vec<C>,
     ) -> Self {
         let mut rid = [0u8; 32];
         let mut u_i = [0u8; 32];
@@ -72,7 +72,7 @@ impl KeyrefreshDecommit {
         participant_ids: &[ParticipantIdentifier],
     ) -> Result<Self> {
         message.check_type(MessageType::Keyrefresh(KeyrefreshMessageType::R2Decommit))?;
-        let keyrefresh_decommit: KeyrefreshDecommit = deserialize!(&message.unverified_bytes)?;
+        let keyrefresh_decommit: KeyrefreshDecommit<C> = deserialize!(&message.unverified_bytes)?;
         keyrefresh_decommit.verify(message.id(), message.from(), com, participant_ids)?;
         Ok(keyrefresh_decommit)
     }
@@ -132,7 +132,7 @@ impl KeyrefreshDecommit {
         // Check that the sum of key updates is identity, i.e. it will not change our
         // public key.
         let sum = KeyUpdatePublic::sum(sender, &self.update_publics);
-        if sum.as_ref() != &CurvePoint::IDENTITY {
+        if sum.as_ref() != &C::IDENTITY {
             error!("Sum of key updates is not identity");
             return Err(InternalError::ProtocolError(Some(sender)));
         }
@@ -142,7 +142,7 @@ impl KeyrefreshDecommit {
 }
 
 // Implement custom Debug to avoid leaking secret information.
-impl std::fmt::Debug for KeyrefreshDecommit {
+impl<C> std::fmt::Debug for KeyrefreshDecommit<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("KeyrefreshDecommit")
             .field("sid", &self.sid)

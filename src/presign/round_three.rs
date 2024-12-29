@@ -8,6 +8,7 @@
 
 use crate::{
     auxinfo::AuxInfoPublic,
+    curve::CT,
     errors::{InternalError, Result},
     messages::{Message, MessageType, PresignMessageType},
     presign::{
@@ -15,7 +16,6 @@ use crate::{
         round_one::PublicBroadcast as RoundOnePublicBroadcast,
         round_two::{Private as RoundTwoPrivate, Public as RoundTwoPublic},
     },
-    utils::CurvePoint,
     zkp::{
         pilog::{CommonInput, PiLogProof},
         Proof,
@@ -30,18 +30,18 @@ use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
 #[derive(Clone, ZeroizeOnDrop)]
-pub(crate) struct Private {
+pub(crate) struct Private<C> {
     pub k: BigNumber,
     pub chi: Scalar,
     #[zeroize(skip)]
-    pub Gamma: CurvePoint,
+    pub Gamma: C,
     #[zeroize(skip)]
     pub delta: Scalar,
     #[zeroize(skip)]
-    pub Delta: CurvePoint,
+    pub Delta: C,
 }
 
-impl Debug for Private {
+impl<C: Debug> Debug for Private<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Note: delta, Gamma, and Delta are all sent over the network to other
         // parties so I assume they are not actually private data.
@@ -62,15 +62,15 @@ impl Debug for Private {
 /// necessarily valid (i.e., that all the components are valid with respect to
 /// each other); use [`Public::verify`] to check this latter condition.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct Public {
-    pub delta: Scalar,
-    pub Delta: CurvePoint,
-    pub psi_double_prime: PiLogProof,
+pub(crate) struct Public<C> {
+    pub delta: Scalar, // TODO: C::Scalar
+    pub Delta: C,
+    pub psi_double_prime: PiLogProof<C>,
     /// Gamma value included for convenience
-    pub Gamma: CurvePoint,
+    pub Gamma: C,
 }
 
-impl Public {
+impl<C: CT + 'static> Public<C> {
     /// Verify the validity of [`Public`] against the prover's [`AuxInfoPublic`]
     /// and [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast)
     /// values.
@@ -96,7 +96,7 @@ impl Public {
     }
 }
 
-impl TryFrom<&Message> for Public {
+impl<C: CT> TryFrom<&Message> for Public<C> {
     type Error = InternalError;
 
     fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {
@@ -115,8 +115,8 @@ impl TryFrom<&Message> for Public {
 }
 
 /// Used to bundle the inputs passed to round_three() together
-pub(crate) struct Input {
+pub(crate) struct Input<C> {
     pub auxinfo_public: AuxInfoPublic,
     pub r2_private: RoundTwoPrivate,
-    pub r2_public: RoundTwoPublic,
+    pub r2_public: RoundTwoPublic<C>,
 }

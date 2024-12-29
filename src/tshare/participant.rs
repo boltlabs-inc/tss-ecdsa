@@ -16,8 +16,10 @@ use super::{
 };
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
+    curve::TestCT as C, // TODO: generalize.
+    curve::CT,
     errors::{CallerError, InternalError, Result},
-    keygen::{KeySharePrivate, KeySharePublic, KeygenParticipant},
+    keygen::{self, KeySharePrivate, KeySharePublic},
     local_storage::LocalStorage,
     messages::{Message, MessageType, TshareMessageType},
     participant::{
@@ -26,9 +28,10 @@ use crate::{
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
     tshare::share::EvalPublic,
-    utils::{bn_to_scalar, k256_order, scalar_to_bn, CurvePoint},
+    utils::{bn_to_scalar, scalar_to_bn},
     zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
-    Identifier, ParticipantConfig,
+    Identifier,
+    ParticipantConfig,
 };
 
 use k256::{elliptic_curve::PrimeField, Scalar};
@@ -40,6 +43,8 @@ use tracing::{error, info, instrument, warn};
 use super::{input::Input, output::Output};
 
 mod storage {
+    use std::marker::PhantomData;
+
     use super::*;
     use crate::{local_storage::TypeTag, tshare::share::EvalPublic};
 
@@ -47,13 +52,13 @@ mod storage {
     impl TypeTag for Commit {
         type Value = TshareCommit;
     }
-    pub(super) struct Decommit;
-    impl TypeTag for Decommit {
-        type Value = TshareDecommit;
+    pub(super) struct Decommit<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for Decommit<C> {
+        type Value = TshareDecommit<C>;
     }
-    pub(super) struct SchnorrPrecom;
-    impl TypeTag for SchnorrPrecom {
-        type Value = PiSchPrecommit;
+    pub(super) struct SchnorrPrecom<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for SchnorrPrecom<C> {
+        type Value = PiSchPrecommit<C>;
     }
     pub(super) struct GlobalChainCode;
     impl TypeTag for GlobalChainCode {
@@ -63,21 +68,21 @@ mod storage {
     impl TypeTag for GlobalRid {
         type Value = [u8; 32];
     }
-    pub(super) struct PrivateCoeffs;
-    impl TypeTag for PrivateCoeffs {
-        type Value = Vec<super::CoeffPrivate>;
+    pub(super) struct PrivateCoeffs<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for PrivateCoeffs<C> {
+        type Value = Vec<super::CoeffPrivate<C>>;
     }
-    pub(super) struct PublicCoeffs;
-    impl TypeTag for PublicCoeffs {
-        type Value = Vec<super::CoeffPublic>;
+    pub(super) struct PublicCoeffs<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for PublicCoeffs<C> {
+        type Value = Vec<super::CoeffPublic<C>>;
     }
-    pub(super) struct ValidPublicShare;
-    impl TypeTag for ValidPublicShare {
-        type Value = EvalPublic;
+    pub(super) struct ValidPublicShare<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for ValidPublicShare<C> {
+        type Value = EvalPublic<C>;
     }
-    pub(super) struct ValidPrivateEval;
-    impl TypeTag for ValidPrivateEval {
-        type Value = super::EvalPrivate;
+    pub(super) struct ValidPrivateEval<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for ValidPrivateEval<C> {
+        type Value = super::EvalPrivate<C>;
     }
 }
 
@@ -101,11 +106,11 @@ from memory after it's securely stored. The public components (including the byt
 can be stored in the clear.
 **/
 #[derive(Debug)]
-pub struct TshareParticipant {
+pub struct TshareParticipant<C> {
     /// The current session identifier
     sid: Identifier,
     /// The current protocol input.
-    input: Input,
+    input: Input<C>,
     /// A unique identifier for this participant.
     id: ParticipantIdentifier,
     /// A list of all other participant identifiers participating in the
@@ -120,18 +125,17 @@ pub struct TshareParticipant {
 }
 
 #[derive(Debug)]
-pub struct ToutofTHelper {
-    pub keygen_outputs:
-        HashMap<ParticipantIdentifier, <KeygenParticipant as ProtocolParticipant>::Output>,
-    pub public_keys: Vec<KeySharePublic>,
+pub struct ToutofTHelper<C> {
+    pub keygen_outputs: HashMap<ParticipantIdentifier, keygen::Output<C>>,
+    pub public_keys: Vec<KeySharePublic<C>>,
     pub all_participants: Vec<ParticipantIdentifier>,
     pub rid: [u8; 32],
     pub chain_code: [u8; 32],
 }
 
-impl ProtocolParticipant for TshareParticipant {
-    type Input = Input;
-    type Output = Output;
+impl ProtocolParticipant for TshareParticipant<C> {
+    type Input = Input<C>;
+    type Output = Output<C>;
 
     fn new(
         sid: Identifier,
@@ -225,8 +229,8 @@ impl ProtocolParticipant for TshareParticipant {
     }
 }
 
-impl InnerProtocolParticipant for TshareParticipant {
-    type Context = SharedContext;
+impl InnerProtocolParticipant for TshareParticipant<C> {
+    type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
         SharedContext::collect(self)
@@ -245,13 +249,13 @@ impl InnerProtocolParticipant for TshareParticipant {
     }
 }
 
-impl Broadcast for TshareParticipant {
+impl<C> Broadcast for TshareParticipant<C> {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant {
         &mut self.broadcast_participant
     }
 }
 
-impl TshareParticipant {
+impl TshareParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this
@@ -291,7 +295,7 @@ impl TshareParticipant {
             let mut publics = vec![];
 
             for _ in 0..self.input.threshold() {
-                let (private, public) = CoeffPublic::new_pair(rng)?;
+                let (private, public) = CoeffPublic::<C>::new_pair(rng)?;
                 privates.push(private);
                 publics.push(public);
             }
@@ -311,7 +315,7 @@ impl TshareParticipant {
 
         // Store the beginning of our proofs so we can continue the proofs later.
         self.local_storage
-            .store::<storage::SchnorrPrecom>(self.id(), sch_precom.clone());
+            .store::<storage::SchnorrPrecom<C>>(self.id(), sch_precom.clone());
 
         let decom = TshareDecommit::new(
             rng,
@@ -323,11 +327,11 @@ impl TshareParticipant {
 
         // Store the private coeffs from us to others to use for sharing later.
         self.local_storage
-            .store::<storage::PrivateCoeffs>(self.id(), coeff_privates);
+            .store::<storage::PrivateCoeffs<C>>(self.id(), coeff_privates);
 
         // Store the public coeffs from us to others to use for sharing later.
         self.local_storage
-            .store::<storage::PublicCoeffs>(self.id(), coeff_publics);
+            .store::<storage::PublicCoeffs<C>>(self.id(), coeff_publics);
 
         let com = decom.commit()?;
         let com_bytes = serialize!(&com)?;
@@ -335,7 +339,7 @@ impl TshareParticipant {
 
         // Store our committed values so we can open the commitment later.
         self.local_storage
-            .store::<storage::Decommit>(self.id(), decom);
+            .store::<storage::Decommit<C>>(self.id(), decom);
 
         let messages = self.broadcast(
             rng,
@@ -437,14 +441,17 @@ impl TshareParticipant {
         // `CoeffPublic` and `Decommit`). This check forces that behavior.
         // Without it we'll get a `InternalInvariantFailed` error when trying to
         // retrieve `Decommit` below.
-        if !self.local_storage.contains::<storage::Decommit>(self.id()) {
+        if !self
+            .local_storage
+            .contains::<storage::Decommit<C>>(self.id())
+        {
             let more_messages = run_only_once!(self.gen_round_one_msgs(rng, sid))?;
             messages.extend_from_slice(&more_messages);
         }
 
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(self.id())?;
+            .retrieve::<storage::Decommit<C>>(self.id())?;
         let more_messages = self.message_for_other_participants(
             MessageType::Tshare(TshareMessageType::R2Decommit),
             decom,
@@ -453,7 +460,7 @@ impl TshareParticipant {
 
         let private_coeffs = self
             .local_storage
-            .retrieve::<storage::PrivateCoeffs>(self.id())?;
+            .retrieve::<storage::PrivateCoeffs<C>>(self.id())?;
 
         // Encrypt the private shares to each participant.
         let encrypted_shares = self
@@ -497,7 +504,7 @@ impl TshareParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        self.check_for_duplicate_msg::<storage::ValidPrivateEval>(message.from())?;
+        self.check_for_duplicate_msg::<storage::ValidPrivateEval<C>>(message.from())?;
 
         info!("Handling round two tshare private message.");
 
@@ -511,7 +518,7 @@ impl TshareParticipant {
         let private_share = encrypted_share.decrypt(my_dk)?;
         // Write the private share to the storage
         self.local_storage
-            .store_once::<storage::ValidPrivateEval>(message.from(), private_share)?;
+            .store_once::<storage::ValidPrivateEval<C>>(message.from(), private_share)?;
 
         Ok(self
             .maybe_finish_round2()
@@ -527,7 +534,7 @@ impl TshareParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        self.check_for_duplicate_msg::<storage::Decommit>(message.from())?;
+        self.check_for_duplicate_msg::<storage::Decommit<C>>(message.from())?;
         info!("Handling round two tshare message.");
 
         // We must receive all commitments in round 1 before we start processing
@@ -547,9 +554,9 @@ impl TshareParticipant {
             .retrieve::<storage::Commit>(message.from())?;
         let decom = TshareDecommit::from_message(message, com)?;
         self.local_storage
-            .store_once::<storage::Decommit>(message.from(), decom.clone())?;
+            .store_once::<storage::Decommit<C>>(message.from(), decom.clone())?;
         self.local_storage
-            .store::<storage::PublicCoeffs>(message.from(), decom.coeff_publics);
+            .store::<storage::PublicCoeffs<C>>(message.from(), decom.coeff_publics);
 
         Ok(self
             .maybe_finish_round2()
@@ -561,12 +568,12 @@ impl TshareParticipant {
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
         let got_all_private_shares = self
             .local_storage
-            .contains_for_all_ids::<storage::ValidPrivateEval>(self.other_ids());
+            .contains_for_all_ids::<storage::ValidPrivateEval<C>>(self.other_ids());
 
         // Check if we've received all the decommits
         let mut r2_done = self
             .local_storage
-            .contains_for_all_ids::<storage::Decommit>(&self.all_participants());
+            .contains_for_all_ids::<storage::Decommit<C>>(&self.all_participants());
 
         r2_done &= got_all_private_shares;
 
@@ -574,12 +581,12 @@ impl TshareParticipant {
             // for each participant, read the private share and check if it matches the
             // public share
             for pid in self.other_ids() {
-                let decom = self.local_storage.retrieve::<storage::Decommit>(*pid)?;
+                let decom = self.local_storage.retrieve::<storage::Decommit<C>>(*pid)?;
                 let coeff_publics = decom.coeff_publics.clone();
                 let expected_public = Self::eval_public_share(coeff_publics.as_slice(), self.id())?;
                 let private_share = self
                     .local_storage
-                    .retrieve::<storage::ValidPrivateEval>(*pid)?;
+                    .retrieve::<storage::ValidPrivateEval<C>>(*pid)?;
                 let implied_public = private_share.public_point();
                 if implied_public != expected_public {
                     error!("the private share does not match the public share");
@@ -627,13 +634,15 @@ impl TshareParticipant {
 
         // Compute the global chain code and random identifier from individual
         // contributions
-        let my_decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
+        let my_decom = self
+            .local_storage
+            .retrieve::<storage::Decommit<C>>(self.id)?;
         let mut global_chain_code = my_decom.chain_code;
         let mut global_rid = my_decom.rid;
         for &other_participant_id in self.other_participant_ids.iter() {
             let decom = self
                 .local_storage
-                .retrieve::<storage::Decommit>(other_participant_id)?;
+                .retrieve::<storage::Decommit<C>>(other_participant_id)?;
             global_chain_code = xor_256_bits!(global_chain_code, decom.chain_code);
             global_rid = xor_256_bits!(global_rid, decom.rid);
         }
@@ -648,7 +657,7 @@ impl TshareParticipant {
 
         let private_coeffs = self
             .local_storage
-            .retrieve::<storage::PrivateCoeffs>(self.id())?;
+            .retrieve::<storage::PrivateCoeffs<C>>(self.id())?;
 
         let my_private_share = Self::eval_private_share(private_coeffs, self.id());
         let my_contant_term = Self::eval_private_share_at_zero(private_coeffs);
@@ -659,7 +668,7 @@ impl TshareParticipant {
         // Have we got the private shares from everybody to us?
         let got_all_private_shares = self
             .local_storage
-            .contains_for_all_ids::<storage::ValidPrivateEval>(self.other_ids());
+            .contains_for_all_ids::<storage::ValidPrivateEval<C>>(self.other_ids());
 
         if got_all_private_shares {
             // Compute the one's own private evaluation.
@@ -669,7 +678,7 @@ impl TshareParticipant {
             for pid in self.other_ids() {
                 let private_share = self
                     .local_storage
-                    .retrieve::<storage::ValidPrivateEval>(*pid)?;
+                    .retrieve::<storage::ValidPrivateEval<C>>(*pid)?;
                 from_all_to_me_private.push(private_share.clone());
             }
 
@@ -680,10 +689,10 @@ impl TshareParticipant {
             // Generate proofs for each share.
             let precom = self
                 .local_storage
-                .retrieve::<storage::SchnorrPrecom>(self.id())?;
+                .retrieve::<storage::SchnorrPrecom<C>>(self.id())?;
 
             let pk = &final_public_share;
-            let input = CommonInput::new(pk);
+            let input = CommonInput::<C>::new(pk);
             let sk = &final_private_share.x;
 
             let proof = PiSchProof::prove_from_precommit(
@@ -695,9 +704,9 @@ impl TshareParticipant {
             )?;
 
             self.local_storage
-                .store::<storage::ValidPrivateEval>(self.id(), final_private_share.clone());
+                .store::<storage::ValidPrivateEval<C>>(self.id(), final_private_share.clone());
             self.local_storage
-                .store::<storage::ValidPublicShare>(self.id(), final_public_share.clone());
+                .store::<storage::ValidPublicShare<C>>(self.id(), final_public_share.clone());
 
             // Send all proofs to everybody.
             let messages = self.message_for_other_participants(
@@ -718,9 +727,9 @@ impl TshareParticipant {
 
     /// Evaluate the private share
     pub fn eval_private_share(
-        coeff_privates: &[CoeffPrivate],
+        coeff_privates: &[CoeffPrivate<C>],
         recipient_id: ParticipantIdentifier,
-    ) -> EvalPrivate {
+    ) -> EvalPrivate<C> {
         let x = Self::participant_coordinate(recipient_id);
         assert!(x > Scalar::ZERO);
         let mut sum = Scalar::ZERO;
@@ -728,24 +737,24 @@ impl TshareParticipant {
             sum *= &x;
             sum += &coeff.x;
         }
-        EvalPrivate { x: sum }
+        EvalPrivate::new(sum)
     }
 
     /// Evaluate the private share at the point 0.
-    fn eval_private_share_at_zero(coeff_privates: &[CoeffPrivate]) -> Scalar {
+    fn eval_private_share_at_zero(coeff_privates: &[CoeffPrivate<C>]) -> Scalar {
         coeff_privates[0].x
     }
 
     /// Feldman VSS evaluation of the public share.
     /// This algorithm is slow. Consider using MSMs.
     pub(crate) fn eval_public_share(
-        coeff_publics: &[CoeffPublic],
+        coeff_publics: &[CoeffPublic<C>],
         recipient_id: ParticipantIdentifier,
-    ) -> Result<CurvePoint> {
+    ) -> Result<C> {
         let x = Self::participant_coordinate(recipient_id);
-        let mut sum = CurvePoint::IDENTITY;
+        let mut sum = C::IDENTITY;
         for coeff in coeff_publics.iter().rev() {
-            sum = sum.multiply_by_scalar(&x);
+            sum = sum.scale2(&x);
             sum = sum + *coeff.as_ref();
         }
         Ok(sum)
@@ -761,13 +770,13 @@ impl TshareParticipant {
     /// before presign when using a threshold generated key.
     #[allow(clippy::type_complexity)]
     pub fn convert_to_t_out_of_t_shares(
-        tshares: HashMap<ParticipantIdentifier, Output>,
+        tshares: HashMap<ParticipantIdentifier, Output<C>>,
         all_participants: Vec<ParticipantIdentifier>,
         rid: [u8; 32],
         chain_code: [u8; 32],
         sum_tshare_input: Scalar,
         threshold: usize,
-    ) -> Result<ToutofTHelper> {
+    ) -> Result<ToutofTHelper<C>> {
         let real = all_participants.len();
         let mut new_private_shares = HashMap::new();
         let mut public_keys = vec![];
@@ -777,24 +786,21 @@ impl TshareParticipant {
             if all_participants.contains(pid) {
                 let output = tshares.get(pid).unwrap();
                 let private_key = output.private_key_share();
-                let private_share = KeySharePrivate::from_bigint(&scalar_to_bn(private_key));
-                let public_share = CurvePoint::GENERATOR.multiply_by_scalar(private_key);
+                let private_share = KeySharePrivate::<C>::from_bigint(&scalar_to_bn(private_key));
+                let public_share = C::GENERATOR.scale2(private_key);
                 let lagrange = Self::lagrange_coefficient_at_zero(pid, &all_participants);
                 let new_private_share: BigNumber =
                     private_share.clone().as_ref() * BigNumber::from_slice(lagrange.to_bytes());
-                let new_public_share = public_share.as_ref().multiply_by_scalar(&lagrange);
+                let new_public_share = public_share.scale2(&lagrange);
                 assert!(new_private_shares
-                    .insert(*pid, KeySharePrivate::from_bigint(&new_private_share))
+                    .insert(*pid, KeySharePrivate::<C>::from_bigint(&new_private_share))
                     .is_none());
                 public_keys.push(KeySharePublic::new(*pid, new_public_share));
             }
         }
 
         // Compute the new outputs
-        let mut keygen_outputs: HashMap<
-            ParticipantIdentifier,
-            <KeygenParticipant as ProtocolParticipant>::Output,
-        > = HashMap::new();
+        let mut keygen_outputs: HashMap<ParticipantIdentifier, keygen::Output<C>> = HashMap::new();
         for (pid, private_key_share) in new_private_shares {
             let output = crate::keygen::Output::from_parts(
                 public_keys.clone(),
@@ -809,7 +815,7 @@ impl TshareParticipant {
             .values()
             .map(|output| output.private_key_share().as_ref().clone())
             .fold(BigNumber::zero(), |acc, x| acc + x);
-        sum_toft_private_shares %= k256_order();
+        sum_toft_private_shares %= C::order();
 
         // Check the sum is indeed the sum of original private keys used as input of
         // tshare reduced mod the order
@@ -834,14 +840,14 @@ impl TshareParticipant {
     /// Reconstruct the secret from the shares.
     /// Use lagrange_coefficients_at_zero to get the constant term.
     pub fn reconstruct_secret(
-        shares: HashMap<ParticipantIdentifier, KeySharePrivate>,
+        shares: HashMap<ParticipantIdentifier, KeySharePrivate<C>>,
         all: Vec<ParticipantIdentifier>,
     ) -> Result<Scalar> {
         let mut secret = Scalar::ZERO;
         // compute the coordinates
         for (id, share) in shares.iter() {
             let lagrange = Self::lagrange_coefficient_at_zero(id, &all);
-            let t_out_of_t_share = lagrange * bn_to_scalar(share.clone().as_ref()).unwrap();
+            let t_out_of_t_share = lagrange * bn_to_scalar(share.as_ref()).unwrap();
             secret += t_out_of_t_share;
         }
         Ok(secret)
@@ -881,7 +887,7 @@ impl TshareParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        self.check_for_duplicate_msg::<storage::ValidPublicShare>(message.from())?;
+        self.check_for_duplicate_msg::<storage::ValidPublicShare<C>>(message.from())?;
 
         if !self.can_handle_round_three_msg() {
             info!("Not yet ready to handle round three tshare broadcast message.");
@@ -897,14 +903,16 @@ impl TshareParticipant {
             .local_storage
             .retrieve::<storage::GlobalRid>(self.id())?;
 
-        let proof = PiSchProof::from_message(message)?;
+        let proof = PiSchProof::<C>::from_message(message)?;
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(message.from())?;
+            .retrieve::<storage::Decommit<C>>(message.from())?;
 
-        let mut final_public_share = CurvePoint::IDENTITY;
+        let mut final_public_share = C::IDENTITY;
         for pid in self.all_participants().iter() {
-            let coeff_publics = self.local_storage.retrieve::<storage::PublicCoeffs>(*pid)?;
+            let coeff_publics = self
+                .local_storage
+                .retrieve::<storage::PublicCoeffs<C>>(*pid)?;
             let public_share = Self::eval_public_share(coeff_publics, message.from())?;
             final_public_share = final_public_share + public_share;
         }
@@ -912,7 +920,7 @@ impl TshareParticipant {
         let mut transcript =
             schnorr_proof_transcript(self.sid(), &global_chain_code, &global_rid, message.from())?;
         proof.verify_with_precommit(
-            CommonInput::new(&final_public_share),
+            CommonInput::<C>::new(&final_public_share),
             &self.retrieve_context(),
             &mut transcript,
             &decom.precom,
@@ -921,7 +929,10 @@ impl TshareParticipant {
         let final_public_share = EvalPublic::new(final_public_share);
         // Only if the proof verifies do we store the participant's shares.
         self.local_storage
-            .store_once::<storage::ValidPublicShare>(message.from(), final_public_share.clone())?;
+            .store_once::<storage::ValidPublicShare<C>>(
+                message.from(),
+                final_public_share.clone(),
+            )?;
 
         self.maybe_finish_protocol()
     }
@@ -932,7 +943,7 @@ impl TshareParticipant {
         // Have we validated and stored the public shares from everybody to everybody?
         let got_all_public_shares = self
             .local_storage
-            .contains_for_all_ids::<storage::ValidPublicShare>(&self.all_participants());
+            .contains_for_all_ids::<storage::ValidPublicShare<C>>(&self.all_participants());
 
         // If so, we completed the protocol! Return the outputs.
         if got_all_public_shares {
@@ -940,7 +951,7 @@ impl TshareParticipant {
             let coeffs_from_all = self
                 .all_participants()
                 .iter()
-                .map(|pid| self.local_storage.remove::<storage::PublicCoeffs>(*pid))
+                .map(|pid| self.local_storage.remove::<storage::PublicCoeffs<C>>(*pid))
                 .collect::<Result<Vec<_>>>()?;
             let all_public_coeffs = Self::aggregate_public_coeffs(&coeffs_from_all);
 
@@ -948,7 +959,7 @@ impl TshareParticipant {
             // of round 2
             let my_private_share = self
                 .local_storage
-                .retrieve::<storage::ValidPrivateEval>(self.id())?;
+                .retrieve::<storage::ValidPrivateEval<C>>(self.id())?;
 
             // Double-check that the aggregated private share matches the aggregated public
             // coeffs.
@@ -982,20 +993,18 @@ impl TshareParticipant {
         }
     }
 
-    fn aggregate_private_shares(private_shares: &[EvalPrivate]) -> EvalPrivate {
+    fn aggregate_private_shares(private_shares: &[EvalPrivate<C>]) -> EvalPrivate<C> {
         EvalPrivate::sum(private_shares)
     }
 
     /// Return coeffs.sum(axis=0)
-    fn aggregate_public_coeffs(coeffs_from_all: &[Vec<CoeffPublic>]) -> Vec<CoeffPublic> {
+    fn aggregate_public_coeffs(coeffs_from_all: &[Vec<CoeffPublic<C>>]) -> Vec<CoeffPublic<C>> {
         let n_coeffs = coeffs_from_all[0].len();
         (0..n_coeffs)
             .map(|i| {
                 let sum = coeffs_from_all
                     .iter()
-                    .fold(CurvePoint::IDENTITY, |sum, coeffs| {
-                        sum + *coeffs[i].as_ref()
-                    });
+                    .fold(C::IDENTITY, |sum, coeffs| sum + *coeffs[i].as_ref());
                 CoeffPublic::new(sum)
             })
             .collect()
@@ -1020,17 +1029,21 @@ fn schnorr_proof_transcript(
 #[cfg(test)]
 mod tests {
     use super::{super::input::Input, *};
-    use crate::{auxinfo, utils::testing::init_testing, Identifier, ParticipantConfig};
+    use crate::{
+        auxinfo, curve::TestCT as C, utils::testing::init_testing, Identifier, ParticipantConfig,
+    };
     use k256::elliptic_curve::{Field, PrimeField};
     use rand::{thread_rng, CryptoRng, Rng, RngCore};
-    use std::{collections::HashMap, iter::zip};
+    use std::{collections::HashMap, iter::zip, marker::PhantomData};
     use tracing::debug;
+    type Output = super::Output<C>;
+    type TshareParticipant = super::TshareParticipant<C>;
 
     impl TshareParticipant {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             quorum_size: usize,
-            share: Option<CoeffPrivate>,
+            share: Option<CoeffPrivate<C>>,
             rng: &mut R,
         ) -> Result<Vec<Self>> {
             // Prepare prereqs for making TshareParticipant's. Assume all the
@@ -1120,6 +1133,7 @@ mod tests {
         let sid = Identifier::random(&mut rng);
         let test_share = Some(CoeffPrivate {
             x: Scalar::from_u128(42),
+            phantom: PhantomData,
         });
         let mut quorum = TshareParticipant::new_quorum(sid, quorum_size, test_share, &mut rng)?;
         let mut inboxes = HashMap::new();
@@ -1198,8 +1212,7 @@ mod tests {
                 .collect::<Vec<_>>();
             let public_share = TshareParticipant::eval_public_share(&publics_coeffs, pid)?;
 
-            let expected_public_share =
-                CurvePoint::GENERATOR.multiply_by_scalar(output.private_key_share());
+            let expected_public_share = C::GENERATOR.scale2(output.private_key_share());
             // if the output already contains the public key, then we don't need to
             // recompute and check it here.
             assert_eq!(public_share, expected_public_share);
@@ -1215,12 +1228,12 @@ mod tests {
 
         // validate the final public key, which is given by the sum of the public keys
         // of all participants
-        let mut sum_public_keys_first = CurvePoint::IDENTITY;
+        let mut sum_public_keys_first = C::IDENTITY;
         for public_key in outputs.first().unwrap().public_key_shares() {
             sum_public_keys_first = sum_public_keys_first + *public_key.as_ref();
         }
         for output in outputs.iter().skip(1) {
-            let mut sum_public_keys = CurvePoint::IDENTITY;
+            let mut sum_public_keys = C::IDENTITY;
             for public_key in output.public_key_shares() {
                 sum_public_keys = sum_public_keys + *public_key.as_ref();
             }

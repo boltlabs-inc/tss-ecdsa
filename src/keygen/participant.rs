@@ -8,8 +8,11 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use std::marker::PhantomData;
+
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
+    curve::CT,
     errors::{CallerError, InternalError, Result},
     keygen::{
         keygen_commit::{KeygenCommit, KeygenDecommit},
@@ -39,13 +42,13 @@ mod storage {
     impl TypeTag for Commit {
         type Value = KeygenCommit;
     }
-    pub(super) struct Decommit;
-    impl TypeTag for Decommit {
-        type Value = KeygenDecommit;
+    pub(super) struct Decommit<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for Decommit<C> {
+        type Value = KeygenDecommit<C>;
     }
-    pub(super) struct SchnorrPrecom;
-    impl TypeTag for SchnorrPrecom {
-        type Value = PiSchPrecommit;
+    pub(super) struct SchnorrPrecom<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for SchnorrPrecom<C> {
+        type Value = PiSchPrecommit<C>;
     }
     pub(super) struct GlobalRid;
     impl TypeTag for GlobalRid {
@@ -55,13 +58,13 @@ mod storage {
     impl TypeTag for GlobalChainCode {
         type Value = [u8; 32];
     }
-    pub(super) struct PrivateKeyshare;
-    impl TypeTag for PrivateKeyshare {
-        type Value = KeySharePrivate;
+    pub(super) struct PrivateKeyshare<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for PrivateKeyshare<C> {
+        type Value = KeySharePrivate<C>;
     }
-    pub(super) struct PublicKeyshare;
-    impl TypeTag for PublicKeyshare {
-        type Value = KeySharePublic;
+    pub(super) struct PublicKeyshare<C>(PhantomData<C>);
+    impl<C: Send + Sync + 'static> TypeTag for PublicKeyshare<C> {
+        type Value = KeySharePublic<C>;
     }
 }
 
@@ -82,7 +85,7 @@ mod storage {
 /// The [private key share](KeySharePrivate) in the output requires secure
 /// persistent storage.
 #[derive(Debug)]
-pub struct KeygenParticipant {
+pub struct KeygenParticipant<C> {
     /// The current session identifier
     sid: Identifier,
     /// A unique identifier for this participant.
@@ -96,11 +99,12 @@ pub struct KeygenParticipant {
     broadcast_participant: BroadcastParticipant,
     /// Status of the protocol execution.
     status: Status,
+    phantom: PhantomData<C>,
 }
 
-impl ProtocolParticipant for KeygenParticipant {
+impl<C: CT + 'static> ProtocolParticipant for KeygenParticipant<C> {
     type Input = ();
-    type Output = Output;
+    type Output = Output<C>;
 
     fn new(
         sid: Identifier,
@@ -120,6 +124,7 @@ impl ProtocolParticipant for KeygenParticipant {
                 input,
             )?,
             status: Status::NotReady,
+            phantom: PhantomData,
         })
     }
 
@@ -193,8 +198,8 @@ impl ProtocolParticipant for KeygenParticipant {
     }
 }
 
-impl InnerProtocolParticipant for KeygenParticipant {
-    type Context = SharedContext;
+impl<C: CT + 'static> InnerProtocolParticipant for KeygenParticipant<C> {
+    type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
         SharedContext::collect(self)
@@ -213,13 +218,13 @@ impl InnerProtocolParticipant for KeygenParticipant {
     }
 }
 
-impl Broadcast for KeygenParticipant {
+impl<C> Broadcast for KeygenParticipant<C> {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant {
         &mut self.broadcast_participant
     }
 }
 
-impl KeygenParticipant {
+impl<C: CT + 'static> KeygenParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this
@@ -264,14 +269,14 @@ impl KeygenParticipant {
 
         self.local_storage.store::<storage::Commit>(self.id, com);
         self.local_storage
-            .store::<storage::Decommit>(self.id, decom);
+            .store::<storage::Decommit<C>>(self.id, decom);
         self.local_storage
-            .store::<storage::SchnorrPrecom>(self.id, sch_precom);
+            .store::<storage::SchnorrPrecom<C>>(self.id, sch_precom);
 
         self.local_storage
-            .store::<storage::PrivateKeyshare>(self.id, keyshare_private);
+            .store::<storage::PrivateKeyshare<C>>(self.id, keyshare_private);
         self.local_storage
-            .store::<storage::PublicKeyshare>(self.id, keyshare_public);
+            .store::<storage::PublicKeyshare<_>>(self.id, keyshare_public);
 
         let messages = self.broadcast(
             rng,
@@ -365,13 +370,15 @@ impl KeygenParticipant {
         // retrieve `Decommit` below.
         if !self
             .local_storage
-            .contains::<storage::PublicKeyshare>(self.id)
+            .contains::<storage::PublicKeyshare<C>>(self.id)
         {
             let more_messages = run_only_once!(self.gen_round_one_msgs(rng, sid))?;
             messages.extend_from_slice(&more_messages);
         }
 
-        let decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
+        let decom = self
+            .local_storage
+            .retrieve::<storage::Decommit<C>>(self.id)?;
         let more_messages = self.message_for_other_participants(
             MessageType::Keygen(KeygenMessageType::R2Decommit),
             decom,
@@ -389,7 +396,7 @@ impl KeygenParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        self.check_for_duplicate_msg::<storage::Decommit>(message.from())?;
+        self.check_for_duplicate_msg::<storage::Decommit<C>>(message.from())?;
         info!("Handling round two keygen message.");
 
         // We must receive all commitments in round 1 before we start processing
@@ -409,12 +416,12 @@ impl KeygenParticipant {
             .retrieve::<storage::Commit>(message.from())?;
         let decom = KeygenDecommit::from_message(message, com)?;
         self.local_storage
-            .store_once::<storage::Decommit>(message.from(), decom)?;
+            .store_once::<storage::Decommit<C>>(message.from(), decom)?;
 
         // Check if we've received all the decommits
         let r2_done = self
             .local_storage
-            .contains_for_all_ids::<storage::Decommit>(&self.all_participants());
+            .contains_for_all_ids::<storage::Decommit<C>>(&self.all_participants());
 
         if r2_done {
             // Generate messages for round 3...
@@ -443,7 +450,9 @@ impl KeygenParticipant {
     fn gen_round_three_msgs(&mut self) -> Result<Vec<Message>> {
         info!("Generating round three keygen messages.");
 
-        let my_decom = self.local_storage.retrieve::<storage::Decommit>(self.id)?;
+        let my_decom = self
+            .local_storage
+            .retrieve::<storage::Decommit<C>>(self.id)?;
 
         // Auxiliary macro to xor two 256-bit arrays given as Vectors of 32 bytes
         macro_rules! xor_256_bits {
@@ -463,7 +472,7 @@ impl KeygenParticipant {
         for &other_participant_id in self.other_participant_ids.iter() {
             let decom = self
                 .local_storage
-                .retrieve::<storage::Decommit>(other_participant_id)?;
+                .retrieve::<storage::Decommit<C>>(other_participant_id)?;
             global_chain_code = xor_256_bits!(global_chain_code, decom.chain_code);
             global_rid = xor_256_bits!(global_rid, decom.rid);
         }
@@ -477,16 +486,16 @@ impl KeygenParticipant {
 
         let precom = self
             .local_storage
-            .retrieve::<storage::SchnorrPrecom>(self.id)?;
+            .retrieve::<storage::SchnorrPrecom<C>>(self.id)?;
 
         let my_pk = self
             .local_storage
-            .retrieve::<storage::PublicKeyshare>(self.id)?;
-        let input = CommonInput::new(my_pk);
+            .retrieve::<storage::PublicKeyshare<C>>(self.id)?;
+        let input = CommonInput::<C>::new(my_pk);
 
         let my_sk = self
             .local_storage
-            .retrieve::<storage::PrivateKeyshare>(self.id)?;
+            .retrieve::<storage::PrivateKeyshare<C>>(self.id)?;
 
         let proof = PiSchProof::prove_from_precommit(
             &self.retrieve_context(),
@@ -514,24 +523,24 @@ impl KeygenParticipant {
         &mut self,
         message: &Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>> {
-        self.check_for_duplicate_msg::<storage::PublicKeyshare>(message.from())?;
+        self.check_for_duplicate_msg::<storage::PublicKeyshare<C>>(message.from())?;
         info!("Handling round three keygen message.");
 
         if !self.local_storage.contains::<storage::GlobalRid>(self.id) {
             self.stash_message(message)?;
             return Ok(ProcessOutcome::Incomplete);
         }
-        let proof = PiSchProof::from_message(message)?;
+        let proof = PiSchProof::<C>::from_message(message)?;
         let global_rid = *self.local_storage.retrieve::<storage::GlobalRid>(self.id)?;
         let global_chain_code = *self
             .local_storage
             .retrieve::<storage::GlobalChainCode>(self.id)?;
         let decom = self
             .local_storage
-            .retrieve::<storage::Decommit>(message.from())?;
+            .retrieve::<storage::Decommit<C>>(message.from())?;
         let precommit = &decom.A;
 
-        let input = CommonInput::new(&decom.pk);
+        let input = CommonInput::<C>::new(&decom.pk);
 
         let mut transcript =
             schnorr_proof_transcript(self.sid(), &global_chain_code, &global_rid, message.from())?;
@@ -541,23 +550,26 @@ impl KeygenParticipant {
         // share. This signals the end of the protocol for the participant.
         let keyshare = decom.get_keyshare();
         self.local_storage
-            .store_once::<storage::PublicKeyshare>(message.from(), keyshare.clone())?;
+            .store_once::<storage::PublicKeyshare<_>>(message.from(), keyshare.clone())?;
 
         //check if we've stored all the public keyshares
         let keyshare_done = self
             .local_storage
-            .contains_for_all_ids::<storage::PublicKeyshare>(&self.all_participants());
+            .contains_for_all_ids::<storage::PublicKeyshare<C>>(&self.all_participants());
 
         // If so, we completed the protocol! Return the outputs.
         if keyshare_done {
             let public_key_shares = self
                 .all_participants()
                 .iter()
-                .map(|pid| self.local_storage.remove::<storage::PublicKeyshare>(*pid))
+                .map(|pid| {
+                    self.local_storage
+                        .remove::<storage::PublicKeyshare<_>>(*pid)
+                })
                 .collect::<Result<Vec<_>>>()?;
             let private_key_share = self
                 .local_storage
-                .remove::<storage::PrivateKeyshare>(self.id)?;
+                .remove::<storage::PrivateKeyshare<C>>(self.id)?;
             self.status = Status::TerminatedSuccessfully;
 
             let output = Output::from_parts(
@@ -592,15 +604,12 @@ fn schnorr_proof_transcript(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        utils::{testing::init_testing, CurvePoint},
-        Identifier, ParticipantConfig,
-    };
+    use crate::{curve::TestCT as C, utils::testing::init_testing, Identifier, ParticipantConfig};
     use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
     use tracing::debug;
 
-    impl KeygenParticipant {
+    impl KeygenParticipant<C> {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             quorum_size: usize,
@@ -637,7 +646,7 @@ mod tests {
         }
     }
 
-    fn is_keygen_done(quorum: &[KeygenParticipant]) -> bool {
+    fn is_keygen_done(quorum: &[KeygenParticipant<C>]) -> bool {
         for participant in quorum {
             if *participant.status() != Status::TerminatedSuccessfully {
                 return false;
@@ -648,10 +657,10 @@ mod tests {
 
     #[allow(clippy::type_complexity)]
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut [KeygenParticipant],
+        quorum: &mut [KeygenParticipant<C>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
-    ) -> Option<(usize, ProcessOutcome<Output>)> {
+    ) -> Option<(usize, ProcessOutcome<Output<C>>)> {
         // Pick a random participant to process
         let index = rng.gen_range(0..quorum.len());
         let participant = quorum.get_mut(index).unwrap();
@@ -694,7 +703,7 @@ mod tests {
         }
         let mut outputs = std::iter::repeat_with(|| None)
             .take(QUORUM_SIZE)
-            .collect::<Vec<_>>();
+            .collect::<Vec<Option<Output<C>>>>();
 
         for participant in &quorum {
             let inbox = inboxes.get_mut(&participant.id).unwrap();
@@ -769,7 +778,7 @@ mod tests {
             assert!(public_share.is_some());
 
             let expected_public_share =
-                CurvePoint::GENERATOR.multiply_by_bignum(output.private_key_share().as_ref())?;
+                C::GENERATOR.multiply_by_bignum(output.private_key_share().as_ref())?;
             assert_eq!(public_share.unwrap().as_ref(), &expected_public_share);
         }
 
