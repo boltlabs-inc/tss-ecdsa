@@ -10,15 +10,14 @@ use crate::{
     curve::CT,
     errors::{CallerError, InternalError, Result},
     paillier::{Ciphertext, DecryptionKey, EncryptionKey},
-    utils::{bn_to_scalar, scalar_to_bn},
 };
-use k256::{elliptic_curve::Field, Scalar};
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, marker::PhantomData, ops::Add};
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
+use crate::curve::ST;
 
 /// Encrypted [`CoeffPrivate`].
 #[derive(Clone, Serialize, Deserialize)]
@@ -38,7 +37,7 @@ impl EvalEncrypted {
         }
 
         let (ciphertext, _nonce) = pk
-            .encrypt(rng, &scalar_to_bn(&share_private.x))
+            .encrypt(rng, &C::scalar_to_bn(&share_private.x))
             .map_err(|_| InternalError::InternalInvariantFailed)?;
 
         Ok(EvalEncrypted { ciphertext })
@@ -56,39 +55,39 @@ impl EvalEncrypted {
             );
             Err(CallerError::DeserializationFailed)?;
         }
-        Ok(EvalPrivate::new(bn_to_scalar(&x).unwrap()))
+        Ok(EvalPrivate::new(C::bn_to_scalar(&x).unwrap()))
     }
 }
 
 /// Private coefficient share corresponding to some `CoeffPublic`.
 #[derive(Clone, ZeroizeOnDrop, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CoeffPrivate<C> {
+pub struct CoeffPrivate<C: CT> {
     /// A BigNumber element in the range [1, q) representing a polynomial
     /// coefficient
-    pub x: Scalar, // TODO: C::Scalar
+    pub x: C::Scalar,
     /// Curve type.
     pub phantom: PhantomData<C>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct EvalPrivate<C> {
+pub struct EvalPrivate<C: CT> {
     /// A BigNumber element in the range [1, q) representing a polynomial
     /// coefficient
-    pub x: Scalar, // TODO: C::Scalar
+    pub x: C::Scalar, 
     phantom: PhantomData<C>,
 }
 
 /// Implement addition operation for `EvalPrivate`.
-impl<C> Add<&EvalPrivate<C>> for EvalPrivate<C> {
+impl<C: CT> Add<&EvalPrivate<C>> for EvalPrivate<C> {
     type Output = Self;
 
     fn add(self, rhs: &Self) -> Self::Output {
-        EvalPrivate::new(self.x + rhs.x)
+        EvalPrivate::new(self.x.add(rhs.x))
     }
 }
 
-impl<C> EvalPrivate<C> {
-    pub fn new(x: Scalar) -> Self {
+impl<C: CT> EvalPrivate<C> {
+    pub fn new(x: C::Scalar) -> Self {
         EvalPrivate {
             x,
             phantom: PhantomData,
@@ -96,7 +95,7 @@ impl<C> EvalPrivate<C> {
     }
 }
 
-impl<C> Debug for CoeffPrivate<C> {
+impl<C: CT> Debug for CoeffPrivate<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("CoeffPrivate([redacted])")
     }
@@ -109,7 +108,7 @@ impl<C> Debug for CoeffPrivate<C> {
 impl<C: CT> CoeffPrivate<C> {
     /// Sample a private key share uniformly at random.
     pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
-        let random_bn = Scalar::random(rng);
+        let random_bn = C::Scalar::random();
         CoeffPrivate {
             x: random_bn,
             phantom: PhantomData,
@@ -133,12 +132,12 @@ impl<C: CT> CoeffPrivate<C> {
 impl<C: CT> EvalPrivate<C> {
     /// Sample a private key share uniformly at random.
     pub fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
-        let random_scalar = Scalar::random(rng);
+        let random_scalar = C::Scalar::random();
         EvalPrivate::new(random_scalar)
     }
 
     pub(crate) fn sum(shares: &[Self]) -> Self {
-        let sum = shares.iter().fold(Scalar::ZERO, |sum, o| sum + o.x);
+        let sum = shares.iter().fold(C::Scalar::zero(), |sum, o| sum.add(o.x));
         EvalPrivate::new(sum)
     }
 
@@ -147,9 +146,9 @@ impl<C: CT> EvalPrivate<C> {
     }
 }
 
-impl<C> AsRef<Scalar> for CoeffPrivate<C> {
+impl<C: CT> AsRef<C::Scalar> for CoeffPrivate<C> {
     /// Get the coeff as a number.
-    fn as_ref(&self) -> &Scalar {
+    fn as_ref(&self) -> &C::Scalar {
         &self.x
     }
 }
@@ -223,7 +222,7 @@ mod tests {
     use crate::{
         auxinfo,
         curve::{TestCT as C, CT},
-        utils::{bn_to_scalar, testing::init_testing},
+        utils::testing::init_testing,
         ParticipantIdentifier,
     };
     use rand::rngs::StdRng;
@@ -264,7 +263,7 @@ mod tests {
         // Encrypt unexpected shares.
         {
             let x = &(-BigNumber::one());
-            let share = EvalPrivate::new(bn_to_scalar(x).expect("Failed to convert to scalar"));
+            let share = EvalPrivate::new(C::bn_to_scalar(x).expect("Failed to convert to scalar"));
             let encrypted = EvalEncrypted::encrypt(&share, &pk, rng).expect("encryption failed");
             // Decryption reports an error.
             let decrypt_result = encrypted.decrypt::<C>(&dk);
@@ -272,7 +271,7 @@ mod tests {
         }
         // Encrypt zero returns an error in decryption.
         for x in [BigNumber::zero(), C::order()].iter() {
-            let share = EvalPrivate::new(bn_to_scalar(x).expect("Failed to convert to scalar"));
+            let share = EvalPrivate::new(C::bn_to_scalar(x).expect("Failed to convert to scalar"));
             let encrypted = EvalEncrypted::encrypt(&share, &pk, rng).expect("encryption failed");
             // Decryption reports an error.
             let decrypt_result = encrypted.decrypt::<C>(&dk);

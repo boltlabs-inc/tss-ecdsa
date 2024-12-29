@@ -7,21 +7,20 @@
 // of this source tree.
 
 use crate::{
-    curve::CT,
+    curve::{CT, ST},
     errors::{
         CallerError,
         InternalError::{InternalInvariantFailed, ProtocolError},
         Result,
     },
     presign::round_three::{Private as RoundThreePrivate, Public as RoundThreePublic},
-    utils::{bn_to_scalar, ParseBytes},
+    utils::ParseBytes,
 };
-use k256::{elliptic_curve::PrimeField, Scalar};
 use std::fmt::Debug;
 use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-pub(crate) struct RecordPair<C> {
+pub(crate) struct RecordPair<C: CT> {
     pub(crate) private: RoundThreePrivate<C>,
     pub(crate) publics: Vec<RoundThreePublic<C>>,
 }
@@ -55,8 +54,8 @@ pub(crate) struct RecordPair<C> {
 #[derive(Zeroize, ZeroizeOnDrop, PartialEq, Eq)]
 pub struct PresignRecord<C: CT> {
     R: C,
-    k: Scalar,   // TODO: C::Scalar
-    chi: Scalar, // TODO: C::Scalar
+    k: C::Scalar,
+    chi: C::Scalar,
 }
 
 const RECORD_TAG: &[u8] = b"Presign Record";
@@ -80,7 +79,7 @@ impl<C: CT> TryFrom<RecordPair<C>> for PresignRecord<C> {
         let mut delta = private.delta;
         let mut Delta = private.Delta.clone();
         for p in publics {
-            delta += &p.delta;
+            delta.add_assign(p.delta);
             Delta = Delta + p.Delta;
         }
 
@@ -90,7 +89,7 @@ impl<C: CT> TryFrom<RecordPair<C>> for PresignRecord<C> {
             return Err(ProtocolError(None));
         }
 
-        let delta_inv = Option::<Scalar>::from(delta.invert()).ok_or_else(|| {
+        let delta_inv = Option::<C::Scalar>::from(delta.invert()).ok_or_else(|| {
             error!("Could not invert delta as it is 0. Either you got profoundly unlucky or more likely there's a bug");
             InternalInvariantFailed
         })?;
@@ -98,7 +97,7 @@ impl<C: CT> TryFrom<RecordPair<C>> for PresignRecord<C> {
 
         Ok(PresignRecord {
             R,
-            k: bn_to_scalar(&private.k)?,
+            k: C::bn_to_scalar(&private.k)?,
             chi: private.chi,
         })
     }
@@ -106,17 +105,17 @@ impl<C: CT> TryFrom<RecordPair<C>> for PresignRecord<C> {
 
 impl<C: CT> PresignRecord<C> {
     /// Get the mask share (`k` in the paper) from the record.
-    pub(crate) fn mask_share(&self) -> &Scalar {
+    pub(crate) fn mask_share(&self) -> &C::Scalar {
         &self.k
     }
 
     /// Get the masked key share (`chi` in the paper) from the record.
-    pub(crate) fn masked_key_share(&self) -> &Scalar {
+    pub(crate) fn masked_key_share(&self) -> &C::Scalar {
         &self.chi
     }
     /// Compute the x-projection of the randomly-selected point `R` from the
     /// [`PresignRecord`].
-    pub(crate) fn x_projection(&self) -> Result<Scalar> {
+    pub(crate) fn x_projection(&self) -> Result<C::Scalar> {
         self.R.x_projection()
     }
 
@@ -196,7 +195,8 @@ impl<C: CT> PresignRecord<C> {
             let mut random_share_bytes: [u8; 32] = random_share_slice
                 .try_into()
                 .map_err(|_| CallerError::DeserializationFailed)?;
-            let random_share: Option<_> = Scalar::from_repr(random_share_bytes.into()).into();
+            let random_share: Option<_> = Some(C::Scalar::from_bytes(&random_share_bytes))
+                .expect("Failed to parse scalar from bytes");
             random_share_bytes.zeroize();
 
             // Parse the chi share
@@ -208,14 +208,14 @@ impl<C: CT> PresignRecord<C> {
             let mut chi_share_bytes: [u8; 32] = chi_share_slice
                 .try_into()
                 .map_err(|_| CallerError::DeserializationFailed)?;
-            let chi_share: Option<_> = Scalar::from_repr(chi_share_bytes.into()).into();
+            let chi_share = C::Scalar::from_repr(chi_share_bytes.into());
             chi_share_bytes.zeroize();
 
             // The random and chi shares both need to be elements of `F_q`;
             // the k256::Scalar's parsing methods check this for us.
 
             match (random_share, chi_share) {
-                (Some(k), Some(chi)) => Ok(Self { R: point, k, chi }),
+                (Some(k), chi) => Ok(Self { R: point, k, chi }),
                 _ => Err(CallerError::DeserializationFailed)?,
             }
         };
@@ -249,9 +249,10 @@ mod tests {
         curve::TestCT as C,
         keygen,
         presign::{participant::presign_record_set_is_valid, record::RECORD_TAG},
-        utils::{bn_to_scalar, testing::init_testing},
+        utils::testing::init_testing,
         ParticipantConfig,
     };
+    use crate::curve::CT;
     type PresignRecord = super::PresignRecord<C>;
 
     impl PresignRecord {
@@ -296,7 +297,7 @@ mod tests {
             // Compute the masked key shares as (secret_key_share * mask)
             let masked_key_shares = keygen_outputs
                 .iter()
-                .map(|output| bn_to_scalar(output.private_key_share().as_ref()).unwrap())
+                .map(|output| C::bn_to_scalar(output.private_key_share().as_ref()).unwrap())
                 .map(|secret_key_share| secret_key_share * mask);
 
             assert_eq!(masked_key_shares.len(), keygen_outputs.len());

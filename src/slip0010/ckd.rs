@@ -1,20 +1,19 @@
 //! Utilities for Child Key Derivation (CKD) according to SLIP-0010.
 
-use crate::{curve::CT, errors::CallerError, utils::bn_to_scalar};
+use crate::{curve::{CT, ST}, errors::CallerError};
 use generic_array::{
     typenum::{U32, U64},
     GenericArray,
 };
 use hmac::Mac;
-use k256::Scalar;
 use libpaillier::unknown_order::BigNumber;
 
 type HmacSha512 = hmac::Hmac<sha2::Sha512>;
 
 /// Represents the input to the CKD function.
 #[derive(Debug, Clone)]
-pub struct CKDInput {
-    private_key: Option<Scalar>,
+pub struct CKDInput<C: CT> {
+    private_key: Option<C::Scalar>,
     public_key: Vec<u8>,
     chain_code: [u8; 32],
     index: u32,
@@ -22,7 +21,7 @@ pub struct CKDInput {
 
 /// Represents the output of the CKD function.
 #[derive(Debug, Clone)]
-pub struct CKDOutput {
+pub struct CKDOutput<C: CT> {
     /// The chain code, used to generate more child keys.
     pub chain_code: [u8; 32],
     /// If private_key for `CKDInput` is None, this is equal to a
@@ -31,7 +30,7 @@ pub struct CKDOutput {
     /// non-interactive signing protocol.   
     /// If private_key for `CKDInput` is present, this is the full
     /// ECDSA private key
-    pub private_key: Scalar,
+    pub private_key: C::Scalar,
 }
 
 /// Represents the input to the master key derivation function.
@@ -55,7 +54,7 @@ impl MasterKeyInput {
     }
 
     /// Derive master key from seed.
-    pub fn derive_master_key<C: CT>(&self) -> CKDOutput {
+    pub fn derive_master_key<C: CT>(&self) -> CKDOutput<C> {
         let hmac = HmacSha512::new_from_slice(self.curve.as_bytes())
             .expect("this never fails: hmac can handle keys of any size");
         let mut i = hmac
@@ -66,13 +65,13 @@ impl MasterKeyInput {
 
         loop {
             let (i_left, i_right) = split_into_two_halfes(&i);
-            if let Ok(private_key) = bn_to_scalar(&BigNumber::from_slice(i_left)) {
+            if let Ok(private_key) = C::bn_to_scalar(&BigNumber::from_slice(i_left)) {
                 let master_private_key = private_key;
                 let master_public_key = C::GENERATOR.scale2(&master_private_key);
                 if master_public_key != C::IDENTITY {
                     return CKDOutput {
                         chain_code: (*i_right).into(),
-                        private_key: bn_to_scalar(&BigNumber::from_slice(*i_left)).unwrap(),
+                        private_key: C::bn_to_scalar(&BigNumber::from_slice(*i_left)).unwrap(),
                     };
                 }
             }
@@ -82,13 +81,13 @@ impl MasterKeyInput {
     }
 }
 
-impl CKDInput {
+impl<C: CT> CKDInput<C> {
     /// Create a new CKDInput.
     /// If the purpose is non-threshold key generation, the private key
     /// should be provided. If the purpose is for threshold key generation,
     /// the private key should be None.
     pub fn new(
-        private_key: Option<Scalar>,
+        private_key: Option<C::Scalar>,
         public_key: Vec<u8>,
         chain_code: [u8; 32],
         index: u32,
@@ -118,7 +117,7 @@ impl CKDInput {
     }
 
     /// Derives a shift for non-hardened child
-    pub fn derive_public_shift<C: CT>(&self) -> CKDOutput {
+    pub fn derive_public_shift(&self) -> CKDOutput<C> {
         let hmac = HmacSha512::new_from_slice(&self.chain_code)
             .expect("this never fails: hmac can handle keys of any size");
         let i = hmac
@@ -127,23 +126,23 @@ impl CKDInput {
             .chain_update(self.index.to_be_bytes())
             .finalize()
             .into_bytes();
-        self.calculate_shift::<C>(&hmac, i)
+        self.calculate_shift(&hmac, i)
     }
 
-    fn calculate_shift<C: CT>(
+    fn calculate_shift(
         &self,
         hmac: &HmacSha512,
         mut i: hmac::digest::Output<HmacSha512>,
-    ) -> CKDOutput {
+    ) -> CKDOutput<C> {
         loop {
             let (i_left, i_right) = split_into_two_halfes(&i);
 
-            if let Ok(shift) = bn_to_scalar(&BigNumber::from_slice(i_left)) {
-                let parent_private_key: Scalar = self.private_key.unwrap_or(Scalar::ZERO);
+            if let Ok(shift) = C::bn_to_scalar(&BigNumber::from_slice(i_left)) {
+                let parent_private_key: C::Scalar = self.private_key.unwrap_or(C::Scalar::zero());
                 let parent_public_key = C::try_from_bytes(self.public_key.as_slice())
                     .expect("could not get the parent public key");
 
-                let child_private_key = parent_private_key + shift;
+                let child_private_key = parent_private_key.add(&shift);
                 let child_public_key = parent_public_key + C::GENERATOR.scale2(&shift);
 
                 if child_public_key != C::IDENTITY {
@@ -273,14 +272,14 @@ fn test_derive_child_key() {
         ]
     );
 
-    let ckd_input = CKDInput::new(
+    let ckd_input: CKDInput<C> = CKDInput::new(
         Some(private_key),
         public_key,
         master_key_output.chain_code,
         0,
     )
     .unwrap();
-    let child_key_output = ckd_input.derive_public_shift::<C>();
+    let child_key_output = ckd_input.derive_public_shift();
     // assert the chain code
     assert_eq!(
         child_key_output.chain_code,
@@ -291,8 +290,9 @@ fn test_derive_child_key() {
         ]
     );
     // assert the private key
+    let private_key: k256::Scalar = child_key_output.private_key;
     assert_eq!(
-        child_key_output.private_key.to_bytes().as_slice(),
+        private_key.to_bytes().as_slice(),
         [
             0xab, 0xe7, 0x4a, 0x98, 0xf6, 0xc7, 0xea, 0xbe, 0xe0, 0x42, 0x8f, 0x53, 0x79, 0x8f,
             0x0a, 0xb8, 0xaa, 0x1b, 0xd3, 0x78, 0x73, 0x99, 0x90, 0x41, 0x70, 0x3c, 0x74, 0x2f,

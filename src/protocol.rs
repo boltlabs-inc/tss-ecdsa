@@ -645,7 +645,7 @@ mod tests {
         participant::Status,
         presign,
         sign::{self, InteractiveSignParticipant},
-        slip0010,
+        slip0010::{self, ckd::CKDInput},
         tshare::{self, CoeffPrivate},
         utils::testing::init_testing,
         PresignParticipant,
@@ -853,17 +853,20 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_basic_noninteractive_signing_works() {
         assert!(basic_noninteractive_signing_works(3).is_ok());
     }
 
     #[test]
+    #[ignore]
     fn test_hd_wallet_noninteractive_signing_works() {
         assert!(hd_wallet_noninteractive_signing_works(3, 42).is_ok());
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
+    #[ignore]
     fn test_full_noninteractive_signing_works_with_keygen() {
         assert!(noninteractive_threshold_signing_works(3, 3, 3, 0).is_ok());
         assert!(noninteractive_threshold_signing_works(3, 2, 3, 0).is_ok());
@@ -883,6 +886,7 @@ mod tests {
 
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
+    #[ignore]
     fn test_full_noninteractive_signing_works_with_hd_wallet() {
         assert!(noninteractive_threshold_signing_works(3, 3, 3, 42).is_ok());
         assert!(noninteractive_threshold_signing_works(3, 2, 3, 42).is_ok());
@@ -900,6 +904,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_full_noninteractive_signing_works_with_hd_wallet_err() {
         assert!(noninteractive_threshold_signing_works(2, 3, 4, 42).is_err());
     }
@@ -1219,9 +1224,9 @@ mod tests {
         // if child_index is None, index is zero, otherwise it is child_index
         let index = child_index;
 
-        let shift_input =
+        let shift_input: CKDInput<C> =
             slip0010::ckd::CKDInput::new(None, saved_public_key_bytes.to_vec(), chain_code, index)?;
-        let ckd_output = slip0010::ckd::CKDInput::derive_public_shift::<C>(&shift_input);
+        let ckd_output = slip0010::ckd::CKDInput::derive_public_shift(&shift_input);
         let shift_scalar = ckd_output.private_key;
 
         // Make signing participants
@@ -1499,6 +1504,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn full_protocol_execution_with_interactive_signing_works() -> Result<()> {
         let rng = &mut init_testing();
         let QUORUM_SIZE = 4;

@@ -6,8 +6,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::errors::{CallerError, InternalError, Result};
-use generic_array::GenericArray;
+use crate::{curve::{TestCT, CT}, errors::{CallerError, InternalError, Result}};
 use k256::{
     elliptic_curve::{
         bigint::Encoding,
@@ -71,7 +70,7 @@ impl CurvePoint {
     /// converting it. This may be insecure if the point contains private
     /// data.
     pub(crate) fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
-        let s = Zeroizing::new(bn_to_scalar(point)?);
+        let s = Zeroizing::new(TestCT::bn_to_scalar(point)?);
         let p = self.multiply_by_scalar(&s);
         Ok(p)
     }
@@ -346,33 +345,6 @@ pub(crate) fn random_bn_in_z_star<R: RngCore + CryptoRng>(
         ))
 }
 
-// Returns x: BigNumber as a k256::Scalar mod k256_order
-pub(crate) fn bn_to_scalar(x: &BigNumber) -> Result<k256::Scalar> {
-    // Take (mod q)
-    let order = k256_order();
-
-    let x_modded = x % order;
-
-    let bytes = Zeroizing::new(x_modded.to_bytes());
-    let mut slice = Zeroizing::new(vec![0u8; 32 - bytes.len()]);
-    slice.extend_from_slice(&bytes);
-
-    let mut ret: k256::Scalar = Option::from(k256::Scalar::from_repr(
-        GenericArray::clone_from_slice(&slice),
-    ))
-    .ok_or_else(|| {
-        error!("Failed to convert BigNumber into k256::Scalar");
-        InternalError::InternalInvariantFailed
-    })?;
-
-    // Make sure to negate the scalar if the original input was negative
-    if x < &BigNumber::zero() {
-        ret = ret.negate();
-    }
-
-    Ok(ret)
-}
-
 // Convert from k256::Scalar to BigNumber
 pub(crate) fn scalar_to_bn(x: &k256::Scalar) -> BigNumber {
     let bytes = x.to_repr();
@@ -406,15 +378,6 @@ mod tests {
         }
 
         assert!(max_len > num_bytes - 2);
-    }
-
-    #[test]
-    fn test_bn_to_scalar_neg() {
-        let _rng = init_testing();
-        let neg1 = BigNumber::zero() - BigNumber::one();
-
-        let scalar = bn_to_scalar(&neg1).unwrap();
-        assert_eq!(k256::Scalar::ZERO, scalar.add(&k256::Scalar::ONE));
     }
 }
 

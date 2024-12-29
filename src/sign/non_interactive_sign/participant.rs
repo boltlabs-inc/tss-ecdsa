@@ -8,19 +8,14 @@
 use std::{collections::HashSet, fmt::Debug};
 
 use generic_array::{typenum::U32, GenericArray};
-use k256::{
-    ecdsa::{signature::DigestVerifier, VerifyingKey},
-    elliptic_curve::{ops::Reduce, scalar::IsHigh, subtle::ConditionallySelectable},
-    Scalar, U256,
-};
+use k256::ecdsa::{signature::DigestVerifier, VerifyingKey};
 use rand::{CryptoRng, RngCore};
 use sha3::{Digest, Keccak256};
 use tracing::{error, info};
 use zeroize::Zeroize;
 
 use crate::{
-    curve::TestCT as C, // TODO: generalize.
-    curve::CT,
+    curve::{CT, ST},
     errors::{CallerError, InternalError, Result},
     keygen::KeySharePublic,
     local_storage::LocalStorage,
@@ -75,7 +70,7 @@ pub struct Input<C: CT> {
     presign_record: PresignRecord<C>,
     public_key_shares: Vec<KeySharePublic<C>>,
     threshold: usize,
-    shift: Option<Scalar>, // TODO: C::Scalar
+    shift: Option<C::Scalar>,
 }
 
 impl<C: CT> Input<C> {
@@ -88,7 +83,7 @@ impl<C: CT> Input<C> {
         record: PresignRecord<C>,
         public_key_shares: Vec<KeySharePublic<C>>,
         threshold: usize,
-        shift: Option<Scalar>,
+        shift: Option<C::Scalar>,
     ) -> Self {
         Self {
             digest: Keccak256::new_with_prefix(message),
@@ -108,7 +103,7 @@ impl<C: CT> Input<C> {
         record: PresignRecord<C>,
         public_key_shares: Vec<KeySharePublic<C>>,
         threshold: usize,
-        shift: Option<Scalar>,
+        shift: Option<C::Scalar>,
     ) -> Self {
         Self {
             digest,
@@ -125,8 +120,8 @@ impl<C: CT> Input<C> {
     }
 
     /// Retrieve the shift value.
-    fn shift_value(&self) -> Scalar {
-        self.shift.unwrap_or(Scalar::ZERO)
+    fn shift_value(&self) -> C::Scalar {
+        self.shift.unwrap_or(C::Scalar::zero())
     }
 
     /// Compute the digest. Note that this forces a clone of the [`Keccak256`]
@@ -157,12 +152,12 @@ impl<C: CT> Input<C> {
 /// Note that this is only used in the case of identifiable abort, which is not
 /// yet implemented. A correct execution of signing does not involve any ZK
 /// proofs.
-pub(crate) struct SignContext {
+pub(crate) struct SignContext<C: CT> {
     shared_context: SharedContext<C>,
     message_digest: [u8; 32],
 }
 
-impl ProofContext for SignContext {
+impl<C: CT> ProofContext for SignContext<C> {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
             self.shared_context.as_bytes()?,
@@ -172,9 +167,9 @@ impl ProofContext for SignContext {
     }
 }
 
-impl SignContext {
+impl<C: CT + 'static> SignContext<C> {
     /// Build a [`SignContext`] from a [`SignParticipant`].
-    pub(crate) fn collect<C: CT>(p: &SignParticipant<C>) -> Self {
+    pub(crate) fn collect(p: &SignParticipant<C>) -> Self {
         Self {
             shared_context: SharedContext::collect(p),
             message_digest: p.input.digest_hash().into(),
@@ -183,24 +178,26 @@ impl SignContext {
 }
 
 mod storage {
-    use k256::Scalar;
 
-    use crate::{local_storage::TypeTag, sign::non_interactive_sign::share::SignatureShare};
-
-    pub(super) struct Share;
-    impl TypeTag for Share {
-        type Value = SignatureShare;
+    use crate::{curve::CT, local_storage::TypeTag, sign::non_interactive_sign::share::SignatureShare};
+    pub(super) struct Share<C: CT> {
+        _c: std::marker::PhantomData<C>,
+    }
+    impl<C: CT + 'static> TypeTag for Share<C> {
+        type Value = SignatureShare<C>;
     }
 
-    pub(super) struct XProj;
-    impl TypeTag for XProj {
-        type Value = Scalar;
+    pub(super) struct XProj<C: CT>{
+        _c: std::marker::PhantomData<C>
+    }
+    impl<C: CT + 'static> TypeTag for XProj<C> {
+        type Value = C::Scalar;
     }
 }
 
-impl<C: CT> ProtocolParticipant for SignParticipant<C> {
+impl<C: CT + 'static> ProtocolParticipant for SignParticipant<C> {
     type Input = Input<C>;
-    type Output = Signature;
+    type Output = Signature<C>;
 
     fn ready_type() -> MessageType {
         MessageType::Sign(SignMessageType::Ready)
@@ -295,8 +292,8 @@ impl<C: CT> ProtocolParticipant for SignParticipant<C> {
     }
 }
 
-impl<C: CT> InnerProtocolParticipant for SignParticipant<C> {
-    type Context = SignContext;
+impl<C: CT + 'static> InnerProtocolParticipant for SignParticipant<C> {
+    type Context = SignContext<C>;
 
     fn retrieve_context(&self) -> Self::Context {
         SignContext::collect(self)
@@ -315,12 +312,12 @@ impl<C: CT> InnerProtocolParticipant for SignParticipant<C> {
     }
 }
 
-impl<C: CT> SignParticipant<C> {
+impl<C: CT + 'static> SignParticipant<C> {
     /// Compute the public key with the shift value applied.
     pub fn shifted_public_key(
         &self,
         public_key_shares: Vec<KeySharePublic<C>>,
-        shift: Scalar,
+        shift: C::Scalar,
     ) -> Result<VerifyingKey> {
         // Add up all the key shares
         let public_key_point = public_key_shares
@@ -353,7 +350,7 @@ impl<C: CT> SignParticipant<C> {
         // If our generated share was the last one, complete the protocol.
         if self
             .storage
-            .contains_for_all_ids::<storage::Share>(&self.all_participants())
+            .contains_for_all_ids::<storage::Share::<C>>(&self.all_participants())
         {
             let round_one_outcome = self.compute_output()?;
             ready_outcome
@@ -374,16 +371,19 @@ impl<C: CT> SignParticipant<C> {
 
         // Interpret the message digest as an integer mod `q`. This matches the way that
         // the k256 library converts a digest to a scalar.
-        let digest = <Scalar as Reduce<U256>>::reduce_bytes(&self.input.digest_hash());
+        //let digest = <Scalar as Reduce<U256>>::reduce_bytes(&self.input.digest_hash());
+        let digest_bytes = self.input.digest_hash();
+        // Compute the digest as a C::Scalar
+        let digest = C::Scalar::from_bytes(&digest_bytes).unwrap();
 
         // Compute the x-projection of `R` from the `PresignRecord`
         let x_projection = record.x_projection()?;
 
         // Compute the share
-        let share = SignatureShare::new(
-            record.mask_share() * &digest
-                + x_projection * record.masked_key_share()
-                + x_projection * record.mask_share() * self.input.shift_value(),
+        let share = SignatureShare::<C>::new(
+            record.mask_share().mul(&digest).add(
+                &x_projection.mul(&record.masked_key_share())).add(
+                &x_projection.mul(&record.mask_share().mul(&self.input.shift_value()))),
         );
 
         // Erase the presign record
@@ -391,9 +391,9 @@ impl<C: CT> SignParticipant<C> {
 
         // Save pieces for our own use later
         self.storage
-            .store::<storage::Share>(self.id(), share.clone());
+            .store::<storage::Share::<C>>(self.id(), share.clone());
         self.storage
-            .store::<storage::XProj>(self.id(), x_projection);
+            .store::<storage::XProj::<C>>(self.id(), x_projection);
 
         // Form output messages
         self.message_for_other_participants(
@@ -412,17 +412,17 @@ impl<C: CT> SignParticipant<C> {
             return Ok(ProcessOutcome::Incomplete);
         }
 
-        self.check_for_duplicate_msg::<storage::Share>(message.from())?;
+        self.check_for_duplicate_msg::<storage::Share::<C>>(message.from())?;
 
         // Save this signature share
         let share = SignatureShare::try_from(message)?;
         self.storage
-            .store_once::<storage::Share>(message.from(), share)?;
+            .store_once::<storage::Share::<C>>(message.from(), share)?;
 
         // If we haven't received shares from all parties, stop here
         if !self
             .storage
-            .contains_for_all_ids::<storage::Share>(&self.all_participants())
+            .contains_for_all_ids::<storage::Share::<C>>(&self.all_participants())
         {
             return Ok(ProcessOutcome::Incomplete);
         }
@@ -442,16 +442,18 @@ impl<C: CT> SignParticipant<C> {
         let shares = self
             .all_participants()
             .into_iter()
-            .map(|pid| self.storage.remove::<storage::Share>(pid))
+            .map(|pid| self.storage.remove::<storage::Share::<C>>(pid))
             .collect::<Result<Vec<_>>>()?;
 
-        let x_projection = self.storage.remove::<storage::XProj>(self.id())?;
+        let x_projection = self.storage.remove::<storage::XProj::<C>>(self.id())?;
 
         // Sum up the signature shares and convert to BIP-0062 format (negating if the
         // sum is > group order /2)
-        let mut sum = shares.into_iter().fold(Scalar::ZERO, |a, b| a + b);
+        let mut sum = shares.into_iter().fold(C::Scalar::zero(), |a, b| a.add(&b.0));
 
-        sum.conditional_assign(&sum.negate(), sum.is_high());
+        if sum.is_high() {
+            sum = sum.negate();
+        } 
 
         let signature = Signature::try_from_scalars(x_projection, sum)?;
 
@@ -475,6 +477,7 @@ impl<C: CT> SignParticipant<C> {
 mod test {
     use crate::ParticipantIdentifier;
     use std::collections::HashMap;
+    use crate::curve::TestCT;
 
     use k256::{
         ecdsa::{signature::DigestVerifier, VerifyingKey},
@@ -484,6 +487,7 @@ mod test {
     use rand::{CryptoRng, Rng, RngCore};
     use sha3::{Digest, Keccak256};
     use tracing::debug;
+    use crate::curve::CT;
 
     use crate::{
         curve::TestCT as C,
@@ -493,7 +497,7 @@ mod test {
         participant::{ProcessOutcome, Status},
         presign,
         sign::{self, Signature},
-        utils::{bn_to_scalar, testing::init_testing},
+        utils::testing::init_testing,
         Identifier, ParticipantConfig, ProtocolParticipant,
     };
     type PresignRecord = presign::PresignRecord<C>;
@@ -506,7 +510,7 @@ mod test {
         quorum: &'a mut [SignParticipant],
         inbox: &mut Vec<Message>,
         rng: &mut R,
-    ) -> Option<(&'a SignParticipant, ProcessOutcome<Signature>)> {
+    ) -> Option<(&'a SignParticipant, ProcessOutcome<Signature<C>>)> {
         // Pick a random message to process
         if inbox.is_empty() {
             return None;
@@ -551,7 +555,7 @@ mod test {
 
         let secret_key = keygen_outputs
             .iter()
-            .map(|output| bn_to_scalar(output.private_key_share().as_ref()).unwrap())
+            .map(|output| TestCT::bn_to_scalar(output.private_key_share().as_ref()).unwrap())
             .fold(Scalar::ZERO, |a, b| a + b);
 
         let r = records[0].x_projection().unwrap();

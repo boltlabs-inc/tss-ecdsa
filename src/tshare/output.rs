@@ -5,7 +5,6 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use k256::Scalar;
 use std::collections::HashSet;
 
 use crate::{
@@ -23,13 +22,13 @@ use super::CoeffPublic;
 /// this party's private key share, and the public commitment to the
 /// coefficients corresponding to the final shamir secret sharing.
 #[derive(Debug, Clone)]
-pub struct Output<C> {
+pub struct Output<C: CT> {
     // Public coefficients for the polynomial
     public_coeffs: Vec<CoeffPublic<C>>,
     // Public keys for each participant
     public_key_shares: Vec<KeySharePublic<C>>,
     // A Scalar representing the private share,
-    private_key_share: Scalar, // TODO: C::Scalar
+    private_key_share: C::Scalar,
     // The chain code for the HD wallet
     chain_code: [u8; 32],
     // The chain code for the HD wallet
@@ -63,7 +62,7 @@ impl<C: CT> Output<C> {
     }
 
     /// Get the private share
-    pub fn private_key_share(&self) -> &Scalar {
+    pub fn private_key_share(&self) -> &C::Scalar {
         &self.private_key_share
     }
 
@@ -94,7 +93,7 @@ impl<C: CT> Output<C> {
     pub fn from_parts(
         public_coeffs: Vec<CoeffPublic<C>>,
         public_keys: Vec<KeySharePublic<C>>,
-        private_key_share: Scalar,
+        private_key_share: C::Scalar,
         chain_code: [u8; 32],
         rid: [u8; 32],
     ) -> Result<Self> {
@@ -135,7 +134,7 @@ impl<C: CT> Output<C> {
     ) -> (
         Vec<CoeffPublic<C>>,
         Vec<KeySharePublic<C>>,
-        Scalar,
+        C::Scalar,
         [u8; 32],
         [u8; 32],
     ) {
@@ -151,23 +150,24 @@ impl<C: CT> Output<C> {
 
 #[cfg(test)]
 mod tests {
+    use k256::Scalar;
     use std::marker::PhantomData;
 
     use super::*;
     use crate::{
-        curve::{TestCT as C, CT},
+        curve::{TestCT, CT},
         tshare::{self, CoeffPublic, TshareParticipant},
-        utils::{bn_to_scalar, testing::init_testing},
+        utils::testing::init_testing,
         ParticipantIdentifier,
     };
     use itertools::Itertools;
     use k256::elliptic_curve::Field;
     use libpaillier::unknown_order::BigNumber;
     use rand::Rng;
-    type Output = super::Output<C>;
-    type CoeffPrivate = tshare::CoeffPrivate<C>;
+    type Output<C> = super::Output<C>;
+    type CoeffPrivate<C> = tshare::CoeffPrivate<C>;
 
-    impl Output {
+    impl<C: CT + 'static> Output<C> {
         /// Simulate the valid output of a keygen run with the given
         /// participants.
         ///
@@ -193,13 +193,13 @@ mod tests {
             // simulate a random evaluation
             let converted_publics = public_key_shares
                 .iter()
-                .map(|x| CoeffPublic::new(*x.as_ref()))
+                .map(|x: &KeySharePublic<C>| CoeffPublic::new(*x.as_ref()))
                 .collect::<Vec<_>>();
             let converted_privates = private_key_shares
                 .iter()
                 .map(|x| CoeffPrivate {
-                    x: bn_to_scalar(x).unwrap(),
-                    phantom: PhantomData,
+                    x: C::bn_to_scalar(x).unwrap(),
+                    phantom: PhantomData::<C>,
                 })
                 .collect::<Vec<_>>();
             let eval_public_at_first_pid =
@@ -228,7 +228,7 @@ mod tests {
         let pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let output = Output::simulate(&pids);
+        let output: Output<TestCT> = Output::simulate(&pids);
 
         let (public_coeffs, public_keys, private_key, chain_code, rid) = output.into_parts();
         assert!(
@@ -252,7 +252,7 @@ mod tests {
                 .map(|&pid| {
                     // TODO #340: Replace with KeyShare methods once they exist.
                     let secret = Scalar::random(&mut rng);
-                    let public = C::GENERATOR.multiply_by_scalar(&secret);
+                    let public = TestCT::GENERATOR.multiply_by_scalar(&secret);
                     (
                         secret,
                         KeySharePublic::new(pid, public),

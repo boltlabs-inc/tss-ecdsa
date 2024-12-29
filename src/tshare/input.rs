@@ -9,9 +9,7 @@ use std::collections::HashSet;
 use tracing::error;
 
 use crate::{
-    auxinfo::{self, AuxInfoPrivate, AuxInfoPublic},
-    errors::{CallerError, InternalError, Result},
-    ParticipantConfig, ParticipantIdentifier,
+    auxinfo::{self, AuxInfoPrivate, AuxInfoPublic}, curve::CT, errors::{CallerError, InternalError, Result}, ParticipantConfig, ParticipantIdentifier
 };
 
 use super::share::CoeffPrivate;
@@ -19,7 +17,7 @@ use super::share::CoeffPrivate;
 /// Input needed for a
 /// [`TshareParticipant`](crate::tshare::TshareParticipant) to run.
 #[derive(Debug, Clone)]
-pub struct Input<C> {
+pub struct Input<C: CT> {
     /// How many parties are needed to sign.
     threshold: usize,
     /// An additive share to turn into Shamir sharing.
@@ -29,7 +27,7 @@ pub struct Input<C> {
     auxinfo_output: auxinfo::Output,
 }
 
-impl<C> Input<C> {
+impl<C: CT> Input<C> {
     /// Creates [`Input`] needed to run the additive to threshold
     /// conversion protocol.
     ///

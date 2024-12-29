@@ -16,7 +16,6 @@ use super::{
 };
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    curve::TestCT as C, // TODO: generalize.
     curve::CT,
     errors::{CallerError, InternalError, Result},
     keygen::{self, KeySharePrivate, KeySharePublic},
@@ -28,13 +27,12 @@ use crate::{
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
     tshare::share::EvalPublic,
-    utils::{bn_to_scalar, scalar_to_bn},
     zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
     Identifier,
     ParticipantConfig,
 };
 
-use k256::{elliptic_curve::PrimeField, Scalar};
+use crate::curve::ST;
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
@@ -69,7 +67,7 @@ mod storage {
         type Value = [u8; 32];
     }
     pub(super) struct PrivateCoeffs<C>(PhantomData<C>);
-    impl<C: Send + Sync + 'static> TypeTag for PrivateCoeffs<C> {
+    impl<C: CT + Send + Sync + 'static> TypeTag for PrivateCoeffs<C> {
         type Value = Vec<super::CoeffPrivate<C>>;
     }
     pub(super) struct PublicCoeffs<C>(PhantomData<C>);
@@ -81,7 +79,7 @@ mod storage {
         type Value = EvalPublic<C>;
     }
     pub(super) struct ValidPrivateEval<C>(PhantomData<C>);
-    impl<C: Send + Sync + 'static> TypeTag for ValidPrivateEval<C> {
+    impl<C: CT + Send + Sync + 'static> TypeTag for ValidPrivateEval<C> {
         type Value = super::EvalPrivate<C>;
     }
 }
@@ -106,7 +104,7 @@ from memory after it's securely stored. The public components (including the byt
 can be stored in the clear.
 **/
 #[derive(Debug)]
-pub struct TshareParticipant<C> {
+pub struct TshareParticipant<C: CT> {
     /// The current session identifier
     sid: Identifier,
     /// The current protocol input.
@@ -133,7 +131,7 @@ pub struct ToutofTHelper<C> {
     pub chain_code: [u8; 32],
 }
 
-impl ProtocolParticipant for TshareParticipant<C> {
+impl<C: CT + 'static> ProtocolParticipant for TshareParticipant<C> {
     type Input = Input<C>;
     type Output = Output<C>;
 
@@ -229,7 +227,7 @@ impl ProtocolParticipant for TshareParticipant<C> {
     }
 }
 
-impl InnerProtocolParticipant for TshareParticipant<C> {
+impl<C: CT + 'static> InnerProtocolParticipant for TshareParticipant<C> {
     type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
@@ -249,13 +247,13 @@ impl InnerProtocolParticipant for TshareParticipant<C> {
     }
 }
 
-impl<C> Broadcast for TshareParticipant<C> {
+impl<C: CT> Broadcast for TshareParticipant<C> {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant {
         &mut self.broadcast_participant
     }
 }
 
-impl TshareParticipant<C> {
+impl<C: CT + 'static> TshareParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this
@@ -699,7 +697,7 @@ impl TshareParticipant<C> {
                 &self.retrieve_context(),
                 precom,
                 &input,
-                &ProverSecret::new(&scalar_to_bn(sk)),
+                &ProverSecret::new(&C::scalar_to_bn(sk)),
                 &transcript,
             )?;
 
@@ -721,8 +719,8 @@ impl TshareParticipant<C> {
     }
 
     /// Assign a non-null x coordinate to each participant.
-    fn participant_coordinate(pid: ParticipantIdentifier) -> Scalar {
-        Scalar::from_u128(pid.as_u128()) + Scalar::ONE
+    fn participant_coordinate(pid: ParticipantIdentifier) -> C::Scalar {
+        C::Scalar::convert_from_u128(pid.as_u128()).add(&C::Scalar::one())
     }
 
     /// Evaluate the private share
@@ -731,17 +729,17 @@ impl TshareParticipant<C> {
         recipient_id: ParticipantIdentifier,
     ) -> EvalPrivate<C> {
         let x = Self::participant_coordinate(recipient_id);
-        assert!(x > Scalar::ZERO);
-        let mut sum = Scalar::ZERO;
+        assert!(x > C::Scalar::zero());
+        let mut sum = C::Scalar::zero();
         for coeff in coeff_privates.iter().rev() {
-            sum *= &x;
-            sum += &coeff.x;
+            sum.mul_assign(&x);
+            sum.add_assign(coeff.x);
         }
         EvalPrivate::new(sum)
     }
 
     /// Evaluate the private share at the point 0.
-    fn eval_private_share_at_zero(coeff_privates: &[CoeffPrivate<C>]) -> Scalar {
+    fn eval_private_share_at_zero(coeff_privates: &[CoeffPrivate<C>]) -> C::Scalar {
         coeff_privates[0].x
     }
 
@@ -774,7 +772,7 @@ impl TshareParticipant<C> {
         all_participants: Vec<ParticipantIdentifier>,
         rid: [u8; 32],
         chain_code: [u8; 32],
-        sum_tshare_input: Scalar,
+        sum_tshare_input: C::Scalar,
         threshold: usize,
     ) -> Result<ToutofTHelper<C>> {
         let real = all_participants.len();
@@ -786,7 +784,7 @@ impl TshareParticipant<C> {
             if all_participants.contains(pid) {
                 let output = tshares.get(pid).unwrap();
                 let private_key = output.private_key_share();
-                let private_share = KeySharePrivate::<C>::from_bigint(&scalar_to_bn(private_key));
+                let private_share = KeySharePrivate::<C>::from_bigint(&C::scalar_to_bn(private_key));
                 let public_share = C::GENERATOR.scale2(private_key);
                 let lagrange = Self::lagrange_coefficient_at_zero(pid, &all_participants);
                 let new_private_share: BigNumber =
@@ -823,7 +821,7 @@ impl TshareParticipant<C> {
         dbg!(threshold);
         if real >= threshold {
             assert_eq!(
-                bn_to_scalar(&sum_toft_private_shares).unwrap(),
+                C::bn_to_scalar(&sum_toft_private_shares).unwrap(),
                 sum_tshare_input
             );
         }
@@ -842,13 +840,13 @@ impl TshareParticipant<C> {
     pub fn reconstruct_secret(
         shares: HashMap<ParticipantIdentifier, KeySharePrivate<C>>,
         all: Vec<ParticipantIdentifier>,
-    ) -> Result<Scalar> {
-        let mut secret = Scalar::ZERO;
+    ) -> Result<C::Scalar> {
+        let mut secret = C::Scalar::zero();
         // compute the coordinates
         for (id, share) in shares.iter() {
             let lagrange = Self::lagrange_coefficient_at_zero(id, &all);
-            let t_out_of_t_share = lagrange * bn_to_scalar(share.as_ref()).unwrap();
-            secret += t_out_of_t_share;
+            let t_out_of_t_share = lagrange.mul(&C::bn_to_scalar(share.as_ref()).unwrap());
+            secret.add_assign(t_out_of_t_share);
         }
         Ok(secret)
     }
@@ -858,16 +856,16 @@ impl TshareParticipant<C> {
     pub fn lagrange_coefficient_at_zero(
         my_point: &ParticipantIdentifier,
         other_points: &Vec<ParticipantIdentifier>,
-    ) -> Scalar {
-        let mut result = Scalar::ONE;
+    ) -> C::Scalar {
+        let mut result = C::Scalar::one();
         for point in other_points {
             if point != my_point {
                 let point_coordinate = &Self::participant_coordinate(*point);
                 let my_point_coordinate = &Self::participant_coordinate(*my_point);
-                let numerator = Scalar::ZERO - point_coordinate;
-                let denominator = my_point_coordinate - point_coordinate;
+                let numerator = C::Scalar::zero().sub(point_coordinate);
+                let denominator = my_point_coordinate.sub(point_coordinate);
                 let inv = denominator.invert().unwrap();
-                result *= numerator * inv;
+                result.mul_assign(&numerator.mul(&inv));
             }
         }
         result
@@ -1028,11 +1026,12 @@ fn schnorr_proof_transcript(
 
 #[cfg(test)]
 mod tests {
+    use k256::Scalar;
+    use k256::elliptic_curve::PrimeField;
     use super::{super::input::Input, *};
     use crate::{
         auxinfo, curve::TestCT as C, utils::testing::init_testing, Identifier, ParticipantConfig,
     };
-    use k256::elliptic_curve::{Field, PrimeField};
     use rand::{thread_rng, CryptoRng, Rng, RngCore};
     use std::{collections::HashMap, iter::zip, marker::PhantomData};
     use tracing::debug;
@@ -1246,7 +1245,7 @@ mod tests {
     fn generate_polynomial<R: Rng>(t: usize, rng: &mut R) -> Vec<Scalar> {
         let mut coefficients = Vec::with_capacity(t);
         for _ in 0..t {
-            coefficients.push(Scalar::random(&mut *rng));
+            coefficients.push(Scalar::random());
         }
         coefficients
     }
