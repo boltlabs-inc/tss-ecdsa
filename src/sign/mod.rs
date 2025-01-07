@@ -23,7 +23,10 @@ mod non_interactive_sign;
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
-use crate::{curve::CT, errors::{CallerError, InternalError, Result}};
+use crate::{
+    curve::CT,
+    errors::{CallerError, InternalError, Result},
+};
 
 pub use interactive_sign::participant::{Input as InteractiveInput, InteractiveSignParticipant};
 pub use non_interactive_sign::participant::{Input, SignParticipant};
@@ -43,7 +46,7 @@ impl<C: CT> Signature<C> {
                  error!("Failed to generate `Signature` from `Scalar`s but they should be correctly formatted {e:?}");
                  InternalError::InternalInvariantFailed
              })?,  std::marker::PhantomData::<C>)
-            ) 
+            )
     }
 
     /// Compute the recovery ID of this signature using "trial recovery".

@@ -9,7 +9,10 @@ use std::collections::HashSet;
 use tracing::error;
 
 use crate::{
-    auxinfo::{self, AuxInfoPrivate, AuxInfoPublic}, curve::CT, errors::{CallerError, InternalError, Result}, ParticipantConfig, ParticipantIdentifier
+    auxinfo::{self, AuxInfoPrivate, AuxInfoPublic},
+    curve::CT,
+    errors::{CallerError, InternalError, Result},
+    ParticipantConfig, ParticipantIdentifier,
 };
 
 use super::share::CoeffPrivate;

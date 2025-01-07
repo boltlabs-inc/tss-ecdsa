@@ -28,8 +28,7 @@ use crate::{
     run_only_once,
     tshare::share::EvalPublic,
     zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
-    Identifier,
-    ParticipantConfig,
+    Identifier, ParticipantConfig,
 };
 
 use crate::curve::ST;
@@ -301,7 +300,7 @@ impl<C: CT + 'static> TshareParticipant<C> {
             if let Some(private) = self.input.share() {
                 privates[0] = private.clone();
                 publics[0] = private.to_public();
-            } 
+            }
 
             (privates, publics)
         };
@@ -782,7 +781,8 @@ impl<C: CT + 'static> TshareParticipant<C> {
             if all_participants.contains(pid) {
                 let output = tshares.get(pid).unwrap();
                 let private_key = output.private_key_share();
-                let private_share = KeySharePrivate::<C>::from_bigint(&C::scalar_to_bn(private_key));
+                let private_share =
+                    KeySharePrivate::<C>::from_bigint(&C::scalar_to_bn(private_key));
                 let public_share = C::GENERATOR.scale2(private_key);
                 let lagrange = Self::lagrange_coefficient_at_zero(pid, &all_participants);
                 let new_private_share: BigNumber =
@@ -1022,12 +1022,11 @@ fn schnorr_proof_transcript(
 
 #[cfg(test)]
 mod tests {
-    use k256::Scalar;
-    use k256::elliptic_curve::PrimeField;
     use super::{super::input::Input, *};
     use crate::{
         auxinfo, curve::TestCT as C, utils::testing::init_testing, Identifier, ParticipantConfig,
     };
+    use k256::{elliptic_curve::PrimeField, Scalar};
     use rand::{thread_rng, CryptoRng, Rng, RngCore};
     use std::{collections::HashMap, iter::zip, marker::PhantomData};
     use tracing::debug;

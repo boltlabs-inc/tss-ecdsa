@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve::CT,
+    curve::{CT, ST},
     errors::{CallerError, InternalError, Result},
     paillier::{Ciphertext, DecryptionKey, EncryptionKey},
 };
@@ -17,7 +17,6 @@ use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, marker::PhantomData, ops::Add};
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
-use crate::curve::ST;
 
 /// Encrypted [`CoeffPrivate`].
 #[derive(Clone, Serialize, Deserialize)]
@@ -73,7 +72,7 @@ pub struct CoeffPrivate<C: CT> {
 pub struct EvalPrivate<C: CT> {
     /// A BigNumber element in the range [1, q) representing a polynomial
     /// coefficient
-    pub x: C::Scalar, 
+    pub x: C::Scalar,
     phantom: PhantomData<C>,
 }
 

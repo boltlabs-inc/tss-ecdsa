@@ -8,7 +8,7 @@
 
 use crate::{
     auxinfo::AuxInfoPublic,
-    curve::CT,
+    curve::{CT, ST},
     errors::{InternalError, Result},
     messages::{Message, MessageType, PresignMessageType},
     presign::{
@@ -27,7 +27,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
-use crate::curve::ST;
 
 #[derive(Clone, ZeroizeOnDrop)]
 pub(crate) struct Private<C: CT> {
@@ -110,7 +109,10 @@ impl<C: CT> TryFrom<&Message> for Public<C> {
         // Normal `Scalar` deserialization doesn't check that the value is in range.
         // Here we convert to bytes and back, using the checked `from_repr` method to
         // make sure the value is a valid, canonical Scalar.
-        if C::Scalar::from_bytes(public.delta.to_bytes().as_slice()).is_none().into() {
+        if C::Scalar::from_bytes(public.delta.to_bytes().as_slice())
+            .is_none()
+            .into()
+        {
             error!("Deserialized round 3 message `delta` field is out of range");
             Err(InternalError::ProtocolError(Some(message.from())))?
         }

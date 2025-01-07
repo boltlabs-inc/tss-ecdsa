@@ -8,7 +8,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    curve::CT, errors::{InternalError, Result}, messages::{Message, MessageType, SignMessageType}
+    curve::CT,
+    errors::{InternalError, Result},
+    messages::{Message, MessageType, SignMessageType},
 };
 
 /// A single participant's share of the signature.

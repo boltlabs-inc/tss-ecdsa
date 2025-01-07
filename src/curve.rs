@@ -1,17 +1,22 @@
 //! Elliptic Curve abstraction
 
 use generic_array::GenericArray;
-use k256::{elliptic_curve::{scalar::IsHigh, Field, PrimeField, ScalarPrimitive}, EncodedPoint, ProjectivePoint, Scalar as K256_Scalar};
+use k256::{
+    elliptic_curve::{scalar::IsHigh, Field, PrimeField, ScalarPrimitive},
+    EncodedPoint, FieldBytes, ProjectivePoint, Scalar as K256_Scalar,
+};
 use libpaillier::unknown_order::BigNumber;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, ops::Add};
 use tracing::error;
 use zeroize::{Zeroize, Zeroizing};
-use k256::FieldBytes;
 
 use crate::{
-    errors::{InternalError::{self, InternalInvariantFailed}, Result},
+    errors::{
+        InternalError::{self, InternalInvariantFailed},
+        Result,
+    },
     utils::{k256_order, CurvePoint},
 };
 
@@ -74,21 +79,29 @@ pub trait CT:
 
     /// Convert BigNumber to Scalar.
     fn bn_to_scalar(bn: &BigNumber) -> Result<Self::Scalar>;
-    
+
     /// Multiply `self` by a [`BigNumber`] point, which is first converted to
     /// the subjacent [`Scalar`] field (taken mod `q`, where `q` is the
     /// order of the curve).
     fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self>;
-    
+
     fn multiply_by_scalar(&self, point: &Self::Scalar) -> Self;
-    
+
     // Convert from Scalar to BigNumber
    fn scalar_to_bn(x: &Self::Scalar) -> BigNumber;
 }
 
 /// Scalar trait.
-pub trait ST: 
-    Sync + Send + Clone + Copy + Debug + PartialEq + PartialOrd + Eq + Zeroize
+pub trait ST:
+    Sync
+    + Send
+    + Clone
+    + Copy
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Eq
+    + Zeroize
     + Serialize
     + for<'de> Deserialize<'de>
     + Add<Output = Self>
@@ -171,7 +184,7 @@ impl ST for K256_Scalar {
     fn sub(&self, other: &Self) -> Self {
         k256::Scalar::sub(self, other)
     }
-    
+
     fn negate(&self) -> Self {
         k256::Scalar::negate(self)
     }
@@ -289,7 +302,7 @@ impl CT for CurvePoint {
 
         Ok(ret)
     }
-    
+
     fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
         let s = Zeroizing::new(Self::bn_to_scalar(point)?);
         let p = self.multiply_by_scalar(&s);
@@ -299,7 +312,7 @@ impl CT for CurvePoint {
     fn multiply_by_scalar(&self, point: &Self::Scalar) -> Self {
         self.multiply_by_scalar(point)
     }
-    
+
     // Convert from k256::Scalar to BigNumber
     fn scalar_to_bn(x: &Self::Scalar) -> BigNumber {
         let bytes = x.to_repr();
@@ -311,7 +324,10 @@ impl CT for CurvePoint {
 mod tests {
     use libpaillier::unknown_order::BigNumber;
 
-    use crate::{curve::{TestCT, CT}, utils::testing::init_testing};
+    use crate::{
+        curve::{TestCT, CT},
+        utils::testing::init_testing,
+    };
 
     #[test]
     fn test_bn_to_scalar_neg() {

@@ -1109,7 +1109,7 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
 
         let delta_scalar = C::bn_to_scalar(&delta)?;
         let chi_scalar = C::bn_to_scalar(&chi)?;
-        
+
         let mut ret_publics = HashMap::new();
         for (other_id, round_three_input) in other_participant_inputs {
             let mut transcript = Transcript::new(b"PiLogProof");
@@ -1134,7 +1134,7 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             };
             let _ = ret_publics.insert(*other_id, val);
         }
-        
+
         let private = round_three::Private {
             k: sender_r1_priv.k.clone(),
             chi: chi_scalar,
@@ -1162,7 +1162,16 @@ mod test {
     use tracing::debug;
 
     use crate::{
-        auxinfo, broadcast::participant, curve::{TestCT as C, CT}, errors::Result, keygen, messages::{Message, MessageType, PresignMessageType}, participant::{ProcessOutcome, Status}, presign::{self, Input}, utils::testing::init_testing, Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant
+        auxinfo,
+        broadcast::participant,
+        curve::{TestCT as C, CT},
+        errors::Result,
+        keygen,
+        messages::{Message, MessageType, PresignMessageType},
+        participant::{ProcessOutcome, Status},
+        presign::{self, Input},
+        utils::testing::init_testing,
+        Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
     };
     type PresignRecord = presign::PresignRecord<C>;
 

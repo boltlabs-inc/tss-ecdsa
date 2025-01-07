@@ -25,11 +25,7 @@ use crate::{
     run_only_once,
     sign::{non_interactive_sign::share::SignatureShare, Signature},
     zkp::ProofContext,
-    Identifier,
-    ParticipantConfig,
-    ParticipantIdentifier,
-    PresignRecord,
-    ProtocolParticipant,
+    Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
 };
 
 /// A participant that runs the non-interactive signing protocol.
@@ -179,7 +175,9 @@ impl<C: CT + 'static> SignContext<C> {
 
 mod storage {
 
-    use crate::{curve::CT, local_storage::TypeTag, sign::non_interactive_sign::share::SignatureShare};
+    use crate::{
+        curve::CT, local_storage::TypeTag, sign::non_interactive_sign::share::SignatureShare,
+    };
     pub(super) struct Share<C: CT> {
         _c: std::marker::PhantomData<C>,
     }
@@ -187,8 +185,8 @@ mod storage {
         type Value = SignatureShare<C>;
     }
 
-    pub(super) struct XProj<C: CT>{
-        _c: std::marker::PhantomData<C>
+    pub(super) struct XProj<C: CT> {
+        _c: std::marker::PhantomData<C>,
     }
     impl<C: CT + 'static> TypeTag for XProj<C> {
         type Value = C::Scalar;
@@ -350,7 +348,7 @@ impl<C: CT + 'static> SignParticipant<C> {
         // If our generated share was the last one, complete the protocol.
         if self
             .storage
-            .contains_for_all_ids::<storage::Share::<C>>(&self.all_participants())
+            .contains_for_all_ids::<storage::Share<C>>(&self.all_participants())
         {
             let round_one_outcome = self.compute_output()?;
             ready_outcome
@@ -371,7 +369,8 @@ impl<C: CT + 'static> SignParticipant<C> {
 
         // Interpret the message digest as an integer mod `q`. This matches the way that
         // the k256 library converts a digest to a scalar.
-        //let digest = <Scalar as Reduce<U256>>::reduce_bytes(&self.input.digest_hash());
+        //let digest = <Scalar as
+        // Reduce<U256>>::reduce_bytes(&self.input.digest_hash());
         let digest_bytes = self.input.digest_hash();
         // Compute the digest as a C::Scalar
         let digest = C::Scalar::from_bytes(&digest_bytes).unwrap();
@@ -381,9 +380,11 @@ impl<C: CT + 'static> SignParticipant<C> {
 
         // Compute the share
         let share = SignatureShare::<C>::new(
-            record.mask_share().mul(&digest).add(
-                &x_projection.mul(&record.masked_key_share())).add(
-                &x_projection.mul(&record.mask_share().mul(&self.input.shift_value()))),
+            record
+                .mask_share()
+                .mul(&digest)
+                .add(&x_projection.mul(&record.masked_key_share()))
+                .add(&x_projection.mul(&record.mask_share().mul(&self.input.shift_value()))),
         );
 
         // Erase the presign record
@@ -391,9 +392,9 @@ impl<C: CT + 'static> SignParticipant<C> {
 
         // Save pieces for our own use later
         self.storage
-            .store::<storage::Share::<C>>(self.id(), share.clone());
+            .store::<storage::Share<C>>(self.id(), share.clone());
         self.storage
-            .store::<storage::XProj::<C>>(self.id(), x_projection);
+            .store::<storage::XProj<C>>(self.id(), x_projection);
 
         // Form output messages
         self.message_for_other_participants(
@@ -412,17 +413,17 @@ impl<C: CT + 'static> SignParticipant<C> {
             return Ok(ProcessOutcome::Incomplete);
         }
 
-        self.check_for_duplicate_msg::<storage::Share::<C>>(message.from())?;
+        self.check_for_duplicate_msg::<storage::Share<C>>(message.from())?;
 
         // Save this signature share
         let share = SignatureShare::try_from(message)?;
         self.storage
-            .store_once::<storage::Share::<C>>(message.from(), share)?;
+            .store_once::<storage::Share<C>>(message.from(), share)?;
 
         // If we haven't received shares from all parties, stop here
         if !self
             .storage
-            .contains_for_all_ids::<storage::Share::<C>>(&self.all_participants())
+            .contains_for_all_ids::<storage::Share<C>>(&self.all_participants())
         {
             return Ok(ProcessOutcome::Incomplete);
         }
@@ -442,18 +443,20 @@ impl<C: CT + 'static> SignParticipant<C> {
         let shares = self
             .all_participants()
             .into_iter()
-            .map(|pid| self.storage.remove::<storage::Share::<C>>(pid))
+            .map(|pid| self.storage.remove::<storage::Share<C>>(pid))
             .collect::<Result<Vec<_>>>()?;
 
-        let x_projection = self.storage.remove::<storage::XProj::<C>>(self.id())?;
+        let x_projection = self.storage.remove::<storage::XProj<C>>(self.id())?;
 
         // Sum up the signature shares and convert to BIP-0062 format (negating if the
         // sum is > group order /2)
-        let mut sum = shares.into_iter().fold(C::Scalar::zero(), |a, b| a.add(&b.0));
+        let mut sum = shares
+            .into_iter()
+            .fold(C::Scalar::zero(), |a, b| a.add(&b.0));
 
         if sum.is_high() {
             sum = sum.negate();
-        } 
+        }
 
         let signature = Signature::try_from_scalars(x_projection, sum)?;
 
@@ -475,10 +478,10 @@ impl<C: CT + 'static> SignParticipant<C> {
 
 #[cfg(test)]
 mod test {
-    use crate::ParticipantIdentifier;
+    use crate::{curve::TestCT, ParticipantIdentifier};
     use std::collections::HashMap;
-    use crate::curve::TestCT;
 
+    use crate::curve::CT;
     use k256::{
         ecdsa::{signature::DigestVerifier, VerifyingKey},
         elliptic_curve::{ops::Reduce, scalar::IsHigh, subtle::ConditionallySelectable},
@@ -487,7 +490,6 @@ mod test {
     use rand::{CryptoRng, Rng, RngCore};
     use sha3::{Digest, Keccak256};
     use tracing::debug;
-    use crate::curve::CT;
 
     use crate::{
         curve::TestCT as C,

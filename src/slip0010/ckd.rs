@@ -1,6 +1,9 @@
 //! Utilities for Child Key Derivation (CKD) according to SLIP-0010.
 
-use crate::{curve::{CT, ST}, errors::CallerError};
+use crate::{
+    curve::{CT, ST},
+    errors::CallerError,
+};
 use generic_array::{
     typenum::{U32, U64},
     GenericArray,

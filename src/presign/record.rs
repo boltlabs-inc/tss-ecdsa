@@ -246,13 +246,12 @@ mod tests {
     use rand::{rngs::StdRng, CryptoRng, Rng, RngCore, SeedableRng};
 
     use crate::{
-        curve::TestCT as C,
+        curve::{TestCT as C, CT},
         keygen,
         presign::{participant::presign_record_set_is_valid, record::RECORD_TAG},
         utils::testing::init_testing,
         ParticipantConfig,
     };
-    use crate::curve::CT;
     type PresignRecord = super::PresignRecord<C>;
 
     impl PresignRecord {
