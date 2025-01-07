@@ -639,7 +639,7 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo::{self, AuxInfoParticipant, AuxInfoPublic},
-        curve::{TestCT as C, TestST},
+        curve::{TestCT, TestST},
         keygen::{KeySharePublic, KeygenParticipant},
         messages,
         participant::Status,
@@ -659,8 +659,8 @@ mod tests {
     use sha3::{Digest, Keccak256};
     use std::{collections::HashMap, marker::PhantomData, vec};
     use tracing::debug;
-    type SignParticipant = sign::SignParticipant<C>;
-    type TshareParticipant = tshare::TshareParticipant<C>;
+    type SignParticipant = sign::SignParticipant<TestCT>;
+    type TshareParticipant = tshare::TshareParticipant<TestCT>;
 
     // Negative test checking whether the message has the correct session id
     #[test]
@@ -672,7 +672,8 @@ mod tests {
         let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
         let auxinfo_sid = Identifier::random(&mut rng);
         let mut participant =
-            Participant::<AuxInfoParticipant>::from_config(config, auxinfo_sid, ()).unwrap();
+            Participant::<AuxInfoParticipant<TestCT>>::from_config(config, auxinfo_sid, ())
+                .unwrap();
 
         // Make a message with the wrong session ID
         let message = participant.initialize_message()?;
@@ -707,7 +708,8 @@ mod tests {
         let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
         let auxinfo_sid = Identifier::random(&mut rng);
         let mut participant =
-            Participant::<AuxInfoParticipant>::from_config(config, auxinfo_sid, ()).unwrap();
+            Participant::<AuxInfoParticipant<TestCT>>::from_config(config, auxinfo_sid, ())
+                .unwrap();
 
         // Make a message with the wrong participant to field
         let message = participant.initialize_message()?;
@@ -741,7 +743,8 @@ mod tests {
         let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
         let auxinfo_sid = Identifier::random(&mut rng);
         let mut participant =
-            Participant::<AuxInfoParticipant>::from_config(config, auxinfo_sid, ()).unwrap();
+            Participant::<AuxInfoParticipant<TestCT>>::from_config(config, auxinfo_sid, ())
+                .unwrap();
 
         // Make a message with the wrong protocol type
         let message = participant.initialize_message()?;
@@ -776,7 +779,8 @@ mod tests {
         let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
         let auxinfo_sid = Identifier::random(&mut rng);
         let mut participant =
-            Participant::<AuxInfoParticipant>::from_config(config, auxinfo_sid, ()).unwrap();
+            Participant::<AuxInfoParticipant<TestCT>>::from_config(config, auxinfo_sid, ())
+                .unwrap();
 
         //message with the wrong sender participant
         let message = participant.initialize_message()?;
@@ -824,7 +828,7 @@ mod tests {
         // Pick a random participant to process
         let participant = quorum.iter_mut().choose(rng).unwrap();
 
-        let inbox = inboxes.get_mut(&participant.id).unwrap();
+        let inbox: &mut Vec<Message> = inboxes.get_mut(&participant.id).unwrap();
         if inbox.is_empty() {
             // No messages to process for this participant, so pick another participant
             return Ok(None);
@@ -905,8 +909,10 @@ mod tests {
     }
 
     struct AuxInfoHelperOutput {
-        auxinfo_outputs:
-            HashMap<ParticipantIdentifier, <AuxInfoParticipant as ProtocolParticipant>::Output>,
+        auxinfo_outputs: HashMap<
+            ParticipantIdentifier,
+            <AuxInfoParticipant<TestCT> as ProtocolParticipant>::Output,
+        >,
         inboxes: HashMap<ParticipantIdentifier, Vec<Message>>,
     }
 
@@ -923,7 +929,8 @@ mod tests {
             .clone()
             .into_iter()
             .map(|config| {
-                Participant::<AuxInfoParticipant>::from_config(config, auxinfo_sid, ()).unwrap()
+                Participant::<AuxInfoParticipant<TestCT>>::from_config(config, auxinfo_sid, ())
+                    .unwrap()
             })
             .collect::<Vec<_>>();
 
@@ -936,12 +943,12 @@ mod tests {
 
         let mut auxinfo_outputs: HashMap<
             ParticipantIdentifier,
-            <AuxInfoParticipant as ProtocolParticipant>::Output,
+            <AuxInfoParticipant<TestCT> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         // Initialize auxinfo for all parties
         for participant in &auxinfo_quorum {
-            let inbox = inboxes.get_mut(&participant.id).unwrap();
+            let inbox: &mut Vec<Message> = inboxes.get_mut(&participant.id).unwrap();
             inbox.push(participant.initialize_message()?);
         }
 
@@ -970,8 +977,10 @@ mod tests {
     }
 
     struct KeygenHelperOutput {
-        keygen_outputs:
-            HashMap<ParticipantIdentifier, <KeygenParticipant<C> as ProtocolParticipant>::Output>,
+        keygen_outputs: HashMap<
+            ParticipantIdentifier,
+            <KeygenParticipant<TestCT> as ProtocolParticipant>::Output,
+        >,
     }
 
     // Receive as input a vector of configs and the inboxes from auxinfo_helper
@@ -988,13 +997,14 @@ mod tests {
             .clone()
             .into_iter()
             .map(|config| {
-                Participant::<KeygenParticipant<C>>::from_config(config, keygen_sid, ()).unwrap()
+                Participant::<KeygenParticipant<TestCT>>::from_config(config, keygen_sid, ())
+                    .unwrap()
             })
             .collect::<Vec<_>>();
 
         let mut keygen_outputs: HashMap<
             ParticipantIdentifier,
-            <KeygenParticipant<C> as ProtocolParticipant>::Output,
+            <KeygenParticipant<TestCT> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         // Initialize keygen for all participants
@@ -1026,7 +1036,7 @@ mod tests {
     }
 
     struct TshareHelperOutput {
-        tshare_inputs: Vec<tshare::Input<C>>,
+        tshare_inputs: Vec<tshare::Input<TestCT>>,
         tshare_outputs:
             HashMap<ParticipantIdentifier, <TshareParticipant as ProtocolParticipant>::Output>,
     }
@@ -1037,7 +1047,7 @@ mod tests {
         configs: Vec<ParticipantConfig>,
         auxinfo_outputs: HashMap<
             ParticipantIdentifier,
-            <AuxInfoParticipant as ProtocolParticipant>::Output,
+            <AuxInfoParticipant<TestCT> as ProtocolParticipant>::Output,
         >,
         threshold: usize,
         mut rng: StdRng,
@@ -1116,16 +1126,16 @@ mod tests {
         configs: Vec<ParticipantConfig>,
         mut auxinfo_outputs: HashMap<
             ParticipantIdentifier,
-            <AuxInfoParticipant as ProtocolParticipant>::Output,
+            <AuxInfoParticipant<TestCT> as ProtocolParticipant>::Output,
         >,
         mut keygen_outputs: HashMap<
             ParticipantIdentifier,
-            <KeygenParticipant<C> as ProtocolParticipant>::Output,
+            <KeygenParticipant<TestCT> as ProtocolParticipant>::Output,
         >,
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         mut rng: StdRng,
     ) -> Result<
-        HashMap<ParticipantIdentifier, <PresignParticipant<C> as ProtocolParticipant>::Output>,
+        HashMap<ParticipantIdentifier, <PresignParticipant<TestCT> as ProtocolParticipant>::Output>,
     > {
         let QUORUM_REAL = auxinfo_outputs.len();
 
@@ -1150,13 +1160,13 @@ mod tests {
             .into_iter()
             .zip(presign_inputs)
             .map(|(config, input)| {
-                Participant::<PresignParticipant<C>>::from_config(config, presign_sid, input)
+                Participant::<PresignParticipant<TestCT>>::from_config(config, presign_sid, input)
                     .unwrap()
             })
             .collect::<Vec<_>>();
         let mut presign_outputs: HashMap<
             ParticipantIdentifier,
-            <PresignParticipant<C> as ProtocolParticipant>::Output,
+            <PresignParticipant<TestCT> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         for participant in &mut presign_quorum {
@@ -1186,9 +1196,11 @@ mod tests {
 
     pub struct SignHelperInput {
         chain_code: [u8; 32],
-        presign_outputs:
-            HashMap<ParticipantIdentifier, <PresignParticipant<C> as ProtocolParticipant>::Output>,
-        public_key_shares: Vec<KeySharePublic<C>>,
+        presign_outputs: HashMap<
+            ParticipantIdentifier,
+            <PresignParticipant<TestCT> as ProtocolParticipant>::Output,
+        >,
+        public_key_shares: Vec<KeySharePublic<TestCT>>,
         saved_public_key: VerifyingKey,
         child_index: u32,
         threshold: usize,
@@ -1221,7 +1233,7 @@ mod tests {
         // if child_index is None, index is zero, otherwise it is child_index
         let index = child_index;
 
-        let shift_input: CKDInput<C> =
+        let shift_input: CKDInput<TestCT> =
             slip0010::ckd::CKDInput::new(None, saved_public_key_bytes.to_vec(), chain_code, index)?;
         let ckd_output = slip0010::ckd::CKDInput::derive_public_shift(&shift_input);
         let shift_scalar = ckd_output.private_key;
@@ -1515,12 +1527,13 @@ mod tests {
             .clone()
             .into_iter()
             .map(|config| {
-                Participant::<KeygenParticipant<C>>::from_config(config, keygen_sid, ()).unwrap()
+                Participant::<KeygenParticipant<TestCT>>::from_config(config, keygen_sid, ())
+                    .unwrap()
             })
             .collect::<Vec<_>>();
         let mut keygen_outputs: HashMap<
             ParticipantIdentifier,
-            <KeygenParticipant<C> as ProtocolParticipant>::Output,
+            <KeygenParticipant<TestCT> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         // Initialize keygen for all participants
@@ -1568,13 +1581,14 @@ mod tests {
             .clone()
             .into_iter()
             .map(|config| {
-                Participant::<AuxInfoParticipant>::from_config(config, auxinfo_sid, ()).unwrap()
+                Participant::<AuxInfoParticipant<TestCT>>::from_config(config, auxinfo_sid, ())
+                    .unwrap()
             })
             .collect::<Vec<_>>();
 
         let mut auxinfo_outputs: HashMap<
             ParticipantIdentifier,
-            <AuxInfoParticipant as ProtocolParticipant>::Output,
+            <AuxInfoParticipant<TestCT> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         // Initialize auxinfo for all parties
@@ -1634,7 +1648,9 @@ mod tests {
         let sign_sid = Identifier::random(rng);
         let mut sign_quorum = std::iter::zip(configs, sign_inputs)
             .map(|(config, input)| {
-                Participant::<InteractiveSignParticipant<C>>::from_config(config, sign_sid, input)
+                Participant::<InteractiveSignParticipant<TestCT>>::from_config(
+                    config, sign_sid, input,
+                )
             })
             .collect::<Result<Vec<_>>>()?;
 

@@ -323,7 +323,7 @@ struct Worker {
     /// Outputs of successful key generation.
     key_gen_material: StoredOutput<KeygenParticipant<C>>,
     /// Outputs of successful aux info.
-    aux_info: StoredOutput<AuxInfoParticipant>,
+    aux_info: StoredOutput<AuxInfoParticipant<C>>,
     /// Outputs of successful presign.
     presign_records: StoredOutput<PresignParticipant<C>>,
     /// Signatures generated from successful signing runs.
@@ -413,7 +413,7 @@ impl Worker {
         // Note: Missing inputs to aux-info see issues
         // #242 and #243.
         let _output: &Output<C> = self.key_gen_material.retrieve(&key_id);
-        self.new_sub_protocol::<AuxInfoParticipant>(sid, (), key_id)
+        self.new_sub_protocol::<AuxInfoParticipant<C>>(sid, (), key_id)
     }
 
     fn new_presign(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
@@ -448,7 +448,7 @@ impl Worker {
     }
 
     fn process_auxinfo(&mut self, sid: SessionId, incoming: Message) -> anyhow::Result<()> {
-        let (p, key_id) = self.participants.get_mut::<AuxInfoParticipant>(&sid);
+        let (p, key_id) = self.participants.get_mut::<AuxInfoParticipant<C>>(&sid);
         Self::process_message(p, key_id, incoming, &mut self.aux_info, &self.outgoing)
     }
 

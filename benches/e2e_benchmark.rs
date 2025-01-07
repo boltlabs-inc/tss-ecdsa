@@ -114,7 +114,7 @@ fn run_benchmarks_for_given_size(c: &mut Criterion, num_players: usize) {
     let auxinfo_sid = Identifier::random(&mut rng);
     let auxinfo_inputs = std::iter::repeat(()).take(num_players).collect::<Vec<_>>();
     c.bench_function(&format!("Auxinfo with {num_players} nodes"), |b| {
-        b.iter(|| run_subprotocol::<AuxInfoParticipant>(auxinfo_sid, auxinfo_inputs.clone()))
+        b.iter(|| run_subprotocol::<AuxInfoParticipant<C>>(auxinfo_sid, auxinfo_inputs.clone()))
     });
 
     // Prepare to benchmark presign:
@@ -126,7 +126,7 @@ fn run_benchmarks_for_given_size(c: &mut Criterion, num_players: usize) {
     // 2. Run auxinfo and get outputs
     let auxinfo_inputs = std::iter::repeat(()).take(num_players).collect();
     let auxinfo_outputs =
-        run_subprotocol::<AuxInfoParticipant>(auxinfo_sid, auxinfo_inputs).unwrap();
+        run_subprotocol::<AuxInfoParticipant<C>>(auxinfo_sid, auxinfo_inputs).unwrap();
 
     // 3. Assemble presign input from keygen and auxinfo.
     let presign_inputs = auxinfo_outputs
