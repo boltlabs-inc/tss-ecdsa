@@ -165,7 +165,7 @@ impl<C: CT> KeyUpdatePublic<C> {
     }
 
     pub(crate) fn sum(participant: ParticipantIdentifier, shares: &[Self]) -> Self {
-        let sum = shares.iter().fold(C::IDENTITY, |sum, o| sum + o.X.clone());
+        let sum = shares.iter().fold(C::IDENTITY, |sum, o| sum + o.X);
         Self {
             participant,
             X: sum,
@@ -173,7 +173,7 @@ impl<C: CT> KeyUpdatePublic<C> {
     }
 
     pub(crate) fn apply(&self, current_pk: &KeySharePublic<C>) -> KeySharePublic<C> {
-        let sum = current_pk.as_ref().clone() + self.X.clone();
+        let sum = *current_pk.as_ref() + self.X;
         KeySharePublic::new(current_pk.participant(), sum)
     }
 }

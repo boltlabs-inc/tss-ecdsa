@@ -111,7 +111,6 @@ impl<C: CT> TryFrom<&Message> for Public<C> {
         // make sure the value is a valid, canonical Scalar.
         if C::Scalar::from_bytes(public.delta.to_bytes().as_slice())
             .is_none()
-            .into()
         {
             error!("Deserialized round 3 message `delta` field is out of range");
             Err(InternalError::ProtocolError(Some(message.from())))?

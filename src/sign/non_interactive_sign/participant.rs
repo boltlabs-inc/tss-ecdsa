@@ -132,7 +132,7 @@ impl<C: CT> Input<C> {
         let public_key_point = self
             .public_key_shares
             .iter()
-            .fold(C::IDENTITY, |sum, share| sum + share.as_ref().clone())
+            .fold(C::IDENTITY, |sum, share| sum + *share.as_ref())
             .into();
 
         VerifyingKey::from_encoded_point(&public_key_point).map_err(|_| {
@@ -320,7 +320,7 @@ impl<C: CT + 'static> SignParticipant<C> {
         // Add up all the key shares
         let public_key_point = public_key_shares
             .iter()
-            .fold(C::IDENTITY, |sum, share| sum + share.as_ref().clone());
+            .fold(C::IDENTITY, |sum, share| sum + *share.as_ref());
 
         let shifted_point = C::GENERATOR.scale2(&shift);
         let shifted_public_key_point = public_key_point + shifted_point;
@@ -383,7 +383,7 @@ impl<C: CT + 'static> SignParticipant<C> {
             record
                 .mask_share()
                 .mul(&digest)
-                .add(&x_projection.mul(&record.masked_key_share()))
+                .add(&x_projection.mul(record.masked_key_share()))
                 .add(&x_projection.mul(&record.mask_share().mul(&self.input.shift_value()))),
         );
 

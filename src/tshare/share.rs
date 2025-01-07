@@ -106,7 +106,7 @@ impl<C: CT> Debug for CoeffPrivate<C> {
 /// are interpreted as evaluations.
 impl<C: CT> CoeffPrivate<C> {
     /// Sample a private key share uniformly at random.
-    pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
+    pub(crate) fn random() -> Self {
         let random_bn = C::Scalar::random();
         CoeffPrivate {
             x: random_bn,
@@ -130,7 +130,7 @@ impl<C: CT> CoeffPrivate<C> {
 /// are interpreted as evaluations.
 impl<C: CT> EvalPrivate<C> {
     /// Sample a private key share uniformly at random.
-    pub fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
+    pub fn random() -> Self {
         let random_scalar = C::Scalar::random();
         EvalPrivate::new(random_scalar)
     }
@@ -168,10 +168,8 @@ impl<C: CT> CoeffPublic<C> {
     }
 
     /// Generate a new [`CoeffPrivate`] and [`CoeffPublic`].
-    pub(crate) fn new_pair<R: RngCore + CryptoRng>(
-        rng: &mut R,
-    ) -> Result<(CoeffPrivate<C>, CoeffPublic<C>)> {
-        let private_share = CoeffPrivate::random(rng);
+    pub(crate) fn new_pair() -> Result<(CoeffPrivate<C>, CoeffPublic<C>)> {
+        let private_share = CoeffPrivate::random();
         let public_share = private_share.to_public();
         Ok((private_share, public_share))
     }
@@ -189,7 +187,7 @@ impl<C: CT> Add<&CoeffPublic<C>> for CoeffPublic<C> {
 
     fn add(self, rhs: &Self) -> Self::Output {
         CoeffPublic {
-            X: self.X + rhs.X.clone(),
+            X: self.X + rhs.X,
         }
     }
 }
@@ -247,7 +245,7 @@ mod tests {
         let rng = &mut rng;
 
         // Encryption round-trip.
-        let coeff = EvalPrivate::random(rng);
+        let coeff = EvalPrivate::random();
         let encrypted = EvalEncrypted::encrypt(&coeff, &pk, rng).expect("encryption failed");
         let decrypted = encrypted.decrypt(&dk).expect("decryption failed");
 

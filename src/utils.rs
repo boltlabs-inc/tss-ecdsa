@@ -13,7 +13,7 @@ use crate::{
 use k256::{
     elliptic_curve::{
         bigint::Encoding,
-        group::{ff::PrimeField, GroupEncoding},
+        group::GroupEncoding,
         point::AffineCoordinates,
         AffinePoint, Curve,
     },
@@ -346,12 +346,6 @@ pub(crate) fn random_bn_in_z_star<R: RngCore + CryptoRng>(
         .ok_or(InternalError::CallingApplicationMistake(
             CallerError::RetryFailed,
         ))
-}
-
-// Convert from k256::Scalar to BigNumber
-pub(crate) fn scalar_to_bn(x: &k256::Scalar) -> BigNumber {
-    let bytes = x.to_repr();
-    BigNumber::from_slice(bytes)
 }
 
 pub(crate) fn k256_order() -> BigNumber {

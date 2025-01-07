@@ -1128,9 +1128,9 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             )?;
             let val = round_three::Public {
                 delta: delta_scalar,
-                Delta: Delta.clone(),
+                Delta,
                 psi_double_prime,
-                Gamma: Gamma.clone(),
+                Gamma,
             };
             let _ = ret_publics.insert(*other_id, val);
         }
@@ -1163,7 +1163,6 @@ mod test {
 
     use crate::{
         auxinfo,
-        broadcast::participant,
         curve::{TestCT as C, CT},
         errors::Result,
         keygen,

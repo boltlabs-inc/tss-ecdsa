@@ -292,7 +292,7 @@ impl<C: CT + 'static> TshareParticipant<C> {
             let mut publics = vec![];
 
             for _ in 0..self.input.threshold() {
-                let (private, public) = CoeffPublic::<C>::new_pair(rng)?;
+                let (private, public) = CoeffPublic::<C>::new_pair()?;
                 privates.push(private);
                 publics.push(public);
             }
@@ -1027,7 +1027,7 @@ mod tests {
         auxinfo, curve::TestCT as C, utils::testing::init_testing, Identifier, ParticipantConfig,
     };
     use k256::{elliptic_curve::PrimeField, Scalar};
-    use rand::{thread_rng, CryptoRng, Rng, RngCore};
+    use rand::{CryptoRng, Rng, RngCore};
     use std::{collections::HashMap, iter::zip, marker::PhantomData};
     use tracing::debug;
     type Output = super::Output<C>;
@@ -1237,7 +1237,7 @@ mod tests {
         Ok(())
     }
 
-    fn generate_polynomial<R: Rng>(t: usize, rng: &mut R) -> Vec<Scalar> {
+    fn generate_polynomial(t: usize) -> Vec<Scalar> {
         let mut coefficients = Vec::with_capacity(t);
         for _ in 0..t {
             coefficients.push(Scalar::random());
@@ -1261,10 +1261,9 @@ mod tests {
 
     #[test]
     fn test_evaluate_points_at_zero() {
-        let mut rng = thread_rng();
         let t: u128 = 3;
         let n: u128 = 7;
-        let coefficients = generate_polynomial(t as usize, &mut rng);
+        let coefficients = generate_polynomial(t as usize);
 
         // test that reconstruction works as long as we have enough points
         for n in t..n {

@@ -2,11 +2,10 @@
 
 use generic_array::GenericArray;
 use k256::{
-    elliptic_curve::{scalar::IsHigh, Field, PrimeField, ScalarPrimitive},
+    elliptic_curve::{scalar::IsHigh, Field, PrimeField},
     EncodedPoint, FieldBytes, ProjectivePoint, Scalar as K256_Scalar,
 };
 use libpaillier::unknown_order::BigNumber;
-use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, ops::Add};
 use tracing::error;
@@ -85,10 +84,11 @@ pub trait CT:
     /// order of the curve).
     fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self>;
 
+    /// Multiply `self` by a [`Scalar`].
     fn multiply_by_scalar(&self, point: &Self::Scalar) -> Self;
 
-    // Convert from Scalar to BigNumber
-   fn scalar_to_bn(x: &Self::Scalar) -> BigNumber;
+    /// Convert from Scalar to BigNumber
+    fn scalar_to_bn(x: &Self::Scalar) -> BigNumber;
 }
 
 /// Scalar trait.
@@ -190,7 +190,7 @@ impl ST for K256_Scalar {
     }
 
     fn mul(&self, other: &Self) -> Self {
-        k256::Scalar::mul(self, &other)
+        k256::Scalar::mul(self, other)
     }
 
     fn mul_bignum(&self, other: &BigNumber) -> Self {
@@ -213,7 +213,7 @@ impl ST for K256_Scalar {
     }
 
     fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        <K256_Scalar as PrimeField>::from_repr(GenericArray::clone_from_slice(&bytes)).into()
+        <K256_Scalar as PrimeField>::from_repr(GenericArray::clone_from_slice(bytes)).into()
     }
 
     fn from_repr(bytes: Vec<u8>) -> Self {
@@ -221,7 +221,7 @@ impl ST for K256_Scalar {
     }
 
     fn modulus(&self) -> BigNumber {
-        K256_Scalar::modulus(self)
+        BigNumber::from_slice(<K256_Scalar as PrimeField>::MODULUS)
     }
 
     fn invert(&self) -> Option<Self> {

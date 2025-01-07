@@ -35,7 +35,7 @@ impl<C: CT> Output<C> {
         let public_key_point = self
             .public_key_shares
             .iter()
-            .fold(C::IDENTITY, |sum, share| sum + share.as_ref().clone());
+            .fold(C::IDENTITY, |sum, share| sum + *share.as_ref());
 
         VerifyingKey::from_encoded_point(&public_key_point.into()).map_err(|_| {
             error!("Keygen output does not produce a valid public key.");

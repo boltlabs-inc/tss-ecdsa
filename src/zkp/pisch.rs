@@ -180,7 +180,7 @@ impl<C: CT + 'static> PiSchProof<C> {
         secret: &ProverSecret,
         transcript: &Transcript,
     ) -> Result<Self> {
-        let commitment = com.precommitment.clone();
+        let commitment = com.precommitment;
         let mut local_transcript = transcript.clone();
 
         Self::fill_transcript(&mut local_transcript, context, input, &commitment)?;

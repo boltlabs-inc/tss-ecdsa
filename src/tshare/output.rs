@@ -42,7 +42,7 @@ impl<C: CT> Output<C> {
         let public_key_point = self
             .public_key_shares
             .iter()
-            .fold(C::IDENTITY, |sum, share| sum + share.as_ref().clone())
+            .fold(C::IDENTITY, |sum, share| sum + *share.as_ref())
             .into();
 
         VerifyingKey::from_encoded_point(&public_key_point).map_err(|_| {

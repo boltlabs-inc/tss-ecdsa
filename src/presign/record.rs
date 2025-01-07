@@ -77,7 +77,7 @@ impl<C: CT> TryFrom<RecordPair<C>> for PresignRecord<C> {
     type Error = crate::errors::InternalError;
     fn try_from(RecordPair { private, publics }: RecordPair<C>) -> Result<Self> {
         let mut delta = private.delta;
-        let mut Delta = private.Delta.clone();
+        let mut Delta = private.Delta;
         for p in publics {
             delta.add_assign(p.delta);
             Delta = Delta + p.Delta;
@@ -89,7 +89,7 @@ impl<C: CT> TryFrom<RecordPair<C>> for PresignRecord<C> {
             return Err(ProtocolError(None));
         }
 
-        let delta_inv = Option::<C::Scalar>::from(delta.invert()).ok_or_else(|| {
+        let delta_inv = delta.invert().ok_or_else(|| {
             error!("Could not invert delta as it is 0. Either you got profoundly unlucky or more likely there's a bug");
             InternalInvariantFailed
         })?;
@@ -133,7 +133,7 @@ impl<C: CT> PresignRecord<C> {
         // chi share length in bytes (8 bytes)
         // chi share
 
-        let mut point = self.R.clone().to_bytes();
+        let mut point = self.R.to_bytes();
         let point_len = point.len().to_le_bytes();
 
         let mut random_share = self.k.to_bytes();
@@ -195,8 +195,8 @@ impl<C: CT> PresignRecord<C> {
             let mut random_share_bytes: [u8; 32] = random_share_slice
                 .try_into()
                 .map_err(|_| CallerError::DeserializationFailed)?;
-            let random_share: Option<_> = Some(C::Scalar::from_bytes(&random_share_bytes))
-                .expect("Failed to parse scalar from bytes");
+            let random_share: Option<_> = Some(C::Scalar::from_bytes(&random_share_bytes)
+                .expect("Failed to parse scalar from bytes"));
             random_share_bytes.zeroize();
 
             // Parse the chi share
