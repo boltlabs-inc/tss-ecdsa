@@ -40,10 +40,10 @@ pub(crate) struct RecordPair<C: CT> {
 /// - A curve point (`R` in the paper) representing the point `k^{-1} · G`,
 ///   where `k` is a random integer and `G` denotes the elliptic curve base
 ///   point.
-/// - A [`Scalar`] (`kᵢ` in the paper) representing a share of the random
-///   integer `k^{-1}`.
-/// - A [`Scalar`] (`χᵢ` in the paper) representing a share of `k^{-1} · d_A`,
-///   where `d_A` is the ECDSA secret key.
+/// - A Scalar (`kᵢ` in the paper) representing a share of the random integer
+///   `k^{-1}`.
+/// - A Scalar (`χᵢ` in the paper) representing a share of `k^{-1} · d_A`, where
+///   `d_A` is the ECDSA secret key.
 ///
 /// To produce a signature share of a message digest `m`, we simply compute `kᵢ
 /// m + r χᵢ`, where `r` denotes the x-axis projection of `R`. Note that by
@@ -195,8 +195,10 @@ impl<C: CT> PresignRecord<C> {
             let mut random_share_bytes: [u8; 32] = random_share_slice
                 .try_into()
                 .map_err(|_| CallerError::DeserializationFailed)?;
-            let random_share: Option<_> = Some(C::Scalar::from_bytes(&random_share_bytes)
-                .expect("Failed to parse scalar from bytes"));
+            let random_share: Option<_> = Some(
+                C::Scalar::from_bytes(&random_share_bytes)
+                    .expect("Failed to parse scalar from bytes"),
+            );
             random_share_bytes.zeroize();
 
             // Parse the chi share

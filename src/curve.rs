@@ -51,7 +51,7 @@ pub trait CT:
     fn order() -> BigNumber;
 
     /// Multiply `self` by a [`BigNumber`] point, which is first converted to
-    /// the curve [`Scalar`] field (taken mod `q`, where `q` is the
+    /// the curve [`Self::Scalar`] field (taken mod `q`, where `q` is the
     /// order of the curve).
     ///
     /// Note: This method ends up cloning the `point` value in the process of
@@ -63,7 +63,7 @@ pub trait CT:
     /// Multiply the generator by a [`BigNumber`] scalar.
     fn scale_generator(scalar: &BigNumber) -> Result<Self>;
 
-    /// Multiply `self` by a [`Scalar`].
+    /// Multiply `self` by a [`Self::Scalar`].
     // TODO: name.
     fn scale2(&self, point: &Self::Scalar) -> Self;
 
@@ -80,14 +80,14 @@ pub trait CT:
     fn bn_to_scalar(bn: &BigNumber) -> Result<Self::Scalar>;
 
     /// Multiply `self` by a [`BigNumber`] point, which is first converted to
-    /// the subjacent [`Scalar`] field (taken mod `q`, where `q` is the
+    /// the subjacent [`Self::Scalar`] field (taken mod `q`, where `q` is the
     /// order of the curve).
     fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self>;
 
-    /// Multiply `self` by a [`Scalar`].
+    /// Multiply `self` by a [`Self::Scalar`].
     fn multiply_by_scalar(&self, point: &Self::Scalar) -> Self;
 
-    /// Convert from Scalar to BigNumber
+    /// Convert from `[Self::Scalar]` to BigNumber
     fn scalar_to_bn(x: &Self::Scalar) -> BigNumber;
 }
 

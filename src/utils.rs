@@ -12,10 +12,7 @@ use crate::{
 };
 use k256::{
     elliptic_curve::{
-        bigint::Encoding,
-        group::GroupEncoding,
-        point::AffineCoordinates,
-        AffinePoint, Curve,
+        bigint::Encoding, group::GroupEncoding, point::AffineCoordinates, AffinePoint, Curve,
     },
     EncodedPoint, FieldBytes, Scalar, Secp256k1,
 };

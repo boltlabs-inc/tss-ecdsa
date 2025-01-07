@@ -186,9 +186,7 @@ impl<C: CT> Add<&CoeffPublic<C>> for CoeffPublic<C> {
     type Output = Self;
 
     fn add(self, rhs: &Self) -> Self::Output {
-        CoeffPublic {
-            X: self.X + rhs.X,
-        }
+        CoeffPublic { X: self.X + rhs.X }
     }
 }
 
