@@ -1124,8 +1124,9 @@ mod tests {
         >,
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         mut rng: StdRng,
-    ) -> Result<HashMap<ParticipantIdentifier, <PresignParticipant as ProtocolParticipant>::Output>>
-    {
+    ) -> Result<
+        HashMap<ParticipantIdentifier, <PresignParticipant<C> as ProtocolParticipant>::Output>,
+    > {
         let QUORUM_REAL = auxinfo_outputs.len();
 
         let presign_sid = Identifier::random(&mut rng);
@@ -1149,12 +1150,13 @@ mod tests {
             .into_iter()
             .zip(presign_inputs)
             .map(|(config, input)| {
-                Participant::<PresignParticipant>::from_config(config, presign_sid, input).unwrap()
+                Participant::<PresignParticipant<C>>::from_config(config, presign_sid, input)
+                    .unwrap()
             })
             .collect::<Vec<_>>();
         let mut presign_outputs: HashMap<
             ParticipantIdentifier,
-            <PresignParticipant as ProtocolParticipant>::Output,
+            <PresignParticipant<C> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         for participant in &mut presign_quorum {
@@ -1185,7 +1187,7 @@ mod tests {
     pub struct SignHelperInput {
         chain_code: [u8; 32],
         presign_outputs:
-            HashMap<ParticipantIdentifier, <PresignParticipant as ProtocolParticipant>::Output>,
+            HashMap<ParticipantIdentifier, <PresignParticipant<C> as ProtocolParticipant>::Output>,
         public_key_shares: Vec<KeySharePublic<C>>,
         saved_public_key: VerifyingKey,
         child_index: u32,
@@ -1632,7 +1634,7 @@ mod tests {
         let sign_sid = Identifier::random(rng);
         let mut sign_quorum = std::iter::zip(configs, sign_inputs)
             .map(|(config, input)| {
-                Participant::<InteractiveSignParticipant>::from_config(config, sign_sid, input)
+                Participant::<InteractiveSignParticipant<C>>::from_config(config, sign_sid, input)
             })
             .collect::<Result<Vec<_>>>()?;
 

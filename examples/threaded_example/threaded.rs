@@ -325,7 +325,7 @@ struct Worker {
     /// Outputs of successful aux info.
     aux_info: StoredOutput<AuxInfoParticipant>,
     /// Outputs of successful presign.
-    presign_records: StoredOutput<PresignParticipant>,
+    presign_records: StoredOutput<PresignParticipant<C>>,
     /// Signatures generated from successful signing runs.
     signatures: StoredOutput<SignParticipant<C>>,
     /// Channel for sending messages to the coordinator.
@@ -421,7 +421,7 @@ impl Worker {
         let auxinfo_output = self.aux_info.retrieve(&key_id);
 
         let inputs = presign::Input::new(auxinfo_output.clone(), key_shares.clone())?;
-        self.new_sub_protocol::<PresignParticipant>(sid, inputs, key_id)
+        self.new_sub_protocol::<PresignParticipant<C>>(sid, inputs, key_id)
     }
 
     fn new_sign(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
@@ -453,7 +453,7 @@ impl Worker {
     }
 
     fn process_presign(&mut self, sid: SessionId, incoming: Message) -> anyhow::Result<()> {
-        let (p, key_id) = self.participants.get_mut::<PresignParticipant>(&sid);
+        let (p, key_id) = self.participants.get_mut::<PresignParticipant<C>>(&sid);
         Self::process_message(
             p,
             key_id,

@@ -79,7 +79,7 @@ impl<C: CT + 'static> Public<C> {
     /// values.
     pub(crate) fn verify(
         self,
-        context: &ParticipantPresignContext,
+        context: &ParticipantPresignContext<C>,
         verifier_auxinfo_public: &AuxInfoPublic,
         prover_auxinfo_public: &AuxInfoPublic,
         prover_r1_public_broadcast: &RoundOnePublicBroadcast,

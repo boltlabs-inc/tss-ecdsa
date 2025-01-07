@@ -140,7 +140,9 @@ fn run_benchmarks_for_given_size(c: &mut Criterion, num_players: usize) {
     // Benchmark presign
     let presign_identifier = Identifier::random(&mut rng);
     c.bench_function(&format!("Presign with {num_players} nodes"), |b| {
-        b.iter(|| run_subprotocol::<PresignParticipant>(presign_identifier, presign_inputs.clone()))
+        b.iter(|| {
+            run_subprotocol::<PresignParticipant<C>>(presign_identifier, presign_inputs.clone())
+        })
     });
 }
 

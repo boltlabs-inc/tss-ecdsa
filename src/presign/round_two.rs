@@ -68,7 +68,7 @@ impl<C: CT + 'static> Public<C> {
     /// [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast) values.
     pub(crate) fn verify(
         self,
-        context: &ParticipantPresignContext,
+        context: &ParticipantPresignContext<C>,
         verifier_auxinfo_public: &AuxInfoPublic,
         verifier_r1_private: &RoundOnePrivate,
         prover_auxinfo_public: &AuxInfoPublic,

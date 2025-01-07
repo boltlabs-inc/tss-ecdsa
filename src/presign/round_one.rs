@@ -8,6 +8,7 @@
 
 use super::participant::ParticipantPresignContext;
 use crate::{
+    curve::CT,
     errors::{InternalError, Result},
     messages::{Message, MessageType, PresignMessageType},
     paillier::{Ciphertext, EncryptionKey, Nonce},
@@ -20,7 +21,7 @@ use crate::{
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{fmt::Debug, marker::PhantomData};
 use zeroize::ZeroizeOnDrop;
 
 /// Private data used in round one of the presign protocol.
@@ -56,13 +57,17 @@ impl Debug for Private {
 /// necessarily valid (i.e., that all the components are valid with respect to
 /// each other); use [`Public::verify`] to check this latter condition.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct Public {
+pub(crate) struct Public<C: CT> {
     proof: PiEncProof,
+    phantom: PhantomData<C>,
 }
 
-impl From<PiEncProof> for Public {
+impl<C: CT> From<PiEncProof> for Public<C> {
     fn from(proof: PiEncProof) -> Self {
-        Self { proof }
+        Self {
+            proof,
+            phantom: PhantomData,
+        }
     }
 }
 
@@ -73,7 +78,7 @@ pub(crate) struct PublicBroadcast {
     pub G: Ciphertext,
 }
 
-impl Public {
+impl<C: CT> Public<C> {
     /// Verify the validity of [`Public`] against the prover's [`EncryptionKey`]
     /// and [`PublicBroadcast`] values.
     ///
@@ -81,7 +86,7 @@ impl Public {
     /// (i.e., the verifier).
     pub(crate) fn verify(
         self,
-        context: &ParticipantPresignContext,
+        context: &ParticipantPresignContext<C>,
         verifier_setup_params: &VerifiedRingPedersen,
         prover_pk: &EncryptionKey,
         prover_public_broadcast: &PublicBroadcast,
@@ -92,7 +97,7 @@ impl Public {
     }
 }
 
-impl TryFrom<&Message> for Public {
+impl<C: CT> TryFrom<&Message> for Public<C> {
     type Error = InternalError;
 
     fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {

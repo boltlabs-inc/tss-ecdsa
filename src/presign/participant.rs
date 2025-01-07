@@ -11,7 +11,7 @@
 use crate::{
     auxinfo::{AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    curve::{TestCT as C, CT}, // TODO: generalize.
+    curve::CT,
     errors::{CallerError, InternalError, Result},
     keygen::{KeySharePrivate, KeySharePublic},
     local_storage::LocalStorage,
@@ -80,13 +80,13 @@ mod storage {
 /// and includes [`SharedContext`] and [`AuxInfoPublic`]s for all participants
 /// (including this participant).
 #[derive(Debug)]
-pub(crate) struct PresignContext {
+pub(crate) struct PresignContext<C: CT> {
     shared_context: SharedContext<C>,
     rid: [u8; 32],
     auxinfo_public: Vec<AuxInfoPublic>,
 }
 
-impl ProofContext for PresignContext {
+impl<C: CT> ProofContext for PresignContext<C> {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
             self.shared_context.as_bytes()?,
@@ -98,9 +98,9 @@ impl ProofContext for PresignContext {
     }
 }
 
-impl PresignContext {
+impl<C: CT + 'static> PresignContext<C> {
     /// Build a [`PresignContext`] from a [`PresignParticipant`].
-    pub(crate) fn collect(p: &PresignParticipant) -> Self {
+    pub(crate) fn collect(p: &PresignParticipant<C>) -> Self {
         let mut auxinfo_public = p.input().to_public_auxinfo();
         auxinfo_public.sort_by_key(AuxInfoPublic::participant);
         Self {
@@ -110,7 +110,7 @@ impl PresignContext {
         }
     }
 
-    fn for_participant(self, pid: ParticipantIdentifier) -> ParticipantPresignContext {
+    fn for_participant(self, pid: ParticipantIdentifier) -> ParticipantPresignContext<C> {
         ParticipantPresignContext {
             presign_context: self,
             participant_id: pid,
@@ -118,12 +118,12 @@ impl PresignContext {
     }
 }
 
-pub struct ParticipantPresignContext {
-    presign_context: PresignContext,
+pub struct ParticipantPresignContext<C: CT> {
+    presign_context: PresignContext<C>,
     participant_id: ParticipantIdentifier,
 }
 
-impl ProofContext for ParticipantPresignContext {
+impl<C: CT> ProofContext for ParticipantPresignContext<C> {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
             self.presign_context.as_bytes()?,
@@ -162,7 +162,7 @@ impl ProofContext for ParticipantPresignContext {
 /// # 🔒 Lifetime requirement
 /// The [`PresignRecord`] output must only be used once and then discarded.
 #[derive(Debug)]
-pub struct PresignParticipant {
+pub struct PresignParticipant<C: CT> {
     /// The current session identifier.
     sid: Identifier,
     /// The current protocol input.
@@ -180,7 +180,7 @@ pub struct PresignParticipant {
     status: Status,
 }
 
-impl ProtocolParticipant for PresignParticipant {
+impl<C: CT + 'static> ProtocolParticipant for PresignParticipant<C> {
     type Input = Input<C>;
     type Output = PresignRecord<C>;
 
@@ -298,8 +298,8 @@ impl ProtocolParticipant for PresignParticipant {
     }
 }
 
-impl InnerProtocolParticipant for PresignParticipant {
-    type Context = PresignContext;
+impl<C: CT + 'static> InnerProtocolParticipant for PresignParticipant<C> {
+    type Context = PresignContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
         PresignContext::collect(self)
@@ -318,13 +318,13 @@ impl InnerProtocolParticipant for PresignParticipant {
     }
 }
 
-impl Broadcast for PresignParticipant {
+impl<C: CT> Broadcast for PresignParticipant<C> {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant {
         &mut self.broadcast_participant
     }
 }
 
-impl PresignParticipant {
+impl<C: CT + 'static> PresignParticipant<C> {
     fn input(&self) -> &Input<C> {
         &self.input
     }
@@ -860,11 +860,11 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
     fn round_one<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
-        context: &ParticipantPresignContext,
+        context: &ParticipantPresignContext<C>,
         other_auxinfos: &[&AuxInfoPublic],
     ) -> Result<(
         round_one::Private,
-        HashMap<ParticipantIdentifier, round_one::Public>,
+        HashMap<ParticipantIdentifier, round_one::Public<C>>,
         round_one::PublicBroadcast,
     )> {
         let order = C::order();
@@ -921,7 +921,7 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
     fn round_two<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
-        context: &ParticipantPresignContext,
+        context: &ParticipantPresignContext<C>,
         receiver_aux_info: &AuxInfoPublic,
         sender_r1_priv: &round_one::Private,
         receiver_r1_pub_broadcast: &round_one::PublicBroadcast,
@@ -1052,7 +1052,7 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
     fn round_three<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
-        context: &ParticipantPresignContext,
+        context: &ParticipantPresignContext<C>,
         sender_r1_priv: &round_one::Private,
         other_participant_inputs: &HashMap<ParticipantIdentifier, round_three::Input<C>>,
     ) -> Result<(
@@ -1190,7 +1190,7 @@ mod test {
 
     #[allow(clippy::type_complexity)]
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut [PresignParticipant],
+        quorum: &mut [PresignParticipant<C>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
     ) -> Option<(usize, ProcessOutcome<PresignRecord>)> {
