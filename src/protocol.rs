@@ -853,20 +853,17 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_basic_noninteractive_signing_works() {
         assert!(basic_noninteractive_signing_works(3).is_ok());
     }
 
     #[test]
-    #[ignore]
     fn test_hd_wallet_noninteractive_signing_works() {
         assert!(hd_wallet_noninteractive_signing_works(3, 42).is_ok());
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
-    #[ignore]
     fn test_full_noninteractive_signing_works_with_keygen() {
         assert!(noninteractive_threshold_signing_works(3, 3, 3, 0).is_ok());
         assert!(noninteractive_threshold_signing_works(3, 2, 3, 0).is_ok());
@@ -886,7 +883,6 @@ mod tests {
 
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
-    #[ignore]
     fn test_full_noninteractive_signing_works_with_hd_wallet() {
         assert!(noninteractive_threshold_signing_works(3, 3, 3, 42).is_ok());
         assert!(noninteractive_threshold_signing_works(3, 2, 3, 42).is_ok());
@@ -904,7 +900,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_full_noninteractive_signing_works_with_hd_wallet_err() {
         assert!(noninteractive_threshold_signing_works(2, 3, 4, 42).is_err());
     }
