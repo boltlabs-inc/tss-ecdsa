@@ -1,9 +1,9 @@
-// Copyright (c) 2022-2023 Bolt Labs Holdings, Inc
-//
-// This source code is licensed under both the MIT license found in the
-// LICENSE-MIT file in the root directory of this source tree and the Apache
-// License, Version 2.0 found in the LICENSE-APACHE file in the root directory
-// of this source tree.
+//! Copyright (c) 2022-2023 Bolt Labs Holdings, Inc
+//!
+//! This source code is licensed under both the MIT license found in the
+//! LICENSE-MIT file in the root directory of this source tree and the Apache
+//! License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+//! of this source tree.
 
 use std::{collections::HashSet, marker::PhantomData};
 
@@ -152,11 +152,11 @@ impl<C: CT> Output<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve::TestCT as C, utils::testing::init_testing, ParticipantConfig, ParticipantIdentifier,
+        curve::TestCT, utils::testing::init_testing, ParticipantConfig, ParticipantIdentifier,
     };
     use rand::{CryptoRng, Rng, RngCore};
 
-    impl Output<C> {
+    impl<C: CT> Output<C> {
         /// Simulate the valid output of a keygen run with the given
         /// participants.
         ///
@@ -235,7 +235,7 @@ mod tests {
         let output = Output::simulate(&pids, rng);
 
         let (public, private, rid, chain_code) = output.into_parts();
-        assert!(Output::<C>::from_parts(public, private, rid, chain_code).is_ok());
+        assert!(Output::<TestCT>::from_parts(public, private, rid, chain_code).is_ok());
     }
 
     #[test]
@@ -252,7 +252,7 @@ mod tests {
         // the public keys but it's so unlikely that we won't check it.
         let bad_private_key_share = KeySharePrivate::random(rng);
 
-        assert!(Output::<C>::from_parts(
+        assert!(Output::<TestCT>::from_parts(
             output.public_key_shares,
             bad_private_key_share,
             output.rid,
@@ -285,7 +285,7 @@ mod tests {
         let rid = rng.gen();
         let chain_code = rng.gen();
 
-        assert!(Output::<C>::from_parts(
+        assert!(Output::<TestCT>::from_parts(
             public_key_shares,
             private_key_shares.pop().unwrap(),
             rid,

@@ -10,24 +10,23 @@ use tracing::error;
 
 use crate::{
     auxinfo::{self, AuxInfoPrivate, AuxInfoPublic},
-    curve::TestCT as C, // TODO: generalize.
+    curve::CT,
     errors::{CallerError, InternalError, Result},
     keygen::{self, KeySharePrivate, KeySharePublic},
-    ParticipantConfig,
-    ParticipantIdentifier,
+    ParticipantConfig, ParticipantIdentifier,
 };
 
 /// Input needed for a
 /// [`KeyrefreshParticipant`](crate::keyrefresh::KeyrefreshParticipant) to run.
 #[derive(Debug, Clone)]
-pub struct Input {
+pub struct Input<C: CT> {
     /// The key share material for the key that will be refreshed.
     keygen_output: keygen::Output<C>,
     /// The auxiliary info to encrypt/decrypt messages with other participants.
     auxinfo_output: auxinfo::Output,
 }
 
-impl Input {
+impl<C: CT> Input<C> {
     /// Creates a new [`Input`] from the outputs of the
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
@@ -124,6 +123,7 @@ mod test {
     use super::Input;
     use crate::{
         auxinfo,
+        curve::TestCT,
         errors::{CallerError, InternalError, Result},
         keygen,
         keyrefresh::KeyrefreshParticipant,
@@ -138,7 +138,7 @@ mod test {
         let config = ParticipantConfig::random(5, rng);
         let pids = config.all_participants();
         assert_eq!(pids.last().unwrap(), &config.id());
-        let keygen_output = keygen::Output::simulate(&pids, rng);
+        let keygen_output: keygen::output::Output<TestCT> = keygen::Output::simulate(&pids, rng);
         let auxinfo_output = auxinfo::Output::simulate(&pids, rng);
 
         // Same length works
@@ -146,7 +146,8 @@ mod test {
         assert!(result.is_ok());
 
         // If keygen is too short, it fails.
-        let short_keygen = keygen::Output::simulate(&pids[1..], rng);
+        let short_keygen: keygen::output::Output<TestCT> =
+            keygen::Output::simulate(&pids[1..], rng);
         let result = Input::new(auxinfo_output, short_keygen);
         assert!(result.is_err());
         assert_eq!(
@@ -175,7 +176,8 @@ mod test {
         let keygen_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let keygen_output = keygen::Output::simulate(&keygen_pids, rng);
+        let keygen_output: keygen::output::Output<TestCT> =
+            keygen::Output::simulate(&keygen_pids, rng);
 
         let result = Input::new(auxinfo_output, keygen_output);
         assert!(result.is_err());
@@ -192,7 +194,8 @@ mod test {
 
         // Create valid input set with random PIDs
         let config = ParticipantConfig::random(5, rng);
-        let keygen_output = keygen::Output::simulate(&config.all_participants(), rng);
+        let keygen_output: keygen::output::Output<TestCT> =
+            keygen::Output::simulate(&config.all_participants(), rng);
         let auxinfo_output = auxinfo::Output::simulate(&config.all_participants(), rng);
         let input = Input::new(auxinfo_output, keygen_output)?;
 

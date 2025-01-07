@@ -374,7 +374,7 @@ mod tests {
         let pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let keygen_output = keygen::Output::simulate(&pids, rng);
+        let keygen_output: keygen::output::Output<TestCT> = keygen::Output::simulate(&pids, rng);
         let auxinfo_output = auxinfo::Output::simulate(&pids, rng);
         let message = b"greetings from the new world";
         assert!(Input::new(message, keygen_output, auxinfo_output).is_ok())

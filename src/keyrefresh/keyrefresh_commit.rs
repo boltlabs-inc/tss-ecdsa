@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve::CT, // TODO: generalize.
+    curve::CT,
     errors::{InternalError, Result},
     keyrefresh::keyshare::KeyUpdatePublic,
     messages::{KeyrefreshMessageType, Message, MessageType},
