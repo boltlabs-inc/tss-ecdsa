@@ -150,7 +150,6 @@ impl<C: CT + 'static> Proof for PiSchProof<C> {
             lhs == rhs
         };
         if !response_matches_commitment {
-            dbg!("xoiiiiii");
             error!("verification equation checked failed");
             return Err(InternalError::ProtocolError(None));
         }

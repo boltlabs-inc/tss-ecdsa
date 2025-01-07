@@ -301,9 +301,7 @@ impl<C: CT + 'static> TshareParticipant<C> {
             if let Some(private) = self.input.share() {
                 privates[0] = private.clone();
                 publics[0] = private.to_public();
-            } else {
-                dbg!("ENTROU NO ELSE MESMO");
-            }
+            } 
 
             (privates, publics)
         };
@@ -817,8 +815,6 @@ impl<C: CT + 'static> TshareParticipant<C> {
 
         // Check the sum is indeed the sum of original private keys used as input of
         // tshare reduced mod the order
-        dbg!(real);
-        dbg!(threshold);
         if real >= threshold {
             assert_eq!(
                 C::bn_to_scalar(&sum_toft_private_shares).unwrap(),

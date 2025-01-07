@@ -266,8 +266,6 @@ impl ProtocolParticipant for PresignParticipant {
             return Ok(ProcessOutcome::Incomplete);
         }
 
-        dbg!(message.message_type());
-
         match message.message_type() {
             MessageType::Presign(PresignMessageType::Ready) => self.handle_ready_msg(rng, message),
             MessageType::Presign(PresignMessageType::RoundOneBroadcast) => {
@@ -1061,12 +1059,8 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
         round_three::Private<C>,
         HashMap<ParticipantIdentifier, round_three::Public<C>>,
     )> {
-        dbg!("round 3");
         let order = C::order();
         let g = C::GENERATOR;
-
-        dbg!(order.clone());
-        dbg!(g.clone());
 
         let mut delta: BigNumber = sender_r1_priv.gamma.modmul(&sender_r1_priv.k, &order);
         let mut chi: BigNumber = self
@@ -1074,10 +1068,6 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             .as_ref()
             .modmul(&sender_r1_priv.k, &order);
         let mut Gamma = g.scale(&sender_r1_priv.gamma)?;
-
-        dbg!(delta.clone());
-        dbg!(chi.clone());
-        dbg!(Gamma.clone());
 
         for round_three_input in other_participant_inputs.values() {
             let r2_pub_j = round_three_input.r2_public.clone();
@@ -1120,8 +1110,6 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
         let delta_scalar = C::bn_to_scalar(&delta)?;
         let chi_scalar = C::bn_to_scalar(&chi)?;
         
-        dbg!("OHOOOOOOOOOOOOOOOOOOOO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-
         let mut ret_publics = HashMap::new();
         for (other_id, round_three_input) in other_participant_inputs {
             let mut transcript = Transcript::new(b"PiLogProof");
@@ -1147,8 +1135,6 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             let _ = ret_publics.insert(*other_id, val);
         }
         
-        dbg!("UHUUUUUUUUUUUUUUUUUUU!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-
         let private = round_three::Private {
             k: sender_r1_priv.k.clone(),
             chi: chi_scalar,
@@ -1158,8 +1144,6 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             delta: delta_scalar,
             Delta,
         };
-        dbg!("AHaaaaaaaaaaaaaaaaaa!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-
         Ok((private, ret_publics))
     }
 }
@@ -1218,9 +1202,6 @@ mod test {
             &message.message_type(),
             &message.from(),
         );
-        dbg!(&message);
-        dbg!(&participant);
-        dbg!(&inbox);
         Some((index, participant.process_message(rng, &message).unwrap()))
     }
 
@@ -1228,7 +1209,6 @@ mod test {
         records: Vec<PresignRecord>,
         keygen_outputs: Vec<keygen::Output<C>>,
     ) {
-        dbg!("ok4");
         // Every presign record has the same `R` value
         // We don't stick this in a HashSet because `CurvePoint`s can't be hashed :(
         assert!(records
@@ -1261,7 +1241,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn presign_produces_valid_outputs() -> Result<()> {
         let quorum_size = 4;
         let rng = &mut init_testing();
@@ -1288,7 +1267,6 @@ mod test {
             let _ = inboxes.insert(participant.id, vec![]);
         }
 
-        dbg!("ok1");
         // Make a place to store outputs
         let mut outputs = std::iter::repeat_with(|| None)
             .take(quorum_size)
@@ -1316,8 +1294,6 @@ mod test {
                 Some(x) => x,
             };
 
-            dbg!(index);
-            dbg!(&outcome);
             // Deliver messages and save outputs
             match outcome {
                 ProcessOutcome::Incomplete => {}
@@ -1329,7 +1305,6 @@ mod test {
                 }
             }
         }
-        dbg!("ok3");
 
         // Get rid of any `None` outputs
         let records = outputs.into_iter().flatten().collect::<Vec<_>>();

@@ -61,32 +61,17 @@ impl<C: CT + Debug> Debug for Private<C> {
 /// [`Message`] is a valid serialization of `Public`, but _not_ that `Public` is
 /// necessarily valid (i.e., that all the components are valid with respect to
 /// each other); use [`Public::verify`] to check this latter condition.
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct Public<C: CT> {
+    //#[serde(bound(deserialize = "C: CT"))]
     pub delta: C::Scalar,
+    #[serde(bound(deserialize = "C: CT"))]
     pub Delta: C,
+    #[serde(bound(deserialize = "C: CT"))]
     pub psi_double_prime: PiLogProof<C>,
     /// Gamma value included for convenience
+    #[serde(bound(deserialize = "C: CT"))]
     pub Gamma: C,
-}
-
-/// Implemente for<'de> Deserialize<'de> for Public<C> where C: CT
-impl<'de, C: CT> Deserialize<'de> for Public<C> {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Public<C>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let public: Public<C> = Public::deserialize(deserializer)?;
-        // Normal `Scalar` deserialization doesn't check that the value is in range.
-        // Here we convert to bytes and back, using the checked `from_repr` method to
-        // make sure the value is a valid, canonical Scalar.
-        if C::Scalar::from_bytes(public.delta.to_bytes().as_slice()).is_none().into() {
-            error!("Deserialized round 3 message `delta` field is out of range");
-            Err(serde::de::Error::custom("Deserialized round 3 message `delta` field is out of range"))
-        } else {
-            Ok(public)
-        }
-    }
 }
 
 impl<C: CT + 'static> Public<C> {

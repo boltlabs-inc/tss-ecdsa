@@ -109,7 +109,6 @@ pub trait ST:
 
     /// Addition operator such that we can use += syntax.
     fn add_assign(&mut self, other: Self) {
-        dbg!("add_assign");
         *self = self.add(other);
     }
 
@@ -124,7 +123,6 @@ pub trait ST:
 
     /// Implement the mul operator such that we can use *= syntax.
     fn mul_assign(&mut self, other: &Self) {
-        dbg!("mul_assign");
         *self = self.mul(other);
     }
 
@@ -155,80 +153,65 @@ pub trait ST:
 
 impl ST for K256_Scalar {
     fn zero() -> Self {
-        dbg!("zero");
         K256_Scalar::ZERO
     }
 
     fn one() -> Self {
-        dbg!("one");
         K256_Scalar::ONE
     }
 
     fn convert_from_u128(x: u128) -> Self {
-        dbg!("convert_from_u128");
         K256_Scalar::from_u128(x)
     }
 
     fn add(&self, other: &Self) -> Self {
-        dbg!("add");
         k256::Scalar::add(self, other)
     }
 
     fn sub(&self, other: &Self) -> Self {
-        dbg!("sub");
         k256::Scalar::sub(self, other)
     }
     
     fn negate(&self) -> Self {
-        dbg!("negate");
         k256::Scalar::negate(self)
     }
 
     fn mul(&self, other: &Self) -> Self {
-        dbg!("mul");
         k256::Scalar::mul(self, &other)
     }
 
     fn mul_bignum(&self, other: &BigNumber) -> Self {
-        dbg!("mul_bignum");
         // use bn_to_scalar to convert other to a scalar
         let bn_scalar: Self = <CurvePoint as CT>::bn_to_scalar(other).unwrap();
         k256::Scalar::mul(self, &bn_scalar)
     }
 
     fn is_high(&self) -> bool {
-        dbg!("is_high");
         <k256::Scalar as IsHigh>::is_high(self).into()
     }
 
     fn random() -> Self {
-        dbg!("random");
         let rng = rand::thread_rng();
         <K256_Scalar as Field>::random(rng)
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        dbg!("to_bytes");
         K256_Scalar::to_bytes(self).to_vec()
     }
 
     fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        dbg!("from_bytes");
         <K256_Scalar as PrimeField>::from_repr(GenericArray::clone_from_slice(&bytes)).into_option()
     }
 
     fn from_repr(bytes: Vec<u8>) -> Self {
-        dbg!("from_repr");
         <K256_Scalar as PrimeField>::from_repr(GenericArray::clone_from_slice(&bytes)).unwrap()
     }
 
     fn modulus(&self) -> BigNumber {
-        dbg!("modulus");
         K256_Scalar::modulus(self)
     }
 
     fn invert(&self) -> Option<Self> {
-        dbg!("invert");
         K256_Scalar::invert(self).into()
     }
 }
@@ -245,27 +228,22 @@ impl CT for CurvePoint {
     type Scalar = K256_Scalar;
 
     fn order() -> BigNumber {
-        dbg!("order");
         k256_order()
     }
 
     fn scale(&self, scalar: &BigNumber) -> Result<Self> {
-        dbg!("scale");
         self.multiply_by_bignum(scalar)
     }
 
     fn scale_generator(scalar: &BigNumber) -> Result<Self> {
-        dbg!("scale_generator");
         CurvePoint::GENERATOR.multiply_by_bignum(scalar)
     }
 
     fn scale2(&self, scalar: &Self::Scalar) -> Self {
-        dbg!("scale2");
         self.multiply_by_scalar(scalar)
     }
 
     fn x_projection(&self) -> Result<Self::Scalar> {
-        dbg!("x_projection");
         let x_projection = self.x_affine();
 
         // Note: I don't think this is a foolproof transformation. The `from_repr`
@@ -278,18 +256,15 @@ impl CT for CurvePoint {
     }
 
     fn to_bytes(self) -> Vec<u8> {
-        dbg!("to_bytes");
         CurvePoint::to_bytes(self)
     }
 
     fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
-        dbg!("try_from_bytes");
         CurvePoint::try_from_bytes(bytes)
     }
 
     // Returns x: BigNumber as a k256::Scalar mod k256_order
     fn bn_to_scalar(x: &BigNumber) -> Result<Self::Scalar> {
-        dbg!("bn_to_scalar");
         // Take (mod q)
         let order = Self::order();
 
@@ -316,20 +291,17 @@ impl CT for CurvePoint {
     }
     
     fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
-        dbg!("multiply_by_bignum");
         let s = Zeroizing::new(Self::bn_to_scalar(point)?);
         let p = self.multiply_by_scalar(&s);
         Ok(p)
     }
 
     fn multiply_by_scalar(&self, point: &Self::Scalar) -> Self {
-        dbg!("multiply_by_scalar");
         self.multiply_by_scalar(point)
     }
     
     // Convert from k256::Scalar to BigNumber
     fn scalar_to_bn(x: &Self::Scalar) -> BigNumber {
-        dbg!("scalar_to_bn");
         let bytes = x.to_repr();
         BigNumber::from_slice(bytes)
     }
