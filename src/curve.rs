@@ -200,7 +200,7 @@ impl ST for K256_Scalar {
     }
 
     fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        <K256_Scalar as PrimeField>::from_repr(GenericArray::clone_from_slice(&bytes)).into_option()
+        <K256_Scalar as PrimeField>::from_repr(GenericArray::clone_from_slice(&bytes)).into()
     }
 
     fn from_repr(bytes: Vec<u8>) -> Self {
