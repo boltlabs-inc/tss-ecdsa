@@ -751,6 +751,53 @@ impl TshareParticipant {
         Ok(sum)
     }
 
+    /// Convert Shamir shares to additive shares, for a given quorum of
+    /// participants. The result can be used by the presign and sign
+    /// protocols.
+    ///
+    /// This is done by multiplying the shares by the Lagrange coefficients.
+    /// Since the constant term is the secret, we need to multiply by the
+    /// Lagrange coefficient at zero.
+    ///
+    /// Convert a private share and the public shares of the quorum.
+    #[allow(clippy::type_complexity)]
+    pub fn convert_to_t_out_of_t_share(
+        my_pid: ParticipantIdentifier,
+        tshare: &Output,
+        participants: &[ParticipantIdentifier],
+        rid: [u8; 32],
+        chain_code: [u8; 32],
+    ) -> Result<<KeygenParticipant as ProtocolParticipant>::Output> {
+        let public_key_shares = participants
+            .iter()
+            .map(|pid| {
+                let public_t_of_n = tshare
+                    .public_key_shares()
+                    .iter()
+                    .find(|x| x.participant() == *pid)
+                    .expect("public key share not found");
+
+                let lagrange = Self::lagrange_coefficient_at_zero(pid, participants);
+
+                let public_t_of_t = public_t_of_n.as_ref().multiply_by_scalar(&lagrange);
+                KeySharePublic::new(*pid, public_t_of_t)
+            })
+            .collect::<Vec<_>>();
+
+        let private_key_share = {
+            let lagrange = Self::lagrange_coefficient_at_zero(&my_pid, participants);
+            let private_t_of_t = tshare.private_key_share() * &lagrange;
+            KeySharePrivate::from_bigint(&scalar_to_bn(&private_t_of_t))
+        };
+
+        Ok(crate::keygen::Output::from_parts(
+            public_key_shares,
+            private_key_share,
+            rid,
+            chain_code,
+        )?)
+    }
+
     /// Convert the tshares to t-out-of-t shares.
     /// This is done by multiplying the shares by the Lagrange coefficients.
     /// Since the constant term is the secret, we need to multiply by the
@@ -851,7 +898,7 @@ impl TshareParticipant {
     /// This is used to reconstruct the secret from the shares.
     pub fn lagrange_coefficient_at_zero(
         my_point: &ParticipantIdentifier,
-        other_points: &Vec<ParticipantIdentifier>,
+        other_points: &[ParticipantIdentifier],
     ) -> Scalar {
         let mut result = Scalar::ONE;
         for point in other_points {

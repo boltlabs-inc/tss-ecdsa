@@ -47,7 +47,8 @@ impl Output {
         &self.public_key_shares
     }
 
-    pub(crate) fn private_key_share(&self) -> &KeySharePrivate {
+    /// Get the private key share.
+    pub fn private_key_share(&self) -> &KeySharePrivate {
         &self.private_key_share
     }
 
@@ -69,13 +70,21 @@ impl Output {
     }
 
     /// Get the shared randomness generated during key generation.
-    pub(crate) fn rid(&self) -> &[u8; 32] {
+    pub fn rid(&self) -> &[u8; 32] {
         &self.rid
     }
 
     /// Get the chain code generated during key generation.
-    pub(crate) fn chain_code(&self) -> &[u8; 32] {
+    pub fn chain_code(&self) -> &[u8; 32] {
         &self.chain_code
+    }
+
+    /// Get the set of participants involved in this key.
+    pub fn participants(&self) -> Vec<ParticipantIdentifier> {
+        self.public_key_shares
+            .iter()
+            .map(KeySharePublic::participant)
+            .collect()
     }
 
     /// Create a new `Output` from its constitutent parts.

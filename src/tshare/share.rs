@@ -8,6 +8,7 @@
 
 use crate::{
     errors::{CallerError, InternalError, Result},
+    keygen::KeySharePrivate,
     paillier::{Ciphertext, DecryptionKey, EncryptionKey},
     utils::{bn_to_scalar, k256_order, scalar_to_bn, CurvePoint},
 };
@@ -95,6 +96,15 @@ impl Debug for CoeffPrivate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("CoeffPrivate([redacted])")
     }
+}
+
+impl TryFrom<&KeySharePrivate> for CoeffPrivate {
+    fn try_from(share: &KeySharePrivate) -> Result<Self> {
+        let x = bn_to_scalar(share.as_ref())?;
+        Ok(CoeffPrivate { x })
+    }
+
+    type Error = InternalError;
 }
 
 /// Represents a coefficient of a polynomial.
