@@ -5,10 +5,10 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use k256::Scalar;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    curve::CT,
     errors::{InternalError, Result},
     messages::{Message, MessageType, SignMessageType},
 };
@@ -16,15 +16,15 @@ use crate::{
 /// A single participant's share of the signature.
 #[allow(unused)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SignatureShare(pub Scalar);
+pub struct SignatureShare<C: CT>(pub C::Scalar);
 
-impl SignatureShare {
-    pub(super) fn new(share: Scalar) -> Self {
+impl<C: CT> SignatureShare<C> {
+    pub(super) fn new(share: C::Scalar) -> Self {
         Self(share)
     }
 }
 
-impl TryFrom<&Message> for SignatureShare {
+impl<C: CT> TryFrom<&Message> for SignatureShare<C> {
     type Error = InternalError;
 
     fn try_from(message: &Message) -> Result<Self> {
@@ -36,16 +36,16 @@ impl TryFrom<&Message> for SignatureShare {
     }
 }
 
-impl std::ops::Add<SignatureShare> for SignatureShare {
-    type Output = Scalar;
-    fn add(self, rhs: SignatureShare) -> Self::Output {
-        self.0 + rhs.0
+impl<C: CT> std::ops::Add<SignatureShare<C>> for SignatureShare<C> {
+    type Output = C::Scalar;
+    fn add(self, rhs: SignatureShare<C>) -> Self::Output {
+        self.0.add(rhs.0)
     }
 }
 
-impl std::ops::Add<SignatureShare> for Scalar {
+/*impl<C: CT> std::ops::Add<SignatureShare<C>> for C::Scalar {
     type Output = Self;
-    fn add(self, rhs: SignatureShare) -> Self::Output {
-        self + rhs.0
+    fn add(self, rhs: SignatureShare<C>) -> Self::Output {
+        self.add(&rhs.0)
     }
-}
+}*/

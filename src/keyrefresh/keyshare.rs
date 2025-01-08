@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve::{TestCT as C, CT}, // TODO: generalize.
+    curve::CT,
     errors::{CallerError, InternalError, Result},
     keygen::{KeySharePrivate, KeySharePublic},
     paillier::{Ciphertext, DecryptionKey, EncryptionKey},
@@ -22,11 +22,12 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Encrypted [`KeyUpdatePrivate`].
 #[derive(Clone, Serialize, Deserialize)]
-pub struct KeyUpdateEncrypted {
+pub struct KeyUpdateEncrypted<C: CT> {
     ciphertext: Ciphertext,
+    phantom: PhantomData<C>,
 }
 
-impl KeyUpdateEncrypted {
+impl<C: CT> KeyUpdateEncrypted<C> {
     pub fn encrypt<R: RngCore + CryptoRng>(
         update: &KeyUpdatePrivate<C>,
         pk: &EncryptionKey,
@@ -41,7 +42,10 @@ impl KeyUpdateEncrypted {
             .encrypt(rng, &update.x)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
 
-        Ok(KeyUpdateEncrypted { ciphertext })
+        Ok(KeyUpdateEncrypted::<C> {
+            ciphertext,
+            phantom: PhantomData,
+        })
     }
 
     pub fn decrypt(&self, dk: &DecryptionKey) -> Result<KeyUpdatePrivate<C>> {
@@ -165,7 +169,7 @@ impl<C: CT> KeyUpdatePublic<C> {
     }
 
     pub(crate) fn sum(participant: ParticipantIdentifier, shares: &[Self]) -> Self {
-        let sum = shares.iter().fold(C::IDENTITY, |sum, o| sum + o.X.clone());
+        let sum = shares.iter().fold(C::IDENTITY, |sum, o| sum + o.X);
         Self {
             participant,
             X: sum,
@@ -173,7 +177,7 @@ impl<C: CT> KeyUpdatePublic<C> {
     }
 
     pub(crate) fn apply(&self, current_pk: &KeySharePublic<C>) -> KeySharePublic<C> {
-        let sum = current_pk.as_ref().clone() + self.X.clone();
+        let sum = *current_pk.as_ref() + self.X;
         KeySharePublic::new(current_pk.participant(), sum)
     }
 }
@@ -188,7 +192,7 @@ impl<C> AsRef<C> for KeyUpdatePublic<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{auxinfo, curve::TestCT as C, utils::testing::init_testing};
+    use crate::{auxinfo, curve::TestCT as C, keyrefresh, utils::testing::init_testing};
     use rand::rngs::StdRng;
 
     /// Generate an encryption key pair.
@@ -211,7 +215,7 @@ mod tests {
         let rng = &mut rng;
 
         // Encryption round-trip.
-        let share = KeyUpdatePrivate::random(rng);
+        let share: keyrefresh::keyshare::KeyUpdatePrivate<C> = KeyUpdatePrivate::random(rng);
         let encrypted = KeyUpdateEncrypted::encrypt(&share, &pk, rng).expect("encryption failed");
         let decrypted = encrypted.decrypt(&dk).expect("decryption failed");
 
@@ -225,7 +229,7 @@ mod tests {
 
         // Encrypt invalid shares.
         for x in [BigNumber::zero(), -BigNumber::one(), C::order()].iter() {
-            let share = KeyUpdatePrivate {
+            let share: keyrefresh::keyshare::KeyUpdatePrivate<C> = KeyUpdatePrivate {
                 x: x.clone(),
                 phantom: PhantomData,
             };

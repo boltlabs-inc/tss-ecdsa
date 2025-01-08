@@ -114,7 +114,6 @@ impl<C: CT> KeySharePrivate<C> {
 
             // Check that the share itself is valid
             let share = BigNumber::from_slice(share_bytes);
-            // TODO: order from C.
             if share >= C::order() || share < BigNumber::one() {
                 Err(CallerError::DeserializationFailed)?
             }

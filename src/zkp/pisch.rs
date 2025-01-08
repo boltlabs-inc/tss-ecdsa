@@ -143,14 +143,12 @@ impl<C: CT + 'static> Proof for PiSchProof<C> {
         }
 
         // Do equality checks
-        // TODO: generalize.
         let response_matches_commitment = {
             let lhs = C::scale_generator(&self.response)?;
-            let rhs = self.commitment + input.x_commitment.scale(&self.challenge)?;
+            let rhs = self.commitment + input.x_commitment.mul_by_bn(&self.challenge)?;
             lhs == rhs
         };
         if !response_matches_commitment {
-            dbg!("xoiiiiii");
             error!("verification equation checked failed");
             return Err(InternalError::ProtocolError(None));
         }
@@ -165,7 +163,6 @@ impl<C: CT + 'static> PiSchProof<C> {
         // Sample alpha from F_q
         let randomness_for_commitment = random_positive_bn(rng, &C::order());
         // Form a commitment to the mask
-        // TODO: generalize.
         let precommitment = C::scale_generator(&randomness_for_commitment)?;
         Ok(PiSchPrecommit {
             precommitment,
@@ -181,7 +178,7 @@ impl<C: CT + 'static> PiSchProof<C> {
         secret: &ProverSecret,
         transcript: &Transcript,
     ) -> Result<Self> {
-        let commitment = com.precommitment.clone();
+        let commitment = com.precommitment;
         let mut local_transcript = transcript.clone();
 
         Self::fill_transcript(&mut local_transcript, context, input, &commitment)?;

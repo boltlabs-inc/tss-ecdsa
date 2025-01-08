@@ -323,9 +323,9 @@ struct Worker {
     /// Outputs of successful key generation.
     key_gen_material: StoredOutput<KeygenParticipant<C>>,
     /// Outputs of successful aux info.
-    aux_info: StoredOutput<AuxInfoParticipant>,
+    aux_info: StoredOutput<AuxInfoParticipant<C>>,
     /// Outputs of successful presign.
-    presign_records: StoredOutput<PresignParticipant>,
+    presign_records: StoredOutput<PresignParticipant<C>>,
     /// Signatures generated from successful signing runs.
     signatures: StoredOutput<SignParticipant<C>>,
     /// Channel for sending messages to the coordinator.
@@ -413,7 +413,7 @@ impl Worker {
         // Note: Missing inputs to aux-info see issues
         // #242 and #243.
         let _output: &Output<C> = self.key_gen_material.retrieve(&key_id);
-        self.new_sub_protocol::<AuxInfoParticipant>(sid, (), key_id)
+        self.new_sub_protocol::<AuxInfoParticipant<C>>(sid, (), key_id)
     }
 
     fn new_presign(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
@@ -421,7 +421,7 @@ impl Worker {
         let auxinfo_output = self.aux_info.retrieve(&key_id);
 
         let inputs = presign::Input::new(auxinfo_output.clone(), key_shares.clone())?;
-        self.new_sub_protocol::<PresignParticipant>(sid, inputs, key_id)
+        self.new_sub_protocol::<PresignParticipant<C>>(sid, inputs, key_id)
     }
 
     fn new_sign(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
@@ -448,12 +448,12 @@ impl Worker {
     }
 
     fn process_auxinfo(&mut self, sid: SessionId, incoming: Message) -> anyhow::Result<()> {
-        let (p, key_id) = self.participants.get_mut::<AuxInfoParticipant>(&sid);
+        let (p, key_id) = self.participants.get_mut::<AuxInfoParticipant<C>>(&sid);
         Self::process_message(p, key_id, incoming, &mut self.aux_info, &self.outgoing)
     }
 
     fn process_presign(&mut self, sid: SessionId, incoming: Message) -> anyhow::Result<()> {
-        let (p, key_id) = self.participants.get_mut::<PresignParticipant>(&sid);
+        let (p, key_id) = self.participants.get_mut::<PresignParticipant<C>>(&sid);
         Self::process_message(
             p,
             key_id,

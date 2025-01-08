@@ -11,7 +11,7 @@
 use crate::{
     auxinfo::{AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    curve::{TestCT as C, CT}, // TODO: generalize.
+    curve::CT,
     errors::{CallerError, InternalError, Result},
     keygen::{KeySharePrivate, KeySharePublic},
     local_storage::LocalStorage,
@@ -25,7 +25,7 @@ use crate::{
     },
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
-    utils::{bn_to_scalar, random_plusminus_by_size, random_positive_bn},
+    utils::{random_plusminus_by_size, random_positive_bn},
     zkp::{
         piaffg::{PiAffgInput, PiAffgProof, PiAffgSecret},
         pienc::{PiEncInput, PiEncProof, PiEncSecret},
@@ -44,7 +44,7 @@ use tracing::{error, info, instrument};
 mod storage {
     use std::marker::PhantomData;
 
-    use crate::local_storage::TypeTag;
+    use crate::{curve::CT, local_storage::TypeTag};
 
     pub(super) struct RoundOnePrivate;
     impl TypeTag for RoundOnePrivate {
@@ -67,11 +67,11 @@ mod storage {
         type Value = crate::presign::round_two::Public<C>;
     }
     pub(super) struct RoundThreePrivate<C>(PhantomData<C>);
-    impl<C: Send + Sync + 'static> TypeTag for RoundThreePrivate<C> {
+    impl<C: CT + Send + Sync + 'static> TypeTag for RoundThreePrivate<C> {
         type Value = crate::presign::round_three::Private<C>;
     }
     pub(super) struct RoundThreePublic<C>(PhantomData<C>);
-    impl<C: Send + Sync + 'static> TypeTag for RoundThreePublic<C> {
+    impl<C: CT + Send + Sync + 'static> TypeTag for RoundThreePublic<C> {
         type Value = crate::presign::round_three::Public<C>;
     }
 }
@@ -80,13 +80,13 @@ mod storage {
 /// and includes [`SharedContext`] and [`AuxInfoPublic`]s for all participants
 /// (including this participant).
 #[derive(Debug)]
-pub(crate) struct PresignContext {
+pub(crate) struct PresignContext<C: CT> {
     shared_context: SharedContext<C>,
     rid: [u8; 32],
     auxinfo_public: Vec<AuxInfoPublic>,
 }
 
-impl ProofContext for PresignContext {
+impl<C: CT> ProofContext for PresignContext<C> {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
             self.shared_context.as_bytes()?,
@@ -98,9 +98,9 @@ impl ProofContext for PresignContext {
     }
 }
 
-impl PresignContext {
+impl<C: CT + 'static> PresignContext<C> {
     /// Build a [`PresignContext`] from a [`PresignParticipant`].
-    pub(crate) fn collect(p: &PresignParticipant) -> Self {
+    pub(crate) fn collect(p: &PresignParticipant<C>) -> Self {
         let mut auxinfo_public = p.input().to_public_auxinfo();
         auxinfo_public.sort_by_key(AuxInfoPublic::participant);
         Self {
@@ -110,7 +110,7 @@ impl PresignContext {
         }
     }
 
-    fn for_participant(self, pid: ParticipantIdentifier) -> ParticipantPresignContext {
+    fn for_participant(self, pid: ParticipantIdentifier) -> ParticipantPresignContext<C> {
         ParticipantPresignContext {
             presign_context: self,
             participant_id: pid,
@@ -118,12 +118,12 @@ impl PresignContext {
     }
 }
 
-pub struct ParticipantPresignContext {
-    presign_context: PresignContext,
+pub struct ParticipantPresignContext<C: CT> {
+    presign_context: PresignContext<C>,
     participant_id: ParticipantIdentifier,
 }
 
-impl ProofContext for ParticipantPresignContext {
+impl<C: CT> ProofContext for ParticipantPresignContext<C> {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
             self.presign_context.as_bytes()?,
@@ -162,7 +162,7 @@ impl ProofContext for ParticipantPresignContext {
 /// # 🔒 Lifetime requirement
 /// The [`PresignRecord`] output must only be used once and then discarded.
 #[derive(Debug)]
-pub struct PresignParticipant {
+pub struct PresignParticipant<C: CT> {
     /// The current session identifier.
     sid: Identifier,
     /// The current protocol input.
@@ -175,12 +175,12 @@ pub struct PresignParticipant {
     /// Local storage for this participant to store secrets.
     local_storage: LocalStorage,
     /// Broadcast subprotocol handler.
-    broadcast_participant: BroadcastParticipant,
+    broadcast_participant: BroadcastParticipant<C>,
     /// Status of the protocol execution.
     status: Status,
 }
 
-impl ProtocolParticipant for PresignParticipant {
+impl<C: CT + 'static> ProtocolParticipant for PresignParticipant<C> {
     type Input = Input<C>;
     type Output = PresignRecord<C>;
 
@@ -298,8 +298,8 @@ impl ProtocolParticipant for PresignParticipant {
     }
 }
 
-impl InnerProtocolParticipant for PresignParticipant {
-    type Context = PresignContext;
+impl<C: CT + 'static> InnerProtocolParticipant for PresignParticipant<C> {
+    type Context = PresignContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
         PresignContext::collect(self)
@@ -318,13 +318,13 @@ impl InnerProtocolParticipant for PresignParticipant {
     }
 }
 
-impl Broadcast for PresignParticipant {
-    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant {
+impl<C: CT> Broadcast<C> for PresignParticipant<C> {
+    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C> {
         &mut self.broadcast_participant
     }
 }
 
-impl PresignParticipant {
+impl<C: CT + 'static> PresignParticipant<C> {
     fn input(&self) -> &Input<C> {
         &self.input
     }
@@ -860,11 +860,11 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
     fn round_one<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
-        context: &ParticipantPresignContext,
+        context: &ParticipantPresignContext<C>,
         other_auxinfos: &[&AuxInfoPublic],
     ) -> Result<(
         round_one::Private,
-        HashMap<ParticipantIdentifier, round_one::Public>,
+        HashMap<ParticipantIdentifier, round_one::Public<C>>,
         round_one::PublicBroadcast,
     )> {
         let order = C::order();
@@ -921,7 +921,7 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
     fn round_two<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
-        context: &ParticipantPresignContext,
+        context: &ParticipantPresignContext<C>,
         receiver_aux_info: &AuxInfoPublic,
         sender_r1_priv: &round_one::Private,
         receiver_r1_pub_broadcast: &round_one::PublicBroadcast,
@@ -978,7 +978,7 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             .map_err(|_| InternalError::InternalInvariantFailed)?;
 
         let g = C::GENERATOR;
-        let Gamma = g.scale(&sender_r1_priv.gamma)?;
+        let Gamma = g.mul_by_bn(&sender_r1_priv.gamma)?;
 
         // Generate the proofs.
         let mut transcript = Transcript::new(b"PiAffgProof");
@@ -1052,7 +1052,7 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
     fn round_three<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
-        context: &ParticipantPresignContext,
+        context: &ParticipantPresignContext<C>,
         sender_r1_priv: &round_one::Private,
         other_participant_inputs: &HashMap<ParticipantIdentifier, round_three::Input<C>>,
     ) -> Result<(
@@ -1067,7 +1067,7 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             .keyshare_private
             .as_ref()
             .modmul(&sender_r1_priv.k, &order);
-        let mut Gamma = g.scale(&sender_r1_priv.gamma)?;
+        let mut Gamma = g.mul_by_bn(&sender_r1_priv.gamma)?;
 
         for round_three_input in other_participant_inputs.values() {
             let r2_pub_j = round_three_input.r2_public.clone();
@@ -1105,10 +1105,10 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             Gamma = Gamma + r2_pub_j.Gamma;
         }
 
-        let Delta = Gamma.scale(&sender_r1_priv.k)?;
+        let Delta = Gamma.mul_by_bn(&sender_r1_priv.k)?;
 
-        let delta_scalar = bn_to_scalar(&delta)?;
-        let chi_scalar = bn_to_scalar(&chi)?;
+        let delta_scalar = C::bn_to_scalar(&delta)?;
+        let chi_scalar = C::bn_to_scalar(&chi)?;
 
         let mut ret_publics = HashMap::new();
         for (other_id, round_three_input) in other_participant_inputs {
@@ -1128,9 +1128,9 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             )?;
             let val = round_three::Public {
                 delta: delta_scalar,
-                Delta: Delta.clone(),
+                Delta,
                 psi_double_prime,
-                Gamma: Gamma.clone(),
+                Gamma,
             };
             let _ = ret_publics.insert(*other_id, val);
         }
@@ -1144,7 +1144,6 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             delta: delta_scalar,
             Delta,
         };
-
         Ok((private, ret_publics))
     }
 }
@@ -1164,13 +1163,13 @@ mod test {
 
     use crate::{
         auxinfo,
-        curve::TestCT as C,
+        curve::{TestCT as C, CT},
         errors::Result,
         keygen,
         messages::{Message, MessageType, PresignMessageType},
         participant::{ProcessOutcome, Status},
         presign::{self, Input},
-        utils::{self, testing::init_testing},
+        utils::testing::init_testing,
         Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
     };
     type PresignRecord = presign::PresignRecord<C>;
@@ -1191,7 +1190,7 @@ mod test {
 
     #[allow(clippy::type_complexity)]
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut [PresignParticipant],
+        quorum: &mut [PresignParticipant<C>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
     ) -> Option<(usize, ProcessOutcome<PresignRecord>)> {
@@ -1246,7 +1245,7 @@ mod test {
             .map(|output| output.private_key_share())
             .fold(BigNumber::zero(), |sum, key_share| sum + key_share.as_ref());
         // Converting to scalars automatically gets us the mod q
-        assert_eq!(masked_key, utils::bn_to_scalar(&secret_key).unwrap() * mask);
+        assert_eq!(masked_key, C::bn_to_scalar(&secret_key).unwrap() * mask);
     }
 
     #[test]

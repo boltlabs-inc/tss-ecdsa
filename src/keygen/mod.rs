@@ -34,7 +34,7 @@
 
 mod keygen_commit;
 mod keyshare;
-mod output;
+pub mod output;
 mod participant;
 
 pub use keyshare::{KeySharePrivate, KeySharePublic};

@@ -10,7 +10,7 @@
 
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    curve::TestCT as C, // TODO: generalize.
+    curve::CT,
     errors::{CallerError, InternalError, Result},
     keyrefresh::{
         keyrefresh_commit::{KeyrefreshCommit, KeyrefreshDecommit},
@@ -24,8 +24,7 @@ use crate::{
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
     zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
-    Identifier,
-    ParticipantConfig,
+    Identifier, ParticipantConfig,
 };
 
 use merlin::Transcript;
@@ -89,11 +88,11 @@ The [private key share](crate::keygen::KeySharePrivate) in the output requires s
 persistent storage.
 **/
 #[derive(Debug)]
-pub struct KeyrefreshParticipant {
+pub struct KeyrefreshParticipant<C: CT> {
     /// The current session identifier
     sid: Identifier,
     /// The current protocol input.
-    input: Input,
+    input: Input<C>,
     /// A unique identifier for this participant.
     id: ParticipantIdentifier,
     /// A list of all other participant identifiers participating in the
@@ -102,13 +101,13 @@ pub struct KeyrefreshParticipant {
     /// Local storage for this participant to store secrets
     local_storage: LocalStorage,
     /// Broadcast subprotocol handler
-    broadcast_participant: BroadcastParticipant,
+    broadcast_participant: BroadcastParticipant<C>,
     /// Status of the protocol execution.
     status: Status,
 }
 
-impl ProtocolParticipant for KeyrefreshParticipant {
-    type Input = Input;
+impl<C: CT + 'static> ProtocolParticipant for KeyrefreshParticipant<C> {
+    type Input = Input<C>;
     type Output = Output<C>;
 
     fn new(
@@ -207,7 +206,7 @@ impl ProtocolParticipant for KeyrefreshParticipant {
     }
 }
 
-impl InnerProtocolParticipant for KeyrefreshParticipant {
+impl<C: CT + 'static> InnerProtocolParticipant for KeyrefreshParticipant<C> {
     type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
@@ -227,13 +226,13 @@ impl InnerProtocolParticipant for KeyrefreshParticipant {
     }
 }
 
-impl Broadcast for KeyrefreshParticipant {
-    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant {
+impl<C: CT> Broadcast<C> for KeyrefreshParticipant<C> {
+    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C> {
         &mut self.broadcast_participant
     }
 }
 
-impl KeyrefreshParticipant {
+impl<C: CT + 'static> KeyrefreshParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this
@@ -696,7 +695,7 @@ impl KeyrefreshParticipant {
         message.check_type(MessageType::Keyrefresh(
             KeyrefreshMessageType::R3PrivateUpdate,
         ))?;
-        let encrypted_update: KeyUpdateEncrypted = deserialize!(&message.unverified_bytes)?;
+        let encrypted_update: KeyUpdateEncrypted<C> = deserialize!(&message.unverified_bytes)?;
 
         // Get my private key from the AuxInfo protocol.
         let my_dk = self.input.private_auxinfo().decryption_key();
@@ -716,7 +715,7 @@ impl KeyrefreshParticipant {
             .find(|kup| kup.participant() == self.id())
             .ok_or(InternalError::InternalInvariantFailed)?
             .as_ref();
-        if &implied_public != expected_public {
+        if implied_public != *expected_public {
             error!("the private update does not match the public update");
             return Err(InternalError::ProtocolError(Some(message.from())));
         }
@@ -864,8 +863,8 @@ fn schnorr_proof_transcript(
 mod tests {
     use super::*;
     use crate::{
-        auxinfo, keygen, keyrefresh::input::Input, utils::testing::init_testing, Identifier,
-        ParticipantConfig,
+        auxinfo, curve::TestCT, keygen, keyrefresh::input::Input, utils::testing::init_testing,
+        Identifier, ParticipantConfig,
     };
     use rand::{CryptoRng, Rng, RngCore};
     use std::{
@@ -874,7 +873,7 @@ mod tests {
     };
     use tracing::debug;
 
-    impl KeyrefreshParticipant {
+    impl<C: CT + 'static> KeyrefreshParticipant<C> {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             quorum_size: usize,
@@ -889,7 +888,7 @@ mod tests {
             // Make the participants
             zip(configs, zip(keygen_outputs.clone(), auxinfo_outputs))
                 .map(|(config, (keygen_output, auxinfo_output))| {
-                    let input = Input::new(auxinfo_output, keygen_output)?;
+                    let input = Input::<C>::new(auxinfo_output, keygen_output)?;
                     Self::new(sid, config.id(), config.other_ids().to_vec(), input)
                 })
                 .collect::<Result<Vec<_>>>()
@@ -923,7 +922,7 @@ mod tests {
         }
     }
 
-    fn is_keyrefresh_done(quorum: &[KeyrefreshParticipant]) -> bool {
+    fn is_keyrefresh_done(quorum: &[KeyrefreshParticipant<TestCT>]) -> bool {
         for participant in quorum {
             if *participant.status() != Status::TerminatedSuccessfully {
                 return false;
@@ -934,10 +933,10 @@ mod tests {
 
     #[allow(clippy::type_complexity)]
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut [KeyrefreshParticipant],
+        quorum: &mut [KeyrefreshParticipant<TestCT>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
-    ) -> Option<(usize, ProcessOutcome<Output<C>>)> {
+    ) -> Option<(usize, ProcessOutcome<Output<TestCT>>)> {
         // Pick a random participant to process
         let index = rng.gen_range(0..quorum.len());
         let participant = quorum.get_mut(index).unwrap();
@@ -979,7 +978,7 @@ mod tests {
 
         let mut outputs = std::iter::repeat_with(|| None)
             .take(quorum_size)
-            .collect::<Vec<Option<Output<C>>>>();
+            .collect::<Vec<Option<Output<TestCT>>>>();
 
         for participant in &quorum {
             let inbox = inboxes.get_mut(&participant.id()).unwrap();
@@ -1054,7 +1053,7 @@ mod tests {
             assert!(public_share.is_some());
 
             let expected_public_share =
-                C::GENERATOR.multiply_by_bignum(output.private_key_share().as_ref())?;
+                TestCT::GENERATOR.multiply_by_bignum(output.private_key_share().as_ref())?;
             assert_eq!(public_share.unwrap().as_ref(), &expected_public_share);
         }
 
