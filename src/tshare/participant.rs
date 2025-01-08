@@ -762,12 +762,13 @@ impl TshareParticipant {
     /// Convert a private share and the public shares of the quorum.
     #[allow(clippy::type_complexity)]
     pub fn convert_to_t_out_of_t_share(
-        my_pid: ParticipantIdentifier,
+        config: &ParticipantConfig,
         tshare: &Output,
-        participants: &[ParticipantIdentifier],
         rid: [u8; 32],
         chain_code: [u8; 32],
     ) -> Result<<KeygenParticipant as ProtocolParticipant>::Output> {
+        let participants = config.all_participants();
+
         let public_key_shares = participants
             .iter()
             .map(|pid| {
@@ -777,7 +778,7 @@ impl TshareParticipant {
                     .find(|x| x.participant() == *pid)
                     .expect("public key share not found");
 
-                let lagrange = Self::lagrange_coefficient_at_zero(pid, participants);
+                let lagrange = Self::lagrange_coefficient_at_zero(pid, &participants);
 
                 let public_t_of_t = public_t_of_n.as_ref().multiply_by_scalar(&lagrange);
                 KeySharePublic::new(*pid, public_t_of_t)
@@ -785,7 +786,7 @@ impl TshareParticipant {
             .collect::<Vec<_>>();
 
         let private_key_share = {
-            let lagrange = Self::lagrange_coefficient_at_zero(&my_pid, participants);
+            let lagrange = Self::lagrange_coefficient_at_zero(&config.id(), &participants);
             let private_t_of_t = tshare.private_key_share() * &lagrange;
             KeySharePrivate::from_bigint(&scalar_to_bn(&private_t_of_t))
         };
