@@ -145,7 +145,7 @@ impl<C: CT + 'static> Proof for PiSchProof<C> {
         // Do equality checks
         let response_matches_commitment = {
             let lhs = C::scale_generator(&self.response)?;
-            let rhs = self.commitment + input.x_commitment.scale(&self.challenge)?;
+            let rhs = self.commitment + input.x_commitment.mul_by_bn(&self.challenge)?;
             lhs == rhs
         };
         if !response_matches_commitment {

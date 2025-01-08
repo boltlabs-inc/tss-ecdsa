@@ -70,7 +70,7 @@ impl MasterKeyInput {
             let (i_left, i_right) = split_into_two_halfes(&i);
             if let Ok(private_key) = C::bn_to_scalar(&BigNumber::from_slice(i_left)) {
                 let master_private_key = private_key;
-                let master_public_key = C::GENERATOR.scale2(&master_private_key);
+                let master_public_key = C::GENERATOR.mul(&master_private_key);
                 if master_public_key != C::IDENTITY {
                     return CKDOutput {
                         chain_code: (*i_right).into(),
@@ -146,7 +146,7 @@ impl<C: CT> CKDInput<C> {
                     .expect("could not get the parent public key");
 
                 let child_private_key = parent_private_key.add(&shift);
-                let child_public_key = parent_public_key + C::GENERATOR.scale2(&shift);
+                let child_public_key = parent_public_key + C::GENERATOR.mul(&shift);
 
                 if child_public_key != C::IDENTITY {
                     return CKDOutput {
@@ -237,7 +237,7 @@ fn test_derive_child_key() {
     let master_key_output = MasterKeyInput::derive_master_key::<C>(&mk_input);
 
     // derive the child key
-    let pk = C::GENERATOR.scale2(&master_key_output.private_key);
+    let pk = C::GENERATOR.mul(&master_key_output.private_key);
     let private_key = master_key_output.private_key;
     let public_key: Vec<u8> = pk.to_bytes().to_vec();
 

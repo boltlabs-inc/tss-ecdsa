@@ -322,7 +322,7 @@ impl<C: CT + 'static> SignParticipant<C> {
             .iter()
             .fold(C::IDENTITY, |sum, share| sum + *share.as_ref());
 
-        let shifted_point = C::GENERATOR.scale2(&shift);
+        let shifted_point = C::GENERATOR.mul(&shift);
         let shifted_public_key_point = public_key_point + shifted_point;
 
         VerifyingKey::from_encoded_point(&shifted_public_key_point.into()).map_err(|_| {

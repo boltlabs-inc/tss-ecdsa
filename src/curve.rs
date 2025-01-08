@@ -58,14 +58,14 @@ pub trait CT:
     /// converting it. This may be insecure if the point contains private
     /// data.
     // TODO: name.
-    fn scale(&self, scalar: &BigNumber) -> Result<Self>;
+    fn mul_by_bn(&self, scalar: &BigNumber) -> Result<Self>;
 
     /// Multiply the generator by a [`BigNumber`] scalar.
     fn scale_generator(scalar: &BigNumber) -> Result<Self>;
 
     /// Multiply `self` by a [`Self::Scalar`].
     // TODO: name.
-    fn scale2(&self, point: &Self::Scalar) -> Self;
+    fn mul(&self, point: &Self::Scalar) -> Self;
 
     /// Compute the x-projection of the point.
     fn x_projection(&self) -> Result<Self::Scalar>;
@@ -244,7 +244,7 @@ impl CT for CurvePoint {
         k256_order()
     }
 
-    fn scale(&self, scalar: &BigNumber) -> Result<Self> {
+    fn mul_by_bn(&self, scalar: &BigNumber) -> Result<Self> {
         self.multiply_by_bignum(scalar)
     }
 
@@ -252,7 +252,7 @@ impl CT for CurvePoint {
         CurvePoint::GENERATOR.multiply_by_bignum(scalar)
     }
 
-    fn scale2(&self, scalar: &Self::Scalar) -> Self {
+    fn mul(&self, scalar: &Self::Scalar) -> Self {
         self.multiply_by_scalar(scalar)
     }
 

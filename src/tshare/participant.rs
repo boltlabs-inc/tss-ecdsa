@@ -749,7 +749,7 @@ impl<C: CT + 'static> TshareParticipant<C> {
         let x = Self::participant_coordinate(recipient_id);
         let mut sum = C::IDENTITY;
         for coeff in coeff_publics.iter().rev() {
-            sum = sum.scale2(&x);
+            sum = sum.mul(&x);
             sum = sum + *coeff.as_ref();
         }
         Ok(sum)
@@ -783,11 +783,11 @@ impl<C: CT + 'static> TshareParticipant<C> {
                 let private_key = output.private_key_share();
                 let private_share =
                     KeySharePrivate::<C>::from_bigint(&C::scalar_to_bn(private_key));
-                let public_share = C::GENERATOR.scale2(private_key);
+                let public_share = C::GENERATOR.mul(private_key);
                 let lagrange = Self::lagrange_coefficient_at_zero(pid, &all_participants);
                 let new_private_share: BigNumber =
                     private_share.clone().as_ref() * BigNumber::from_slice(lagrange.to_bytes());
-                let new_public_share = public_share.scale2(&lagrange);
+                let new_public_share = public_share.mul(&lagrange);
                 assert!(new_private_shares
                     .insert(*pid, KeySharePrivate::<C>::from_bigint(&new_private_share))
                     .is_none());
@@ -1206,7 +1206,7 @@ mod tests {
                 .collect::<Vec<_>>();
             let public_share = TshareParticipant::eval_public_share(&publics_coeffs, pid)?;
 
-            let expected_public_share = C::GENERATOR.scale2(output.private_key_share());
+            let expected_public_share = C::GENERATOR.mul(output.private_key_share());
             // if the output already contains the public key, then we don't need to
             // recompute and check it here.
             assert_eq!(public_share, expected_public_share);

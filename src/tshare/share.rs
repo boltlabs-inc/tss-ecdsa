@@ -116,7 +116,7 @@ impl<C: CT> CoeffPrivate<C> {
 
     /// Computes the "raw" curve point corresponding to this private key.
     pub(crate) fn public_point(&self) -> C {
-        C::GENERATOR.scale2(&self.x)
+        C::GENERATOR.mul(&self.x)
     }
 
     pub(crate) fn to_public(&self) -> CoeffPublic<C> {
@@ -141,7 +141,7 @@ impl<C: CT> EvalPrivate<C> {
     }
 
     pub(crate) fn public_point(&self) -> C {
-        C::GENERATOR.scale2(&self.x)
+        C::GENERATOR.mul(&self.x)
     }
 }
 

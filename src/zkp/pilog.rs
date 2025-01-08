@@ -224,7 +224,7 @@ impl<C: CT + 'static> Proof for PiLogProof<C> {
             .encrypt(rng, &mask)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Commit to the random plaintext using discrete log (`Y` in the paper).
-        let mask_dlog_commit = input.generator.scale(&mask)?;
+        let mask_dlog_commit = input.generator.mul_by_bn(&mask)?;
         // Commit to the random plaintext using ring-Pedersen (producing variables `D`
         // and `ɣ` in the paper).
         let (mask_commit, mask_commit_randomness) =
@@ -306,8 +306,8 @@ impl<C: CT + 'static> Proof for PiLogProof<C> {
         }
         // Check that the group exponentiation of the secret plaintext is valid.
         let group_exponentiation_is_valid = {
-            let lhs = input.generator.scale(&self.plaintext_response)?;
-            let rhs = self.mask_dlog_commit + input.dlog_commit.scale(&self.challenge)?;
+            let lhs = input.generator.mul_by_bn(&self.plaintext_response)?;
+            let rhs = self.mask_dlog_commit + input.dlog_commit.mul_by_bn(&self.challenge)?;
             lhs == rhs
         };
         if !group_exponentiation_is_valid {

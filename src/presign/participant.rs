@@ -978,7 +978,7 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             .map_err(|_| InternalError::InternalInvariantFailed)?;
 
         let g = C::GENERATOR;
-        let Gamma = g.scale(&sender_r1_priv.gamma)?;
+        let Gamma = g.mul_by_bn(&sender_r1_priv.gamma)?;
 
         // Generate the proofs.
         let mut transcript = Transcript::new(b"PiAffgProof");
@@ -1067,7 +1067,7 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             .keyshare_private
             .as_ref()
             .modmul(&sender_r1_priv.k, &order);
-        let mut Gamma = g.scale(&sender_r1_priv.gamma)?;
+        let mut Gamma = g.mul_by_bn(&sender_r1_priv.gamma)?;
 
         for round_three_input in other_participant_inputs.values() {
             let r2_pub_j = round_three_input.r2_public.clone();
@@ -1105,7 +1105,7 @@ impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
             Gamma = Gamma + r2_pub_j.Gamma;
         }
 
-        let Delta = Gamma.scale(&sender_r1_priv.k)?;
+        let Delta = Gamma.mul_by_bn(&sender_r1_priv.k)?;
 
         let delta_scalar = C::bn_to_scalar(&delta)?;
         let chi_scalar = C::bn_to_scalar(&chi)?;

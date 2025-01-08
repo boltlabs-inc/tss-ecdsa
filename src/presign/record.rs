@@ -84,7 +84,7 @@ impl<C: CT> TryFrom<RecordPair<C>> for PresignRecord<C> {
         }
 
         let g = C::GENERATOR;
-        if g.scale2(&delta) != Delta {
+        if g.mul(&delta) != Delta {
             error!("Could not create PresignRecord: mismatch between calculated private and public deltas");
             return Err(ProtocolError(None));
         }
@@ -93,7 +93,7 @@ impl<C: CT> TryFrom<RecordPair<C>> for PresignRecord<C> {
             error!("Could not invert delta as it is 0. Either you got profoundly unlucky or more likely there's a bug");
             InternalInvariantFailed
         })?;
-        let R = private.Gamma.scale2(&delta_inv);
+        let R = private.Gamma.mul(&delta_inv);
 
         Ok(PresignRecord {
             R,

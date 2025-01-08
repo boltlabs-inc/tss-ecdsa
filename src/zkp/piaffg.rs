@@ -423,7 +423,8 @@ impl<C: CT + 'static> Proof for PiAffgProof<C> {
         // Check that the masked group exponentiation is valid.
         let masked_group_exponentiation_is_valid = {
             let lhs = C::scale_generator(&self.masked_mult_coeff)?;
-            let rhs = self.random_mult_coeff_exp + input.mult_coeff_exp.scale(&self.challenge)?;
+            let rhs =
+                self.random_mult_coeff_exp + input.mult_coeff_exp.mul_by_bn(&self.challenge)?;
             lhs == rhs
         };
         if !masked_group_exponentiation_is_valid {
