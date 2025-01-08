@@ -101,7 +101,7 @@ pub struct KeyrefreshParticipant<C: CT> {
     /// Local storage for this participant to store secrets
     local_storage: LocalStorage,
     /// Broadcast subprotocol handler
-    broadcast_participant: BroadcastParticipant,
+    broadcast_participant: BroadcastParticipant<C>,
     /// Status of the protocol execution.
     status: Status,
 }
@@ -226,8 +226,8 @@ impl<C: CT + 'static> InnerProtocolParticipant for KeyrefreshParticipant<C> {
     }
 }
 
-impl<C: CT> Broadcast for KeyrefreshParticipant<C> {
-    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant {
+impl<C: CT> Broadcast<C> for KeyrefreshParticipant<C> {
+    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C> {
         &mut self.broadcast_participant
     }
 }

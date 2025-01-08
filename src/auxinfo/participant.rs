@@ -90,7 +90,7 @@ pub struct AuxInfoParticipant<C: CT> {
     /// Local storage for this participant to store secrets
     local_storage: LocalStorage,
     /// Broadcast subprotocol handler
-    broadcast_participant: BroadcastParticipant,
+    broadcast_participant: BroadcastParticipant<C>,
     /// The status of the protocol execution
     status: Status,
     /// Phantom data to ensure the curve type is included in the type signature
@@ -212,8 +212,8 @@ impl<C: CT + 'static> InnerProtocolParticipant for AuxInfoParticipant<C> {
     }
 }
 
-impl<C: CT> Broadcast for AuxInfoParticipant<C> {
-    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant {
+impl<C: CT> Broadcast<C> for AuxInfoParticipant<C> {
+    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C> {
         &mut self.broadcast_participant
     }
 }

@@ -11,6 +11,7 @@
 
 use crate::{
     broadcast::participant::{BroadcastParticipant, BroadcastTag},
+    curve::CT,
     errors::{InternalError, Result},
     local_storage::{storage as local_storage, LocalStorage, TypeTag},
     messages::{Message, MessageType},
@@ -400,8 +401,8 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
     fn status_mut(&mut self) -> &mut Status;
 }
 
-pub(crate) trait Broadcast {
-    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant;
+pub(crate) trait Broadcast<C: CT> {
+    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C>;
     ///`sid` corresponds to a unique session identifier.
     fn broadcast<R: RngCore + CryptoRng>(
         &mut self,
@@ -425,7 +426,7 @@ pub(crate) trait Broadcast {
         &mut self,
         rng: &mut R,
         message: &Message,
-    ) -> Result<ProcessOutcome<<BroadcastParticipant as ProtocolParticipant>::Output>> {
+    ) -> Result<ProcessOutcome<<BroadcastParticipant<C> as ProtocolParticipant>::Output>> {
         // Broadcast messages are handled by wrapping the broadcast protocol messages
         // into calling-protocol-specific wrappers. To handle a broadcast message, we
         // need to first unwrap the broadcast message...

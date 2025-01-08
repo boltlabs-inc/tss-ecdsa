@@ -143,7 +143,6 @@ impl<C: CT + 'static> Proof for PiSchProof<C> {
         }
 
         // Do equality checks
-        // TODO: generalize.
         let response_matches_commitment = {
             let lhs = C::scale_generator(&self.response)?;
             let rhs = self.commitment + input.x_commitment.scale(&self.challenge)?;
@@ -164,7 +163,6 @@ impl<C: CT + 'static> PiSchProof<C> {
         // Sample alpha from F_q
         let randomness_for_commitment = random_positive_bn(rng, &C::order());
         // Form a commitment to the mask
-        // TODO: generalize.
         let precommitment = C::scale_generator(&randomness_for_commitment)?;
         Ok(PiSchPrecommit {
             precommitment,

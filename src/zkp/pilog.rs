@@ -224,7 +224,6 @@ impl<C: CT + 'static> Proof for PiLogProof<C> {
             .encrypt(rng, &mask)
             .map_err(|_| InternalError::InternalInvariantFailed)?;
         // Commit to the random plaintext using discrete log (`Y` in the paper).
-        // TODO: generalize.
         let mask_dlog_commit = input.generator.scale(&mask)?;
         // Commit to the random plaintext using ring-Pedersen (producing variables `D`
         // and `ɣ` in the paper).

@@ -116,7 +116,7 @@ pub struct TshareParticipant<C: CT> {
     /// Local storage for this participant to store secrets
     local_storage: LocalStorage,
     /// Broadcast subprotocol handler
-    broadcast_participant: BroadcastParticipant,
+    broadcast_participant: BroadcastParticipant<C>,
     /// Status of the protocol execution.
     status: Status,
 }
@@ -246,8 +246,8 @@ impl<C: CT + 'static> InnerProtocolParticipant for TshareParticipant<C> {
     }
 }
 
-impl<C: CT> Broadcast for TshareParticipant<C> {
-    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant {
+impl<C: CT> Broadcast<C> for TshareParticipant<C> {
+    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C> {
         &mut self.broadcast_participant
     }
 }

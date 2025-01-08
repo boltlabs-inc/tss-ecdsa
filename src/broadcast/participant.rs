@@ -8,20 +8,19 @@
 
 use crate::{
     broadcast::data::BroadcastData,
-    curve::TestCT as C, // TODO: generalize.
+    curve::CT,
     errors::{CallerError, InternalError, Result},
     local_storage::LocalStorage,
     messages::{BroadcastMessageType, Message, MessageType},
     participant::{InnerProtocolParticipant, ProcessOutcome, ProtocolParticipant},
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
-    run_only_once_per_tag,
-    Identifier,
+    run_only_once_per_tag, Identifier,
 };
 
 use crate::participant::Status;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, marker::PhantomData};
 use tracing::{error, info, instrument};
 
 // Local storage data types.
@@ -36,7 +35,7 @@ mod storage {
 }
 
 #[derive(Debug)]
-pub(crate) struct BroadcastParticipant {
+pub(crate) struct BroadcastParticipant<C: CT> {
     /// The current session identifier
     sid: Identifier,
     /// A unique identifier for this participant
@@ -48,6 +47,8 @@ pub(crate) struct BroadcastParticipant {
     local_storage: LocalStorage,
     /// Status of the protocol execution
     status: Status,
+    /// Phantom data to pin the curve type
+    _curve: std::marker::PhantomData<C>,
 }
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Clone, Debug)]
@@ -86,7 +87,7 @@ impl BroadcastOutput {
     }
 }
 
-impl ProtocolParticipant for BroadcastParticipant {
+impl<C: CT> ProtocolParticipant for BroadcastParticipant<C> {
     type Input = ();
     type Output = BroadcastOutput;
 
@@ -102,6 +103,7 @@ impl ProtocolParticipant for BroadcastParticipant {
             other_participant_ids,
             local_storage: Default::default(),
             status: Status::Initialized,
+            _curve: PhantomData,
         })
     }
 
@@ -172,7 +174,7 @@ impl ProtocolParticipant for BroadcastParticipant {
     }
 }
 
-impl InnerProtocolParticipant for BroadcastParticipant {
+impl<C: CT> InnerProtocolParticipant for BroadcastParticipant<C> {
     type Context = SharedContext<C>;
 
     /// This method is never used.
@@ -193,7 +195,7 @@ impl InnerProtocolParticipant for BroadcastParticipant {
     }
 }
 
-impl BroadcastParticipant {
+impl<C: CT> BroadcastParticipant<C> {
     #[instrument(skip_all, err(Debug))]
     pub(crate) fn gen_round_one_msgs<R: RngCore + CryptoRng>(
         &mut self,

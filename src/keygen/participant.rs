@@ -85,7 +85,7 @@ mod storage {
 /// The [private key share](KeySharePrivate) in the output requires secure
 /// persistent storage.
 #[derive(Debug)]
-pub struct KeygenParticipant<C> {
+pub struct KeygenParticipant<C: CT> {
     /// The current session identifier
     sid: Identifier,
     /// A unique identifier for this participant.
@@ -96,7 +96,7 @@ pub struct KeygenParticipant<C> {
     /// Local storage for this participant to store secrets
     local_storage: LocalStorage,
     /// Broadcast subprotocol handler
-    broadcast_participant: BroadcastParticipant,
+    broadcast_participant: BroadcastParticipant<C>,
     /// Status of the protocol execution.
     status: Status,
     phantom: PhantomData<C>,
@@ -218,8 +218,8 @@ impl<C: CT + 'static> InnerProtocolParticipant for KeygenParticipant<C> {
     }
 }
 
-impl<C> Broadcast for KeygenParticipant<C> {
-    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant {
+impl<C: CT> Broadcast<C> for KeygenParticipant<C> {
+    fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C> {
         &mut self.broadcast_participant
     }
 }
