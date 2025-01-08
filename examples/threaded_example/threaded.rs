@@ -185,7 +185,9 @@ fn main() -> anyhow::Result<()> {
 
     // Coordinator initiates entire protocol.
     let mut coordinator = Coordinator::new(worker_messages, workers_rx, num_workers);
-    coordinator.tss_ecdsa()?;
+    for _ in 0..cli.protocol_executions {
+        coordinator.tss_ecdsa()?;
+    }
 
     Ok(())
 }
