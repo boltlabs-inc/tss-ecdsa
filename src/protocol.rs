@@ -291,7 +291,8 @@ pub(crate) mod participant_config {
             })
         }
 
-        /// Returns a new [`ParticipantConfig`] including only the given participants.
+        /// Returns a new [`ParticipantConfig`] including only the given
+        /// participants.
         pub fn filter_participants(&self, pids: &[ParticipantIdentifier]) -> Self {
             let other_ids = self
                 .other_ids()
@@ -299,7 +300,10 @@ pub(crate) mod participant_config {
                 .filter(|pid| pids.contains(pid))
                 .cloned()
                 .collect();
-            Self { id: self.id, other_ids }
+            Self {
+                id: self.id,
+                other_ids,
+            }
         }
 
         /// Get a list of `size` consistent [`ParticipantConfig`]s.

@@ -98,7 +98,8 @@ impl Output {
         &self.private_auxinfo
     }
 
-    /// Filter the output to only include the auxinfo for the given participants.
+    /// Filter the output to only include the auxinfo for the given
+    /// participants.
     pub fn filter_participants(&self, pids: &[ParticipantIdentifier]) -> Self {
         let public_auxinfo = self
             .public_auxinfo
