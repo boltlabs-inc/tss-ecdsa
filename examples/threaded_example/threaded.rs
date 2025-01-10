@@ -61,11 +61,6 @@ struct Cli {
     /// Number of participant worker threads to use.
     #[arg(short, long)]
     number_of_workers: usize,
-    /// Number of times to perform each sub-protocol of tss-ecdsa.
-    /// protocol_executions > 1 useful for computing meaningful average
-    /// execution times.
-    #[arg(short, long)]
-    protocol_executions: usize,
 }
 
 /// Generic Storage for outputs of specific sub-protocols. Indexed by a `KeyId`
@@ -185,9 +180,7 @@ fn main() -> anyhow::Result<()> {
 
     // Coordinator initiates entire protocol.
     let mut coordinator = Coordinator::new(worker_messages, workers_rx, num_workers);
-    for _ in 0..cli.protocol_executions {
-        coordinator.tss_ecdsa()?;
-    }
+    coordinator.tss_ecdsa()?;
 
     Ok(())
 }
