@@ -660,7 +660,7 @@ mod tests {
         presign,
         sign::{self, InteractiveSignParticipant, SignParticipant},
         slip0010,
-        tshare::{self, CoeffPrivate, TshareParticipant},
+        tshare::{self, tests::convert_to_t_out_of_t_shares, CoeffPrivate, TshareParticipant},
         utils::testing::init_testing,
         PresignParticipant,
     };
@@ -1464,7 +1464,7 @@ mod tests {
             .fold(Scalar::ZERO, |acc, x| acc + x);
 
         // t-out-of-t conversion
-        let toft_outputs = TshareParticipant::convert_to_t_out_of_t_shares(
+        let toft_keygen_outputs = convert_to_t_out_of_t_shares(
             tshare_outputs.clone(),
             all_participants.clone(),
             *rid,
@@ -1472,7 +1472,6 @@ mod tests {
             sum_tshare_input,
             t,
         )?;
-        let toft_keygen_outputs = toft_outputs.keygen_outputs;
 
         let first_keygen_output = toft_keygen_outputs
             .get(&configs.first().unwrap().id())

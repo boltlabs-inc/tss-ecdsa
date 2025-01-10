@@ -26,13 +26,12 @@ use crate::{
     protocol::{ParticipantIdentifier, ProtocolType, SharedContext},
     run_only_once,
     tshare::share::EvalPublic,
-    utils::{bn_to_scalar, k256_order, scalar_to_bn, CurvePoint},
+    utils::{bn_to_scalar, scalar_to_bn, CurvePoint},
     zkp::pisch::{CommonInput, PiSchPrecommit, PiSchProof, ProverSecret},
     Identifier, ParticipantConfig,
 };
 
 use k256::{elliptic_curve::PrimeField, Scalar};
-use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use tracing::{error, info, instrument, warn};
@@ -117,16 +116,6 @@ pub struct TshareParticipant {
     broadcast_participant: BroadcastParticipant,
     /// Status of the protocol execution.
     status: Status,
-}
-
-#[derive(Debug)]
-pub struct ToutofTHelper {
-    pub keygen_outputs:
-        HashMap<ParticipantIdentifier, <KeygenParticipant as ProtocolParticipant>::Output>,
-    pub public_keys: Vec<KeySharePublic>,
-    pub all_participants: Vec<ParticipantIdentifier>,
-    pub rid: [u8; 32],
-    pub chain_code: [u8; 32],
 }
 
 impl ProtocolParticipant for TshareParticipant {
@@ -791,92 +780,7 @@ impl TshareParticipant {
             KeySharePrivate::from_bigint(&scalar_to_bn(&private_t_of_t))
         };
 
-        Ok(crate::keygen::Output::from_parts(
-            public_key_shares,
-            private_key_share,
-            rid,
-            chain_code,
-        )?)
-    }
-
-    /// Convert the tshares to t-out-of-t shares.
-    /// This is done by multiplying the shares by the Lagrange coefficients.
-    /// Since the constant term is the secret, we need to multiply by the
-    /// Lagrange coefficient at zero. This is done by the function
-    /// `lagrange_coefficient_at_zero`.
-    /// Also convert the public tshares in the same way as the private shares.
-    /// Finally a vector of all public keys is returned. This needs to be run
-    /// before presign when using a threshold generated key.
-    #[allow(clippy::type_complexity)]
-    pub fn convert_to_t_out_of_t_shares(
-        tshares: HashMap<ParticipantIdentifier, Output>,
-        all_participants: Vec<ParticipantIdentifier>,
-        rid: [u8; 32],
-        chain_code: [u8; 32],
-        sum_tshare_input: Scalar,
-        threshold: usize,
-    ) -> Result<ToutofTHelper> {
-        let real = all_participants.len();
-        let mut new_private_shares = HashMap::new();
-        let mut public_keys = vec![];
-
-        // Compute the new private shares and public keys.
-        for pid in tshares.keys() {
-            if all_participants.contains(pid) {
-                let output = tshares.get(pid).unwrap();
-                let private_key = output.private_key_share();
-                let private_share = KeySharePrivate::from_bigint(&scalar_to_bn(private_key));
-                let public_share = CurvePoint::GENERATOR.multiply_by_scalar(private_key);
-                let lagrange = Self::lagrange_coefficient_at_zero(pid, &all_participants);
-                let new_private_share: BigNumber =
-                    private_share.clone().as_ref() * BigNumber::from_slice(lagrange.to_bytes());
-                let new_public_share = public_share.as_ref().multiply_by_scalar(&lagrange);
-                assert!(new_private_shares
-                    .insert(*pid, KeySharePrivate::from_bigint(&new_private_share))
-                    .is_none());
-                public_keys.push(KeySharePublic::new(*pid, new_public_share));
-            }
-        }
-
-        // Compute the new outputs
-        let mut keygen_outputs: HashMap<
-            ParticipantIdentifier,
-            <KeygenParticipant as ProtocolParticipant>::Output,
-        > = HashMap::new();
-        for (pid, private_key_share) in new_private_shares {
-            let output = crate::keygen::Output::from_parts(
-                public_keys.clone(),
-                private_key_share,
-                rid,
-                chain_code,
-            )?;
-            assert!(keygen_outputs.insert(pid, output).is_none());
-        }
-
-        let mut sum_toft_private_shares = keygen_outputs
-            .values()
-            .map(|output| output.private_key_share().as_ref().clone())
-            .fold(BigNumber::zero(), |acc, x| acc + x);
-        sum_toft_private_shares %= k256_order();
-
-        // Check the sum is indeed the sum of original private keys used as input of
-        // tshare reduced mod the order
-        dbg!(real);
-        dbg!(threshold);
-        if real >= threshold {
-            assert_eq!(
-                bn_to_scalar(&sum_toft_private_shares).unwrap(),
-                sum_tshare_input
-            );
-        }
-
-        Ok(ToutofTHelper {
-            keygen_outputs,
-            public_keys,
-            all_participants,
-            rid,
-            chain_code,
-        })
+        crate::keygen::Output::from_parts(public_key_shares, private_key_share, rid, chain_code)
     }
 
     /// Reconstruct the secret from the shares.
@@ -1066,13 +970,110 @@ fn schnorr_proof_transcript(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::{super::input::Input, *};
-    use crate::{auxinfo, utils::testing::init_testing, Identifier, ParticipantConfig};
+    use crate::{
+        auxinfo,
+        utils::{k256_order, testing::init_testing},
+        Identifier, ParticipantConfig,
+    };
+    use itertools::Itertools;
     use k256::elliptic_curve::{Field, PrimeField};
+    use libpaillier::unknown_order::BigNumber;
     use rand::{thread_rng, CryptoRng, Rng, RngCore};
     use std::{collections::HashMap, iter::zip};
     use tracing::debug;
+
+    /// Test utility to convert the tshares to t-out-of-t shares of all
+    /// participants.
+    #[cfg(test)]
+    #[allow(clippy::type_complexity)]
+    pub fn convert_to_t_out_of_t_shares(
+        tshares: HashMap<ParticipantIdentifier, Output>,
+        all_participants: Vec<ParticipantIdentifier>,
+        rid: [u8; 32],
+        chain_code: [u8; 32],
+        sum_tshare_input: Scalar,
+        threshold: usize,
+    ) -> Result<HashMap<ParticipantIdentifier, <KeygenParticipant as ProtocolParticipant>::Output>>
+    {
+        let real = all_participants.len();
+        let mut new_private_shares = HashMap::new();
+        let mut public_keys = vec![];
+
+        // Compute the new private shares and public keys.
+        for pid in tshares.keys() {
+            if all_participants.contains(pid) {
+                let output = tshares.get(pid).unwrap();
+                let private_key = output.private_key_share();
+                let private_share = KeySharePrivate::from_bigint(&scalar_to_bn(private_key));
+                let public_share = CurvePoint::GENERATOR.multiply_by_scalar(private_key);
+                let lagrange =
+                    TshareParticipant::lagrange_coefficient_at_zero(pid, &all_participants);
+                let new_private_share: BigNumber =
+                    private_share.clone().as_ref() * BigNumber::from_slice(lagrange.to_bytes());
+                let new_public_share = public_share.as_ref().multiply_by_scalar(&lagrange);
+                assert!(new_private_shares
+                    .insert(*pid, KeySharePrivate::from_bigint(&new_private_share))
+                    .is_none());
+                public_keys.push(KeySharePublic::new(*pid, new_public_share));
+            }
+        }
+        public_keys.sort_by_key(|k| k.participant());
+
+        // Compute the new outputs
+        let mut keygen_outputs: HashMap<
+            ParticipantIdentifier,
+            <KeygenParticipant as ProtocolParticipant>::Output,
+        > = HashMap::new();
+        for (pid, private_key_share) in new_private_shares {
+            let other_pids = all_participants
+                .iter()
+                .filter(|x| x != &&pid)
+                .copied()
+                .collect_vec();
+            let config = ParticipantConfig::new(pid, &other_pids)?;
+            let tshare = tshares.get(&pid).unwrap();
+
+            let output =
+                TshareParticipant::convert_to_t_out_of_t_share(&config, tshare, rid, chain_code)?;
+
+            // Test the function `convert_to_t_out_of_t_share`.
+            // Compare its output with `new_private_shares` and `public_keys`, which were
+            // computed with a different method above.
+            assert_eq!(output.private_key_share(), &private_key_share);
+            assert_eq!(
+                output
+                    .public_key_shares()
+                    .iter()
+                    .sorted_by_key(|k| k.participant())
+                    .cloned()
+                    .collect_vec(),
+                public_keys,
+            );
+
+            assert!(keygen_outputs.insert(pid, output).is_none());
+        }
+
+        let mut sum_toft_private_shares = keygen_outputs
+            .values()
+            .map(|output| output.private_key_share().as_ref().clone())
+            .fold(BigNumber::zero(), |acc, x| acc + x);
+        sum_toft_private_shares %= k256_order();
+
+        // Check the sum is indeed the sum of original private keys used as input of
+        // tshare reduced mod the order
+        dbg!(real);
+        dbg!(threshold);
+        if real >= threshold {
+            assert_eq!(
+                bn_to_scalar(&sum_toft_private_shares).unwrap(),
+                sum_tshare_input
+            );
+        }
+
+        Ok(keygen_outputs)
+    }
 
     impl TshareParticipant {
         pub fn new_quorum<R: RngCore + CryptoRng>(
