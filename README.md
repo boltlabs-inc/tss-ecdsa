@@ -95,24 +95,22 @@ From the root directory, you can run: `cargo run --example threaded_example -- -
 ```
 Multi-party ECDSA signing
 
-Usage: threaded_example --number-of-workers <NUMBER_OF_WORKERS> --protocol-executions <PROTOCOL_EXECUTIONS>
+Usage: threaded_example --number-of-workers <NUMBER_OF_WORKERS>
 
 Options:
 -n, --number-of-workers <NUMBER_OF_WORKERS>
-Number of participant worker threads to use
--p, --protocol-executions <PROTOCOL_EXECUTIONS>
-Number of times to perform each sub-protocol of tss-ecdsa. protocol_executions > 1 useful for computing meaningful average execution times
+Number of participant worker threads to use. Default: 3.
 -h, --help
 Print help
 -V, --version
 Print version
 ```
-For example, `cargo run --example threaded_example -- --number-of-workers 3 --protocol-executions 1` will execute this example using three workers (participants).
+For example, `cargo run --example threaded_example -- --number-of-workers 3` will execute this example using three workers (participants).
 **Note** please pay attention to the `--` in the middle of the command. This is necessary to separate arguments to the `cargo run` command from arguments to this
 CLI example.
 
 This CLI example supports logging via the tracing crate. You can set the env var `RUST_LOG` to a verbosity level to execute with logging turned on:
 For example:
 ```shell
-RUST_LOG=info cargo run --example threaded_example -- --number-of-workers 2 --protocol-executions 1
+RUST_LOG=info cargo run --example threaded_example -- --number-of-workers 2
 ```

@@ -65,11 +65,6 @@ struct Cli {
     /// Number of participant worker threads to use.
     #[arg(short, long, default_value_t = 3)]
     number_of_workers: usize,
-    /// Number of times to perform each sub-protocol of tss-ecdsa.
-    /// protocol_executions > 1 useful for computing meaningful average
-    /// execution times.
-    #[arg(short, long, default_value_t = 1)]
-    protocol_executions: usize,
 }
 
 /// Generic Storage for outputs of specific sub-protocols. Indexed by a `KeyId`
