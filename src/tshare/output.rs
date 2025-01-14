@@ -8,12 +8,11 @@
 use std::collections::HashSet;
 
 use crate::{
-    curve::CT,
-    errors::{CallerError, InternalError, Result},
+    curve::{CT, VKT},
+    errors::{CallerError, Result},
     keygen::KeySharePublic,
 };
 
-use k256::ecdsa::VerifyingKey;
 use tracing::error;
 
 use super::CoeffPublic;
@@ -31,24 +30,20 @@ pub struct Output<C: CT> {
     private_key_share: C::Scalar,
     // The chain code for the HD wallet
     chain_code: [u8; 32],
-    // The chain code for the HD wallet
+    // The rid
     rid: [u8; 32],
 }
 
 impl<C: CT> Output<C> {
     /// Construct the generated public key.
-    pub fn public_key(&self) -> Result<VerifyingKey> {
+    pub fn public_key(&self) -> Result<C::VK> {
         // Add up all the key shares
-        let public_key_point = self
+        let point = self
             .public_key_shares
             .iter()
-            .fold(C::IDENTITY, |sum, share| sum + *share.as_ref())
-            .into();
+            .fold(C::IDENTITY, |sum, share| sum + *share.as_ref());
 
-        VerifyingKey::from_encoded_point(&public_key_point).map_err(|_| {
-            error!("Keygen output does not produce a valid public key.");
-            InternalError::InternalInvariantFailed
-        })
+        C::VK::from_point(point)
     }
 
     /// Get the individual shares of the public key.

@@ -8,13 +8,12 @@
 use std::{collections::HashSet, marker::PhantomData};
 
 use crate::{
-    curve::CT,
+    curve::{CT, VKT},
     errors::{CallerError, InternalError, Result},
     keygen::keyshare::{KeySharePrivate, KeySharePublic},
     ParticipantIdentifier,
 };
 
-use k256::ecdsa::VerifyingKey;
 use tracing::error;
 
 /// Output type from key generation, including all parties' public key shares,
@@ -30,7 +29,7 @@ pub struct Output<C> {
 
 impl<C: CT> Output<C> {
     /// Construct the generated public key.
-    pub fn public_key(&self) -> Result<VerifyingKey> {
+    /*pub fn public_key(&self) -> Result<VerifyingKey> {
         // Add up all the key shares
         let public_key_point = self
             .public_key_shares
@@ -41,6 +40,15 @@ impl<C: CT> Output<C> {
             error!("Keygen output does not produce a valid public key.");
             InternalError::InternalInvariantFailed
         })
+    }*/
+    pub fn public_key(&self) -> Result<C::VK> {
+        // Add up all the key shares
+        let point = self
+            .public_key_shares
+            .iter()
+            .fold(C::IDENTITY, |sum, share| sum + *share.as_ref());
+
+        C::VK::from_point(point)
     }
 
     /// Get the individual shares of the public key.

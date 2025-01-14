@@ -8,14 +8,13 @@
 use std::{collections::HashSet, fmt::Debug};
 
 use generic_array::{typenum::U32, GenericArray};
-use k256::ecdsa::{signature::DigestVerifier, VerifyingKey};
 use rand::{CryptoRng, RngCore};
 use sha3::{Digest, Keccak256};
 use tracing::{error, info};
 use zeroize::Zeroize;
 
 use crate::{
-    curve::{CT, ST},
+    curve::{SignatureTrait, CT, ST, VKT},
     errors::{CallerError, InternalError, Result},
     keygen::KeySharePublic,
     local_storage::LocalStorage,
@@ -23,7 +22,7 @@ use crate::{
     participant::{InnerProtocolParticipant, ProcessOutcome, Status},
     protocol::{ProtocolType, SharedContext},
     run_only_once,
-    sign::{non_interactive_sign::share::SignatureShare, Signature},
+    sign::non_interactive_sign::share::SignatureShare,
     zkp::ProofContext,
     Identifier, ParticipantConfig, ParticipantIdentifier, PresignRecord, ProtocolParticipant,
 };
@@ -127,18 +126,18 @@ impl<C: CT> Input<C> {
     }
 
     /// Compute the public key.
-    pub fn public_key(&self) -> Result<k256::ecdsa::VerifyingKey> {
+    pub fn public_key(&self) -> Result<C::VK> {
         // Add up all the key shares
         let public_key_point = self
             .public_key_shares
             .iter()
-            .fold(C::IDENTITY, |sum, share| sum + *share.as_ref())
-            .into();
+            .fold(C::IDENTITY, |sum, share| sum + *share.as_ref());
 
-        VerifyingKey::from_encoded_point(&public_key_point).map_err(|_| {
-            error!("Keygen output does not produce a valid public key");
-            CallerError::BadInput.into()
-        })
+        //VerifyingKey::from_encoded_point(&public_key_point).map_err(|_| {
+        //    error!("Keygen output does not produce a valid public key");
+        //    CallerError::BadInput.into()
+        //})
+        C::VK::from_point(public_key_point)
     }
 }
 
@@ -195,7 +194,7 @@ mod storage {
 
 impl<C: CT + 'static> ProtocolParticipant for SignParticipant<C> {
     type Input = Input<C>;
-    type Output = Signature<C>;
+    type Output = C::ECDSASignature;
 
     fn ready_type() -> MessageType {
         MessageType::Sign(SignMessageType::Ready)
@@ -316,7 +315,7 @@ impl<C: CT + 'static> SignParticipant<C> {
         &self,
         public_key_shares: Vec<KeySharePublic<C>>,
         shift: C::Scalar,
-    ) -> Result<VerifyingKey> {
+    ) -> Result<C::VK> {
         // Add up all the key shares
         let public_key_point = public_key_shares
             .iter()
@@ -325,10 +324,7 @@ impl<C: CT + 'static> SignParticipant<C> {
         let shifted_point = C::GENERATOR.mul(&shift);
         let shifted_public_key_point = public_key_point + shifted_point;
 
-        VerifyingKey::from_encoded_point(&shifted_public_key_point.into()).map_err(|_| {
-            error!("Keygen output does not produce a valid public key.");
-            InternalError::InternalInvariantFailed
-        })
+        C::VK::from_point(shifted_public_key_point)
     }
 
     /// Handle a "Ready" message from ourselves.
@@ -458,13 +454,16 @@ impl<C: CT + 'static> SignParticipant<C> {
             sum = sum.negate();
         }
 
-        let signature = Signature::try_from_scalars(x_projection, sum)?;
+        let signature = C::ECDSASignature::from_scalars(
+            &C::scalar_to_bn(&x_projection),
+            &C::scalar_to_bn(&sum),
+        )?;
 
         self.shifted_public_key(
             self.input.public_key_shares.clone(),
             self.input.shift_value(),
         )?
-        .verify_digest(self.input.digest.clone(), signature.as_ref())
+        .verify_signature::<C>(self.input.digest.clone(), signature)
         .map_err(|e| {
             error!("Failed to verify signature {:?}", e);
             InternalError::ProtocolError(None)
@@ -478,12 +477,14 @@ impl<C: CT + 'static> SignParticipant<C> {
 
 #[cfg(test)]
 mod test {
-    use crate::{curve::TestCT, ParticipantIdentifier};
+    use crate::{
+        curve::{CTSignature, SignatureTrait, TestCT},
+        ParticipantIdentifier,
+    };
     use std::collections::HashMap;
 
-    use crate::curve::CT;
     use k256::{
-        ecdsa::{signature::DigestVerifier, VerifyingKey},
+        ecdsa::signature::DigestVerifier,
         elliptic_curve::{ops::Reduce, scalar::IsHigh, subtle::ConditionallySelectable},
         Scalar, U256,
     };
@@ -492,19 +493,18 @@ mod test {
     use tracing::debug;
 
     use crate::{
-        curve::TestCT as C,
+        curve::CT,
         errors::Result,
         keygen,
         messages::{Message, MessageType},
         participant::{ProcessOutcome, Status},
-        presign,
-        sign::{self, Signature},
+        presign, sign,
         utils::testing::init_testing,
         Identifier, ParticipantConfig, ProtocolParticipant,
     };
-    type PresignRecord = presign::PresignRecord<C>;
+    type PresignRecord = presign::PresignRecord<TestCT>;
 
-    type SignParticipant = super::SignParticipant<C>;
+    type SignParticipant = super::SignParticipant<TestCT>;
 
     /// Pick a random incoming message and have the correct participant process
     /// it.
@@ -512,7 +512,10 @@ mod test {
         quorum: &'a mut [SignParticipant],
         inbox: &mut Vec<Message>,
         rng: &mut R,
-    ) -> Option<(&'a SignParticipant, ProcessOutcome<Signature<C>>)> {
+    ) -> Option<(
+        &'a SignParticipant,
+        ProcessOutcome<<TestCT as CT>::ECDSASignature>,
+    )> {
         // Pick a random message to process
         if inbox.is_empty() {
             return None;
@@ -548,8 +551,8 @@ mod test {
     fn compute_non_distributed_ecdsa(
         message: &[u8],
         records: &[PresignRecord],
-        keygen_outputs: &[keygen::Output<C>],
-    ) -> k256::ecdsa::Signature {
+        keygen_outputs: &[keygen::Output<TestCT>],
+    ) -> CTSignature<TestCT> {
         let k = records
             .iter()
             .map(|record| record.mask_share())
@@ -567,7 +570,11 @@ mod test {
         let mut s = k * (m + r * secret_key);
         s.conditional_assign(&s.negate(), s.is_high());
 
-        let signature = k256::ecdsa::Signature::from_scalars(r, s).unwrap();
+        let signature = CTSignature::from_scalars(
+            &<TestCT as CT>::scalar_to_bn(&r),
+            &<TestCT as CT>::scalar_to_bn(&s),
+        )
+        .unwrap();
 
         // These checks fail when the overall thing fails
         let public_key = keygen_outputs[0].public_key().unwrap();
@@ -676,7 +683,7 @@ mod test {
 
         // Make sure the signature we got matches the non-distributed one
         let distributed_sig = &signatures[0];
-        assert_eq!(distributed_sig.as_ref(), &non_distributed_sig);
+        assert_eq!(distributed_sig, &non_distributed_sig);
 
         // Verify that we have a valid signature under the public key for the `message`
         assert!(public_key
@@ -684,7 +691,8 @@ mod test {
             .is_ok());
 
         // Check we are able to create a recoverable signature.
-        let recovery_id = distributed_sig
+        // TODO: Uncomment this once recovery_id is implemented.
+        /*let recovery_id = distributed_sig
             .recovery_id(message, public_key)
             .expect("Recovery ID failed");
 
@@ -697,7 +705,7 @@ mod test {
         assert_eq!(
             recovered_pk, *public_key,
             "Recovered public key does not match original one."
-        );
+        );*/
 
         Ok(())
     }

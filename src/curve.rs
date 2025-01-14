@@ -1,12 +1,15 @@
 //! Elliptic Curve abstraction
 
 use generic_array::GenericArray;
+use hmac::digest::core_api::CoreWrapper;
 use k256::{
+    ecdsa::{signature::DigestVerifier, VerifyingKey},
     elliptic_curve::{scalar::IsHigh, Field, PrimeField},
     EncodedPoint, FieldBytes, ProjectivePoint, Scalar as K256_Scalar,
 };
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
+use sha3::Keccak256Core;
 use std::{fmt::Debug, ops::Add};
 use tracing::error;
 use zeroize::{Zeroize, Zeroizing};
@@ -29,8 +32,8 @@ pub trait CT:
     + Sync
     + Eq
     + PartialEq
-    + Into<EncodedPoint> // TODO: generalize.
-    + From<ProjectivePoint> // TODO: generalize.
+    + Into<Self::Encoded>
+    + From<Self::Projective>
     + Serialize
     + for<'de> Deserialize<'de>
     + Add<Output = Self>
@@ -47,6 +50,18 @@ pub trait CT:
     /// The type of scalars.
     type Scalar: ST;
 
+    /// The encoded point type.
+    type Encoded;
+
+    /// The projective point type.
+    type Projective;
+
+    /// The ECDSA Verifying Key
+    type VK: VKT;
+
+    /// The ECDSA Signature type
+    type ECDSASignature: SignatureTrait;
+
     /// The order of the curve.
     fn order() -> BigNumber;
 
@@ -57,14 +72,12 @@ pub trait CT:
     /// Note: This method ends up cloning the `point` value in the process of
     /// converting it. This may be insecure if the point contains private
     /// data.
-    // TODO: name.
     fn mul_by_bn(&self, scalar: &BigNumber) -> Result<Self>;
 
     /// Multiply the generator by a [`BigNumber`] scalar.
     fn scale_generator(scalar: &BigNumber) -> Result<Self>;
 
     /// Multiply `self` by a [`Self::Scalar`].
-    // TODO: name.
     fn mul(&self, point: &Self::Scalar) -> Self;
 
     /// Compute the x-projection of the point.
@@ -89,6 +102,33 @@ pub trait CT:
 
     /// Convert from `[Self::Scalar]` to BigNumber
     fn scalar_to_bn(x: &Self::Scalar) -> BigNumber;
+}
+
+pub trait SignatureTrait: Clone + Copy + Debug + PartialEq {
+    fn from_scalars(r: &BigNumber, s: &BigNumber) -> Result<Self>
+    where
+        Self: Sized + Debug;
+
+    // TODO: generalize RecoveryId
+    //fn recover_id<C: CT>(
+    //    &self,
+    //    message: &[u8],
+    //    public_key: &C::VK,
+    //) -> Result<k256::ecdsa::RecoveryId>;
+}
+
+/// ECDSA signature on a message.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CTSignature<C: CT>(k256::ecdsa::Signature, std::marker::PhantomData<C>);
+
+/// Verifying Key trait
+pub trait VKT: Clone + Copy + Debug + Send + Sync + Eq + PartialEq {
+    fn from_point<C: CT>(point: C) -> Result<Self>;
+    fn verify_signature<C: CT>(
+        &self,
+        digest: CoreWrapper<Keccak256Core>,
+        signature: C::ECDSASignature,
+    ) -> Result<()>;
 }
 
 /// Scalar trait.
@@ -235,10 +275,33 @@ pub type TestCT = CurvePoint;
 /// Default scalar type.
 pub type TestST = K256_Scalar;
 
+/// Default signature type.
+pub type TestSignature = k256::ecdsa::Signature;
+
+impl SignatureTrait for CTSignature<CurvePoint> {
+    fn from_scalars(r: &BigNumber, s: &BigNumber) -> Result<Self> {
+        let r_scalar = <CurvePoint as CT>::bn_to_scalar(r)?;
+        let s_scalar = <CurvePoint as CT>::bn_to_scalar(s)?;
+        let sig = k256::ecdsa::Signature::from_scalars(r_scalar, s_scalar)
+            .map_err(|_| InternalInvariantFailed)?;
+        Ok(CTSignature(sig, std::marker::PhantomData::<CurvePoint>))
+    }
+}
+
+impl<C: CT> AsRef<k256::ecdsa::Signature> for CTSignature<C> {
+    fn as_ref(&self) -> &k256::ecdsa::Signature {
+        &self.0
+    }
+}
+
 impl CT for CurvePoint {
     const GENERATOR: Self = CurvePoint::GENERATOR;
     const IDENTITY: Self = CurvePoint::IDENTITY;
     type Scalar = K256_Scalar;
+    type Encoded = EncodedPoint;
+    type Projective = ProjectivePoint;
+    type VK = VerifyingKey;
+    type ECDSASignature = CTSignature<CurvePoint>;
 
     fn order() -> BigNumber {
         k256_order()
@@ -317,6 +380,26 @@ impl CT for CurvePoint {
     fn scalar_to_bn(x: &Self::Scalar) -> BigNumber {
         let bytes = x.to_repr();
         BigNumber::from_slice(bytes)
+    }
+}
+
+impl VKT for VerifyingKey {
+    fn from_point<C: CT>(point: C) -> Result<Self> {
+        VerifyingKey::from_sec1_bytes(&point.to_bytes()).map_err(|_| InternalInvariantFailed)
+    }
+
+    fn verify_signature<C: CT>(
+        &self,
+        digest: CoreWrapper<Keccak256Core>,
+        signature: C::ECDSASignature,
+    ) -> Result<()> {
+        //self.verify_digest(digest, signature).map_err(|_| InternalInvariantFailed)
+        let pk = self.to_encoded_point(false);
+        VerifyingKey::from_encoded_point(&pk)
+            .map_err(|_| InternalInvariantFailed)?
+            .verify_digest(digest, &signature)
+            .map_err(|_| InternalInvariantFailed)
+        //(self as VerifyingKey)::verify_digest(self, digest, signature)
     }
 }
 
