@@ -288,7 +288,7 @@ impl SignatureTrait for CTSignature<CurvePoint> {
     }
 }
 
-impl<C: CT> AsRef<k256::ecdsa::Signature> for CTSignature<C> {
+impl AsRef<k256::ecdsa::Signature> for CTSignature<CurvePoint> {
     fn as_ref(&self) -> &k256::ecdsa::Signature {
         &self.0
     }
@@ -393,13 +393,13 @@ impl VKT for VerifyingKey {
         digest: CoreWrapper<Keccak256Core>,
         signature: C::ECDSASignature,
     ) -> Result<()> {
-        //self.verify_digest(digest, signature).map_err(|_| InternalInvariantFailed)
-        let pk = self.to_encoded_point(false);
+        self.verify_digest(digest, &signature)
+            .map_err(|_| InternalInvariantFailed)
+        /*let pk = self.to_encoded_point(false);
         VerifyingKey::from_encoded_point(&pk)
             .map_err(|_| InternalInvariantFailed)?
             .verify_digest(digest, &signature)
-            .map_err(|_| InternalInvariantFailed)
-        //(self as VerifyingKey)::verify_digest(self, digest, signature)
+            .map_err(|_| InternalInvariantFailed)*/
     }
 }
 

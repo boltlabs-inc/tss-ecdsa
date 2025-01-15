@@ -478,7 +478,7 @@ impl<C: CT + 'static> SignParticipant<C> {
 #[cfg(test)]
 mod test {
     use crate::{
-        curve::{CTSignature, SignatureTrait, TestCT},
+        curve::{CTSignature, SignatureTrait, TestCT, VKT},
         ParticipantIdentifier,
     };
     use std::collections::HashMap;
@@ -577,10 +577,10 @@ mod test {
         .unwrap();
 
         // These checks fail when the overall thing fails
-        let public_key = keygen_outputs[0].public_key().unwrap();
+        let public_key: <TestCT as CT>::VK = keygen_outputs[0].public_key().unwrap();
 
         assert!(public_key
-            .verify_digest(Keccak256::new_with_prefix(message), &signature)
+            .verify_signature::<TestCT>(Keccak256::new_with_prefix(message), signature)
             .is_ok());
         signature
     }
