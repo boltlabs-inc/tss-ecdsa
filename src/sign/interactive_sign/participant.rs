@@ -347,7 +347,7 @@ impl<C: CT + 'static> InteractiveSignParticipant<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, ops::Deref};
 
     use k256::ecdsa::signature::DigestVerifier;
     use rand::{rngs::StdRng, Rng};
@@ -496,7 +496,7 @@ mod tests {
 
         // Verify that we have a valid signature under the public key for the `message`
         assert!(public_key
-            .verify_digest(digest.clone(), distributed_sig.as_ref())
+            .verify_digest(digest.clone(), distributed_sig.deref())
             .is_ok());
 
         // Check we are able to create a recoverable signature.

@@ -9,8 +9,11 @@ use k256::{
 };
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
-use sha3::Keccak256Core;
-use std::{fmt::Debug, ops::Add};
+use sha3::{Keccak256, Keccak256Core};
+use std::{
+    fmt::Debug,
+    ops::{Add, Deref},
+};
 use tracing::error;
 use zeroize::{Zeroize, Zeroizing};
 
@@ -57,7 +60,7 @@ pub trait CT:
     type Projective;
 
     /// The ECDSA Verifying Key
-    type VK: VKT;
+    type VK: VKT<C = Self>;
 
     /// The ECDSA Signature type
     type ECDSASignature: SignatureTrait;
@@ -104,7 +107,9 @@ pub trait CT:
     fn scalar_to_bn(x: &Self::Scalar) -> BigNumber;
 }
 
+/// Signature trait.
 pub trait SignatureTrait: Clone + Copy + Debug + PartialEq {
+    /// Create a signature from two scalars.
     fn from_scalars(r: &BigNumber, s: &BigNumber) -> Result<Self>
     where
         Self: Sized + Debug;
@@ -123,11 +128,17 @@ pub struct CTSignature<C: CT>(k256::ecdsa::Signature, std::marker::PhantomData<C
 
 /// Verifying Key trait
 pub trait VKT: Clone + Copy + Debug + Send + Sync + Eq + PartialEq {
-    fn from_point<C: CT>(point: C) -> Result<Self>;
-    fn verify_signature<C: CT>(
+    /// The curve associated with this verifying key.
+    type C: CT;
+
+    /// Create a verifying key from a curve point.
+    fn from_point(point: Self::C) -> Result<Self>;
+
+    /// Verify the signature against the given [`Digest`] output.
+    fn verify_signature(
         &self,
         digest: CoreWrapper<Keccak256Core>,
-        signature: C::ECDSASignature,
+        signature: <Self::C as CT>::ECDSASignature,
     ) -> Result<()>;
 }
 
@@ -288,8 +299,10 @@ impl SignatureTrait for CTSignature<CurvePoint> {
     }
 }
 
-impl AsRef<k256::ecdsa::Signature> for CTSignature<CurvePoint> {
-    fn as_ref(&self) -> &k256::ecdsa::Signature {
+impl Deref for CTSignature<CurvePoint> {
+    type Target = k256::ecdsa::Signature;
+
+    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
@@ -384,16 +397,18 @@ impl CT for CurvePoint {
 }
 
 impl VKT for VerifyingKey {
-    fn from_point<C: CT>(point: C) -> Result<Self> {
+    type C = CurvePoint;
+
+    fn from_point(point: Self::C) -> Result<Self> {
         VerifyingKey::from_sec1_bytes(&point.to_bytes()).map_err(|_| InternalInvariantFailed)
     }
 
-    fn verify_signature<C: CT>(
+    fn verify_signature(
         &self,
-        digest: CoreWrapper<Keccak256Core>,
-        signature: C::ECDSASignature,
+        digest: Keccak256,
+        signature: <Self::C as CT>::ECDSASignature,
     ) -> Result<()> {
-        self.verify_digest(digest, &signature)
+        self.verify_digest(digest, signature.deref())
             .map_err(|_| InternalInvariantFailed)
         /*let pk = self.to_encoded_point(false);
         VerifyingKey::from_encoded_point(&pk)

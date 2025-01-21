@@ -657,7 +657,7 @@ mod tests {
     };
     use rand::{rngs::StdRng, seq::IteratorRandom};
     use sha3::{Digest, Keccak256};
-    use std::{collections::HashMap, marker::PhantomData, vec};
+    use std::{collections::HashMap, marker::PhantomData, ops::Deref, vec};
     use tracing::debug;
     type SignParticipant = sign::SignParticipant<TestCT>;
     type TshareParticipant = tshare::TshareParticipant<TestCT>;
@@ -1287,7 +1287,7 @@ mod tests {
             .participant
             .shifted_public_key(public_key_shares, shift_scalar)?;
         assert!(saved_shifted_public_key
-            .verify_digest(digest, sign_outputs[0].as_ref())
+            .verify_digest(digest, sign_outputs[0].deref())
             .is_ok());
 
         Ok(true)
@@ -1696,7 +1696,7 @@ mod tests {
 
         // ...and the signature should be valid under the public key we saved
         assert!(saved_public_key
-            .verify_digest(digest, sign_outputs[0].as_ref())
+            .verify_digest(digest, sign_outputs[0].deref())
             .is_ok());
 
         Ok(())

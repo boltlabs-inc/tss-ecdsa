@@ -463,7 +463,7 @@ impl<C: CT + 'static> SignParticipant<C> {
             self.input.public_key_shares.clone(),
             self.input.shift_value(),
         )?
-        .verify_signature::<C>(self.input.digest.clone(), signature)
+        .verify_signature(self.input.digest.clone(), signature)
         .map_err(|e| {
             error!("Failed to verify signature {:?}", e);
             InternalError::ProtocolError(None)
@@ -481,7 +481,7 @@ mod test {
         curve::{CTSignature, SignatureTrait, TestCT, VKT},
         ParticipantIdentifier,
     };
-    use std::collections::HashMap;
+    use std::{collections::HashMap, ops::Deref};
 
     use k256::{
         ecdsa::signature::DigestVerifier,
@@ -580,7 +580,7 @@ mod test {
         let public_key: <TestCT as CT>::VK = keygen_outputs[0].public_key().unwrap();
 
         assert!(public_key
-            .verify_signature::<TestCT>(Keccak256::new_with_prefix(message), signature)
+            .verify_signature(Keccak256::new_with_prefix(message), signature)
             .is_ok());
         signature
     }
@@ -687,7 +687,7 @@ mod test {
 
         // Verify that we have a valid signature under the public key for the `message`
         assert!(public_key
-            .verify_digest(digest.clone(), distributed_sig.as_ref())
+            .verify_digest(digest.clone(), distributed_sig.deref())
             .is_ok());
 
         // Check we are able to create a recoverable signature.
