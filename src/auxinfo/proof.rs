@@ -6,8 +6,6 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use std::marker::PhantomData;
-
 use crate::{
     auxinfo::participant::AuxInfoParticipant,
     curve::CT,
@@ -31,8 +29,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct AuxInfoProof<C: CT> {
     pimod: pimod::PiModProof,
-    pifac: pifac::PiFacProof,
-    phantom: PhantomData<C>,
+    #[serde(bound(deserialize = "C: CT"))]
+    pifac: pifac::PiFacProof<C>,
 }
 
 /// Common input and setup parameters known to both the prover and the verifier.
@@ -126,11 +124,7 @@ impl<C: CT + 'static> AuxInfoProof<C> {
             rng,
         )?;
 
-        Ok(Self {
-            pimod,
-            pifac,
-            phantom: PhantomData,
-        })
+        Ok(Self { pimod, pifac })
     }
 
     /// Verify a proof that the modulus `N` is a valid product of two large
@@ -257,12 +251,10 @@ mod tests {
                 let mix_one = AuxInfoProof::<TestCT> {
                     pifac: proof.pifac,
                     pimod: proof1.pimod,
-                    phantom: PhantomData::<TestCT>,
                 };
                 let mix_two = AuxInfoProof::<TestCT> {
                     pifac: proof1.pifac,
                     pimod: proof.pimod,
-                    phantom: PhantomData::<TestCT>,
                 };
                 assert!(mix_one.verify(&input).is_err());
                 assert!(mix_two.verify(&input1).is_err());

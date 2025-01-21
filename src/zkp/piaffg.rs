@@ -502,7 +502,7 @@ impl<C: CT + 'static> Proof for PiAffgProof<C> {
     }
 }
 
-impl<C: Serialize> PiAffgProof<C> {
+impl<C: CT> PiAffgProof<C> {
     #[allow(clippy::too_many_arguments)]
     fn generate_challenge(
         transcript: &mut Transcript,
@@ -538,7 +538,7 @@ impl<C: Serialize> PiAffgProof<C> {
             .concat(),
         );
 
-        plusminus_challenge_from_transcript(transcript)
+        plusminus_challenge_from_transcript::<C>(transcript)
     }
 }
 

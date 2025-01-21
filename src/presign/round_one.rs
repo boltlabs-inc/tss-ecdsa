@@ -21,7 +21,7 @@ use crate::{
 use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, marker::PhantomData};
+use std::fmt::Debug;
 use zeroize::ZeroizeOnDrop;
 
 /// Private data used in round one of the presign protocol.
@@ -58,16 +58,13 @@ impl Debug for Private {
 /// each other); use [`Public::verify`] to check this latter condition.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct Public<C: CT> {
-    proof: PiEncProof,
-    phantom: PhantomData<C>,
+    #[serde(bound(deserialize = "C: CT"))]
+    proof: PiEncProof<C>,
 }
 
-impl<C: CT> From<PiEncProof> for Public<C> {
-    fn from(proof: PiEncProof) -> Self {
-        Self {
-            proof,
-            phantom: PhantomData,
-        }
+impl<C: CT> From<PiEncProof<C>> for Public<C> {
+    fn from(proof: PiEncProof<C>) -> Self {
+        Self { proof }
     }
 }
 

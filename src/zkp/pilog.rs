@@ -134,7 +134,7 @@ impl<'a> ProverSecret<'a> {
 
 /// Generates a challenge from a [`Transcript`] and the values generated in the
 /// proof.
-fn generate_challenge<C: Serialize>(
+fn generate_challenge<C: CT>(
     transcript: &mut Transcript,
     context: &dyn ProofContext,
     common_input: &CommonInput<C>,
@@ -157,7 +157,7 @@ fn generate_challenge<C: Serialize>(
     );
 
     // The challenge is sampled from `± q` (where `q` is the group order).
-    let challenge = plusminus_challenge_from_transcript(transcript)?;
+    let challenge = plusminus_challenge_from_transcript::<C>(transcript)?;
     Ok(challenge)
 }
 

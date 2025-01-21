@@ -18,6 +18,7 @@
 //! [EPrint archive, 2021](https://eprint.iacr.org/archive/2021/060/1634824619.pdf).
 
 use crate::{
+    curve::CT,
     errors::*,
     parameters::{ELL, EPSILON},
     ring_pedersen::{Commitment, CommitmentRandomness, MaskedRandomness, VerifiedRingPedersen},
@@ -35,7 +36,7 @@ use tracing::error;
 /// Proof that the modulus `N` can be factored into two numbers greater than
 /// `2^ℓ` for a parameter `ℓ`.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct PiFacProof {
+pub(crate) struct PiFacProof<C: CT> {
     /// Commitment to the factor `p` (`P` in the paper).
     p_commitment: Commitment,
     /// Commitment to the factor `q` (`Q` in the paper).
@@ -62,6 +63,8 @@ pub(crate) struct PiFacProof {
     /// Masked commitment randomness linking `p` to the commitment randomness
     /// used in `q_commitment` (`v` in the paper).
     masked_p_link: MaskedRandomness,
+    /// Phantom data.
+    _curve: std::marker::PhantomData<C>,
 }
 
 /// Common input and setup parameters known to both the prover and verifier.
@@ -114,7 +117,7 @@ impl<'a> ProverSecret<'a> {
     }
 }
 
-impl Proof for PiFacProof {
+impl<C: CT> Proof for PiFacProof<C> {
     type CommonInput<'a> = CommonInput<'a>;
     type ProverSecret<'a> = ProverSecret<'a>;
 
@@ -171,7 +174,7 @@ impl Proof for PiFacProof {
         )?;
 
         // Verifier samples e in +- q (where q is the group order)
-        let e = plusminus_challenge_from_transcript(transcript)?;
+        let e = plusminus_challenge_from_transcript::<C>(transcript)?;
 
         let sigma_hat = nu.mask_neg(&link_randomness, secret.p);
         let p_masked = &p_mask + &e * secret.p;
@@ -192,6 +195,7 @@ impl Proof for PiFacProof {
             masked_p_commitment_randomness,
             masked_q_commitment_randomness,
             masked_p_link,
+            _curve: std::marker::PhantomData,
         };
         Ok(proof)
     }
@@ -215,7 +219,7 @@ impl Proof for PiFacProof {
         )?;
 
         // Verifier samples e in +- q (where q is the group order)
-        let e = plusminus_challenge_from_transcript(transcript)?;
+        let e = plusminus_challenge_from_transcript::<C>(transcript)?;
 
         let masked_p_commitment_is_valid = {
             let lhs = input
@@ -290,7 +294,7 @@ impl Proof for PiFacProof {
     }
 }
 
-impl PiFacProof {
+impl<C: CT> PiFacProof<C> {
     #[allow(clippy::too_many_arguments)]
     fn fill_transcript(
         transcript: &mut Transcript,
@@ -332,7 +336,7 @@ fn sqrt(num: &BigNumber) -> BigNumber {
 #[cfg(test)]
 mod tests {
     use crate::{
-        curve::{TestCT as C, CT},
+        curve::{TestCT, CT},
         paillier::prime_gen,
         utils::{random_positive_bn, testing::init_testing},
         zkp::BadContext,
@@ -347,7 +351,7 @@ mod tests {
 
     fn with_random_no_small_factors_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
-        mut test_code: impl FnMut(CommonInput, PiFacProof) -> Result<()>,
+        mut test_code: impl FnMut(CommonInput, PiFacProof<TestCT>) -> Result<()>,
     ) -> Result<()> {
         let (p0, q0) = prime_gen::get_prime_pair_from_pool_insecure(rng).unwrap();
         let N0 = &p0 * &q0;
@@ -369,7 +373,7 @@ mod tests {
     fn pifac_proof_context_must_be_correct() -> Result<()> {
         let mut rng = init_testing();
 
-        let f = |input: CommonInput, proof: PiFacProof| {
+        let f = |input: CommonInput, proof: PiFacProof<TestCT>| {
             let result = proof.verify(input, &BadContext {}, &mut transcript());
             assert!(result.is_err());
             Ok(())
@@ -380,7 +384,7 @@ mod tests {
     #[test]
     fn test_no_small_factors_proof() -> Result<()> {
         let mut rng = init_testing();
-        let test_code = |input: CommonInput, proof: PiFacProof| {
+        let test_code = |input: CommonInput, proof: PiFacProof<TestCT>| {
             proof.verify(input, &(), &mut transcript())?;
             Ok(())
         };
@@ -395,7 +399,7 @@ mod tests {
 
         // Modulus in the common input must be the same for proof creation and
         // validation.
-        let modulus_must_match = |input: CommonInput, proof: PiFacProof| {
+        let modulus_must_match = |input: CommonInput, proof: PiFacProof<TestCT>| {
             let modulus = prime_gen::try_get_prime_from_pool_insecure(&mut rng2).unwrap();
             let incorrect_N = CommonInput::new(input.setup_params, &modulus);
             assert!(proof.verify(incorrect_N, &(), &mut transcript()).is_err());
@@ -409,7 +413,7 @@ mod tests {
         let mut rng = init_testing();
         // Setup parameters in the common input must be the same at proof creation and
         // verification.
-        let setup_params_must_match = |input: CommonInput, proof: PiFacProof| {
+        let setup_params_must_match = |input: CommonInput, proof: PiFacProof<TestCT>| {
             let mut rng = init_testing();
             let setup_param = VerifiedRingPedersen::gen(&mut rng, &())?;
             let incorrect_startup_params = CommonInput::new(&setup_param, input.modulus);
@@ -427,9 +431,9 @@ mod tests {
         // `rng` will be borrowed. We make another rng to be captured by the closure.
         let mut rng2 = StdRng::from_seed(rng.gen());
         // Prover secret must have correct factors for the modulus in the common input.
-        let correct_factors = |input: CommonInput, _proof: PiFacProof| {
+        let correct_factors = |input: CommonInput, _proof: PiFacProof<TestCT>| {
             let (not_p0, not_q0) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng2).unwrap();
-            let incorrect_factors = PiFacProof::prove(
+            let incorrect_factors: PiFacProof<TestCT> = PiFacProof::<TestCT>::prove(
                 input,
                 ProverSecret::new(&not_p0, &not_q0),
                 &(),
@@ -444,7 +448,7 @@ mod tests {
             // Factors cannot be smaller than the regular range.
             let small_p = BigNumber::from(7u64);
             let small_q = BigNumber::from(11u64);
-            let small_proof = PiFacProof::prove(
+            let small_proof: PiFacProof<TestCT> = PiFacProof::prove(
                 input,
                 ProverSecret::new(&small_p, &small_q),
                 &(),
@@ -457,7 +461,7 @@ mod tests {
             // Both of the factors must correspond to the modulus and cannot be smaller than
             // the regular range.
             let regular_sized_q = prime_gen::try_get_prime_from_pool_insecure(&mut rng2).unwrap();
-            let mixed_proof = PiFacProof::prove(
+            let mixed_proof: PiFacProof<TestCT> = PiFacProof::prove(
                 input,
                 ProverSecret::new(&small_p, &regular_sized_q),
                 &(),
@@ -468,7 +472,7 @@ mod tests {
             assert!(mixed_proof.verify(input, &(), &mut transcript()).is_err());
 
             let regular_sized_p = prime_gen::try_get_prime_from_pool_insecure(&mut rng2).unwrap();
-            let mixed_proof = PiFacProof::prove(
+            let mixed_proof: PiFacProof<TestCT> = PiFacProof::prove(
                 input,
                 ProverSecret::new(&regular_sized_p, &small_q),
                 &(),
@@ -495,7 +499,7 @@ mod tests {
         let modulus = &small_factor * &large_factor;
 
         let small_fac_input = CommonInput::new(&setup_params, &modulus);
-        let small_fac_proof = PiFacProof::prove(
+        let small_fac_proof: PiFacProof<TestCT> = PiFacProof::prove(
             small_fac_input,
             ProverSecret::new(&small_factor, &large_factor),
             &(),
@@ -507,7 +511,7 @@ mod tests {
             .verify(small_fac_input, &(), &mut transcript())
             .is_err());
 
-        let small_fac_proof = PiFacProof::prove(
+        let small_fac_proof: PiFacProof<TestCT> = PiFacProof::prove(
             small_fac_input,
             ProverSecret::new(&large_factor, &small_factor),
             &(),
@@ -527,9 +531,9 @@ mod tests {
         let mut rng = init_testing();
         // `rng` will be borrowed. We make another rng to be captured by the closure.
         let mut rng2 = StdRng::from_seed(rng.gen());
-        let proof_elements_must_be_correct = |input: CommonInput, proof: PiFacProof| {
+        let proof_elements_must_be_correct = |input: CommonInput, proof: PiFacProof<TestCT>| {
             let mut incorrect_proof = proof.clone();
-            let random_bignumber = random_positive_bn(&mut rng, &C::order());
+            let random_bignumber = random_positive_bn(&mut rng, &TestCT::order());
             incorrect_proof.p_masked = random_bignumber.clone();
             assert!(incorrect_proof
                 .verify(input, &(), &mut transcript())

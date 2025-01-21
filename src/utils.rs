@@ -284,7 +284,7 @@ pub(crate) fn random_plusminus_by_size_with_minimum<R: RngCore + CryptoRng>(
 
 /// Derive a deterministic pseudorandom value in `[-n, n]` from the
 /// [`Transcript`].
-pub(crate) fn plusminus_challenge_from_transcript(
+pub(crate) fn plusminus_challenge_from_transcript<C: CT>(
     transcript: &mut Transcript,
 ) -> Result<BigNumber> {
     let mut is_neg_byte = vec![0u8; 1];
@@ -293,7 +293,7 @@ pub(crate) fn plusminus_challenge_from_transcript(
 
     // The sampling method samples from the open interval, so add 1 to sample from
     // the _closed_ interval we want here.
-    let q = k256_order();
+    let q = C::order();
     let open_interval_max = &q + 1;
     let b = positive_challenge_from_transcript(transcript, &open_interval_max)?;
     Ok(match is_neg {

@@ -134,7 +134,7 @@ pub trait VKT: Clone + Copy + Debug + Send + Sync + Eq + PartialEq {
     /// Create a verifying key from a curve point.
     fn from_point(point: Self::C) -> Result<Self>;
 
-    /// Verify the signature against the given [`Digest`] output.
+    /// Verify the signature against the given digest output.
     fn verify_signature(
         &self,
         digest: CoreWrapper<Keccak256Core>,

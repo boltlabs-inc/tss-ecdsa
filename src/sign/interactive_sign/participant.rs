@@ -49,7 +49,7 @@ use crate::{
 ///
 ///
 /// # Protocol output
-/// Upon successful completion, the participant outputs a [`Signature`].
+/// Upon successful completion, the participant outputs a Signature.
 /// The signature is on the message which was used to produce the provided
 /// input message digest. It verifies under the public verification key
 /// defined by the [keygen output](crate::keygen::Output).
