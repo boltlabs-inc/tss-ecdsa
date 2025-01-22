@@ -1000,7 +1000,7 @@ pub(crate) mod tests {
     use keygen::KeygenParticipant;
     use libpaillier::unknown_order::BigNumber;
     use rand::{CryptoRng, Rng, RngCore};
-    use std::{collections::HashMap, iter::zip, marker::PhantomData};
+    use std::{collections::HashMap, iter::zip};
     use tracing::debug;
 
     type Output = super::Output<TestCT>;
@@ -1193,7 +1193,6 @@ pub(crate) mod tests {
         let sid = Identifier::random(&mut rng);
         let test_share = Some(CoeffPrivate {
             x: <TestCT as CT>::Scalar::from_u128(42),
-            phantom: PhantomData,
         });
         let mut quorum = TshareParticipant::new_quorum(sid, quorum_size, test_share, &mut rng)?;
         let mut inboxes = HashMap::new();

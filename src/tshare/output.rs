@@ -146,7 +146,6 @@ impl<C: CT> Output<C> {
 #[cfg(test)]
 mod tests {
     use k256::Scalar;
-    use std::marker::PhantomData;
 
     use super::*;
     use crate::{
@@ -194,7 +193,6 @@ mod tests {
                 .iter()
                 .map(|x| CoeffPrivate {
                     x: C::bn_to_scalar(x).unwrap(),
-                    phantom: PhantomData::<C>,
                 })
                 .collect::<Vec<_>>();
             let eval_public_at_first_pid =
@@ -211,7 +209,7 @@ mod tests {
             )
             .unwrap();
 
-            let implied_public = eval_private_at_first_pid.public_point();
+            let implied_public: C = eval_private_at_first_pid.public_point();
             assert!(implied_public == eval_public_at_first_pid);
             output
         }

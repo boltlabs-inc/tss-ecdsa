@@ -15,7 +15,7 @@ use crate::{
 use libpaillier::unknown_order::BigNumber;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, marker::PhantomData, ops::Add};
+use std::{fmt::Debug, ops::Add};
 use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
@@ -65,8 +65,6 @@ pub struct CoeffPrivate<C: CT> {
     /// A BigNumber element in the range [1, q) representing a polynomial
     /// coefficient
     pub x: C::Scalar,
-    /// Curve type.
-    pub phantom: PhantomData<C>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -74,7 +72,6 @@ pub struct EvalPrivate<C: CT> {
     /// A BigNumber element in the range [1, q) representing a polynomial
     /// coefficient
     pub x: C::Scalar,
-    phantom: PhantomData<C>,
 }
 
 /// Implement addition operation for `EvalPrivate`.
@@ -88,10 +85,7 @@ impl<C: CT> Add<&EvalPrivate<C>> for EvalPrivate<C> {
 
 impl<C: CT> EvalPrivate<C> {
     pub fn new(x: C::Scalar) -> Self {
-        EvalPrivate {
-            x,
-            phantom: PhantomData,
-        }
+        EvalPrivate { x }
     }
 }
 
@@ -104,10 +98,7 @@ impl<C: CT> Debug for CoeffPrivate<C> {
 impl<C: CT> TryFrom<&KeySharePrivate<C>> for CoeffPrivate<C> {
     fn try_from(share: &KeySharePrivate<C>) -> Result<Self> {
         let x = C::bn_to_scalar(share.as_ref())?;
-        Ok(CoeffPrivate::<C> {
-            x,
-            phantom: PhantomData,
-        })
+        Ok(CoeffPrivate::<C> { x })
     }
 
     type Error = InternalError;
@@ -121,10 +112,7 @@ impl<C: CT> CoeffPrivate<C> {
     /// Sample a private key share uniformly at random.
     pub(crate) fn random() -> Self {
         let random_bn = C::Scalar::random();
-        CoeffPrivate {
-            x: random_bn,
-            phantom: PhantomData,
-        }
+        CoeffPrivate { x: random_bn }
     }
 
     /// Computes the "raw" curve point corresponding to this private key.

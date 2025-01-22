@@ -99,7 +99,6 @@ pub struct KeygenParticipant<C: CT> {
     broadcast_participant: BroadcastParticipant<C>,
     /// Status of the protocol execution.
     status: Status,
-    phantom: PhantomData<C>,
 }
 
 impl<C: CT + 'static> ProtocolParticipant for KeygenParticipant<C> {
@@ -124,7 +123,6 @@ impl<C: CT + 'static> ProtocolParticipant for KeygenParticipant<C> {
                 input,
             )?,
             status: Status::NotReady,
-            phantom: PhantomData,
         })
     }
 

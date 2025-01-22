@@ -93,8 +93,6 @@ pub struct AuxInfoParticipant<C: CT> {
     broadcast_participant: BroadcastParticipant<C>,
     /// The status of the protocol execution
     status: Status,
-    /// Phantom data to ensure the curve type is included in the type signature
-    curve_type: std::marker::PhantomData<C>,
 }
 
 impl<C: CT + 'static> ProtocolParticipant for AuxInfoParticipant<C> {
@@ -121,7 +119,6 @@ impl<C: CT + 'static> ProtocolParticipant for AuxInfoParticipant<C> {
                 input,
             )?,
             status: Status::NotReady,
-            curve_type: std::marker::PhantomData,
         })
     }
 

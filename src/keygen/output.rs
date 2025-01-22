@@ -5,7 +5,7 @@
 //! License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 //! of this source tree.
 
-use std::{collections::HashSet, marker::PhantomData};
+use std::collections::HashSet;
 
 use crate::{
     curve::{CT, VKT},
@@ -24,23 +24,10 @@ pub struct Output<C> {
     private_key_share: KeySharePrivate<C>,
     rid: [u8; 32],
     chain_code: [u8; 32],
-    phantom: PhantomData<C>,
 }
 
 impl<C: CT> Output<C> {
     /// Construct the generated public key.
-    /*pub fn public_key(&self) -> Result<VerifyingKey> {
-        // Add up all the key shares
-        let public_key_point = self
-            .public_key_shares
-            .iter()
-            .fold(C::IDENTITY, |sum, share| sum + *share.as_ref());
-
-        VerifyingKey::from_encoded_point(&public_key_point.into()).map_err(|_| {
-            error!("Keygen output does not produce a valid public key.");
-            InternalError::InternalInvariantFailed
-        })
-    }*/
     pub fn public_key(&self) -> Result<C::VK> {
         // Add up all the key shares
         let point = self
@@ -135,7 +122,6 @@ impl<C: CT> Output<C> {
             private_key_share,
             rid,
             chain_code,
-            phantom: PhantomData,
         })
     }
 

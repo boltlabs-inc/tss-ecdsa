@@ -672,7 +672,7 @@ mod tests {
     };
     use rand::{rngs::StdRng, seq::IteratorRandom};
     use sha3::{Digest, Keccak256};
-    use std::{collections::HashMap, marker::PhantomData, ops::Deref, vec};
+    use std::{collections::HashMap, ops::Deref, vec};
     use tracing::debug;
     type SignParticipant = sign::SignParticipant<TestCT>;
     type TshareParticipant = tshare::TshareParticipant<TestCT>;
@@ -1077,10 +1077,7 @@ mod tests {
                 let secret = TestST::random(&mut rng);
                 tshare::Input::new(
                     auxinfo_output.clone(),
-                    Some(CoeffPrivate {
-                        x: secret,
-                        phantom: PhantomData,
-                    }),
+                    Some(CoeffPrivate { x: secret }),
                     threshold,
                 )
                 .unwrap()

@@ -157,8 +157,6 @@ impl<C> AsRef<BigNumber> for KeySharePrivate<C> {
 pub struct KeySharePublic<C> {
     participant: ParticipantIdentifier,
     X: C,
-    // TODO: Remove this phantom data
-    phantom: PhantomData<C>,
 }
 
 impl<C> KeySharePublic<C> {
@@ -166,7 +164,6 @@ impl<C> KeySharePublic<C> {
         Self {
             participant,
             X: share,
-            phantom: PhantomData,
         }
     }
 
