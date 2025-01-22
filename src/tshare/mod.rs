@@ -54,3 +54,6 @@ pub use input::Input;
 pub use output::Output;
 pub use participant::TshareParticipant;
 pub use share::{CoeffPrivate, CoeffPublic};
+
+#[cfg(test)]
+pub(crate) use participant::tests;

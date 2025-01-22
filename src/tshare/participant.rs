@@ -18,7 +18,7 @@ use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
     curve::CT,
     errors::{CallerError, InternalError, Result},
-    keygen::{self, KeySharePrivate, KeySharePublic},
+    keygen::{self, KeySharePrivate, KeySharePublic, KeygenParticipant},
     local_storage::LocalStorage,
     messages::{Message, MessageType, TshareMessageType},
     participant::{
@@ -32,7 +32,6 @@ use crate::{
 };
 
 use crate::curve::ST;
-use libpaillier::unknown_order::BigNumber;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use tracing::{error, info, instrument, warn};
@@ -755,80 +754,47 @@ impl<C: CT + 'static> TshareParticipant<C> {
         Ok(sum)
     }
 
-    /// Convert the tshares to t-out-of-t shares.
+    /// Convert Shamir shares to additive shares, for a given quorum of
+    /// participants. The result can be used by the presign and sign
+    /// protocols.
+    ///
     /// This is done by multiplying the shares by the Lagrange coefficients.
     /// Since the constant term is the secret, we need to multiply by the
-    /// Lagrange coefficient at zero. This is done by the function
-    /// `lagrange_coefficient_at_zero`.
-    /// Also convert the public tshares in the same way as the private shares.
-    /// Finally a vector of all public keys is returned. This needs to be run
-    /// before presign when using a threshold generated key.
+    /// Lagrange coefficient at zero.
+    ///
+    /// Convert a private share and the public shares of the quorum.
     #[allow(clippy::type_complexity)]
-    pub fn convert_to_t_out_of_t_shares(
-        tshares: HashMap<ParticipantIdentifier, Output<C>>,
-        all_participants: Vec<ParticipantIdentifier>,
+    pub fn convert_to_t_out_of_t_share(
+        config: &ParticipantConfig,
+        tshare: &Output<C>,
         rid: [u8; 32],
         chain_code: [u8; 32],
-        sum_tshare_input: C::Scalar,
-        threshold: usize,
-    ) -> Result<ToutofTHelper<C>> {
-        let real = all_participants.len();
-        let mut new_private_shares = HashMap::new();
-        let mut public_keys = vec![];
+    ) -> Result<<KeygenParticipant<C> as ProtocolParticipant>::Output> {
+        let participants = config.all_participants();
 
-        // Compute the new private shares and public keys.
-        for pid in tshares.keys() {
-            if all_participants.contains(pid) {
-                let output = tshares.get(pid).unwrap();
-                let private_key = output.private_key_share();
-                let private_share =
-                    KeySharePrivate::<C>::from_bigint(&C::scalar_to_bn(private_key));
-                let public_share = C::GENERATOR.mul(private_key);
-                let lagrange = Self::lagrange_coefficient_at_zero(pid, &all_participants);
-                let new_private_share: BigNumber =
-                    private_share.clone().as_ref() * BigNumber::from_slice(lagrange.to_bytes());
-                let new_public_share = public_share.mul(&lagrange);
-                assert!(new_private_shares
-                    .insert(*pid, KeySharePrivate::<C>::from_bigint(&new_private_share))
-                    .is_none());
-                public_keys.push(KeySharePublic::new(*pid, new_public_share));
-            }
-        }
+        let public_key_shares = participants
+            .iter()
+            .map(|pid| {
+                let public_t_of_n = tshare
+                    .public_key_shares()
+                    .iter()
+                    .find(|x| x.participant() == *pid)
+                    .expect("public key share not found");
 
-        // Compute the new outputs
-        let mut keygen_outputs: HashMap<ParticipantIdentifier, keygen::Output<C>> = HashMap::new();
-        for (pid, private_key_share) in new_private_shares {
-            let output = crate::keygen::Output::from_parts(
-                public_keys.clone(),
-                private_key_share,
-                rid,
-                chain_code,
-            )?;
-            assert!(keygen_outputs.insert(pid, output).is_none());
-        }
+                let lagrange = Self::lagrange_coefficient_at_zero(pid, &participants);
 
-        let mut sum_toft_private_shares = keygen_outputs
-            .values()
-            .map(|output| output.private_key_share().as_ref().clone())
-            .fold(BigNumber::zero(), |acc, x| acc + x);
-        sum_toft_private_shares %= C::order();
+                let public_t_of_t = public_t_of_n.as_ref().multiply_by_scalar(&lagrange);
+                KeySharePublic::new(*pid, public_t_of_t)
+            })
+            .collect::<Vec<_>>();
 
-        // Check the sum is indeed the sum of original private keys used as input of
-        // tshare reduced mod the order
-        if real >= threshold {
-            assert_eq!(
-                C::bn_to_scalar(&sum_toft_private_shares).unwrap(),
-                sum_tshare_input
-            );
-        }
+        let private_key_share = {
+            let lagrange = Self::lagrange_coefficient_at_zero(&config.id(), &participants);
+            let private_t_of_t = tshare.private_key_share().mul(&lagrange);
+            KeySharePrivate::from_bigint(&C::scalar_to_bn(&private_t_of_t))
+        };
 
-        Ok(ToutofTHelper {
-            keygen_outputs,
-            public_keys,
-            all_participants,
-            rid,
-            chain_code,
-        })
+        crate::keygen::Output::from_parts(public_key_shares, private_key_share, rid, chain_code)
     }
 
     /// Reconstruct the secret from the shares.
@@ -851,7 +817,7 @@ impl<C: CT + 'static> TshareParticipant<C> {
     /// This is used to reconstruct the secret from the shares.
     pub fn lagrange_coefficient_at_zero(
         my_point: &ParticipantIdentifier,
-        other_points: &Vec<ParticipantIdentifier>,
+        other_points: &[ParticipantIdentifier],
     ) -> C::Scalar {
         let mut result = C::Scalar::one();
         for point in other_points {
@@ -1021,23 +987,123 @@ fn schnorr_proof_transcript(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::{super::input::Input, *};
     use crate::{
-        auxinfo, curve::TestCT as C, utils::testing::init_testing, Identifier, ParticipantConfig,
+        auxinfo,
+        curve::{TestCT, CT},
+        utils::testing::init_testing,
+        Identifier, ParticipantConfig,
     };
-    use k256::{elliptic_curve::PrimeField, Scalar};
+    use itertools::Itertools;
+    use k256::elliptic_curve::PrimeField;
+    use keygen::KeygenParticipant;
+    use libpaillier::unknown_order::BigNumber;
     use rand::{CryptoRng, Rng, RngCore};
     use std::{collections::HashMap, iter::zip, marker::PhantomData};
     use tracing::debug;
-    type Output = super::Output<C>;
-    type TshareParticipant = super::TshareParticipant<C>;
+
+    type Output = super::Output<TestCT>;
+    type TshareParticipant = super::TshareParticipant<TestCT>;
+
+    /// Test utility to convert the tshares to t-out-of-t shares of all
+    /// participants.
+    #[cfg(test)]
+    #[allow(clippy::type_complexity)]
+    pub fn convert_to_t_out_of_t_shares(
+        tshares: HashMap<ParticipantIdentifier, Output>,
+        all_participants: Vec<ParticipantIdentifier>,
+        rid: [u8; 32],
+        chain_code: [u8; 32],
+        sum_tshare_input: <TestCT as CT>::Scalar,
+        threshold: usize,
+    ) -> Result<
+        HashMap<ParticipantIdentifier, <KeygenParticipant<TestCT> as ProtocolParticipant>::Output>,
+    > {
+        let real = all_participants.len();
+        let mut new_private_shares = HashMap::new();
+        let mut public_keys = vec![];
+
+        // Compute the new private shares and public keys.
+        for pid in tshares.keys() {
+            if all_participants.contains(pid) {
+                let output = tshares.get(pid).unwrap();
+                let private_key = output.private_key_share();
+                let private_share: KeySharePrivate<TestCT> =
+                    KeySharePrivate::from_bigint(&TestCT::scalar_to_bn(private_key));
+                let public_share = TestCT::GENERATOR.multiply_by_scalar(private_key);
+                let lagrange =
+                    TshareParticipant::lagrange_coefficient_at_zero(pid, &all_participants);
+                let new_private_share: BigNumber =
+                    private_share.clone().as_ref() * BigNumber::from_slice(lagrange.to_bytes());
+                let new_public_share = public_share.as_ref().multiply_by_scalar(&lagrange);
+                assert!(new_private_shares
+                    .insert(*pid, KeySharePrivate::from_bigint(&new_private_share))
+                    .is_none());
+                public_keys.push(KeySharePublic::new(*pid, new_public_share));
+            }
+        }
+        public_keys.sort_by_key(|k| k.participant());
+
+        // Compute the new outputs
+        let mut keygen_outputs: HashMap<
+            ParticipantIdentifier,
+            <KeygenParticipant<TestCT> as ProtocolParticipant>::Output,
+        > = HashMap::new();
+        for (pid, private_key_share) in new_private_shares {
+            let other_pids = all_participants
+                .iter()
+                .filter(|x| x != &&pid)
+                .copied()
+                .collect_vec();
+            let config = ParticipantConfig::new(pid, &other_pids)?;
+            let tshare = tshares.get(&pid).unwrap();
+
+            let output =
+                TshareParticipant::convert_to_t_out_of_t_share(&config, tshare, rid, chain_code)?;
+
+            // Test the function `convert_to_t_out_of_t_share`.
+            // Compare its output with `new_private_shares` and `public_keys`, which were
+            // computed with a different method above.
+            assert_eq!(output.private_key_share(), &private_key_share);
+            assert_eq!(
+                output
+                    .public_key_shares()
+                    .iter()
+                    .sorted_by_key(|k| k.participant())
+                    .cloned()
+                    .collect_vec(),
+                public_keys,
+            );
+
+            assert!(keygen_outputs.insert(pid, output).is_none());
+        }
+
+        let mut sum_toft_private_shares = keygen_outputs
+            .values()
+            .map(|output| output.private_key_share().as_ref().clone())
+            .fold(BigNumber::zero(), |acc, x| acc + x);
+        sum_toft_private_shares %= <TestCT as CT>::order();
+
+        // Check the sum is indeed the sum of original private keys used as input of
+        // tshare reduced mod the order
+        dbg!(real);
+        dbg!(threshold);
+        if real >= threshold {
+            assert_eq!(
+                TestCT::bn_to_scalar(&sum_toft_private_shares).unwrap(),
+                sum_tshare_input
+            );
+        }
+
+        Ok(keygen_outputs)
+    }
 
     impl TshareParticipant {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             quorum_size: usize,
-            share: Option<CoeffPrivate<C>>,
+            share: Option<CoeffPrivate<TestCT>>,
             rng: &mut R,
         ) -> Result<Vec<Self>> {
             // Prepare prereqs for making TshareParticipant's. Assume all the
@@ -1126,7 +1192,7 @@ mod tests {
         let mut rng = init_testing();
         let sid = Identifier::random(&mut rng);
         let test_share = Some(CoeffPrivate {
-            x: Scalar::from_u128(42),
+            x: <TestCT as CT>::Scalar::from_u128(42),
             phantom: PhantomData,
         });
         let mut quorum = TshareParticipant::new_quorum(sid, quorum_size, test_share, &mut rng)?;
@@ -1206,7 +1272,7 @@ mod tests {
                 .collect::<Vec<_>>();
             let public_share = TshareParticipant::eval_public_share(&publics_coeffs, pid)?;
 
-            let expected_public_share = C::GENERATOR.mul(output.private_key_share());
+            let expected_public_share = TestCT::GENERATOR.mul(output.private_key_share());
             // if the output already contains the public key, then we don't need to
             // recompute and check it here.
             assert_eq!(public_share, expected_public_share);
@@ -1222,12 +1288,12 @@ mod tests {
 
         // validate the final public key, which is given by the sum of the public keys
         // of all participants
-        let mut sum_public_keys_first = C::IDENTITY;
+        let mut sum_public_keys_first = TestCT::IDENTITY;
         for public_key in outputs.first().unwrap().public_key_shares() {
             sum_public_keys_first = sum_public_keys_first + *public_key.as_ref();
         }
         for output in outputs.iter().skip(1) {
-            let mut sum_public_keys = C::IDENTITY;
+            let mut sum_public_keys = TestCT::IDENTITY;
             for public_key in output.public_key_shares() {
                 sum_public_keys = sum_public_keys + *public_key.as_ref();
             }
@@ -1237,22 +1303,28 @@ mod tests {
         Ok(())
     }
 
-    fn generate_polynomial(t: usize) -> Vec<Scalar> {
+    fn generate_polynomial(t: usize) -> Vec<<TestCT as CT>::Scalar> {
         let mut coefficients = Vec::with_capacity(t);
         for _ in 0..t {
-            coefficients.push(Scalar::random());
+            coefficients.push(<TestCT as CT>::Scalar::random());
         }
         coefficients
     }
 
-    pub fn evaluate_polynomial(coefficients: &[Scalar], x: &Scalar) -> Scalar {
+    pub fn evaluate_polynomial(
+        coefficients: &[<TestCT as CT>::Scalar],
+        x: &<TestCT as CT>::Scalar,
+    ) -> <TestCT as CT>::Scalar {
         coefficients
             .iter()
             .rev()
-            .fold(Scalar::ZERO, |acc, coef| acc * x + coef)
+            .fold(<TestCT as CT>::Scalar::zero(), |acc, coef| acc * x + coef)
     }
 
-    fn evaluate_at_points(coefficients: &[Scalar], points: &[Scalar]) -> Vec<Scalar> {
+    fn evaluate_at_points(
+        coefficients: &[<TestCT as CT>::Scalar],
+        points: &[<TestCT as CT>::Scalar],
+    ) -> Vec<<TestCT as CT>::Scalar> {
         points
             .iter()
             .map(|x| evaluate_polynomial(coefficients, x))
@@ -1267,10 +1339,12 @@ mod tests {
 
         // test that reconstruction works as long as we have enough points
         for n in t..n {
-            let points: Vec<Scalar> = (1..=n).map(|i: u128| Scalar::from_u128(i + 1)).collect();
+            let points: Vec<<TestCT as CT>::Scalar> = (1..=n)
+                .map(|i: u128| <TestCT as CT>::Scalar::from_u128(i + 1))
+                .collect();
             let values = evaluate_at_points(&coefficients, &points);
 
-            let zero = Scalar::ZERO;
+            let zero = <TestCT as CT>::Scalar::zero();
             let zero_value = evaluate_polynomial(&coefficients, &zero);
 
             let points: Vec<ParticipantIdentifier> = (1..=n)
@@ -1282,7 +1356,7 @@ mod tests {
                 .map(|(value, point)| {
                     *value * TshareParticipant::lagrange_coefficient_at_zero(point, &points)
                 })
-                .fold(Scalar::ZERO, |acc, x| acc + x);
+                .fold(<TestCT as CT>::Scalar::zero(), |acc, x| acc + x);
 
             assert_eq!(zero_value, zero_value_reconstructed);
         }

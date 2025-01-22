@@ -9,6 +9,7 @@
 use crate::{
     curve::{CT, ST},
     errors::{CallerError, InternalError, Result},
+    keygen::KeySharePrivate,
     paillier::{Ciphertext, DecryptionKey, EncryptionKey},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -98,6 +99,15 @@ impl<C: CT> Debug for CoeffPrivate<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("CoeffPrivate([redacted])")
     }
+}
+
+impl TryFrom<&KeySharePrivate> for CoeffPrivate {
+    fn try_from(share: &KeySharePrivate) -> Result<Self> {
+        let x = bn_to_scalar(share.as_ref())?;
+        Ok(CoeffPrivate { x })
+    }
+
+    type Error = InternalError;
 }
 
 /// Represents a coefficient of a polynomial.

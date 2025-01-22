@@ -6,6 +6,7 @@ use tss_ecdsa::messages::Message;
 pub enum SubProtocol {
     KeyGeneration,
     AuxInfo,
+    Tshare,
     Presign,
     Sign,
 }

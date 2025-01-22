@@ -291,6 +291,21 @@ pub(crate) mod participant_config {
             })
         }
 
+        /// Returns a new [`ParticipantConfig`] including only the given
+        /// participants.
+        pub fn filter_participants(&self, pids: &[ParticipantIdentifier]) -> Self {
+            let other_ids = self
+                .other_ids()
+                .iter()
+                .filter(|pid| pids.contains(pid))
+                .cloned()
+                .collect();
+            Self {
+                id: self.id,
+                other_ids,
+            }
+        }
+
         /// Get a list of `size` consistent [`ParticipantConfig`]s.
         ///
         /// Each config contains a different permutation of a single overall set
@@ -646,7 +661,7 @@ mod tests {
         presign,
         sign::{self, InteractiveSignParticipant},
         slip0010::{self, ckd::CKDInput},
-        tshare::{self, CoeffPrivate},
+        tshare::{self, tests::convert_to_t_out_of_t_shares, CoeffPrivate},
         utils::testing::init_testing,
         PresignParticipant,
     };
@@ -1468,7 +1483,7 @@ mod tests {
             .fold(TestST::ZERO, |acc, x| acc + x);
 
         // t-out-of-t conversion
-        let toft_outputs = TshareParticipant::convert_to_t_out_of_t_shares(
+        let toft_keygen_outputs = convert_to_t_out_of_t_shares(
             tshare_outputs.clone(),
             all_participants.clone(),
             *rid,
@@ -1476,7 +1491,6 @@ mod tests {
             sum_tshare_input,
             t,
         )?;
-        let toft_keygen_outputs = toft_outputs.keygen_outputs;
 
         let first_keygen_output = toft_keygen_outputs
             .get(&configs.first().unwrap().id())

@@ -97,6 +97,22 @@ impl Output {
     pub(crate) fn private_auxinfo(&self) -> &AuxInfoPrivate {
         &self.private_auxinfo
     }
+
+    /// Filter the output to only include the auxinfo for the given
+    /// participants.
+    pub fn filter_participants(&self, pids: &[ParticipantIdentifier]) -> Self {
+        let public_auxinfo = self
+            .public_auxinfo
+            .iter()
+            .filter(|auxinfo| pids.contains(&auxinfo.participant()))
+            .cloned()
+            .collect();
+
+        Self {
+            public_auxinfo,
+            private_auxinfo: self.private_auxinfo.clone(),
+        }
+    }
 }
 
 #[cfg(test)]
