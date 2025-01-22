@@ -6,7 +6,7 @@ use crate::{
         InternalError::{self, InternalInvariantFailed},
         Result,
     },
-    utils::{k256_order, CurvePoint},
+    k256::{k256_order, CurvePoint},
 };
 use generic_array::GenericArray;
 use hmac::digest::core_api::CoreWrapper;

@@ -222,6 +222,7 @@ pub mod auxinfo;
 mod broadcast;
 pub mod curve;
 mod gmp_zeroize;
+pub mod k256;
 pub mod keygen;
 pub mod keyrefresh;
 pub mod keyshare_export;
