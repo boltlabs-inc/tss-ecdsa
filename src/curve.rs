@@ -6,7 +6,7 @@ use crate::{
         InternalError::{self, InternalInvariantFailed},
         Result,
     },
-    k256::{k256_order, CurvePoint},
+    k256::{k256_order, K256},
 };
 use generic_array::GenericArray;
 use hmac::digest::core_api::CoreWrapper;
@@ -253,7 +253,7 @@ impl ST for K256_Scalar {
 
     fn mul_bignum(&self, other: &BigNumber) -> Self {
         // use bn_to_scalar to convert other to a scalar
-        let bn_scalar: Self = <CurvePoint as CT>::bn_to_scalar(other).unwrap();
+        let bn_scalar: Self = <K256 as CT>::bn_to_scalar(other).unwrap();
         k256::Scalar::mul(self, &bn_scalar)
     }
 
@@ -288,7 +288,7 @@ impl ST for K256_Scalar {
 }
 
 /// Default curve type.
-pub type TestCT = CurvePoint;
+pub type TestCT = K256;
 
 /// Default scalar type.
 pub type TestST = K256_Scalar;
@@ -296,17 +296,17 @@ pub type TestST = K256_Scalar;
 /// Default signature type.
 pub type TestSignature = k256::ecdsa::Signature;
 
-impl SignatureTrait for CTSignature<CurvePoint> {
+impl SignatureTrait for CTSignature<K256> {
     fn from_scalars(r: &BigNumber, s: &BigNumber) -> Result<Self> {
-        let r_scalar = <CurvePoint as CT>::bn_to_scalar(r)?;
-        let s_scalar = <CurvePoint as CT>::bn_to_scalar(s)?;
+        let r_scalar = <K256 as CT>::bn_to_scalar(r)?;
+        let s_scalar = <K256 as CT>::bn_to_scalar(s)?;
         let sig = k256::ecdsa::Signature::from_scalars(r_scalar, s_scalar)
             .map_err(|_| InternalInvariantFailed)?;
-        Ok(CTSignature(sig, std::marker::PhantomData::<CurvePoint>))
+        Ok(CTSignature(sig, std::marker::PhantomData::<K256>))
     }
 }
 
-impl Deref for CTSignature<CurvePoint> {
+impl Deref for CTSignature<K256> {
     type Target = k256::ecdsa::Signature;
 
     fn deref(&self) -> &Self::Target {
@@ -314,14 +314,14 @@ impl Deref for CTSignature<CurvePoint> {
     }
 }
 
-impl CT for CurvePoint {
-    const GENERATOR: Self = CurvePoint::GENERATOR;
-    const IDENTITY: Self = CurvePoint::IDENTITY;
+impl CT for K256 {
+    const GENERATOR: Self = K256::GENERATOR;
+    const IDENTITY: Self = K256::IDENTITY;
     type Scalar = K256_Scalar;
     type Encoded = EncodedPoint;
     type Projective = ProjectivePoint;
     type VK = VerifyingKey;
-    type ECDSASignature = CTSignature<CurvePoint>;
+    type ECDSASignature = CTSignature<K256>;
 
     fn order() -> BigNumber {
         k256_order()
@@ -332,7 +332,7 @@ impl CT for CurvePoint {
     }
 
     fn scale_generator(scalar: &BigNumber) -> Result<Self> {
-        CurvePoint::GENERATOR.multiply_by_bignum(scalar)
+        K256::GENERATOR.multiply_by_bignum(scalar)
     }
 
     fn mul(&self, scalar: &Self::Scalar) -> Self {
@@ -352,11 +352,11 @@ impl CT for CurvePoint {
     }
 
     fn to_bytes(self) -> Vec<u8> {
-        CurvePoint::to_bytes(self)
+        K256::to_bytes(self)
     }
 
     fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
-        CurvePoint::try_from_bytes(bytes)
+        K256::try_from_bytes(bytes)
     }
 
     // Returns x: BigNumber as a k256::Scalar mod k256_order
@@ -404,7 +404,7 @@ impl CT for CurvePoint {
 }
 
 impl VKT for VerifyingKey {
-    type C = CurvePoint;
+    type C = K256;
 
     fn from_point(point: Self::C) -> Result<Self> {
         VerifyingKey::from_sec1_bytes(&point.to_bytes()).map_err(|_| InternalInvariantFailed)

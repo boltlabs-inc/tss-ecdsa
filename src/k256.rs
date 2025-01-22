@@ -19,25 +19,25 @@ use zeroize::{Zeroize, Zeroizing};
 /// Wrapper around k256::ProjectivePoint so that we can define our own
 /// serialization/deserialization for it
 ///
-/// Note that this type derives [`Debug`]; if a [`CurvePoint`] is used in a
+/// Note that this type derives [`Debug`]; if a [`K256`] is used in a
 /// private type, `Debug` should be manually implemented with the field of this
 /// type explicitly redacted!
 #[derive(Eq, PartialEq, Debug, Clone, Copy, Zeroize)]
-pub struct CurvePoint(k256::ProjectivePoint);
+pub struct K256(k256::ProjectivePoint);
 
-impl From<CurvePoint> for EncodedPoint {
-    fn from(value: CurvePoint) -> EncodedPoint {
+impl From<K256> for EncodedPoint {
+    fn from(value: K256) -> EncodedPoint {
         value.0.to_affine().into()
     }
 }
 
-impl AsRef<CurvePoint> for CurvePoint {
-    fn as_ref(&self) -> &CurvePoint {
+impl AsRef<K256> for K256 {
+    fn as_ref(&self) -> &K256 {
         self
     }
 }
 
-impl CurvePoint {
+impl K256 {
     /// Get the x-coordinate of the curve point
     pub fn x_affine(&self) -> FieldBytes {
         self.0.to_affine().x()
@@ -47,12 +47,12 @@ impl CurvePoint {
     pub(crate) fn random(rng: impl rand::RngCore) -> Self {
         use k256::{elliptic_curve::Group, ProjectivePoint};
         let random_point = ProjectivePoint::random(rng);
-        CurvePoint(random_point)
+        K256(random_point)
     }
-    pub(crate) const GENERATOR: Self = CurvePoint(k256::ProjectivePoint::GENERATOR);
+    pub(crate) const GENERATOR: Self = K256(k256::ProjectivePoint::GENERATOR);
     /// The identity point, used to initialize the aggregation of a verification
     /// key
-    pub const IDENTITY: Self = CurvePoint(k256::ProjectivePoint::IDENTITY);
+    pub const IDENTITY: Self = K256(k256::ProjectivePoint::IDENTITY);
 
     /// Multiply `self` by a [`BigNumber`] point, which is first converted to
     /// the secp256k1 [`Scalar`] field (taken mod `q`, where `q` is the
@@ -99,7 +99,7 @@ impl CurvePoint {
     }
 }
 
-impl std::ops::Add for CurvePoint {
+impl std::ops::Add for K256 {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -107,13 +107,13 @@ impl std::ops::Add for CurvePoint {
     }
 }
 
-impl From<k256::ProjectivePoint> for CurvePoint {
+impl From<k256::ProjectivePoint> for K256 {
     fn from(p: k256::ProjectivePoint) -> Self {
         Self(p)
     }
 }
 
-impl Serialize for CurvePoint {
+impl Serialize for K256 {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -123,7 +123,7 @@ impl Serialize for CurvePoint {
     }
 }
 
-impl<'de> Deserialize<'de> for CurvePoint {
+impl<'de> Deserialize<'de> for K256 {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -141,15 +141,15 @@ pub(crate) fn k256_order() -> BigNumber {
 
 #[cfg(test)]
 mod curve_point_tests {
-    use crate::{k256::CurvePoint, utils::testing::init_testing};
+    use crate::{k256::K256, utils::testing::init_testing};
     use k256::elliptic_curve::Group;
 
     #[test]
     fn curve_point_byte_conversion_works() {
         let rng = &mut init_testing();
-        let point = CurvePoint(k256::ProjectivePoint::random(rng));
+        let point = K256(k256::ProjectivePoint::random(rng));
         let bytes = point.to_bytes();
-        let reconstructed = CurvePoint::try_from_bytes(&bytes).unwrap();
+        let reconstructed = K256::try_from_bytes(&bytes).unwrap();
         assert_eq!(point, reconstructed);
     }
 }
