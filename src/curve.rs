@@ -2,6 +2,7 @@
 
 use crate::{
     errors::{
+        CallerError,
         InternalError::{self, InternalInvariantFailed},
         Result,
     },
@@ -16,6 +17,7 @@ use k256::{
 };
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 use sha3::{Keccak256, Keccak256Core};
 use std::{
     fmt::Debug,
@@ -112,18 +114,24 @@ pub trait SignatureTrait: Clone + Copy + Debug + PartialEq {
     fn from_scalars(r: &BigNumber, s: &BigNumber) -> Result<Self>
     where
         Self: Sized + Debug;
-
-    // TODO: generalize RecoveryId
-    //fn recover_id<C: CT>(
-    //    &self,
-    //    message: &[u8],
-    //    public_key: &C::VK,
-    //) -> Result<k256::ecdsa::RecoveryId>;
 }
 
 /// ECDSA signature on a message.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CTSignature<C: CT>(k256::ecdsa::Signature, std::marker::PhantomData<C>);
+impl<C: CT> CTSignature<C> {
+    #[allow(dead_code)]
+    pub(crate) fn recovery_id(&self, message: &[u8], public_key: &VerifyingKey) -> Result<u8> {
+        let digest = Keccak256::new_with_prefix(message);
+        let recover_id =
+            k256::ecdsa::RecoveryId::trial_recovery_from_digest(public_key, digest, &self.0)
+                .map_err(|e| {
+                    error!("Failed to compute recovery ID for signature. Reason: {e:?}");
+                    CallerError::SignatureTrialRecoveryFailed
+                })?;
+        Ok(recover_id.into())
+    }
+}
 
 /// Verifying Key trait
 pub trait VKT: Clone + Copy + Debug + Send + Sync + Eq + PartialEq {

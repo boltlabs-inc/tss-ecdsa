@@ -133,10 +133,6 @@ impl<C: CT> Input<C> {
             .iter()
             .fold(C::IDENTITY, |sum, share| sum + *share.as_ref());
 
-        //VerifyingKey::from_encoded_point(&public_key_point).map_err(|_| {
-        //    error!("Keygen output does not produce a valid public key");
-        //    CallerError::BadInput.into()
-        //})
         C::VK::from_point(public_key_point)
     }
 }
@@ -484,7 +480,7 @@ mod test {
     use std::{collections::HashMap, ops::Deref};
 
     use k256::{
-        ecdsa::signature::DigestVerifier,
+        ecdsa::{signature::DigestVerifier, RecoveryId},
         elliptic_curve::{ops::Reduce, scalar::IsHigh, subtle::ConditionallySelectable},
         Scalar, U256,
     };
@@ -691,21 +687,23 @@ mod test {
             .is_ok());
 
         // Check we are able to create a recoverable signature.
-        // TODO: Uncomment this once recovery_id is implemented.
-        /*let recovery_id = distributed_sig
+        let recovery_id = distributed_sig
             .recovery_id(message, public_key)
             .expect("Recovery ID failed");
 
         // Re-derive the public key from the recoverable ID and ensure it matches the
         // original public key.
-        let recovered_pk =
-            VerifyingKey::recover_from_digest(digest, distributed_sig.as_ref(), recovery_id)
-                .unwrap();
+        let recovered_pk = <TestCT as CT>::VK::recover_from_digest(
+            digest,
+            distributed_sig,
+            RecoveryId::from_byte(recovery_id).expect("Invalid recovery ID"),
+        )
+        .unwrap();
 
         assert_eq!(
             recovered_pk, *public_key,
             "Recovered public key does not match original one."
-        );*/
+        );
 
         Ok(())
     }

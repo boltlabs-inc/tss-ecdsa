@@ -349,7 +349,7 @@ impl<C: CT + 'static> InteractiveSignParticipant<C> {
 mod tests {
     use std::{collections::HashMap, ops::Deref};
 
-    use k256::ecdsa::signature::DigestVerifier;
+    use k256::ecdsa::{signature::DigestVerifier, RecoveryId};
     use rand::{rngs::StdRng, Rng};
     use sha3::{Digest, Keccak256};
     use tracing::debug;
@@ -500,21 +500,23 @@ mod tests {
             .is_ok());
 
         // Check we are able to create a recoverable signature.
-        // TODO: uncomment this once we have the recovery ID implemented
-        /*let recovery_id = distributed_sig
+        let recovery_id = distributed_sig
             .recovery_id(message, public_key)
             .expect("Recovery ID failed");
 
         // Re-derive the public key from the recoverable ID and ensure it matches the
         // original public key.
-        let recovered_pk =
-            VerifyingKey::recover_from_digest(digest, distributed_sig.as_ref(), recovery_id)
-                .unwrap();
+        let recovered_pk = <TestCT as CT>::VK::recover_from_digest(
+            digest,
+            distributed_sig,
+            RecoveryId::from_byte(recovery_id).expect("Invalid recovery ID"),
+        )
+        .unwrap();
 
         assert_eq!(
             recovered_pk, *public_key,
             "Recovered public key does not match original one."
-        );*/
+        );
 
         Ok(())
     }
