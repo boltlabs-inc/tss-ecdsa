@@ -474,7 +474,7 @@ impl<C: CT + 'static> SignParticipant<C> {
 #[cfg(test)]
 mod test {
     use crate::{
-        curve::{CTSignature, SignatureTrait, TestCT, VKT},
+        curve::{CTSignatureK256, SignatureTrait, TestCT, VKT},
         ParticipantIdentifier,
     };
     use std::{collections::HashMap, ops::Deref};
@@ -548,7 +548,7 @@ mod test {
         message: &[u8],
         records: &[PresignRecord],
         keygen_outputs: &[keygen::Output<TestCT>],
-    ) -> CTSignature<TestCT> {
+    ) -> CTSignatureK256<TestCT> {
         let k = records
             .iter()
             .map(|record| record.mask_share())
@@ -566,7 +566,7 @@ mod test {
         let mut s = k * (m + r * secret_key);
         s.conditional_assign(&s.negate(), s.is_high());
 
-        let signature = CTSignature::from_scalars(
+        let signature = CTSignatureK256::from_scalars(
             &<TestCT as CT>::scalar_to_bn(&r),
             &<TestCT as CT>::scalar_to_bn(&s),
         )

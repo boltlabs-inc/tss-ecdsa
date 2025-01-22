@@ -7,6 +7,7 @@ use crate::{
         Result,
     },
     k256::{k256_order, K256},
+    p256::P256,
 };
 use generic_array::GenericArray;
 use hmac::digest::core_api::CoreWrapper;
@@ -16,6 +17,7 @@ use k256::{
     EncodedPoint, FieldBytes, ProjectivePoint, Scalar as K256_Scalar,
 };
 use libpaillier::unknown_order::BigNumber;
+use p256::Scalar as P256_Scalar;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use sha3::{Keccak256, Keccak256Core};
@@ -27,7 +29,6 @@ use tracing::error;
 use zeroize::{Zeroize, Zeroizing};
 
 /// Generic elliptic curve point.
-// TODO: remove From/Into/AsRef CurvePoint.
 pub trait CT:
     Clone
     + Copy
@@ -118,8 +119,8 @@ pub trait SignatureTrait: Clone + Copy + Debug + PartialEq {
 
 /// ECDSA signature on a message.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CTSignature<C: CT>(k256::ecdsa::Signature, std::marker::PhantomData<C>);
-impl<C: CT> CTSignature<C> {
+pub struct CTSignatureK256<C: CT>(k256::ecdsa::Signature, std::marker::PhantomData<C>);
+impl<C: CT> CTSignatureK256<C> {
     #[allow(dead_code)]
     pub(crate) fn recovery_id(&self, message: &[u8], public_key: &VerifyingKey) -> Result<u8> {
         let digest = Keccak256::new_with_prefix(message);
@@ -296,17 +297,23 @@ pub type TestST = K256_Scalar;
 /// Default signature type.
 pub type TestSignature = k256::ecdsa::Signature;
 
-impl SignatureTrait for CTSignature<K256> {
+/// P256 curve type.
+pub type Secp256r1 = P256;
+
+/// P256 scalar type.
+pub type P256Scalar = P256_Scalar;
+
+impl SignatureTrait for CTSignatureK256<K256> {
     fn from_scalars(r: &BigNumber, s: &BigNumber) -> Result<Self> {
         let r_scalar = <K256 as CT>::bn_to_scalar(r)?;
         let s_scalar = <K256 as CT>::bn_to_scalar(s)?;
         let sig = k256::ecdsa::Signature::from_scalars(r_scalar, s_scalar)
             .map_err(|_| InternalInvariantFailed)?;
-        Ok(CTSignature(sig, std::marker::PhantomData::<K256>))
+        Ok(CTSignatureK256(sig, std::marker::PhantomData::<K256>))
     }
 }
 
-impl Deref for CTSignature<K256> {
+impl Deref for CTSignatureK256<K256> {
     type Target = k256::ecdsa::Signature;
 
     fn deref(&self) -> &Self::Target {
@@ -321,7 +328,7 @@ impl CT for K256 {
     type Encoded = EncodedPoint;
     type Projective = ProjectivePoint;
     type VK = VerifyingKey;
-    type ECDSASignature = CTSignature<K256>;
+    type ECDSASignature = CTSignatureK256<K256>;
 
     fn order() -> BigNumber {
         k256_order()
@@ -417,11 +424,6 @@ impl VKT for VerifyingKey {
     ) -> Result<()> {
         self.verify_digest(digest, signature.deref())
             .map_err(|_| InternalInvariantFailed)
-        /*let pk = self.to_encoded_point(false);
-        VerifyingKey::from_encoded_point(&pk)
-            .map_err(|_| InternalInvariantFailed)?
-            .verify_digest(digest, &signature)
-            .map_err(|_| InternalInvariantFailed)*/
     }
 }
 

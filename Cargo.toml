@@ -23,6 +23,7 @@ flamer = { version = "0.3", optional = true }
 generic-array = "0.14"
 hex = "0.4"
 k256 = { version = "0.13", features = ["arithmetic", "sha256", "ecdsa", "serde"] }
+p256 = { version = "0.13.2", features = ["arithmetic", "sha256", "ecdsa", "serde"] }
 lazy_static = "1"
 
 # libpaillier depends on `unknown_order` which in turn depends on `rug`.
