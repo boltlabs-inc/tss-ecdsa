@@ -101,10 +101,13 @@ impl<C: CT> Debug for CoeffPrivate<C> {
     }
 }
 
-impl TryFrom<&KeySharePrivate> for CoeffPrivate {
-    fn try_from(share: &KeySharePrivate) -> Result<Self> {
-        let x = bn_to_scalar(share.as_ref())?;
-        Ok(CoeffPrivate { x })
+impl<C: CT> TryFrom<&KeySharePrivate<C>> for CoeffPrivate<C> {
+    fn try_from(share: &KeySharePrivate<C>) -> Result<Self> {
+        let x = C::bn_to_scalar(share.as_ref())?;
+        Ok(CoeffPrivate::<C> {
+            x,
+            phantom: PhantomData,
+        })
     }
 
     type Error = InternalError;

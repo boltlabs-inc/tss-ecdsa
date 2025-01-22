@@ -1,5 +1,12 @@
 //! Elliptic Curve abstraction
 
+use crate::{
+    errors::{
+        InternalError::{self, InternalInvariantFailed},
+        Result,
+    },
+    utils::{k256_order, CurvePoint},
+};
 use generic_array::GenericArray;
 use hmac::digest::core_api::CoreWrapper;
 use k256::{
@@ -16,14 +23,6 @@ use std::{
 };
 use tracing::error;
 use zeroize::{Zeroize, Zeroizing};
-
-use crate::{
-    errors::{
-        InternalError::{self, InternalInvariantFailed},
-        Result,
-    },
-    utils::{k256_order, CurvePoint},
-};
 
 /// Generic elliptic curve point.
 // TODO: remove From/Into/AsRef CurvePoint.
