@@ -1,5 +1,4 @@
 //! Elliptic Curve abstraction
-
 use crate::{
     errors::{
         CallerError,
@@ -13,7 +12,7 @@ use generic_array::GenericArray;
 use hmac::digest::core_api::CoreWrapper;
 use k256::{
     ecdsa::{signature::DigestVerifier, VerifyingKey},
-    elliptic_curve::{scalar::IsHigh, Field, PrimeField},
+    elliptic_curve::{scalar::IsHigh, Field, Group, PrimeField},
     EncodedPoint, FieldBytes, ProjectivePoint, Scalar as K256_Scalar,
 };
 use libpaillier::unknown_order::BigNumber;
@@ -107,6 +106,9 @@ pub trait CT:
 
     /// Convert from `[Self::Scalar]` to BigNumber
     fn scalar_to_bn(x: &Self::Scalar) -> BigNumber;
+
+    /// Random scalar.
+    fn random() -> Self;
 }
 
 /// Signature trait.
@@ -290,12 +292,17 @@ impl ST for K256_Scalar {
 
 /// Default curve type.
 pub type TestCT = K256;
+//pub type TestCT = P256;
 
 /// Default scalar type.
 pub type TestST = K256_Scalar;
+//pub type TestST = P256_Scalar;
 
 /// Default signature type.
 pub type TestSignature = k256::ecdsa::Signature;
+
+/// K256 curve type.
+pub type Secp256k1 = K256;
 
 /// P256 curve type.
 pub type Secp256r1 = P256;
@@ -408,6 +415,13 @@ impl CT for K256 {
         let bytes = x.to_repr();
         BigNumber::from_slice(bytes)
     }
+
+    // Random point.
+    fn random() -> Self {
+        let mut rng = rand::thread_rng();
+        let random_point = ProjectivePoint::random(&mut rng);
+        K256(random_point)
+    }
 }
 
 impl VKT for VerifyingKey {
@@ -432,7 +446,7 @@ mod tests {
     use libpaillier::unknown_order::BigNumber;
 
     use crate::{
-        curve::{TestCT, CT},
+        curve::{TestCT, CT, ST},
         utils::testing::init_testing,
     };
 
@@ -442,6 +456,9 @@ mod tests {
         let neg1 = BigNumber::zero() - BigNumber::one();
 
         let scalar = TestCT::bn_to_scalar(&neg1).unwrap();
-        assert_eq!(k256::Scalar::ZERO, scalar.add(&k256::Scalar::ONE));
+        assert_eq!(
+            <TestCT as CT>::Scalar::zero(),
+            scalar.add(&<TestCT as CT>::Scalar::one())
+        );
     }
 }

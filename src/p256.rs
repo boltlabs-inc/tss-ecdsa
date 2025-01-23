@@ -14,7 +14,7 @@ use p256::{
     ecdsa::{signature::DigestVerifier, VerifyingKey},
     elliptic_curve::{
         bigint::Encoding, group::GroupEncoding, point::AffineCoordinates, scalar::IsHigh,
-        AffinePoint, Curve, Field, PrimeField,
+        AffinePoint, Curve, Field, Group, PrimeField,
     },
     EncodedPoint, FieldBytes, NistP256, ProjectivePoint, Scalar as P256_Scalar,
 };
@@ -51,20 +51,12 @@ impl AsRef<P256> for P256 {
 /// ECDSA signature on a message.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CTSignatureP256<C: CT>(p256::ecdsa::Signature, std::marker::PhantomData<C>);
-/*impl<C: CT> CTSignatureP256<C> {
-    #[allow(dead_code)]
-    pub(crate) fn recovery_id(&self, message: &[u8], public_key: &VerifyingKey) -> Result<u8> {
-        let digest = Keccak256::new_with_prefix(message);
-        let recover_id =
-            p256::ecdsa::RecoveryId::trial_recovery_from_digest(public_key, digest, &self.0)
-                .map_err(|e| {
-                    error!("Failed to compute recovery ID for signature. Reason: {e:?}");
-                    CallerError::SignatureTrialRecoveryFailed
-                })?;
-        Ok(recover_id.into())
+impl<C: CT> CTSignatureP256<C> {
+    #[allow(dead_code, unused_variables)]
+    pub(crate) fn recovery_id(&self, _message: &[u8], _public_key: &VerifyingKey) -> Result<u8> {
         todo!()
     }
-}*/
+}
 
 impl P256 {
     /// Get the x-coordinate of the curve point
@@ -256,6 +248,12 @@ impl CT for P256 {
     fn scalar_to_bn(x: &Self::Scalar) -> BigNumber {
         let bytes = x.to_repr();
         BigNumber::from_slice(bytes)
+    }
+
+    // Random point
+    fn random() -> Self {
+        let rng = rand::thread_rng();
+        P256(p256::ProjectivePoint::random(rng))
     }
 }
 

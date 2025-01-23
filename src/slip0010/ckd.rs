@@ -13,11 +13,14 @@ use libpaillier::unknown_order::BigNumber;
 
 type HmacSha512 = hmac::Hmac<sha2::Sha512>;
 
+const CURVE_NAME: &str = "Bitcoin seed";
+//const CURVE_NAME: &str = "P256 seed";
+
 /// Represents the input to the CKD function.
 #[derive(Debug, Clone)]
 pub struct CKDInput<C: CT> {
     private_key: Option<C::Scalar>,
-    public_key: Vec<u8>,
+    public_key: C,
     chain_code: [u8; 32],
     index: u32,
 }
@@ -46,7 +49,7 @@ pub struct MasterKeyInput {
 impl MasterKeyInput {
     /// Create a new MasterKeyInput.
     pub fn new(seed: &[u8], curve: String) -> Result<Self, CallerError> {
-        if curve != "Bitcoin seed" {
+        if curve != CURVE_NAME {
             Err(CallerError::WrongCurve)
         } else {
             Ok(Self {
@@ -91,7 +94,7 @@ impl<C: CT> CKDInput<C> {
     /// the private key should be None.
     pub fn new(
         private_key: Option<C::Scalar>,
-        public_key: Vec<u8>,
+        public_key: C,
         chain_code: [u8; 32],
         index: u32,
     ) -> Result<Self, CallerError> {
@@ -125,7 +128,7 @@ impl<C: CT> CKDInput<C> {
             .expect("this never fails: hmac can handle keys of any size");
         let i = hmac
             .clone()
-            .chain_update(self.public_key.as_slice())
+            .chain_update(self.public_key.to_bytes().as_slice())
             .chain_update(self.index.to_be_bytes())
             .finalize()
             .into_bytes();
@@ -142,8 +145,7 @@ impl<C: CT> CKDInput<C> {
 
             if let Ok(shift) = C::bn_to_scalar(&BigNumber::from_slice(i_left)) {
                 let parent_private_key: C::Scalar = self.private_key.unwrap_or(C::Scalar::zero());
-                let parent_public_key = C::try_from_bytes(self.public_key.as_slice())
-                    .expect("could not get the parent public key");
+                let parent_public_key = self.public_key;
 
                 let child_private_key = parent_private_key.add(&shift);
                 let child_public_key = parent_public_key + C::GENERATOR.mul(&shift);
@@ -193,7 +195,7 @@ fn test_derive_master_key() {
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
         0x0f,
     ];
-    let mk_input = MasterKeyInput::new(&seed, "Bitcoin seed".into()).unwrap();
+    let mk_input = MasterKeyInput::new(&seed, CURVE_NAME.into()).unwrap();
     let master_key_output = MasterKeyInput::derive_master_key::<C>(&mk_input);
     assert_eq!(
         master_key_output.private_key.to_bytes(),
@@ -222,7 +224,7 @@ public: 02fc9e5af0ac8d9b3cecfe2a888e2117ba3d089d8585886c9c826b6b22a98d12ea
 */
 #[test]
 fn test_derive_child_key() {
-    use crate::curve::TestCT as C;
+    use crate::curve::TestCT;
 
     // seed:
     // fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542
@@ -233,13 +235,13 @@ fn test_derive_child_key() {
         0x78, 0x75, 0x72, 0x6f, 0x6c, 0x69, 0x66, 0x63, 0x60, 0x5d, 0x5a, 0x57, 0x54, 0x51, 0x4e,
         0x4b, 0x48, 0x45, 0x42,
     ];
-    let mk_input = MasterKeyInput::new(&seed, "Bitcoin seed".into()).unwrap();
-    let master_key_output = MasterKeyInput::derive_master_key::<C>(&mk_input);
+    let mk_input = MasterKeyInput::new(&seed, CURVE_NAME.into()).unwrap();
+    let master_key_output = MasterKeyInput::derive_master_key::<TestCT>(&mk_input);
 
     // derive the child key
-    let pk = C::GENERATOR.mul(&master_key_output.private_key);
+    let pk = TestCT::GENERATOR.mul(&master_key_output.private_key);
     let private_key = master_key_output.private_key;
-    let public_key: Vec<u8> = pk.to_bytes().to_vec();
+    let public_key_bytes: Vec<u8> = pk.to_bytes().to_vec();
 
     // The expected values are:
     // chain code: 60499f801b896d83179a4374aeb7822aaeaceaa0db1f85ee3e904c4defbd9689
@@ -267,15 +269,16 @@ fn test_derive_child_key() {
     );
     // assert the public key
     assert_eq!(
-        public_key,
+        public_key_bytes,
         [
             0x03, 0xcb, 0xca, 0xa9, 0xc9, 0x8c, 0x87, 0x7a, 0x26, 0x97, 0x7d, 0x00, 0x82, 0x5c,
             0x95, 0x6a, 0x23, 0x8e, 0x8d, 0xdd, 0xfb, 0xd3, 0x22, 0xcc, 0xe4, 0xf7, 0x4b, 0x0b,
             0x5b, 0xd6, 0xac, 0xe4, 0xa7
         ]
     );
+    let public_key = TestCT::try_from_bytes(&public_key_bytes).unwrap();
 
-    let ckd_input: CKDInput<C> = CKDInput::new(
+    let ckd_input: CKDInput<TestCT> = CKDInput::new(
         Some(private_key),
         public_key,
         master_key_output.chain_code,
@@ -293,7 +296,7 @@ fn test_derive_child_key() {
         ]
     );
     // assert the private key
-    let private_key: k256::Scalar = child_key_output.private_key;
+    let private_key: <TestCT as CT>::Scalar = child_key_output.private_key;
     assert_eq!(
         private_key.to_bytes().as_slice(),
         [

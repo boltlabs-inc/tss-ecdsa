@@ -474,22 +474,22 @@ impl<C: CT + 'static> SignParticipant<C> {
 #[cfg(test)]
 mod test {
     use crate::{
-        curve::{CTSignatureK256, SignatureTrait, TestCT, VKT},
+        curve::{SignatureTrait, TestCT, VKT},
         ParticipantIdentifier,
     };
     use std::{collections::HashMap, ops::Deref};
 
     use k256::{
         ecdsa::{signature::DigestVerifier, RecoveryId},
-        elliptic_curve::{ops::Reduce, scalar::IsHigh, subtle::ConditionallySelectable},
-        Scalar, U256,
+        elliptic_curve::ops::Reduce,
+        U256,
     };
     use rand::{CryptoRng, Rng, RngCore};
     use sha3::{Digest, Keccak256};
     use tracing::debug;
 
     use crate::{
-        curve::CT,
+        curve::{CT, ST},
         errors::Result,
         keygen,
         messages::{Message, MessageType},
@@ -548,25 +548,28 @@ mod test {
         message: &[u8],
         records: &[PresignRecord],
         keygen_outputs: &[keygen::Output<TestCT>],
-    ) -> CTSignatureK256<TestCT> {
+    ) -> <TestCT as CT>::ECDSASignature {
         let k = records
             .iter()
             .map(|record| record.mask_share())
-            .fold(Scalar::ZERO, |a, b| a + b);
+            .fold(<TestCT as CT>::Scalar::zero(), |a, b| a + b);
 
         let secret_key = keygen_outputs
             .iter()
             .map(|output| TestCT::bn_to_scalar(output.private_key_share().as_ref()).unwrap())
-            .fold(Scalar::ZERO, |a, b| a + b);
+            .fold(<TestCT as CT>::Scalar::zero(), |a, b| a + b);
 
         let r = records[0].x_projection().unwrap();
 
-        let m = <Scalar as Reduce<U256>>::reduce_bytes(&Keccak256::digest(message));
+        let m = <<TestCT as CT>::Scalar as Reduce<U256>>::reduce_bytes(&Keccak256::digest(message));
 
-        let mut s = k * (m + r * secret_key);
-        s.conditional_assign(&s.negate(), s.is_high());
+        let mut s: <TestCT as CT>::Scalar = k * (m + r * secret_key);
 
-        let signature = CTSignatureK256::from_scalars(
+        if s.is_high() {
+            s = s.negate();
+        }
+
+        let signature = <TestCT as CT>::ECDSASignature::from_scalars(
             &<TestCT as CT>::scalar_to_bn(&r),
             &<TestCT as CT>::scalar_to_bn(&s),
         )

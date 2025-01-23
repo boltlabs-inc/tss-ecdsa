@@ -1,14 +1,14 @@
 //! K256 functions
 
 use crate::{
-    curve::{TestCT, CT},
+    curve::{Secp256k1, CT},
     errors::{CallerError, Result},
 };
 use k256::{
     elliptic_curve::{
         bigint::Encoding, group::GroupEncoding, point::AffineCoordinates, AffinePoint, Curve,
     },
-    EncodedPoint, FieldBytes, Scalar, Secp256k1,
+    EncodedPoint, FieldBytes, Scalar,
 };
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -23,7 +23,7 @@ use zeroize::{Zeroize, Zeroizing};
 /// private type, `Debug` should be manually implemented with the field of this
 /// type explicitly redacted!
 #[derive(Eq, PartialEq, Debug, Clone, Copy, Zeroize)]
-pub struct K256(k256::ProjectivePoint);
+pub struct K256(pub k256::ProjectivePoint);
 
 impl From<K256> for EncodedPoint {
     fn from(value: K256) -> EncodedPoint {
@@ -62,7 +62,7 @@ impl K256 {
     /// converting it. This may be insecure if the point contains private
     /// data.
     pub(crate) fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
-        let s = Zeroizing::new(TestCT::bn_to_scalar(point)?);
+        let s = Zeroizing::new(Secp256k1::bn_to_scalar(point)?);
         let p = self.multiply_by_scalar(&s);
         Ok(p)
     }
@@ -73,7 +73,7 @@ impl K256 {
 
     /// Serialize the `CurvePoint` as an affine-encoded secp256k1 byte array.
     pub(crate) fn to_bytes(self) -> Vec<u8> {
-        let mut generic_array = AffinePoint::<Secp256k1>::from(self.0).to_bytes();
+        let mut generic_array = AffinePoint::<k256::Secp256k1>::from(self.0).to_bytes();
         let bytes = generic_array.to_vec();
         generic_array.zeroize();
         bytes
@@ -85,8 +85,8 @@ impl K256 {
             CallerError::DeserializationFailed
         })?;
 
-        let point: Option<AffinePoint<Secp256k1>> =
-            AffinePoint::<Secp256k1>::from_bytes(&fixed_len_bytes.into()).into();
+        let point: Option<AffinePoint<k256::Secp256k1>> =
+            AffinePoint::<k256::Secp256k1>::from_bytes(&fixed_len_bytes.into()).into();
         fixed_len_bytes.zeroize();
 
         match point {
@@ -118,7 +118,7 @@ impl Serialize for K256 {
     where
         S: Serializer,
     {
-        let afp = AffinePoint::<Secp256k1>::from(self.0);
+        let afp = AffinePoint::<k256::Secp256k1>::from(self.0);
         afp.serialize(serializer)
     }
 }
@@ -128,7 +128,7 @@ impl<'de> Deserialize<'de> for K256 {
     where
         D: Deserializer<'de>,
     {
-        let p = AffinePoint::<Secp256k1>::deserialize(deserializer)?;
+        let p = AffinePoint::<k256::Secp256k1>::deserialize(deserializer)?;
         Ok(Self(p.into()))
     }
 }

@@ -654,7 +654,7 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo::{self, AuxInfoParticipant, AuxInfoPublic},
-        curve::{TestCT, TestST},
+        curve::{TestCT, TestST, ST, VKT},
         keygen::{KeySharePublic, KeygenParticipant},
         messages,
         participant::Status,
@@ -666,16 +666,14 @@ mod tests {
         PresignParticipant,
     };
     use core::panic;
-    use k256::{
-        ecdsa::{signature::DigestVerifier, VerifyingKey},
-        elliptic_curve::Field,
-    };
     use rand::{rngs::StdRng, seq::IteratorRandom};
     use sha3::{Digest, Keccak256};
-    use std::{collections::HashMap, ops::Deref, vec};
+    use std::{collections::HashMap, vec};
     use tracing::debug;
     type SignParticipant = sign::SignParticipant<TestCT>;
     type TshareParticipant = tshare::TshareParticipant<TestCT>;
+    //type SignParticipant = sign::SignParticipant<Secp256r1>;
+    //type TshareParticipant = tshare::TshareParticipant<Secp256r1>;
 
     // Negative test checking whether the message has the correct session id
     #[test]
@@ -1074,7 +1072,7 @@ mod tests {
             .iter()
             .map(|config| {
                 let auxinfo_output = auxinfo_outputs.get(&config.id()).unwrap();
-                let secret = TestST::random(&mut rng);
+                let secret = <TestST as ST>::random();
                 tshare::Input::new(
                     auxinfo_output.clone(),
                     Some(CoeffPrivate { x: secret }),
@@ -1213,7 +1211,7 @@ mod tests {
             <PresignParticipant<TestCT> as ProtocolParticipant>::Output,
         >,
         public_key_shares: Vec<KeySharePublic<TestCT>>,
-        saved_public_key: VerifyingKey,
+        saved_public_key: <TestCT as CT>::VK,
         child_index: u32,
         threshold: usize,
         inboxes: HashMap<ParticipantIdentifier, Vec<Message>>,
@@ -1245,8 +1243,12 @@ mod tests {
         // if child_index is None, index is zero, otherwise it is child_index
         let index = child_index;
 
-        let shift_input: CKDInput<TestCT> =
-            slip0010::ckd::CKDInput::new(None, saved_public_key_bytes.to_vec(), chain_code, index)?;
+        let shift_input: CKDInput<TestCT> = slip0010::ckd::CKDInput::new(
+            None,
+            <TestCT as CT>::try_from_bytes(&saved_public_key_bytes)?,
+            chain_code,
+            index,
+        )?;
         let ckd_output = slip0010::ckd::CKDInput::derive_public_shift(&shift_input);
         let shift_scalar = ckd_output.private_key;
 
@@ -1295,11 +1297,11 @@ mod tests {
 
         // get the first participant and then call shifted_public_key
         let first_participant = sign_quorum.first().unwrap();
-        let saved_shifted_public_key = first_participant
+        let saved_shifted_public_key: <TestCT as CT>::VK = first_participant
             .participant
             .shifted_public_key(public_key_shares, shift_scalar)?;
         assert!(saved_shifted_public_key
-            .verify_digest(digest, sign_outputs[0].deref())
+            .verify_signature(digest, sign_outputs[0])
             .is_ok());
 
         Ok(true)
@@ -1376,7 +1378,7 @@ mod tests {
             threshold: n,
         };
 
-        // Call the sign helperto run its subprotocol
+        // Call the sign helper to run its subprotocol
         assert!(sign_helper(configs, sign_helper_input, rng)?);
 
         Ok(())
@@ -1707,7 +1709,7 @@ mod tests {
 
         // ...and the signature should be valid under the public key we saved
         assert!(saved_public_key
-            .verify_digest(digest, sign_outputs[0].deref())
+            .verify_signature(digest, sign_outputs[0])
             .is_ok());
 
         Ok(())

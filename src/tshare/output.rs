@@ -145,8 +145,6 @@ impl<C: CT> Output<C> {
 
 #[cfg(test)]
 mod tests {
-    use k256::Scalar;
-
     use super::*;
     use crate::{
         curve::{TestCT, CT},
@@ -244,7 +242,7 @@ mod tests {
             pids.iter()
                 .map(|&pid| {
                     // TODO #340: Replace with KeyShare methods once they exist.
-                    let secret = Scalar::random(&mut rng);
+                    let secret = <TestCT as CT>::Scalar::random(&mut rng);
                     let public = TestCT::GENERATOR.multiply_by_scalar(&secret);
                     (
                         secret,

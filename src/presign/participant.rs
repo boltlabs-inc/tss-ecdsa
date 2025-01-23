@@ -1156,14 +1156,13 @@ pub(super) use test::presign_record_set_is_valid;
 mod test {
     use std::{collections::HashMap, iter::zip};
 
-    use k256::Scalar;
     use libpaillier::unknown_order::BigNumber;
     use rand::{CryptoRng, Rng, RngCore};
     use tracing::debug;
 
     use crate::{
         auxinfo,
-        curve::{TestCT as C, CT},
+        curve::{TestCT, CT, ST},
         errors::Result,
         keygen,
         messages::{Message, MessageType, PresignMessageType},
@@ -1172,7 +1171,7 @@ mod test {
         utils::testing::init_testing,
         Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
     };
-    type PresignRecord = presign::PresignRecord<C>;
+    type PresignRecord = presign::PresignRecord<TestCT>;
 
     use super::PresignParticipant;
 
@@ -1190,7 +1189,7 @@ mod test {
 
     #[allow(clippy::type_complexity)]
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut [PresignParticipant<C>],
+        quorum: &mut [PresignParticipant<TestCT>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
     ) -> Option<(usize, ProcessOutcome<PresignRecord>)> {
@@ -1215,7 +1214,7 @@ mod test {
 
     pub(crate) fn presign_record_set_is_valid(
         records: Vec<PresignRecord>,
-        keygen_outputs: Vec<keygen::Output<C>>,
+        keygen_outputs: Vec<keygen::Output<TestCT>>,
     ) {
         // Every presign record has the same `R` value
         // We don't stick this in a HashSet because `CurvePoint`s can't be hashed :(
@@ -1230,22 +1229,29 @@ mod test {
         let mask = records
             .iter()
             .map(|record| record.mask_share())
-            .fold(Scalar::ZERO, |sum, mask_share| sum + mask_share);
-        let inverse: Scalar = Option::from(mask.invert()).unwrap();
-        assert_eq!(mask_point, &C::GENERATOR.multiply_by_scalar(&inverse));
+            .fold(<TestCT as CT>::Scalar::zero(), |sum, mask_share| {
+                sum + mask_share
+            });
+        let inverse: <TestCT as CT>::Scalar = Option::from(mask.invert()).unwrap();
+        assert_eq!(mask_point, &TestCT::GENERATOR.multiply_by_scalar(&inverse));
 
         // The masked key `Chi` is correctly formed with respect to the mask `k` and
         // secret key `x`: `Chi = x * k (mod q)`
         let masked_key = records
             .iter()
             .map(|record| record.masked_key_share())
-            .fold(Scalar::ZERO, |sum, masked_key_share| sum + masked_key_share);
+            .fold(<TestCT as CT>::Scalar::ZERO, |sum, masked_key_share| {
+                sum + masked_key_share
+            });
         let secret_key = keygen_outputs
             .iter()
             .map(|output| output.private_key_share())
             .fold(BigNumber::zero(), |sum, key_share| sum + key_share.as_ref());
         // Converting to scalars automatically gets us the mod q
-        assert_eq!(masked_key, C::bn_to_scalar(&secret_key).unwrap() * mask);
+        assert_eq!(
+            masked_key,
+            TestCT::bn_to_scalar(&secret_key).unwrap() * mask,
+        );
     }
 
     #[test]
