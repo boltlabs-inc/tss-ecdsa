@@ -14,7 +14,7 @@ use p256::{
     ecdsa::{signature::DigestVerifier, VerifyingKey},
     elliptic_curve::{
         bigint::Encoding, group::GroupEncoding, point::AffineCoordinates, scalar::IsHigh,
-        AffinePoint, Curve, Field, Group, PrimeField,
+        sec1::FromEncodedPoint, AffinePoint, Curve, CurveArithmetic, Field, Group, PrimeField,
     },
     EncodedPoint, FieldBytes, NistP256, ProjectivePoint, Scalar as P256_Scalar,
 };
@@ -34,7 +34,7 @@ use zeroize::{Zeroize, Zeroizing};
 /// private type, `Debug` should be manually implemented with the field of this
 /// type explicitly redacted!
 #[derive(Eq, PartialEq, Debug, Clone, Copy, Zeroize)]
-pub struct P256(p256::ProjectivePoint);
+pub struct P256(pub p256::ProjectivePoint);
 
 impl From<P256> for EncodedPoint {
     fn from(value: P256) -> EncodedPoint {
@@ -102,15 +102,20 @@ impl P256 {
     }
 
     pub(crate) fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
+        dbg!("try_from_bytes1");
+        dbg!(bytes.len());
         let mut fixed_len_bytes: [u8; 33] = bytes.try_into().map_err(|_| {
             error!("Failed to encode bytes as a curve point");
             CallerError::DeserializationFailed
         })?;
+        dbg!("try_from_bytes2");
 
-        let point: Option<AffinePoint<NistP256>> =
-            AffinePoint::<NistP256>::from_bytes(&fixed_len_bytes.into()).into();
+        let point: Option<AffinePoint<p256::NistP256>> =
+            AffinePoint::<p256::NistP256>::from_bytes(&fixed_len_bytes.into()).into();
+        dbg!("try_from_bytes3");
         fixed_len_bytes.zeroize();
 
+        dbg!("try_from_bytes4");
         match point {
             Some(point) => Ok(Self(point.into())),
             None => {
@@ -203,7 +208,7 @@ impl CT for P256 {
         P256::to_bytes(self)
     }
 
-    fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
+    fn try_from_bytes_ct(bytes: &[u8]) -> Result<Self> {
         P256::try_from_bytes(bytes)
     }
 
@@ -356,11 +361,27 @@ impl VKT for VerifyingKey {
         self.verify_digest(digest, signature.deref())
             .map_err(|_| InternalInvariantFailed)
     }
+
+    // Add two verifying keys
+    fn add(&self, other: &Self) -> Self {
+        dbg!("add");
+        let point1 = self.to_encoded_point(false);
+        let point2 = other.to_encoded_point(false);
+        let p1 = ProjectivePoint::from_encoded_point(&point1)
+            .expect("Can not convert the first argument");
+        let p2 = ProjectivePoint::from_encoded_point(&point2)
+            .expect("Can not convert the second argument");
+        let sum = p1 + p2;
+        let sum_affine: ProjectivePoint =
+            <NistP256 as CurveArithmetic>::AffinePoint::from(sum).into();
+        VerifyingKey::from_affine((&sum_affine).into())
+            .expect("Can not convert the sum to verifying key")
+    }
 }
 
 #[cfg(test)]
 mod curve_point_tests {
-    use crate::{p256::P256, utils::testing::init_testing};
+    use crate::{curve::CT, p256::P256, utils::testing::init_testing};
     use p256::elliptic_curve::Group;
 
     #[test]
@@ -368,7 +389,7 @@ mod curve_point_tests {
         let rng = &mut init_testing();
         let point = P256(p256::ProjectivePoint::random(rng));
         let bytes = point.to_bytes();
-        let reconstructed = P256::try_from_bytes(&bytes).unwrap();
+        let reconstructed = P256::try_from_bytes_ct(&bytes).unwrap();
         assert_eq!(point, reconstructed);
     }
 }

@@ -881,44 +881,44 @@ mod tests {
 
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
-    fn test_full_noninteractive_signing_works_with_keygen() {
-        assert!(noninteractive_threshold_signing_works(3, 3, 3, 0).is_ok());
-        assert!(noninteractive_threshold_signing_works(3, 2, 3, 0).is_ok());
-        assert!(noninteractive_threshold_signing_works(2, 2, 3, 0).is_ok());
+    fn test_basic_noninteractive_signing_works_with_keygen() {
+        assert!(basic_noninteractive_threshold_signing_works(3, 3, 3).is_ok());
+        assert!(basic_noninteractive_threshold_signing_works(3, 2, 3).is_ok());
+        assert!(basic_noninteractive_threshold_signing_works(2, 2, 3).is_ok());
     }
 
     #[ignore]
     #[test]
     fn test_full_noninteractive_signing_works_with_hd_wallet_larger_values() {
-        assert!(noninteractive_threshold_signing_works(5, 5, 5, 42).is_ok());
-        assert!(noninteractive_threshold_signing_works(5, 4, 5, 42).is_ok());
-        assert!(noninteractive_threshold_signing_works(4, 4, 5, 42).is_ok());
-        assert!(noninteractive_threshold_signing_works(5, 3, 5, 42).is_ok());
-        assert!(noninteractive_threshold_signing_works(4, 3, 5, 42).is_ok());
-        assert!(noninteractive_threshold_signing_works(3, 3, 5, 42).is_ok());
+        assert!(full_noninteractive_threshold_signing_works(5, 5, 5, 42).is_ok());
+        assert!(full_noninteractive_threshold_signing_works(5, 4, 5, 42).is_ok());
+        assert!(full_noninteractive_threshold_signing_works(4, 4, 5, 42).is_ok());
+        assert!(full_noninteractive_threshold_signing_works(5, 3, 5, 42).is_ok());
+        assert!(full_noninteractive_threshold_signing_works(4, 3, 5, 42).is_ok());
+        assert!(full_noninteractive_threshold_signing_works(3, 3, 5, 42).is_ok());
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
     fn test_full_noninteractive_signing_works_with_hd_wallet() {
-        assert!(noninteractive_threshold_signing_works(3, 3, 3, 42).is_ok());
-        assert!(noninteractive_threshold_signing_works(3, 2, 3, 42).is_ok());
-        assert!(noninteractive_threshold_signing_works(2, 2, 3, 42).is_ok());
+        assert!(full_noninteractive_threshold_signing_works(3, 3, 3, 42).is_ok());
+        assert!(full_noninteractive_threshold_signing_works(3, 2, 3, 42).is_ok());
+        assert!(full_noninteractive_threshold_signing_works(2, 2, 3, 42).is_ok());
         // 2**31
         let invalid_index = 1 << 31;
-        assert!(noninteractive_threshold_signing_works(3, 3, 3, invalid_index).is_err());
+        assert!(full_noninteractive_threshold_signing_works(3, 3, 3, invalid_index).is_err());
     }
 
     #[ignore]
     #[test]
     fn test_full_noninteractive_signing_works_with_hd_wallet_err_larger_values() {
-        assert!(noninteractive_threshold_signing_works(3, 4, 5, 42).is_err());
-        assert!(noninteractive_threshold_signing_works(2, 4, 5, 42).is_err());
+        assert!(full_noninteractive_threshold_signing_works(3, 4, 5, 42).is_err());
+        assert!(full_noninteractive_threshold_signing_works(2, 4, 5, 42).is_err());
     }
 
     #[test]
     fn test_full_noninteractive_signing_works_with_hd_wallet_err() {
-        assert!(noninteractive_threshold_signing_works(2, 3, 4, 42).is_err());
+        assert!(full_noninteractive_threshold_signing_works(2, 3, 4, 42).is_err());
     }
 
     struct AuxInfoHelperOutput {
@@ -1233,6 +1233,71 @@ mod tests {
         let mut presign_outputs = sign_helper_input.presign_outputs;
         let public_key_shares = sign_helper_input.public_key_shares;
         let saved_public_key = sign_helper_input.saved_public_key;
+        let threshold = sign_helper_input.threshold;
+        let mut inboxes = sign_helper_input.inboxes;
+
+        // Make signing participants
+        let mut sign_quorum = configs
+            .clone()
+            .into_iter()
+            .map(|config| {
+                let record = presign_outputs.remove(&config.id()).unwrap();
+                let input =
+                    sign::Input::new(message, record, public_key_shares.clone(), threshold, None);
+                Participant::<SignParticipant>::from_config(config, sign_sid, input)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // Prepare output storage and initial "ready" messages
+        let mut sign_outputs = Vec::with_capacity(QUORUM_REAL);
+        for participant in &mut sign_quorum {
+            let inbox = inboxes.get_mut(&participant.id).unwrap();
+            inbox.push(participant.initialize_message()?);
+        }
+
+        // Run signing protocol
+        while sign_outputs.len() < QUORUM_REAL {
+            let output = process_random_message(&mut sign_quorum, &mut inboxes, &mut rng)?;
+
+            if let Some((_pid, output)) = output {
+                sign_outputs.push(output);
+            }
+        }
+
+        // Signing is done! Make sure there are no more messages.
+        assert!(inboxes_are_empty(&inboxes));
+        // And make sure all participants have successfully terminated.
+        assert!(sign_quorum
+            .iter()
+            .all(|p| *p.status() == Status::TerminatedSuccessfully));
+
+        // Validate output: everyone should get the same signature...
+        assert!(sign_outputs.windows(2).all(|sig| sig[0] == sig[1]));
+
+        // get the first participant and then call shifted_public_key
+        assert!(saved_public_key
+            .verify_signature(digest, sign_outputs[0])
+            .is_ok());
+
+        Ok(true)
+    }
+
+    // Sign helper receives as input the configs and a special struct containg
+    // all the information needed for signature generation.
+    // INFO: this function is used to test the full non-interactive signing protocol
+    fn sign_helper_hd_wallet(
+        configs: Vec<ParticipantConfig>,
+        sign_helper_input: SignHelperInput,
+        mut rng: StdRng,
+    ) -> Result<bool> {
+        let message = b"Testing full protocol execution with non-interactive signing protocol";
+        let QUORUM_REAL = configs.len();
+        let digest = Keccak256::new_with_prefix(message);
+        let sign_sid = Identifier::random(&mut rng);
+
+        let mut presign_outputs = sign_helper_input.presign_outputs;
+        let public_key_shares = sign_helper_input.public_key_shares;
+        let saved_public_key = sign_helper_input.saved_public_key;
         let child_index = sign_helper_input.child_index;
         let threshold = sign_helper_input.threshold;
         let mut inboxes = sign_helper_input.inboxes;
@@ -1245,7 +1310,8 @@ mod tests {
 
         let shift_input: CKDInput<TestCT> = slip0010::ckd::CKDInput::new(
             None,
-            <TestCT as CT>::try_from_bytes(&saved_public_key_bytes)?,
+            <TestCT as CT>::try_from_bytes_ct(&saved_public_key_bytes)?,
+            //saved_pk_point,
             chain_code,
             index,
         )?;
@@ -1428,6 +1494,93 @@ mod tests {
         };
 
         // Call the sign helper to run its subprotocol
+        assert!(sign_helper_hd_wallet(configs, sign_helper_input, rng)?);
+
+        Ok(())
+    }
+
+    fn basic_noninteractive_threshold_signing_works(
+        r: usize, // The real quorum size, which is the number of participants that will actually
+        // participate in the protocol
+        t: usize, // The minimum quorum allowed to complete the protocol
+        n: usize, // Total number of participants in the protocol
+    ) -> Result<()> {
+        let mut rng = init_testing();
+
+        // Set GLOBAL config for participants
+        let mut configs = ParticipantConfig::random_quorum(n, &mut rng).unwrap();
+
+        // Call the auxinfo helper to run its subprotocol
+        let auxinfo_helper_output = auxinfo_helper(configs.clone(), rng.clone())?;
+        let auxinfo_outputs = auxinfo_helper_output.auxinfo_outputs;
+        let mut inboxes = auxinfo_helper_output.inboxes;
+
+        // Call the tshare helper to run its subprotocol
+        let tshare_helper_outputs =
+            tshare_helper(configs.clone(), auxinfo_outputs.clone(), t, rng.clone())?;
+        let tshare_outputs = tshare_helper_outputs.tshare_outputs;
+        let tshare_inputs = tshare_helper_outputs.tshare_inputs;
+
+        // remove n - r elements from the configs (the last ones)
+        assert!((r > 1) && (n >= r));
+        for _ in 0..(n - r) {
+            configs = configs.clone().last().unwrap().remove().unwrap();
+        }
+        assert!(configs.len() == r);
+
+        let all_participants = configs.first().unwrap().all_participants();
+
+        // read rid from first output from tshare protocol
+        let first_output = tshare_outputs.get(&configs.first().unwrap().id()).unwrap();
+        let rid = first_output.rid();
+        let chain_code = first_output.chain_code();
+
+        // sum all tshare inputs such that we can compare with the sum of the tshare
+        // outputs
+        let sum_tshare_input = tshare_inputs
+            .iter()
+            .map(|input| input.share().unwrap().x)
+            .fold(TestST::ZERO, |acc, x| acc + x);
+
+        // t-out-of-t conversion
+        let toft_keygen_outputs = convert_to_t_out_of_t_shares(
+            tshare_outputs.clone(),
+            all_participants.clone(),
+            *rid,
+            *chain_code,
+            sum_tshare_input,
+            t,
+        )?;
+
+        let first_keygen_output = toft_keygen_outputs
+            .get(&configs.first().unwrap().id())
+            .unwrap();
+        let public_key_shares = first_keygen_output.public_key_shares().to_vec();
+        let saved_public_key = first_keygen_output.public_key()?;
+
+        let auxinfo_outputs_presign = adjust_auxinfo(&all_participants, auxinfo_outputs.clone())?;
+
+        let presign_outputs = presign_helper(
+            configs.clone(),
+            auxinfo_outputs_presign,
+            toft_keygen_outputs.clone(),
+            &mut inboxes,
+            rng.clone(),
+        )?;
+
+        let chain_code = *first_keygen_output.chain_code();
+
+        let sign_helper_input = SignHelperInput {
+            public_key_shares,
+            saved_public_key,
+            presign_outputs,
+            chain_code,
+            inboxes,
+            child_index: 0,
+            threshold: t,
+        };
+
+        // Call the sign helper to run its subprotocol
         assert!(sign_helper(configs, sign_helper_input, rng)?);
 
         Ok(())
@@ -1437,7 +1590,7 @@ mod tests {
     // non-interactive signing. It generates a quorum of participants, runs the
     // auxinfo, keygen or HD wallet, tshare, presign, and sign protocols, and
     // verifies that the final signature is correct.
-    fn noninteractive_threshold_signing_works(
+    fn full_noninteractive_threshold_signing_works(
         r: usize, // The real quorum size, which is the number of participants that will actually
         // participate in the protocol
         t: usize,         // The minimum quorum allowed to complete the protocol
@@ -1520,7 +1673,7 @@ mod tests {
         };
 
         // Call the sign helper to run its subprotocol
-        assert!(sign_helper(configs, sign_helper_input, rng)?);
+        assert!(sign_helper_hd_wallet(configs, sign_helper_input, rng)?);
 
         Ok(())
     }

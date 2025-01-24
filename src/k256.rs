@@ -44,6 +44,7 @@ impl K256 {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn random(rng: impl rand::RngCore) -> Self {
         use k256::{elliptic_curve::Group, ProjectivePoint};
         let random_point = ProjectivePoint::random(rng);

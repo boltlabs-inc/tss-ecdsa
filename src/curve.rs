@@ -12,7 +12,9 @@ use generic_array::GenericArray;
 use hmac::digest::core_api::CoreWrapper;
 use k256::{
     ecdsa::{signature::DigestVerifier, VerifyingKey},
-    elliptic_curve::{scalar::IsHigh, Field, Group, PrimeField},
+    elliptic_curve::{
+        scalar::IsHigh, sec1::FromEncodedPoint, CurveArithmetic, Field, Group, PrimeField,
+    },
     EncodedPoint, FieldBytes, ProjectivePoint, Scalar as K256_Scalar,
 };
 use libpaillier::unknown_order::BigNumber;
@@ -91,7 +93,7 @@ pub trait CT:
     fn to_bytes(self) -> Vec<u8>;
 
     /// Deserialize a point from an affine-encoded byte array.
-    fn try_from_bytes(bytes: &[u8]) -> Result<Self>;
+    fn try_from_bytes_ct(bytes: &[u8]) -> Result<Self>;
 
     /// Convert BigNumber to Scalar.
     fn bn_to_scalar(bn: &BigNumber) -> Result<Self::Scalar>;
@@ -109,6 +111,11 @@ pub trait CT:
 
     /// Random scalar.
     fn random() -> Self;
+
+    /// Convert to Verifying Key.
+    fn to_vk(&self) -> Result<Self::VK> {
+        Self::VK::from_point(*self)
+    }
 }
 
 /// Signature trait.
@@ -150,6 +157,9 @@ pub trait VKT: Clone + Copy + Debug + Send + Sync + Eq + PartialEq {
         digest: CoreWrapper<Keccak256Core>,
         signature: <Self::C as CT>::ECDSASignature,
     ) -> Result<()>;
+
+    /// Add two verifying keys.
+    fn add(&self, other: &Self) -> Self;
 }
 
 /// Scalar trait.
@@ -291,12 +301,12 @@ impl ST for K256_Scalar {
 }
 
 /// Default curve type.
-pub type TestCT = K256;
-//pub type TestCT = P256;
+//pub type TestCT = K256;
+pub type TestCT = P256;
 
 /// Default scalar type.
-pub type TestST = K256_Scalar;
-//pub type TestST = P256_Scalar;
+//pub type TestST = K256_Scalar;
+pub type TestST = P256_Scalar;
 
 /// Default signature type.
 pub type TestSignature = k256::ecdsa::Signature;
@@ -369,7 +379,7 @@ impl CT for K256 {
         K256::to_bytes(self)
     }
 
-    fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
+    fn try_from_bytes_ct(bytes: &[u8]) -> Result<Self> {
         K256::try_from_bytes(bytes)
     }
 
@@ -438,6 +448,25 @@ impl VKT for VerifyingKey {
     ) -> Result<()> {
         self.verify_digest(digest, signature.deref())
             .map_err(|_| InternalInvariantFailed)
+    }
+
+    /// Add two verifying keys.
+    fn add(&self, other: &Self) -> Self {
+        //let point = self.to_encoded_point(false);
+        //let other_point = other.to_encoded_point(false);
+        //let sum = point.add(&other_point).unwrap();
+        //VerifyingKey::from_encoded_point(&sum).unwrap()
+        let point1 = self.to_encoded_point(false);
+        let point2 = other.to_encoded_point(false);
+        let p1 = ProjectivePoint::from_encoded_point(&point1)
+            .expect("Can not convert the first argument");
+        let p2 = ProjectivePoint::from_encoded_point(&point2)
+            .expect("Can not convert the second argument");
+        let sum = p1 + p2;
+        let sum_affine: ProjectivePoint =
+            <k256::Secp256k1 as CurveArithmetic>::AffinePoint::from(sum).into();
+        VerifyingKey::from_affine((&sum_affine).into())
+            .expect("Can not convert the sum to verifying key")
     }
 }
 

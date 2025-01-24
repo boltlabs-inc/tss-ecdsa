@@ -187,7 +187,7 @@ impl<C: CT> PresignRecord<C> {
             // Parse the curve point
             let point_len = parser.take_len()?;
             let point_bytes = parser.take_bytes(point_len)?;
-            let point = C::try_from_bytes(point_bytes)?;
+            let point = C::try_from_bytes_ct(point_bytes)?;
 
             // Parse the random share `k`
             let random_share_len = parser.take_len()?;
@@ -262,10 +262,10 @@ mod tests {
 
         /// Simulate creation of a random presign record. Do not use outside of
         /// testing.
-        pub(crate) fn simulate(rng: &mut StdRng) -> PresignRecord {
+        pub(crate) fn simulate(_rng: &mut StdRng) -> PresignRecord {
             // TODO: generalize the input of random
-            //let mask_point = TestCT::random(); // P256
-            let mask_point = TestCT::random(rng); // K256
+            //let mask_point = TestCT::random(rng); // K256
+            let mask_point = TestCT::random(); // P256
             let mask_share = <TestCT as CT>::Scalar::random();
             let masked_key_share = <TestCT as CT>::Scalar::random();
 
