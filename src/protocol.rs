@@ -655,13 +655,15 @@ mod tests {
     use crate::{
         auxinfo::{self, AuxInfoParticipant, AuxInfoPublic},
         curve::{TestCT, TestST, ST, VKT},
+        k256::K256,
         keygen::{KeySharePublic, KeygenParticipant},
         messages,
+        p256::P256,
         participant::Status,
         presign,
-        sign::{self, InteractiveSignParticipant},
+        sign::{self, InteractiveSignParticipant, SignParticipant},
         slip0010::{self, ckd::CKDInput},
-        tshare::{self, tests::convert_to_t_out_of_t_shares, CoeffPrivate},
+        tshare::{self, tests::convert_to_t_out_of_t_shares, CoeffPrivate, TshareParticipant},
         utils::testing::init_testing,
         PresignParticipant,
     };
@@ -670,11 +672,6 @@ mod tests {
     use sha3::{Digest, Keccak256};
     use std::{collections::HashMap, vec};
     use tracing::debug;
-
-    type SignParticipant = sign::SignParticipant<TestCT>;
-    type TshareParticipant = tshare::TshareParticipant<TestCT>;
-    //type SignParticipant = sign::SignParticipant<Secp256r1>;
-    //type TshareParticipant = tshare::TshareParticipant<Secp256r1>;
 
     // Negative test checking whether the message has the correct session id
     #[test]
@@ -872,7 +869,8 @@ mod tests {
 
     #[test]
     fn test_basic_noninteractive_signing_works() {
-        assert!(basic_noninteractive_signing_works(3).is_ok());
+        assert!(basic_noninteractive_signing_works::<K256>(3).is_ok());
+        assert!(basic_noninteractive_signing_works::<P256>(3).is_ok());
     }
 
     #[test]
@@ -883,9 +881,12 @@ mod tests {
     #[cfg_attr(feature = "flame_it", flame)]
     #[test]
     fn test_basic_noninteractive_signing_works_with_keygen() {
-        assert!(basic_noninteractive_threshold_signing_works(3, 3, 3).is_ok());
-        assert!(basic_noninteractive_threshold_signing_works(3, 2, 3).is_ok());
-        assert!(basic_noninteractive_threshold_signing_works(2, 2, 3).is_ok());
+        assert!(basic_noninteractive_threshold_signing_works::<K256>(3, 3, 3).is_ok());
+        assert!(basic_noninteractive_threshold_signing_works::<K256>(3, 2, 3).is_ok());
+        assert!(basic_noninteractive_threshold_signing_works::<K256>(2, 2, 3).is_ok());
+        assert!(basic_noninteractive_threshold_signing_works::<P256>(3, 3, 3).is_ok());
+        assert!(basic_noninteractive_threshold_signing_works::<P256>(3, 2, 3).is_ok());
+        assert!(basic_noninteractive_threshold_signing_works::<P256>(2, 2, 3).is_ok());
     }
 
     #[ignore]
@@ -922,20 +923,18 @@ mod tests {
         assert!(full_noninteractive_threshold_signing_works(2, 3, 4, 42).is_err());
     }
 
-    struct AuxInfoHelperOutput {
-        auxinfo_outputs: HashMap<
-            ParticipantIdentifier,
-            <AuxInfoParticipant<TestCT> as ProtocolParticipant>::Output,
-        >,
+    struct AuxInfoHelperOutput<C: CT + 'static> {
+        auxinfo_outputs:
+            HashMap<ParticipantIdentifier, <AuxInfoParticipant<C> as ProtocolParticipant>::Output>,
         inboxes: HashMap<ParticipantIdentifier, Vec<Message>>,
     }
 
     // Receive as input a vector of configs and return a struct containing
     // the auxinfo outputs and the inboxes
-    fn auxinfo_helper(
+    fn auxinfo_helper<C: CT>(
         configs: Vec<ParticipantConfig>,
         mut rng: StdRng,
-    ) -> Result<AuxInfoHelperOutput> {
+    ) -> Result<AuxInfoHelperOutput<C>> {
         let QUORUM_SIZE = configs.len();
         // Set up auxinfo participants
         let auxinfo_sid = Identifier::random(&mut rng);
@@ -943,8 +942,7 @@ mod tests {
             .clone()
             .into_iter()
             .map(|config| {
-                Participant::<AuxInfoParticipant<TestCT>>::from_config(config, auxinfo_sid, ())
-                    .unwrap()
+                Participant::<AuxInfoParticipant<C>>::from_config(config, auxinfo_sid, ()).unwrap()
             })
             .collect::<Vec<_>>();
 
@@ -990,20 +988,18 @@ mod tests {
         })
     }
 
-    struct KeygenHelperOutput {
-        keygen_outputs: HashMap<
-            ParticipantIdentifier,
-            <KeygenParticipant<TestCT> as ProtocolParticipant>::Output,
-        >,
+    struct KeygenHelperOutput<C: CT + 'static> {
+        keygen_outputs:
+            HashMap<ParticipantIdentifier, <KeygenParticipant<C> as ProtocolParticipant>::Output>,
     }
 
     // Receive as input a vector of configs and the inboxes from auxinfo_helper
     // It returns a struct containing and the keygen outputs
-    fn keygen_helper(
+    fn keygen_helper<C: CT>(
         configs: Vec<ParticipantConfig>,
         mut inboxes: HashMap<ParticipantIdentifier, Vec<Message>>,
         mut rng: StdRng,
-    ) -> Result<KeygenHelperOutput> {
+    ) -> Result<KeygenHelperOutput<C>> {
         let QUORUM_SIZE = configs.len();
         // Set up keygen participants
         let keygen_sid = Identifier::random(&mut rng);
@@ -1011,14 +1007,13 @@ mod tests {
             .clone()
             .into_iter()
             .map(|config| {
-                Participant::<KeygenParticipant<TestCT>>::from_config(config, keygen_sid, ())
-                    .unwrap()
+                Participant::<KeygenParticipant<C>>::from_config(config, keygen_sid, ()).unwrap()
             })
             .collect::<Vec<_>>();
 
         let mut keygen_outputs: HashMap<
             ParticipantIdentifier,
-            <KeygenParticipant<TestCT> as ProtocolParticipant>::Output,
+            <KeygenParticipant<C> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         // Initialize keygen for all participants
@@ -1049,23 +1044,23 @@ mod tests {
         Ok(KeygenHelperOutput { keygen_outputs })
     }
 
-    struct TshareHelperOutput {
-        tshare_inputs: Vec<tshare::Input<TestCT>>,
+    struct TshareHelperOutput<C: CT + 'static> {
+        tshare_inputs: Vec<tshare::Input<C>>,
         tshare_outputs:
-            HashMap<ParticipantIdentifier, <TshareParticipant as ProtocolParticipant>::Output>,
+            HashMap<ParticipantIdentifier, <TshareParticipant<C> as ProtocolParticipant>::Output>,
     }
     // Receive as input a vector of configs, the child_index, the auxinfo outputs
     // and the keygen outputs It returns a struct containing and the tshare
     // outputs.
-    fn tshare_helper(
+    fn tshare_helper<C: CT + 'static>(
         configs: Vec<ParticipantConfig>,
         auxinfo_outputs: HashMap<
             ParticipantIdentifier,
-            <AuxInfoParticipant<TestCT> as ProtocolParticipant>::Output,
+            <AuxInfoParticipant<C> as ProtocolParticipant>::Output,
         >,
         threshold: usize,
         mut rng: StdRng,
-    ) -> Result<TshareHelperOutput> {
+    ) -> Result<TshareHelperOutput<C>> {
         let QUORUM_SIZE = configs.len();
         // Set up Tshare participants
         let tshare_sid = Identifier::random(&mut rng);
@@ -1073,7 +1068,7 @@ mod tests {
             .iter()
             .map(|config| {
                 let auxinfo_output = auxinfo_outputs.get(&config.id()).unwrap();
-                let secret = <TestST as ST>::random();
+                let secret = C::Scalar::random();
                 tshare::Input::new(
                     auxinfo_output.clone(),
                     Some(CoeffPrivate { x: secret }),
@@ -1088,12 +1083,12 @@ mod tests {
             .into_iter()
             .zip(tshare_inputs.clone())
             .map(|(config, input)| {
-                Participant::<TshareParticipant>::from_config(config, tshare_sid, input).unwrap()
+                Participant::<TshareParticipant<C>>::from_config(config, tshare_sid, input).unwrap()
             })
             .collect::<Vec<_>>();
         let mut tshare_outputs: HashMap<
             ParticipantIdentifier,
-            <TshareParticipant as ProtocolParticipant>::Output,
+            <TshareParticipant<C> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         let mut inboxes = HashMap::from_iter(
@@ -1133,20 +1128,20 @@ mod tests {
 
     // Receives as input the auxinfo outputs and the keygen outputs
     // Returns the presign outputs
-    fn presign_helper(
+    fn presign_helper<C: CT + 'static>(
         configs: Vec<ParticipantConfig>,
         mut auxinfo_outputs: HashMap<
             ParticipantIdentifier,
-            <AuxInfoParticipant<TestCT> as ProtocolParticipant>::Output,
+            <AuxInfoParticipant<C> as ProtocolParticipant>::Output,
         >,
         mut keygen_outputs: HashMap<
             ParticipantIdentifier,
-            <KeygenParticipant<TestCT> as ProtocolParticipant>::Output,
+            <KeygenParticipant<C> as ProtocolParticipant>::Output,
         >,
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         mut rng: StdRng,
     ) -> Result<
-        HashMap<ParticipantIdentifier, <PresignParticipant<TestCT> as ProtocolParticipant>::Output>,
+        HashMap<ParticipantIdentifier, <PresignParticipant<C> as ProtocolParticipant>::Output>,
     > {
         let QUORUM_REAL = auxinfo_outputs.len();
 
@@ -1171,13 +1166,13 @@ mod tests {
             .into_iter()
             .zip(presign_inputs)
             .map(|(config, input)| {
-                Participant::<PresignParticipant<TestCT>>::from_config(config, presign_sid, input)
+                Participant::<PresignParticipant<C>>::from_config(config, presign_sid, input)
                     .unwrap()
             })
             .collect::<Vec<_>>();
         let mut presign_outputs: HashMap<
             ParticipantIdentifier,
-            <PresignParticipant<TestCT> as ProtocolParticipant>::Output,
+            <PresignParticipant<C> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         for participant in &mut presign_quorum {
@@ -1205,14 +1200,12 @@ mod tests {
         Ok(presign_outputs)
     }
 
-    pub struct SignHelperInput {
+    pub struct SignHelperInput<C: CT + 'static> {
         chain_code: [u8; 32],
-        presign_outputs: HashMap<
-            ParticipantIdentifier,
-            <PresignParticipant<TestCT> as ProtocolParticipant>::Output,
-        >,
-        public_key_shares: Vec<KeySharePublic<TestCT>>,
-        saved_public_key: <TestCT as CT>::VK,
+        presign_outputs:
+            HashMap<ParticipantIdentifier, <PresignParticipant<C> as ProtocolParticipant>::Output>,
+        public_key_shares: Vec<KeySharePublic<C>>,
+        saved_public_key: C::VK,
         child_index: u32,
         threshold: usize,
         inboxes: HashMap<ParticipantIdentifier, Vec<Message>>,
@@ -1221,9 +1214,9 @@ mod tests {
     // Sign helper receives as input the configs and a special struct containg
     // all the information needed for signature generation.
     // INFO: this function is used to test the full non-interactive signing protocol
-    fn sign_helper(
+    fn sign_helper<C: CT>(
         configs: Vec<ParticipantConfig>,
-        sign_helper_input: SignHelperInput,
+        sign_helper_input: SignHelperInput<C>,
         mut rng: StdRng,
     ) -> Result<bool> {
         let message = b"Testing full protocol execution with non-interactive signing protocol";
@@ -1245,7 +1238,7 @@ mod tests {
                 let record = presign_outputs.remove(&config.id()).unwrap();
                 let input =
                     sign::Input::new(message, record, public_key_shares.clone(), threshold, None);
-                Participant::<SignParticipant>::from_config(config, sign_sid, input)
+                Participant::<SignParticipant<C>>::from_config(config, sign_sid, input)
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -1288,7 +1281,7 @@ mod tests {
     // INFO: this function is used to test the full non-interactive signing protocol
     fn sign_helper_hd_wallet(
         configs: Vec<ParticipantConfig>,
-        sign_helper_input: SignHelperInput,
+        sign_helper_input: SignHelperInput<K256>,
         mut rng: StdRng,
     ) -> Result<bool> {
         let message = b"Testing full protocol execution with non-interactive signing protocol";
@@ -1309,9 +1302,9 @@ mod tests {
         // if child_index is None, index is zero, otherwise it is child_index
         let index = child_index;
 
-        let shift_input: CKDInput<TestCT> = slip0010::ckd::CKDInput::new(
+        let shift_input: CKDInput<K256> = slip0010::ckd::CKDInput::new(
             None,
-            <TestCT as CT>::try_from_bytes_ct(&saved_public_key_bytes)?,
+            K256::try_from_bytes_ct(&saved_public_key_bytes)?,
             //saved_pk_point,
             chain_code,
             index,
@@ -1332,7 +1325,7 @@ mod tests {
                     threshold,
                     Some(shift_scalar),
                 );
-                Participant::<SignParticipant>::from_config(config, sign_sid, input)
+                Participant::<SignParticipant<K256>>::from_config(config, sign_sid, input)
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -1364,7 +1357,7 @@ mod tests {
 
         // get the first participant and then call shifted_public_key
         let first_participant = sign_quorum.first().unwrap();
-        let saved_shifted_public_key: <TestCT as CT>::VK = first_participant
+        let saved_shifted_public_key: <K256 as CT>::VK = first_participant
             .participant
             .shifted_public_key(public_key_shares, shift_scalar)?;
         assert!(saved_shifted_public_key
@@ -1403,7 +1396,7 @@ mod tests {
         Ok(auxinfo_outputs_presign)
     }
 
-    fn basic_noninteractive_signing_works(
+    fn basic_noninteractive_signing_works<C: CT + 'static>(
         n: usize, // Total number of participants in the protocol
     ) -> Result<()> {
         let mut rng = init_testing();
@@ -1412,7 +1405,7 @@ mod tests {
         let configs = ParticipantConfig::random_quorum(n, &mut rng).unwrap();
 
         // Call the auxinfo helper to run its subprotocol
-        let auxinfo_helper_output = auxinfo_helper(configs.clone(), rng.clone())?;
+        let auxinfo_helper_output = auxinfo_helper::<C>(configs.clone(), rng.clone())?;
         let auxinfo_outputs = auxinfo_helper_output.auxinfo_outputs;
         let mut inboxes = auxinfo_helper_output.inboxes;
 
@@ -1435,7 +1428,7 @@ mod tests {
 
         let chain_code = *first_keygen_output.chain_code();
 
-        let sign_helper_input = SignHelperInput {
+        let sign_helper_input = SignHelperInput::<C> {
             public_key_shares,
             saved_public_key,
             presign_outputs,
@@ -1446,7 +1439,7 @@ mod tests {
         };
 
         // Call the sign helper to run its subprotocol
-        assert!(sign_helper(configs, sign_helper_input, rng)?);
+        assert!(sign_helper::<C>(configs, sign_helper_input, rng)?);
 
         Ok(())
     }
@@ -1461,7 +1454,7 @@ mod tests {
         let configs = ParticipantConfig::random_quorum(n, &mut rng).unwrap();
 
         // Call the auxinfo helper to run its subprotocol
-        let auxinfo_helper_output = auxinfo_helper(configs.clone(), rng.clone())?;
+        let auxinfo_helper_output = auxinfo_helper::<K256>(configs.clone(), rng.clone())?;
         let auxinfo_outputs = auxinfo_helper_output.auxinfo_outputs;
         let mut inboxes = auxinfo_helper_output.inboxes;
 
@@ -1500,7 +1493,7 @@ mod tests {
         Ok(())
     }
 
-    fn basic_noninteractive_threshold_signing_works(
+    fn basic_noninteractive_threshold_signing_works<C: CT + 'static>(
         r: usize, // The real quorum size, which is the number of participants that will actually
         // participate in the protocol
         t: usize, // The minimum quorum allowed to complete the protocol
@@ -1512,7 +1505,7 @@ mod tests {
         let mut configs = ParticipantConfig::random_quorum(n, &mut rng).unwrap();
 
         // Call the auxinfo helper to run its subprotocol
-        let auxinfo_helper_output = auxinfo_helper(configs.clone(), rng.clone())?;
+        let auxinfo_helper_output = auxinfo_helper::<C>(configs.clone(), rng.clone())?;
         let auxinfo_outputs = auxinfo_helper_output.auxinfo_outputs;
         let mut inboxes = auxinfo_helper_output.inboxes;
 
@@ -1541,10 +1534,10 @@ mod tests {
         let sum_tshare_input = tshare_inputs
             .iter()
             .map(|input| input.share().unwrap().x)
-            .fold(TestST::ZERO, |acc, x| acc + x);
+            .fold(C::Scalar::zero(), |acc, x| acc + x);
 
         // t-out-of-t conversion
-        let toft_keygen_outputs = convert_to_t_out_of_t_shares(
+        let toft_keygen_outputs = convert_to_t_out_of_t_shares::<C>(
             tshare_outputs.clone(),
             all_participants.clone(),
             *rid,
@@ -1571,7 +1564,7 @@ mod tests {
 
         let chain_code = *first_keygen_output.chain_code();
 
-        let sign_helper_input = SignHelperInput {
+        let sign_helper_input = SignHelperInput::<C> {
             public_key_shares,
             saved_public_key,
             presign_outputs,
@@ -1582,7 +1575,7 @@ mod tests {
         };
 
         // Call the sign helper to run its subprotocol
-        assert!(sign_helper(configs, sign_helper_input, rng)?);
+        assert!(sign_helper::<C>(configs, sign_helper_input, rng)?);
 
         Ok(())
     }
@@ -1604,7 +1597,8 @@ mod tests {
         let mut configs = ParticipantConfig::random_quorum(n, &mut rng).unwrap();
 
         // Call the auxinfo helper to run its subprotocol
-        let auxinfo_helper_output = auxinfo_helper(configs.clone(), rng.clone())?;
+        let auxinfo_helper_output: AuxInfoHelperOutput<K256> =
+            auxinfo_helper(configs.clone(), rng.clone())?;
         let auxinfo_outputs = auxinfo_helper_output.auxinfo_outputs;
         let mut inboxes = auxinfo_helper_output.inboxes;
 

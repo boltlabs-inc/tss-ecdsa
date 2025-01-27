@@ -7,7 +7,6 @@ use k256::{
     FieldBytes, Scalar as K256_Scalar,
 };
 use libpaillier::unknown_order::BigNumber;
-use p256::Scalar as P256_Scalar;
 use serde::{Deserialize, Serialize};
 use sha3::Keccak256Core;
 use std::{fmt::Debug, ops::Add};
@@ -135,6 +134,7 @@ pub trait ST:
     + Send
     + Clone
     + Copy
+    + Clone
     + Debug
     + PartialEq
     + PartialOrd
@@ -283,9 +283,6 @@ pub type Secp256k1 = K256;
 
 /// P256 curve type.
 pub type Secp256r1 = P256;
-
-/// P256 scalar type.
-pub type P256Scalar = P256_Scalar;
 
 #[cfg(test)]
 mod tests {

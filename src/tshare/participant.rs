@@ -1003,23 +1003,22 @@ pub(crate) mod tests {
     use std::{collections::HashMap, iter::zip};
     use tracing::debug;
 
-    type Output = super::Output<TestCT>;
-    type TshareParticipant = super::TshareParticipant<TestCT>;
+    //type Output = super::Output<TestCT>;
+    //type TshareParticipant = super::TshareParticipant<TestCT>;
 
     /// Test utility to convert the tshares to t-out-of-t shares of all
     /// participants.
     #[cfg(test)]
     #[allow(clippy::type_complexity)]
-    pub fn convert_to_t_out_of_t_shares(
-        tshares: HashMap<ParticipantIdentifier, Output>,
+    pub fn convert_to_t_out_of_t_shares<C: CT + 'static>(
+        tshares: HashMap<ParticipantIdentifier, Output<C>>,
         all_participants: Vec<ParticipantIdentifier>,
         rid: [u8; 32],
         chain_code: [u8; 32],
-        sum_tshare_input: <TestCT as CT>::Scalar,
+        sum_tshare_input: C::Scalar,
         threshold: usize,
-    ) -> Result<
-        HashMap<ParticipantIdentifier, <KeygenParticipant<TestCT> as ProtocolParticipant>::Output>,
-    > {
+    ) -> Result<HashMap<ParticipantIdentifier, <KeygenParticipant<C> as ProtocolParticipant>::Output>>
+    {
         let real = all_participants.len();
         let mut new_private_shares = HashMap::new();
         let mut public_keys = vec![];
@@ -1029,11 +1028,11 @@ pub(crate) mod tests {
             if all_participants.contains(pid) {
                 let output = tshares.get(pid).unwrap();
                 let private_key = output.private_key_share();
-                let private_share: KeySharePrivate<TestCT> =
-                    KeySharePrivate::from_bigint(&TestCT::scalar_to_bn(private_key));
-                let public_share = TestCT::GENERATOR.multiply_by_scalar(private_key);
-                let lagrange =
-                    TshareParticipant::lagrange_coefficient_at_zero(pid, &all_participants);
+                let private_share: KeySharePrivate<C> =
+                    KeySharePrivate::from_bigint(&C::scalar_to_bn(private_key));
+                let public_share = C::GENERATOR.multiply_by_scalar(private_key);
+                let lagrange: C::Scalar =
+                    TshareParticipant::<C>::lagrange_coefficient_at_zero(pid, &all_participants);
                 let new_private_share: BigNumber =
                     private_share.clone().as_ref() * BigNumber::from_slice(lagrange.to_bytes());
                 let new_public_share = public_share.as_ref().multiply_by_scalar(&lagrange);
@@ -1048,7 +1047,7 @@ pub(crate) mod tests {
         // Compute the new outputs
         let mut keygen_outputs: HashMap<
             ParticipantIdentifier,
-            <KeygenParticipant<TestCT> as ProtocolParticipant>::Output,
+            <KeygenParticipant<C> as ProtocolParticipant>::Output,
         > = HashMap::new();
         for (pid, private_key_share) in new_private_shares {
             let other_pids = all_participants
@@ -1083,7 +1082,7 @@ pub(crate) mod tests {
             .values()
             .map(|output| output.private_key_share().as_ref().clone())
             .fold(BigNumber::zero(), |acc, x| acc + x);
-        sum_toft_private_shares %= <TestCT as CT>::order();
+        sum_toft_private_shares %= <C as CT>::order();
 
         // Check the sum is indeed the sum of original private keys used as input of
         // tshare reduced mod the order
@@ -1091,7 +1090,7 @@ pub(crate) mod tests {
         dbg!(threshold);
         if real >= threshold {
             assert_eq!(
-                TestCT::bn_to_scalar(&sum_toft_private_shares).unwrap(),
+                C::bn_to_scalar(&sum_toft_private_shares).unwrap(),
                 sum_tshare_input
             );
         }
@@ -1099,11 +1098,11 @@ pub(crate) mod tests {
         Ok(keygen_outputs)
     }
 
-    impl TshareParticipant {
+    impl<C: CT + 'static> TshareParticipant<C> {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             quorum_size: usize,
-            share: Option<CoeffPrivate<TestCT>>,
+            share: Option<CoeffPrivate<C>>,
             rng: &mut R,
         ) -> Result<Vec<Self>> {
             // Prepare prereqs for making TshareParticipant's. Assume all the
@@ -1145,7 +1144,7 @@ pub(crate) mod tests {
         }
     }
 
-    fn is_tshare_done(quorum: &[TshareParticipant]) -> bool {
+    fn is_tshare_done<C: CT + 'static>(quorum: &[TshareParticipant<C>]) -> bool {
         for participant in quorum {
             if *participant.status() != Status::TerminatedSuccessfully {
                 return false;
@@ -1155,11 +1154,11 @@ pub(crate) mod tests {
     }
 
     #[allow(clippy::type_complexity)]
-    fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut [TshareParticipant],
+    fn process_messages<R: RngCore + CryptoRng, C: CT + 'static>(
+        quorum: &mut [TshareParticipant<C>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
-    ) -> Option<(usize, ProcessOutcome<Output>)> {
+    ) -> Option<(usize, ProcessOutcome<Output<C>>)> {
         // Pick a random participant to process
         let index = rng.gen_range(0..quorum.len());
         let participant = quorum.get_mut(index).unwrap();
@@ -1192,7 +1191,7 @@ pub(crate) mod tests {
         let mut rng = init_testing();
         let sid = Identifier::random(&mut rng);
         let test_share = Some(CoeffPrivate {
-            x: <TestCT as CT>::Scalar::from_u128(42),
+            x: <TestCT as CT>::Scalar::convert_from_u128(42),
         });
         let mut quorum = TshareParticipant::new_quorum(sid, quorum_size, test_share, &mut rng)?;
         let mut inboxes = HashMap::new();
@@ -1353,7 +1352,9 @@ pub(crate) mod tests {
                 .iter()
                 .zip(&points)
                 .map(|(value, point)| {
-                    *value * TshareParticipant::lagrange_coefficient_at_zero(point, &points)
+                    *value
+                        * TshareParticipant::<TestCT>::lagrange_coefficient_at_zero(point, &points)
+                            as <TestCT as CT>::Scalar
                 })
                 .fold(<TestCT as CT>::Scalar::zero(), |acc, x| acc + x);
 
