@@ -244,7 +244,7 @@ impl<C: CT> PresignRecord<C> {
 
 #[cfg(test)]
 mod tests {
-    use rand::{rngs::StdRng, CryptoRng, RngCore};
+    use rand::{CryptoRng, RngCore};
 
     use crate::{
         curve::{TestCT, CT, ST},
@@ -262,10 +262,8 @@ mod tests {
 
         /// Simulate creation of a random presign record. Do not use outside of
         /// testing.
-        pub(crate) fn simulate(_rng: &mut StdRng) -> PresignRecord {
-            // TODO: generalize the input of random
-            //let mask_point = TestCT::random(rng); // K256
-            let mask_point = TestCT::random(); // P256
+        pub(crate) fn simulate() -> PresignRecord {
+            let mask_point = <TestCT as CT>::random();
             let mask_share = <TestCT as CT>::Scalar::random();
             let masked_key_share = <TestCT as CT>::Scalar::random();
 
@@ -334,8 +332,7 @@ mod tests {
 
     #[test]
     fn record_bytes_conversion_works() {
-        let rng = &mut init_testing();
-        let record = PresignRecord::simulate(rng);
+        let record = PresignRecord::simulate();
         let clone = PresignRecord { ..record };
 
         let bytes = record.into_bytes();
@@ -347,8 +344,7 @@ mod tests {
 
     #[test]
     fn deserialized_record_tag_must_be_correct() {
-        let rng = &mut init_testing();
-        let record = PresignRecord::simulate(rng);
+        let record = PresignRecord::simulate();
 
         // Cut out the tag from the serialized bytes for convenience.
         let share_bytes = &record.into_bytes()[RECORD_TAG.len()..];
@@ -397,8 +393,7 @@ mod tests {
 
     #[test]
     fn point_field_must_have_length_prepended() {
-        let rng = &mut init_testing();
-        let PresignRecord { R, k, chi } = PresignRecord::simulate(rng);
+        let PresignRecord { R, k, chi } = PresignRecord::simulate();
 
         let point = R.to_bytes();
 
@@ -422,8 +417,7 @@ mod tests {
 
     #[test]
     fn k_field_must_have_length_prepended() {
-        let rng = &mut init_testing();
-        let PresignRecord { R, k, chi } = PresignRecord::simulate(rng);
+        let PresignRecord { R, k, chi } = PresignRecord::simulate();
 
         let point = R.to_bytes();
         let point_len = point.len().to_le_bytes();
@@ -441,8 +435,7 @@ mod tests {
 
     #[test]
     fn chi_field_must_have_length_prepended() {
-        let rng = &mut init_testing();
-        let PresignRecord { R, k, chi } = PresignRecord::simulate(rng);
+        let PresignRecord { R, k, chi } = PresignRecord::simulate();
 
         let point = R.to_bytes();
         let point_len = point.len().to_le_bytes();
@@ -466,14 +459,12 @@ mod tests {
 
     #[test]
     fn deserialized_keyshare_private_requires_all_fields() {
-        let rng = &mut init_testing();
-
         // Part of a tag or the whole tag alone doesn't pass
         let bytes = &RECORD_TAG[..3];
         assert!(PresignRecord::try_from_bytes(bytes.to_vec()).is_err());
         assert!(PresignRecord::try_from_bytes(RECORD_TAG.to_vec()).is_err());
 
-        let PresignRecord { R, k, chi } = PresignRecord::simulate(rng);
+        let PresignRecord { R, k, chi } = PresignRecord::simulate();
 
         let point = R.to_bytes();
         let point_len = point.len().to_le_bytes();

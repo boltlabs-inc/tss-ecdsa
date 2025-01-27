@@ -729,7 +729,7 @@ mod test {
         // create input
         let message = b"the quick brown fox jumped over the lazy dog";
         let keygen_output = keygen::Output::simulate(&participant_ids, rng);
-        let presign_record = PresignRecord::simulate(rng);
+        let presign_record = PresignRecord::simulate();
         let input = sign::Input::new(
             message,
             presign_record,

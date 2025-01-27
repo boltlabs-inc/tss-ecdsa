@@ -670,6 +670,7 @@ mod tests {
     use sha3::{Digest, Keccak256};
     use std::{collections::HashMap, vec};
     use tracing::debug;
+
     type SignParticipant = sign::SignParticipant<TestCT>;
     type TshareParticipant = tshare::TshareParticipant<TestCT>;
     //type SignParticipant = sign::SignParticipant<Secp256r1>;
