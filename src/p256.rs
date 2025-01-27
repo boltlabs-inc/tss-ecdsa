@@ -64,13 +64,6 @@ impl P256 {
         self.0.to_affine().x()
     }
 
-    /*#[cfg(test)]
-    // TODO: uncomment when so unit test is written to exercise this function
-    pub(crate) fn random(rng: impl rand::RngCore) -> Self {
-        use p256::elliptic_curve::Group;
-        let random_point = ProjectivePoint::random(rng);
-        P256(random_point)
-    }*/
     pub(crate) const GENERATOR: Self = P256(p256::ProjectivePoint::GENERATOR);
     /// The identity point, used to initialize the aggregation of a verification
     /// key
