@@ -268,12 +268,12 @@ impl ST for K256_Scalar {
 }
 
 /// Default curve type.
-//pub type TestCT = K256;
-pub type TestCT = P256;
+pub type TestCT = K256;
+//pub type TestCT = P256;
 
 /// Default scalar type.
-//pub type TestST = K256_Scalar;
-pub type TestST = P256_Scalar;
+pub type TestST = K256_Scalar;
+//pub type TestST = P256_Scalar;
 
 /// Default signature type.
 pub type TestSignature = k256::ecdsa::Signature;
