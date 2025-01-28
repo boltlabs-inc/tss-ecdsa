@@ -696,7 +696,7 @@ mod test {
 
         // Re-derive the public key from the recoverable ID and ensure it matches the
         // original public key.
-        let recovered_pk = <TestCT as CT>::VK::recover_from_digest(
+        let recovered_pk = <TestCurve as CurveTrait>::VK::recover_from_digest(
             digest,
             distributed_sig,
             RecoveryId::from_byte(recovery_id).expect("Invalid recovery ID"),

@@ -269,11 +269,11 @@ impl ScalarTrait for K256_Scalar {
 
 /// Default curve type.
 pub type TestCurve = K256;
-//pub type TestCT = P256;
+//pub type TestCurve = P256;
 
 /// Default scalar type.
 pub type TestScalar = K256_Scalar;
-//pub type TestST = P256_Scalar;
+//pub type TestScalar = P256_Scalar;
 
 /// Default signature type.
 pub type TestSignature = k256::ecdsa::Signature;

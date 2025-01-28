@@ -1003,9 +1003,6 @@ pub(crate) mod tests {
     use std::{collections::HashMap, iter::zip};
     use tracing::debug;
 
-    //type Output = super::Output<TestCT>;
-    //type TshareParticipant = super::TshareParticipant<TestCT>;
-
     /// Test utility to convert the tshares to t-out-of-t shares of all
     /// participants.
     #[cfg(test)]

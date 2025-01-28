@@ -4,7 +4,7 @@ use rand::{prelude::IteratorRandom, rngs::OsRng, CryptoRng, Rng, RngCore};
 use std::collections::HashMap;
 use tss_ecdsa::{
     auxinfo::AuxInfoParticipant,
-    curve::TestCurve as C,
+    curve::TestCurve,
     errors::Result,
     keygen::KeygenParticipant,
     messages::Message,
@@ -107,26 +107,30 @@ fn run_benchmarks_for_given_size(c: &mut Criterion, num_players: usize) {
     let keygen_sid = Identifier::random(&mut rng);
     let keygen_inputs = std::iter::repeat(()).take(num_players).collect::<Vec<_>>();
     c.bench_function(&format!("Keygen with {num_players} nodes"), |b| {
-        b.iter(|| run_subprotocol::<KeygenParticipant<C>>(keygen_sid, keygen_inputs.clone()))
+        b.iter(|| {
+            run_subprotocol::<KeygenParticipant<TestCurve>>(keygen_sid, keygen_inputs.clone())
+        })
     });
 
     // Benchmark auxinfo
     let auxinfo_sid = Identifier::random(&mut rng);
     let auxinfo_inputs = std::iter::repeat(()).take(num_players).collect::<Vec<_>>();
     c.bench_function(&format!("Auxinfo with {num_players} nodes"), |b| {
-        b.iter(|| run_subprotocol::<AuxInfoParticipant<C>>(auxinfo_sid, auxinfo_inputs.clone()))
+        b.iter(|| {
+            run_subprotocol::<AuxInfoParticipant<TestCurve>>(auxinfo_sid, auxinfo_inputs.clone())
+        })
     });
 
     // Prepare to benchmark presign:
     // 1. Run keygen and get outputs
     let keygen_inputs = std::iter::repeat(()).take(num_players).collect();
     let keygen_outputs =
-        run_subprotocol::<KeygenParticipant<C>>(keygen_sid, keygen_inputs).unwrap();
+        run_subprotocol::<KeygenParticipant<TestCurve>>(keygen_sid, keygen_inputs).unwrap();
 
     // 2. Run auxinfo and get outputs
     let auxinfo_inputs = std::iter::repeat(()).take(num_players).collect();
     let auxinfo_outputs =
-        run_subprotocol::<AuxInfoParticipant<C>>(auxinfo_sid, auxinfo_inputs).unwrap();
+        run_subprotocol::<AuxInfoParticipant<TestCurve>>(auxinfo_sid, auxinfo_inputs).unwrap();
 
     // 3. Assemble presign input from keygen and auxinfo.
     let presign_inputs = auxinfo_outputs
@@ -141,7 +145,10 @@ fn run_benchmarks_for_given_size(c: &mut Criterion, num_players: usize) {
     let presign_identifier = Identifier::random(&mut rng);
     c.bench_function(&format!("Presign with {num_players} nodes"), |b| {
         b.iter(|| {
-            run_subprotocol::<PresignParticipant<C>>(presign_identifier, presign_inputs.clone())
+            run_subprotocol::<PresignParticipant<TestCurve>>(
+                presign_identifier,
+                presign_inputs.clone(),
+            )
         })
     });
 }

@@ -188,14 +188,14 @@ public: 0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2 */
 
 #[test]
 fn test_derive_master_key() {
-    use crate::curve::TestCurve as C;
+    use crate::curve::TestCurve;
 
     let seed = [
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
         0x0f,
     ];
     let mk_input = MasterKeyInput::new(&seed, CURVE_NAME.into()).unwrap();
-    let master_key_output = MasterKeyInput::derive_master_key::<C>(&mk_input);
+    let master_key_output = MasterKeyInput::derive_master_key::<TestCurve>(&mk_input);
     assert_eq!(
         master_key_output.private_key.to_bytes(),
         [
@@ -238,7 +238,7 @@ fn test_derive_child_key() {
     let master_key_output = MasterKeyInput::derive_master_key::<TestCurve>(&mk_input);
 
     // derive the child key
-    //let pk = TestCT::GENERATOR.mul(&master_key_output.private_key);
+    //let pk = TestCurve::GENERATOR.mul(&master_key_output.private_key);
     //let private_key = master_key_output.private_key;
     //let public_key_bytes: Vec<u8> = pk.to_bytes().to_vec();
 
@@ -275,9 +275,9 @@ fn test_derive_child_key() {
             0x5b, 0xd6, 0xac, 0xe4, 0xa7
         ]
     );
-    let public_key = TestCT::try_from_bytes(&public_key_bytes).unwrap();
+    let public_key = TestCurve::try_from_bytes(&public_key_bytes).unwrap();
 
-    let ckd_input: CKDInput<TestCT> = CKDInput::new(
+    let ckd_input: CKDInput<TestCurve> = CKDInput::new(
         Some(private_key),
         public_key,
         master_key_output.chain_code,
@@ -295,7 +295,7 @@ fn test_derive_child_key() {
         ]
     );*/
     // assert the private key (TODO: it only works for K256)
-    /*let private_key: <TestCT as CT>::Scalar = child_key_output.private_key;
+    /*let private_key: <TestCurve as CurveTrait>::Scalar = child_key_output.private_key;
     assert_eq!(
         private_key.to_bytes().as_slice(),
         [
