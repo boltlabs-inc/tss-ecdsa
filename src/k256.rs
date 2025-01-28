@@ -291,10 +291,6 @@ impl VerifyingKeyTrait for VerifyingKey {
 
     /// Add two verifying keys.
     fn add(&self, other: &Self) -> Self {
-        //let point = self.to_encoded_point(false);
-        //let other_point = other.to_encoded_point(false);
-        //let sum = point.add(&other_point).unwrap();
-        //VerifyingKey::from_encoded_point(&sum).unwrap()
         let point1 = self.to_encoded_point(false);
         let point2 = other.to_encoded_point(false);
         let p1 = ProjectivePoint::from_encoded_point(&point1)

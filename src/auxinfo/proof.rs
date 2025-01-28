@@ -201,7 +201,7 @@ impl<C: CurveTrait + 'static> AuxInfoProof<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve::TestCT,
+        curve::TestCurve,
         paillier::prime_gen,
         protocol::{self, SharedContext},
         utils::testing::init_testing,
@@ -210,7 +210,7 @@ mod tests {
 
     fn random_auxinfo_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
-        test_code: impl FnOnce(CommonInput<TestCT>, AuxInfoProof<TestCT>) -> Result<()>,
+        test_code: impl FnOnce(CommonInput<TestCurve>, AuxInfoProof<TestCurve>) -> Result<()>,
     ) -> Result<()> {
         let sid = Identifier::random(rng);
         let rho = rng.gen();
@@ -234,7 +234,7 @@ mod tests {
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
-        let shared_context: protocol::SharedContext<TestCT> = SharedContext::random(&mut rng);
+        let shared_context: protocol::SharedContext<TestCurve> = SharedContext::random(&mut rng);
         let common_input =
             CommonInput::new(&shared_context, sid, rho, pid, &setup_params, &modulus);
         let proof = AuxInfoProof::prove(&mut rng, &common_input, &p, &q)?;
@@ -246,13 +246,13 @@ mod tests {
     fn each_constituent_proof_must_be_valid() -> Result<()> {
         let mut rng = init_testing();
         let mut rng2 = StdRng::from_rng(&mut rng).unwrap();
-        let f = |input: CommonInput<TestCT>, proof: AuxInfoProof<TestCT>| {
-            let f1 = |input1: CommonInput<TestCT>, proof1: AuxInfoProof<TestCT>| {
-                let mix_one = AuxInfoProof::<TestCT> {
+        let f = |input: CommonInput<TestCurve>, proof: AuxInfoProof<TestCurve>| {
+            let f1 = |input1: CommonInput<TestCurve>, proof1: AuxInfoProof<TestCurve>| {
+                let mix_one = AuxInfoProof::<TestCurve> {
                     pifac: proof.pifac,
                     pimod: proof1.pimod,
                 };
-                let mix_two = AuxInfoProof::<TestCT> {
+                let mix_two = AuxInfoProof::<TestCurve> {
                     pifac: proof1.pifac,
                     pimod: proof.pimod,
                 };
@@ -277,7 +277,7 @@ mod tests {
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let (p1, q1) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
-        let shared_context: &protocol::SharedContext<TestCT> = &SharedContext::random(&mut rng);
+        let shared_context: &protocol::SharedContext<TestCurve> = &SharedContext::random(&mut rng);
         let common_input = CommonInput::new(shared_context, sid, rho, pid, &setup_params, &modulus);
         match AuxInfoProof::prove(&mut rng, &common_input, &p1, &q1) {
             Ok(proof) => assert!(proof.verify(&common_input).is_err()),
@@ -295,7 +295,7 @@ mod tests {
         let setup_params = VerifiedRingPedersen::gen(&mut rng, &())?;
         let (p, q) = prime_gen::get_prime_pair_from_pool_insecure(&mut rng).unwrap();
         let modulus = &p * &q;
-        let shared_context: &protocol::SharedContext<TestCT> = &SharedContext::random(&mut rng);
+        let shared_context: &protocol::SharedContext<TestCurve> = &SharedContext::random(&mut rng);
         let bad_shared_context = &SharedContext::random(&mut rng);
         let common_input = CommonInput {
             shared_context,

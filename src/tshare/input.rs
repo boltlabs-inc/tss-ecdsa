@@ -115,7 +115,7 @@ mod test {
     use super::super::TshareParticipant;
     use crate::{
         auxinfo,
-        curve::TestCT as C,
+        curve::TestCurve as C,
         errors::{CallerError, InternalError, Result},
         utils::testing::init_testing,
         Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,

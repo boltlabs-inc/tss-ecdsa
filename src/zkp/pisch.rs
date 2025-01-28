@@ -267,7 +267,7 @@ impl<C: CurveTrait + 'static> PiSchProof<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{curve::TestCT as C, utils::testing::init_testing, zkp::BadContext};
+    use crate::{curve::TestCurve as C, utils::testing::init_testing, zkp::BadContext};
     fn transcript() -> Transcript {
         Transcript::new(b"PiSchProof Test")
     }

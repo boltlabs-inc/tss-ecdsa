@@ -247,25 +247,25 @@ mod tests {
     use rand::{CryptoRng, RngCore};
 
     use crate::{
-        curve::{CurveTrait, ScalarTrait, TestCT},
+        curve::{CurveTrait, ScalarTrait, TestCurve},
         keygen,
         presign::{participant::presign_record_set_is_valid, record::RECORD_TAG},
         utils::testing::init_testing,
         ParticipantConfig,
     };
-    type PresignRecord = super::PresignRecord<TestCT>;
+    type PresignRecord = super::PresignRecord<TestCurve>;
 
     impl PresignRecord {
-        pub(crate) fn mask_point(&self) -> &TestCT {
+        pub(crate) fn mask_point(&self) -> &TestCurve {
             &self.R
         }
 
         /// Simulate creation of a random presign record. Do not use outside of
         /// testing.
         pub(crate) fn simulate() -> PresignRecord {
-            let mask_point = <TestCT as CurveTrait>::random();
-            let mask_share = <TestCT as CurveTrait>::Scalar::random();
-            let masked_key_share = <TestCT as CurveTrait>::Scalar::random();
+            let mask_point = <TestCurve as CurveTrait>::random();
+            let mask_share = <TestCurve as CurveTrait>::Scalar::random();
+            let masked_key_share = <TestCurve as CurveTrait>::Scalar::random();
 
             PresignRecord {
                 R: mask_point,
@@ -280,7 +280,7 @@ mod tests {
         /// For testing only; this does not check that the keygen output set is
         /// consistent or complete.
         pub(crate) fn simulate_set(
-            keygen_outputs: &[keygen::Output<TestCT>],
+            keygen_outputs: &[keygen::Output<TestCurve>],
             _rng: &mut (impl CryptoRng + RngCore),
         ) -> Vec<Self> {
             // Note: using slightly-biased generation for faster tests
@@ -288,23 +288,22 @@ mod tests {
             // CT>::Scalar::generate_biased(rng)).take(keygen_outputs.len())
             //    .collect::<Vec<_>>();
             // TODO: use generate_biased when generalized
-            let mask_shares = std::iter::repeat_with(<TestCT as CurveTrait>::Scalar::random)
+            let mask_shares = std::iter::repeat_with(<TestCurve as CurveTrait>::Scalar::random)
                 .take(keygen_outputs.len())
                 .collect::<Vec<_>>();
-            let mask = mask_shares
-                .iter()
-                .fold(<TestCT as CurveTrait>::Scalar::zero(), |sum, mask_share| {
-                    sum + mask_share
-                });
+            let mask = mask_shares.iter().fold(
+                <TestCurve as CurveTrait>::Scalar::zero(),
+                |sum, mask_share| sum + mask_share,
+            );
             let mask_inversion =
-                Option::<<TestCT as CurveTrait>::Scalar>::from(mask.invert()).unwrap();
+                Option::<<TestCurve as CurveTrait>::Scalar>::from(mask.invert()).unwrap();
             // `R` in the paper.
-            let mask_point = TestCT::GENERATOR.multiply_by_scalar(&mask_inversion);
+            let mask_point = TestCurve::GENERATOR.multiply_by_scalar(&mask_inversion);
 
             // Compute the masked key shares as (secret_key_share * mask)
             let masked_key_shares = keygen_outputs
                 .iter()
-                .map(|output| TestCT::bn_to_scalar(output.private_key_share().as_ref()).unwrap())
+                .map(|output| TestCurve::bn_to_scalar(output.private_key_share().as_ref()).unwrap())
                 .map(|secret_key_share| secret_key_share * mask);
 
             assert_eq!(masked_key_shares.len(), keygen_outputs.len());

@@ -200,7 +200,7 @@ impl<C> AsRef<C> for KeySharePublic<C> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        curve::{CurveTrait, TestCT as C},
+        curve::{CurveTrait, TestCurve as C},
         keygen::keyshare::KEYSHARE_TAG,
         utils::testing::init_testing,
     };

@@ -14,7 +14,6 @@ use libpaillier::unknown_order::BigNumber;
 type HmacSha512 = hmac::Hmac<sha2::Sha512>;
 
 const CURVE_NAME: &str = "Bitcoin seed";
-//const CURVE_NAME: &str = "P256 seed";
 
 /// Represents the input to the CKD function.
 #[derive(Debug, Clone)]
@@ -189,7 +188,7 @@ public: 0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2 */
 
 #[test]
 fn test_derive_master_key() {
-    use crate::curve::TestCT as C;
+    use crate::curve::TestCurve as C;
 
     let seed = [
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
@@ -224,7 +223,7 @@ public: 02fc9e5af0ac8d9b3cecfe2a888e2117ba3d089d8585886c9c826b6b22a98d12ea
 */
 #[test]
 fn test_derive_child_key() {
-    use crate::curve::TestCT;
+    use crate::curve::TestCurve;
 
     // seed:
     // fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542
@@ -236,7 +235,7 @@ fn test_derive_child_key() {
         0x4b, 0x48, 0x45, 0x42,
     ];
     let mk_input = MasterKeyInput::new(&seed, CURVE_NAME.into()).unwrap();
-    let master_key_output = MasterKeyInput::derive_master_key::<TestCT>(&mk_input);
+    let master_key_output = MasterKeyInput::derive_master_key::<TestCurve>(&mk_input);
 
     // derive the child key
     //let pk = TestCT::GENERATOR.mul(&master_key_output.private_key);

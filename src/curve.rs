@@ -268,7 +268,7 @@ impl ScalarTrait for K256_Scalar {
 }
 
 /// Default curve type.
-pub type TestCT = K256;
+pub type TestCurve = K256;
 //pub type TestCT = P256;
 
 /// Default scalar type.
@@ -289,7 +289,7 @@ mod tests {
     use libpaillier::unknown_order::BigNumber;
 
     use crate::{
-        curve::{CurveTrait, ScalarTrait, TestCT},
+        curve::{CurveTrait, ScalarTrait, TestCurve},
         utils::testing::init_testing,
     };
 
@@ -298,10 +298,10 @@ mod tests {
         let _rng = init_testing();
         let neg1 = BigNumber::zero() - BigNumber::one();
 
-        let scalar = TestCT::bn_to_scalar(&neg1).unwrap();
+        let scalar = TestCurve::bn_to_scalar(&neg1).unwrap();
         assert_eq!(
-            <TestCT as CurveTrait>::Scalar::zero(),
-            scalar.add(&<TestCT as CurveTrait>::Scalar::one())
+            <TestCurve as CurveTrait>::Scalar::zero(),
+            scalar.add(&<TestCurve as CurveTrait>::Scalar::one())
         );
     }
 }

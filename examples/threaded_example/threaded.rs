@@ -38,7 +38,7 @@ use tracing::{debug, info, instrument, span, trace, Level};
 use tracing_subscriber::{self, EnvFilter};
 use tss_ecdsa::{
     auxinfo::{self, AuxInfoParticipant},
-    curve::{CurveTrait, TestCT},
+    curve::{CurveTrait, TestCurve},
     keygen::{self, KeygenParticipant, Output},
     messages::Message,
     presign::{self, PresignParticipant},
@@ -184,7 +184,7 @@ fn main() -> anyhow::Result<()> {
         worker_messages.insert(config.id(), from_coordinator_tx);
 
         let outgoing = outgoing_tx.clone();
-        thread::spawn(|| participant_worker::<TestCT>(config, from_coordinator_rx, outgoing));
+        thread::spawn(|| participant_worker::<TestCurve>(config, from_coordinator_rx, outgoing));
     }
 
     // Coordinator initiates entire protocol.

@@ -347,7 +347,7 @@ impl<C: CurveTrait + 'static> Proof for PiLogProof<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve::TestCT as C,
+        curve::TestCurve as C,
         paillier::{DecryptionKey, Nonce},
         ring_pedersen::VerifiedRingPedersen,
         utils::{random_plusminus_by_size_with_minimum, testing::init_testing},

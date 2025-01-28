@@ -475,7 +475,7 @@ impl<C: CurveTrait + 'static> SignParticipant<C> {
 #[cfg(test)]
 mod test {
     use crate::{
-        curve::{SignatureTrait, TestCT, VerifyingKeyTrait},
+        curve::{SignatureTrait, TestCurve, VerifyingKeyTrait},
         ParticipantIdentifier,
     };
     use std::{collections::HashMap, ops::Deref};
@@ -495,9 +495,9 @@ mod test {
         utils::testing::init_testing,
         Identifier, ParticipantConfig, ProtocolParticipant,
     };
-    type PresignRecord = presign::PresignRecord<TestCT>;
+    type PresignRecord = presign::PresignRecord<TestCurve>;
 
-    type SignParticipant = super::SignParticipant<TestCT>;
+    type SignParticipant = super::SignParticipant<TestCurve>;
 
     /// Pick a random incoming message and have the correct participant process
     /// it.
@@ -507,7 +507,7 @@ mod test {
         rng: &mut R,
     ) -> Option<(
         &'a SignParticipant,
-        ProcessOutcome<<TestCT as CurveTrait>::ECDSASignature>,
+        ProcessOutcome<<TestCurve as CurveTrait>::ECDSASignature>,
     )> {
         // Pick a random message to process
         if inbox.is_empty() {
@@ -544,38 +544,38 @@ mod test {
     fn compute_non_distributed_ecdsa(
         message: &[u8],
         records: &[PresignRecord],
-        keygen_outputs: &[keygen::Output<TestCT>],
-    ) -> <TestCT as CurveTrait>::ECDSASignature {
+        keygen_outputs: &[keygen::Output<TestCurve>],
+    ) -> <TestCurve as CurveTrait>::ECDSASignature {
         let k = records
             .iter()
             .map(|record| record.mask_share())
-            .fold(<TestCT as CurveTrait>::Scalar::zero(), |a, b| a + b);
+            .fold(<TestCurve as CurveTrait>::Scalar::zero(), |a, b| a + b);
 
         let secret_key = keygen_outputs
             .iter()
-            .map(|output| TestCT::bn_to_scalar(output.private_key_share().as_ref()).unwrap())
-            .fold(<TestCT as CurveTrait>::Scalar::zero(), |a, b| a + b);
+            .map(|output| TestCurve::bn_to_scalar(output.private_key_share().as_ref()).unwrap())
+            .fold(<TestCurve as CurveTrait>::Scalar::zero(), |a, b| a + b);
 
         let r = records[0].x_projection().unwrap();
 
-        let m = <<TestCT as CurveTrait>::Scalar as Reduce<U256>>::reduce_bytes(&Keccak256::digest(
-            message,
-        ));
+        let m = <<TestCurve as CurveTrait>::Scalar as Reduce<U256>>::reduce_bytes(
+            &Keccak256::digest(message),
+        );
 
-        let mut s: <TestCT as CurveTrait>::Scalar = k * (m + r * secret_key);
+        let mut s: <TestCurve as CurveTrait>::Scalar = k * (m + r * secret_key);
 
         if s.is_high() {
             s = s.negate();
         }
 
-        let signature = <TestCT as CurveTrait>::ECDSASignature::from_scalars(
-            &<TestCT as CurveTrait>::scalar_to_bn(&r),
-            &<TestCT as CurveTrait>::scalar_to_bn(&s),
+        let signature = <TestCurve as CurveTrait>::ECDSASignature::from_scalars(
+            &<TestCurve as CurveTrait>::scalar_to_bn(&r),
+            &<TestCurve as CurveTrait>::scalar_to_bn(&s),
         )
         .unwrap();
 
         // These checks fail when the overall thing fails
-        let public_key: <TestCT as CurveTrait>::VK = keygen_outputs[0].public_key().unwrap();
+        let public_key: <TestCurve as CurveTrait>::VK = keygen_outputs[0].public_key().unwrap();
 
         assert!(public_key
             .verify_signature(Keccak256::new_with_prefix(message), signature)

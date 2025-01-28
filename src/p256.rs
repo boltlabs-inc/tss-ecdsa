@@ -95,20 +95,15 @@ impl P256 {
     }
 
     pub(crate) fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
-        dbg!("try_from_bytes1");
-        dbg!(bytes.len());
         let mut fixed_len_bytes: [u8; 33] = bytes.try_into().map_err(|_| {
             error!("Failed to encode bytes as a curve point");
             CallerError::DeserializationFailed
         })?;
-        dbg!("try_from_bytes2");
 
         let point: Option<AffinePoint<p256::NistP256>> =
             AffinePoint::<p256::NistP256>::from_bytes(&fixed_len_bytes.into()).into();
-        dbg!("try_from_bytes3");
         fixed_len_bytes.zeroize();
 
-        dbg!("try_from_bytes4");
         match point {
             Some(point) => Ok(Self(point.into())),
             None => {
@@ -357,7 +352,6 @@ impl VerifyingKeyTrait for VerifyingKey {
 
     // Add two verifying keys
     fn add(&self, other: &Self) -> Self {
-        dbg!("add");
         let point1 = self.to_encoded_point(false);
         let point2 = other.to_encoded_point(false);
         let p1 = ProjectivePoint::from_encoded_point(&point1)

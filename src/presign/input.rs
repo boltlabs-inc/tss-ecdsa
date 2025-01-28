@@ -159,7 +159,7 @@ impl<C: CurveTrait> Input<C> {
 mod test {
     use crate::{
         auxinfo,
-        curve::TestCT as C,
+        curve::TestCurve as C,
         errors::{CallerError, InternalError, Result},
         keygen,
         utils::testing::init_testing,

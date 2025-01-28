@@ -602,7 +602,9 @@ fn schnorr_proof_transcript(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{curve::TestCT as C, utils::testing::init_testing, Identifier, ParticipantConfig};
+    use crate::{
+        curve::TestCurve as C, utils::testing::init_testing, Identifier, ParticipantConfig,
+    };
     use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
     use tracing::debug;

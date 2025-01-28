@@ -654,7 +654,7 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo::{self, AuxInfoParticipant, AuxInfoPublic},
-        curve::{ScalarTrait, TestCT, TestST, VerifyingKeyTrait},
+        curve::{ScalarTrait, TestCurve, TestST, VerifyingKeyTrait},
         k256::K256,
         keygen::{KeySharePublic, KeygenParticipant},
         messages,
@@ -683,7 +683,7 @@ mod tests {
         let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
         let auxinfo_sid = Identifier::random(&mut rng);
         let mut participant =
-            Participant::<AuxInfoParticipant<TestCT>>::from_config(config, auxinfo_sid, ())
+            Participant::<AuxInfoParticipant<TestCurve>>::from_config(config, auxinfo_sid, ())
                 .unwrap();
 
         // Make a message with the wrong session ID
@@ -719,7 +719,7 @@ mod tests {
         let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
         let auxinfo_sid = Identifier::random(&mut rng);
         let mut participant =
-            Participant::<AuxInfoParticipant<TestCT>>::from_config(config, auxinfo_sid, ())
+            Participant::<AuxInfoParticipant<TestCurve>>::from_config(config, auxinfo_sid, ())
                 .unwrap();
 
         // Make a message with the wrong participant to field
@@ -754,7 +754,7 @@ mod tests {
         let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
         let auxinfo_sid = Identifier::random(&mut rng);
         let mut participant =
-            Participant::<AuxInfoParticipant<TestCT>>::from_config(config, auxinfo_sid, ())
+            Participant::<AuxInfoParticipant<TestCurve>>::from_config(config, auxinfo_sid, ())
                 .unwrap();
 
         // Make a message with the wrong protocol type
@@ -790,7 +790,7 @@ mod tests {
         let config = ParticipantConfig::random(QUORUM_SIZE, &mut rng);
         let auxinfo_sid = Identifier::random(&mut rng);
         let mut participant =
-            Participant::<AuxInfoParticipant<TestCT>>::from_config(config, auxinfo_sid, ())
+            Participant::<AuxInfoParticipant<TestCurve>>::from_config(config, auxinfo_sid, ())
                 .unwrap();
 
         //message with the wrong sender participant
@@ -955,7 +955,7 @@ mod tests {
 
         let mut auxinfo_outputs: HashMap<
             ParticipantIdentifier,
-            <AuxInfoParticipant<TestCT> as ProtocolParticipant>::Output,
+            <AuxInfoParticipant<TestCurve> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         // Initialize auxinfo for all parties
@@ -1688,13 +1688,13 @@ mod tests {
             .clone()
             .into_iter()
             .map(|config| {
-                Participant::<KeygenParticipant<TestCT>>::from_config(config, keygen_sid, ())
+                Participant::<KeygenParticipant<TestCurve>>::from_config(config, keygen_sid, ())
                     .unwrap()
             })
             .collect::<Vec<_>>();
         let mut keygen_outputs: HashMap<
             ParticipantIdentifier,
-            <KeygenParticipant<TestCT> as ProtocolParticipant>::Output,
+            <KeygenParticipant<TestCurve> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         // Initialize keygen for all participants
@@ -1742,14 +1742,14 @@ mod tests {
             .clone()
             .into_iter()
             .map(|config| {
-                Participant::<AuxInfoParticipant<TestCT>>::from_config(config, auxinfo_sid, ())
+                Participant::<AuxInfoParticipant<TestCurve>>::from_config(config, auxinfo_sid, ())
                     .unwrap()
             })
             .collect::<Vec<_>>();
 
         let mut auxinfo_outputs: HashMap<
             ParticipantIdentifier,
-            <AuxInfoParticipant<TestCT> as ProtocolParticipant>::Output,
+            <AuxInfoParticipant<TestCurve> as ProtocolParticipant>::Output,
         > = HashMap::new();
 
         // Initialize auxinfo for all parties
@@ -1809,7 +1809,7 @@ mod tests {
         let sign_sid = Identifier::random(rng);
         let mut sign_quorum = std::iter::zip(configs, sign_inputs)
             .map(|(config, input)| {
-                Participant::<InteractiveSignParticipant<TestCT>>::from_config(
+                Participant::<InteractiveSignParticipant<TestCurve>>::from_config(
                     config, sign_sid, input,
                 )
             })

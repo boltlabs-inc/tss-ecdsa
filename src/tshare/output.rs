@@ -147,7 +147,7 @@ impl<C: CurveTrait> Output<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve::{CurveTrait, TestCT},
+        curve::{CurveTrait, TestCurve},
         tshare::{self, CoeffPublic, TshareParticipant},
         utils::testing::init_testing,
         ParticipantIdentifier,
@@ -219,7 +219,7 @@ mod tests {
         let pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let output: Output<TestCT> = Output::simulate(&pids);
+        let output: Output<TestCurve> = Output::simulate(&pids);
 
         let (public_coeffs, public_keys, private_key, chain_code, rid) = output.into_parts();
         assert!(
@@ -242,8 +242,8 @@ mod tests {
             pids.iter()
                 .map(|&pid| {
                     // TODO #340: Replace with KeyShare methods once they exist.
-                    let secret = <TestCT as CurveTrait>::Scalar::random(&mut rng);
-                    let public = TestCT::GENERATOR.multiply_by_scalar(&secret);
+                    let secret = <TestCurve as CurveTrait>::Scalar::random(&mut rng);
+                    let public = TestCurve::GENERATOR.multiply_by_scalar(&secret);
                     (
                         secret,
                         KeySharePublic::new(pid, public),

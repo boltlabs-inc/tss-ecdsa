@@ -863,7 +863,7 @@ fn schnorr_proof_transcript(
 mod tests {
     use super::*;
     use crate::{
-        auxinfo, curve::TestCT, keygen, keyrefresh::input::Input, utils::testing::init_testing,
+        auxinfo, curve::TestCurve, keygen, keyrefresh::input::Input, utils::testing::init_testing,
         Identifier, ParticipantConfig,
     };
     use rand::{CryptoRng, Rng, RngCore};
@@ -922,7 +922,7 @@ mod tests {
         }
     }
 
-    fn is_keyrefresh_done(quorum: &[KeyrefreshParticipant<TestCT>]) -> bool {
+    fn is_keyrefresh_done(quorum: &[KeyrefreshParticipant<TestCurve>]) -> bool {
         for participant in quorum {
             if *participant.status() != Status::TerminatedSuccessfully {
                 return false;
@@ -933,10 +933,10 @@ mod tests {
 
     #[allow(clippy::type_complexity)]
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut [KeyrefreshParticipant<TestCT>],
+        quorum: &mut [KeyrefreshParticipant<TestCurve>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
-    ) -> Option<(usize, ProcessOutcome<Output<TestCT>>)> {
+    ) -> Option<(usize, ProcessOutcome<Output<TestCurve>>)> {
         // Pick a random participant to process
         let index = rng.gen_range(0..quorum.len());
         let participant = quorum.get_mut(index).unwrap();
@@ -978,7 +978,7 @@ mod tests {
 
         let mut outputs = std::iter::repeat_with(|| None)
             .take(quorum_size)
-            .collect::<Vec<Option<Output<TestCT>>>>();
+            .collect::<Vec<Option<Output<TestCurve>>>>();
 
         for participant in &quorum {
             let inbox = inboxes.get_mut(&participant.id()).unwrap();
@@ -1053,7 +1053,7 @@ mod tests {
             assert!(public_share.is_some());
 
             let expected_public_share =
-                TestCT::GENERATOR.multiply_by_bignum(output.private_key_share().as_ref())?;
+                TestCurve::GENERATOR.multiply_by_bignum(output.private_key_share().as_ref())?;
             assert_eq!(public_share.unwrap().as_ref(), &expected_public_share);
         }
 

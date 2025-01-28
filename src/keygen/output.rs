@@ -155,7 +155,7 @@ impl<C: CurveTrait> Output<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve::TestCT, utils::testing::init_testing, ParticipantConfig, ParticipantIdentifier,
+        curve::TestCurve, utils::testing::init_testing, ParticipantConfig, ParticipantIdentifier,
     };
     use rand::{CryptoRng, Rng, RngCore};
 
@@ -238,7 +238,7 @@ mod tests {
         let output = Output::simulate(&pids, rng);
 
         let (public, private, rid, chain_code) = output.into_parts();
-        assert!(Output::<TestCT>::from_parts(public, private, rid, chain_code).is_ok());
+        assert!(Output::<TestCurve>::from_parts(public, private, rid, chain_code).is_ok());
     }
 
     #[test]
@@ -255,7 +255,7 @@ mod tests {
         // the public keys but it's so unlikely that we won't check it.
         let bad_private_key_share = KeySharePrivate::random(rng);
 
-        assert!(Output::<TestCT>::from_parts(
+        assert!(Output::<TestCurve>::from_parts(
             output.public_key_shares,
             bad_private_key_share,
             output.rid,
@@ -288,7 +288,7 @@ mod tests {
         let rid = rng.gen();
         let chain_code = rng.gen();
 
-        assert!(Output::<TestCT>::from_parts(
+        assert!(Output::<TestCurve>::from_parts(
             public_key_shares,
             private_key_shares.pop().unwrap(),
             rid,

@@ -4,7 +4,7 @@ use rand::{prelude::IteratorRandom, rngs::OsRng, CryptoRng, Rng, RngCore};
 use std::collections::HashMap;
 use tss_ecdsa::{
     auxinfo::AuxInfoParticipant,
-    curve::TestCT as C,
+    curve::TestCurve as C,
     errors::Result,
     keygen::KeygenParticipant,
     messages::Message,

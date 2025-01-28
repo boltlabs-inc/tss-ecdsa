@@ -598,14 +598,14 @@ impl<'a, C: CurveTrait + 'static> AuxInfoParticipant<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve::TestCT,
+        curve::TestCurve,
         participant::{ProcessOutcome, Status},
         utils::testing::init_testing,
         Identifier, ParticipantConfig,
     };
     use rand::{CryptoRng, Rng, RngCore};
     use std::collections::HashMap;
-    type SharedContext = super::SharedContext<TestCT>;
+    type SharedContext = super::SharedContext<TestCurve>;
 
     impl<C: CurveTrait + 'static> AuxInfoParticipant<C> {
         pub fn new_quorum<R: RngCore + CryptoRng>(
@@ -648,7 +648,7 @@ mod tests {
         }
     }
 
-    fn is_auxinfo_done(quorum: &[AuxInfoParticipant<TestCT>]) -> bool {
+    fn is_auxinfo_done(quorum: &[AuxInfoParticipant<TestCurve>]) -> bool {
         for participant in quorum {
             if *participant.status() != Status::TerminatedSuccessfully {
                 return false;
@@ -662,7 +662,7 @@ mod tests {
     ///
     /// Returns None if there are no messages for the selected participant.
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut [AuxInfoParticipant<TestCT>],
+        quorum: &mut [AuxInfoParticipant<TestCurve>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
     ) -> Option<(usize, ProcessOutcome<Output>)> {

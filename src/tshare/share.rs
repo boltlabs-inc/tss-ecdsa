@@ -217,7 +217,7 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo,
-        curve::{CurveTrait, TestCT as C},
+        curve::{CurveTrait, TestCurve as C},
         utils::testing::init_testing,
         ParticipantIdentifier,
     };

@@ -991,7 +991,7 @@ pub(crate) mod tests {
     use super::{super::input::Input, *};
     use crate::{
         auxinfo,
-        curve::{CurveTrait, TestCT},
+        curve::{CurveTrait, TestCurve},
         utils::testing::init_testing,
         Identifier, ParticipantConfig,
     };
@@ -1191,7 +1191,7 @@ pub(crate) mod tests {
         let mut rng = init_testing();
         let sid = Identifier::random(&mut rng);
         let test_share = Some(CoeffPrivate {
-            x: <TestCT as CurveTrait>::Scalar::convert_from_u128(42),
+            x: <TestCurve as CurveTrait>::Scalar::convert_from_u128(42),
         });
         let mut quorum = TshareParticipant::new_quorum(sid, quorum_size, test_share, &mut rng)?;
         let mut inboxes = HashMap::new();
@@ -1270,7 +1270,7 @@ pub(crate) mod tests {
                 .collect::<Vec<_>>();
             let public_share = TshareParticipant::eval_public_share(&publics_coeffs, pid)?;
 
-            let expected_public_share = TestCT::GENERATOR.mul(output.private_key_share());
+            let expected_public_share = TestCurve::GENERATOR.mul(output.private_key_share());
             // if the output already contains the public key, then we don't need to
             // recompute and check it here.
             assert_eq!(public_share, expected_public_share);
@@ -1286,12 +1286,12 @@ pub(crate) mod tests {
 
         // validate the final public key, which is given by the sum of the public keys
         // of all participants
-        let mut sum_public_keys_first = TestCT::IDENTITY;
+        let mut sum_public_keys_first = TestCurve::IDENTITY;
         for public_key in outputs.first().unwrap().public_key_shares() {
             sum_public_keys_first = sum_public_keys_first + *public_key.as_ref();
         }
         for output in outputs.iter().skip(1) {
-            let mut sum_public_keys = TestCT::IDENTITY;
+            let mut sum_public_keys = TestCurve::IDENTITY;
             for public_key in output.public_key_shares() {
                 sum_public_keys = sum_public_keys + *public_key.as_ref();
             }
@@ -1301,30 +1301,30 @@ pub(crate) mod tests {
         Ok(())
     }
 
-    fn generate_polynomial(t: usize) -> Vec<<TestCT as CurveTrait>::Scalar> {
+    fn generate_polynomial(t: usize) -> Vec<<TestCurve as CurveTrait>::Scalar> {
         let mut coefficients = Vec::with_capacity(t);
         for _ in 0..t {
-            coefficients.push(<TestCT as CurveTrait>::Scalar::random());
+            coefficients.push(<TestCurve as CurveTrait>::Scalar::random());
         }
         coefficients
     }
 
     pub fn evaluate_polynomial(
-        coefficients: &[<TestCT as CurveTrait>::Scalar],
-        x: &<TestCT as CurveTrait>::Scalar,
-    ) -> <TestCT as CurveTrait>::Scalar {
+        coefficients: &[<TestCurve as CurveTrait>::Scalar],
+        x: &<TestCurve as CurveTrait>::Scalar,
+    ) -> <TestCurve as CurveTrait>::Scalar {
         coefficients
             .iter()
             .rev()
-            .fold(<TestCT as CurveTrait>::Scalar::zero(), |acc, coef| {
+            .fold(<TestCurve as CurveTrait>::Scalar::zero(), |acc, coef| {
                 acc * x + coef
             })
     }
 
     fn evaluate_at_points(
-        coefficients: &[<TestCT as CurveTrait>::Scalar],
-        points: &[<TestCT as CurveTrait>::Scalar],
-    ) -> Vec<<TestCT as CurveTrait>::Scalar> {
+        coefficients: &[<TestCurve as CurveTrait>::Scalar],
+        points: &[<TestCurve as CurveTrait>::Scalar],
+    ) -> Vec<<TestCurve as CurveTrait>::Scalar> {
         points
             .iter()
             .map(|x| evaluate_polynomial(coefficients, x))
@@ -1339,12 +1339,12 @@ pub(crate) mod tests {
 
         // test that reconstruction works as long as we have enough points
         for n in t..n {
-            let points: Vec<<TestCT as CurveTrait>::Scalar> = (1..=n)
-                .map(|i: u128| <TestCT as CurveTrait>::Scalar::from_u128(i + 1))
+            let points: Vec<<TestCurve as CurveTrait>::Scalar> = (1..=n)
+                .map(|i: u128| <TestCurve as CurveTrait>::Scalar::from_u128(i + 1))
                 .collect();
             let values = evaluate_at_points(&coefficients, &points);
 
-            let zero = <TestCT as CurveTrait>::Scalar::zero();
+            let zero = <TestCurve as CurveTrait>::Scalar::zero();
             let zero_value = evaluate_polynomial(&coefficients, &zero);
 
             let points: Vec<ParticipantIdentifier> = (1..=n)
@@ -1355,10 +1355,11 @@ pub(crate) mod tests {
                 .zip(&points)
                 .map(|(value, point)| {
                     *value
-                        * TshareParticipant::<TestCT>::lagrange_coefficient_at_zero(point, &points)
-                            as <TestCT as CurveTrait>::Scalar
+                        * TshareParticipant::<TestCurve>::lagrange_coefficient_at_zero(
+                            point, &points,
+                        ) as <TestCurve as CurveTrait>::Scalar
                 })
-                .fold(<TestCT as CurveTrait>::Scalar::zero(), |acc, x| acc + x);
+                .fold(<TestCurve as CurveTrait>::Scalar::zero(), |acc, x| acc + x);
 
             assert_eq!(zero_value, zero_value_reconstructed);
         }

@@ -192,7 +192,7 @@ impl<C> AsRef<C> for KeyUpdatePublic<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{auxinfo, curve::TestCT as C, keyrefresh, utils::testing::init_testing};
+    use crate::{auxinfo, curve::TestCurve as C, keyrefresh, utils::testing::init_testing};
     use rand::rngs::StdRng;
 
     /// Generate an encryption key pair.

@@ -356,7 +356,7 @@ mod tests {
 
     use crate::{
         auxinfo,
-        curve::{CurveTrait, TestCT},
+        curve::{CurveTrait, TestCurve},
         errors::Result,
         keygen,
         messages::{Message, MessageType},
@@ -373,7 +373,7 @@ mod tests {
         let pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let keygen_output: keygen::output::Output<TestCT> = keygen::Output::simulate(&pids, rng);
+        let keygen_output: keygen::output::Output<TestCurve> = keygen::Output::simulate(&pids, rng);
         let auxinfo_output = auxinfo::Output::simulate(&pids, rng);
         let message = b"greetings from the new world";
         assert!(Input::new(message, keygen_output, auxinfo_output).is_ok())
@@ -382,12 +382,12 @@ mod tests {
     /// Pick a random incoming message and have the correct participant process
     /// it.
     fn process_messages<'a>(
-        quorum: &'a mut [InteractiveSignParticipant<TestCT>],
+        quorum: &'a mut [InteractiveSignParticipant<TestCurve>],
         inbox: &mut Vec<Message>,
         rng: &mut StdRng,
     ) -> (
-        &'a InteractiveSignParticipant<TestCT>,
-        ProcessOutcome<<TestCT as CurveTrait>::ECDSASignature>,
+        &'a InteractiveSignParticipant<TestCurve>,
+        ProcessOutcome<<TestCurve as CurveTrait>::ECDSASignature>,
     ) {
         // Make sure test doesn't loop forever if we have a control flow problem
         if inbox.is_empty() {
@@ -506,7 +506,7 @@ mod tests {
 
         // Re-derive the public key from the recoverable ID and ensure it matches the
         // original public key.
-        let recovered_pk = <TestCT as CurveTrait>::VK::recover_from_digest(
+        let recovered_pk = <TestCurve as CurveTrait>::VK::recover_from_digest(
             digest,
             distributed_sig,
             RecoveryId::from_byte(recovery_id).expect("Invalid recovery ID"),

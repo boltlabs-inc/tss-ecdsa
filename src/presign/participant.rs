@@ -1162,7 +1162,7 @@ mod test {
 
     use crate::{
         auxinfo,
-        curve::{CurveTrait, ScalarTrait, TestCT},
+        curve::{CurveTrait, ScalarTrait, TestCurve},
         errors::Result,
         keygen,
         messages::{Message, MessageType, PresignMessageType},
@@ -1171,7 +1171,7 @@ mod test {
         utils::testing::init_testing,
         Identifier, ParticipantConfig, ParticipantIdentifier, ProtocolParticipant,
     };
-    type PresignRecord = presign::PresignRecord<TestCT>;
+    type PresignRecord = presign::PresignRecord<TestCurve>;
 
     use super::PresignParticipant;
 
@@ -1189,7 +1189,7 @@ mod test {
 
     #[allow(clippy::type_complexity)]
     fn process_messages<R: RngCore + CryptoRng>(
-        quorum: &mut [PresignParticipant<TestCT>],
+        quorum: &mut [PresignParticipant<TestCurve>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
     ) -> Option<(usize, ProcessOutcome<PresignRecord>)> {
@@ -1214,7 +1214,7 @@ mod test {
 
     pub(crate) fn presign_record_set_is_valid(
         records: Vec<PresignRecord>,
-        keygen_outputs: Vec<keygen::Output<TestCT>>,
+        keygen_outputs: Vec<keygen::Output<TestCurve>>,
     ) {
         // Every presign record has the same `R` value
         // We don't stick this in a HashSet because `CurvePoint`s can't be hashed :(
@@ -1226,19 +1226,20 @@ mod test {
         // Mask point `R` is correctly formed with respect to the mask `k`:
         // `R = g^(k^-1)`, where `g` is the generator of the elliptic curve
         // and `k` is the sum of the mask shares `k_i` in all the presign records
-        let mask = records
-            .iter()
-            .map(|record| record.mask_share())
-            .fold(<TestCT as CurveTrait>::Scalar::zero(), |sum, mask_share| {
-                sum + mask_share
-            });
-        let inverse: <TestCT as CurveTrait>::Scalar = Option::from(mask.invert()).unwrap();
-        assert_eq!(mask_point, &TestCT::GENERATOR.multiply_by_scalar(&inverse));
+        let mask = records.iter().map(|record| record.mask_share()).fold(
+            <TestCurve as CurveTrait>::Scalar::zero(),
+            |sum, mask_share| sum + mask_share,
+        );
+        let inverse: <TestCurve as CurveTrait>::Scalar = Option::from(mask.invert()).unwrap();
+        assert_eq!(
+            mask_point,
+            &TestCurve::GENERATOR.multiply_by_scalar(&inverse)
+        );
 
         // The masked key `Chi` is correctly formed with respect to the mask `k` and
         // secret key `x`: `Chi = x * k (mod q)`
         let masked_key = records.iter().map(|record| record.masked_key_share()).fold(
-            <TestCT as CurveTrait>::Scalar::ZERO,
+            <TestCurve as CurveTrait>::Scalar::ZERO,
             |sum, masked_key_share| sum + masked_key_share,
         );
         let secret_key = keygen_outputs
@@ -1248,7 +1249,7 @@ mod test {
         // Converting to scalars automatically gets us the mod q
         assert_eq!(
             masked_key,
-            TestCT::bn_to_scalar(&secret_key).unwrap() * mask,
+            TestCurve::bn_to_scalar(&secret_key).unwrap() * mask,
         );
     }
 

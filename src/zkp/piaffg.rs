@@ -546,7 +546,7 @@ impl<C: CurveTrait> PiAffgProof<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve::{CurveTrait, TestCT as C},
+        curve::{CurveTrait, TestCurve as C},
         paillier::DecryptionKey,
         utils::{random_plusminus, random_plusminus_by_size_with_minimum, testing::init_testing},
         zkp::BadContext,

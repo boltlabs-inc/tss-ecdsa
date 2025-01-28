@@ -123,7 +123,7 @@ mod test {
     use super::Input;
     use crate::{
         auxinfo,
-        curve::TestCT,
+        curve::TestCurve,
         errors::{CallerError, InternalError, Result},
         keygen,
         keyrefresh::KeyrefreshParticipant,
@@ -138,7 +138,7 @@ mod test {
         let config = ParticipantConfig::random(5, rng);
         let pids = config.all_participants();
         assert_eq!(pids.last().unwrap(), &config.id());
-        let keygen_output: keygen::output::Output<TestCT> = keygen::Output::simulate(&pids, rng);
+        let keygen_output: keygen::output::Output<TestCurve> = keygen::Output::simulate(&pids, rng);
         let auxinfo_output = auxinfo::Output::simulate(&pids, rng);
 
         // Same length works
@@ -146,7 +146,7 @@ mod test {
         assert!(result.is_ok());
 
         // If keygen is too short, it fails.
-        let short_keygen: keygen::output::Output<TestCT> =
+        let short_keygen: keygen::output::Output<TestCurve> =
             keygen::Output::simulate(&pids[1..], rng);
         let result = Input::new(auxinfo_output, short_keygen);
         assert!(result.is_err());
@@ -176,7 +176,7 @@ mod test {
         let keygen_pids = std::iter::repeat_with(|| ParticipantIdentifier::random(rng))
             .take(5)
             .collect::<Vec<_>>();
-        let keygen_output: keygen::output::Output<TestCT> =
+        let keygen_output: keygen::output::Output<TestCurve> =
             keygen::Output::simulate(&keygen_pids, rng);
 
         let result = Input::new(auxinfo_output, keygen_output);
@@ -194,7 +194,7 @@ mod test {
 
         // Create valid input set with random PIDs
         let config = ParticipantConfig::random(5, rng);
-        let keygen_output: keygen::output::Output<TestCT> =
+        let keygen_output: keygen::output::Output<TestCurve> =
             keygen::Output::simulate(&config.all_participants(), rng);
         let auxinfo_output = auxinfo::Output::simulate(&config.all_participants(), rng);
         let input = Input::new(auxinfo_output, keygen_output)?;

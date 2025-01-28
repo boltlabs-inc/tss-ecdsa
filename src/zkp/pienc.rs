@@ -297,7 +297,7 @@ impl<C: CurveTrait> PiEncProof<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve::{CurveTrait, TestCT},
+        curve::{CurveTrait, TestCurve},
         paillier::DecryptionKey,
         utils::{
             random_plusminus, random_plusminus_by_size_with_minimum, random_positive_bn,
@@ -313,14 +313,14 @@ mod tests {
 
     // Shorthand to avoid putting types for closure arguments.
     // Note: This does not work on closures that capture variables.
-    type ProofTest = fn(PiEncProof<TestCT>, PiEncInput) -> Result<()>;
+    type ProofTest = fn(PiEncProof<TestCurve>, PiEncInput) -> Result<()>;
 
     /// Generate a [`PiEncProof`] and [`PiEncInput`] and pass them to the
     /// `test_code` closure.
     fn with_random_proof<R: RngCore + CryptoRng>(
         rng: &mut R,
         plaintext: BigNumber,
-        mut test_code: impl FnMut(PiEncProof<TestCT>, PiEncInput) -> Result<()>,
+        mut test_code: impl FnMut(PiEncProof<TestCurve>, PiEncInput) -> Result<()>,
     ) -> Result<()> {
         let (decryption_key, _, _) = DecryptionKey::new(rng).unwrap();
         let encryption_key = decryption_key.encryption_key();
@@ -363,7 +363,8 @@ mod tests {
 
         let f: ProofTest = |proof, input| {
             let proof_bytes = bincode::serialize(&proof).unwrap();
-            let roundtrip_proof: PiEncProof<TestCT> = bincode::deserialize(&proof_bytes).unwrap();
+            let roundtrip_proof: PiEncProof<TestCurve> =
+                bincode::deserialize(&proof_bytes).unwrap();
             let roundtrip_proof_bytes = bincode::serialize(&roundtrip_proof).unwrap();
 
             assert_eq!(proof_bytes, roundtrip_proof_bytes);
@@ -434,7 +435,7 @@ mod tests {
         // `rng` will be borrowed. We make another rng to be captured by the closure.
         let rng2 = &mut StdRng::from_seed(rng.gen());
 
-        let f = |proof: PiEncProof<TestCT>, input: PiEncInput| {
+        let f = |proof: PiEncProof<TestCurve>, input: PiEncInput| {
             // Shorthand for input commitment parameters
             let scheme = input.setup_params.scheme();
 
@@ -471,7 +472,7 @@ mod tests {
             // Bad challenge fails
             {
                 let mut bad_proof = proof.clone();
-                bad_proof.challenge = random_plusminus(rng2, &TestCT::order());
+                bad_proof.challenge = random_plusminus(rng2, &TestCurve::order());
                 assert_ne!(bad_proof.challenge, proof.challenge);
                 assert!(bad_proof.verify(input, &(), &mut transcript()).is_err());
             }
@@ -526,7 +527,7 @@ mod tests {
         let input = PiEncInput::new(&setup_params, &encryption_key, &ciphertext);
 
         // Correctly formed proof verifies correctly
-        let proof: PiEncProof<TestCT> = PiEncProof::prove(
+        let proof: PiEncProof<TestCurve> = PiEncProof::prove(
             input,
             PiEncSecret::new(&plaintext, &nonce),
             &(),
@@ -538,7 +539,7 @@ mod tests {
         // Forming with the wrong plaintext fails
         let wrong_plaintext = random_plusminus_by_size(rng, ELL);
         assert_ne!(wrong_plaintext, plaintext);
-        let proof: PiEncProof<TestCT> = PiEncProof::prove(
+        let proof: PiEncProof<TestCurve> = PiEncProof::prove(
             input,
             PiEncSecret::new(&wrong_plaintext, &nonce),
             &(),
@@ -550,7 +551,7 @@ mod tests {
         // Forming with the wrong nonce fails
         let (_, wrong_nonce) = encryption_key.encrypt(rng, &plaintext).unwrap();
         assert_ne!(wrong_nonce, nonce);
-        let proof: PiEncProof<TestCT> = PiEncProof::prove(
+        let proof: PiEncProof<TestCurve> = PiEncProof::prove(
             input,
             PiEncSecret::new(&wrong_plaintext, &wrong_nonce),
             &(),
@@ -570,7 +571,7 @@ mod tests {
         let rng2 = &mut StdRng::from_seed(rng.gen());
         let plaintext = random_plusminus_by_size(&mut rng, ELL);
 
-        let verify_tests = |proof: PiEncProof<TestCT>, input: PiEncInput| {
+        let verify_tests = |proof: PiEncProof<TestCurve>, input: PiEncInput| {
             // Verification works on the original input
             assert!(proof.clone().verify(input, &(), &mut transcript()).is_ok());
 

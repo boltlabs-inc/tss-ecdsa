@@ -42,10 +42,3 @@ impl<C: CurveTrait> std::ops::Add<SignatureShare<C>> for SignatureShare<C> {
         self.0.add(rhs.0)
     }
 }
-
-/*impl<C: CT> std::ops::Add<SignatureShare<C>> for C::Scalar {
-    type Output = Self;
-    fn add(self, rhs: SignatureShare<C>) -> Self::Output {
-        self.add(&rhs.0)
-    }
-}*/
