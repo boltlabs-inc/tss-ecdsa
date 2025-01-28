@@ -36,14 +36,14 @@ pub struct Output<C: CurveTrait> {
 
 impl<C: CurveTrait> Output<C> {
     /// Construct the generated public key.
-    pub fn public_key(&self) -> Result<C::VK> {
+    pub fn public_key(&self) -> Result<C::VerifyingKey> {
         // Add up all the key shares
         let point = self
             .public_key_shares
             .iter()
             .fold(C::IDENTITY, |sum, share| sum + *share.as_ref());
 
-        C::VK::from_point(point)
+        C::VerifyingKey::from_point(point)
     }
 
     /// Get the individual shares of the public key.

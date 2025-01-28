@@ -1205,7 +1205,7 @@ mod tests {
         presign_outputs:
             HashMap<ParticipantIdentifier, <PresignParticipant<C> as ProtocolParticipant>::Output>,
         public_key_shares: Vec<KeySharePublic<C>>,
-        saved_public_key: C::VK,
+        saved_public_key: C::VerifyingKey,
         child_index: u32,
         threshold: usize,
         inboxes: HashMap<ParticipantIdentifier, Vec<Message>>,
@@ -1302,10 +1302,10 @@ mod tests {
         // if child_index is None, index is zero, otherwise it is child_index
         let index = child_index;
 
+        // TODO: try_from_bytes only works for K256, we need to make it work for P256
         let shift_input: CKDInput<K256> = slip0010::ckd::CKDInput::new(
             None,
             K256::try_from_bytes_ct(&saved_public_key_bytes)?,
-            //saved_pk_point,
             chain_code,
             index,
         )?;
@@ -1357,7 +1357,7 @@ mod tests {
 
         // get the first participant and then call shifted_public_key
         let first_participant = sign_quorum.first().unwrap();
-        let saved_shifted_public_key: <K256 as CurveTrait>::VK = first_participant
+        let saved_shifted_public_key: <K256 as CurveTrait>::VerifyingKey = first_participant
             .participant
             .shifted_public_key(public_key_shares, shift_scalar)?;
         assert!(saved_shifted_public_key

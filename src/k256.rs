@@ -183,7 +183,7 @@ impl CurveTrait for K256 {
     type Scalar = K256_Scalar;
     type Encoded = EncodedPoint;
     type Projective = ProjectivePoint;
-    type VK = VerifyingKey;
+    type VerifyingKey = VerifyingKey;
     type ECDSASignature = CTSignatureK256<K256>;
 
     fn order() -> BigNumber {

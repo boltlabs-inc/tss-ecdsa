@@ -126,14 +126,14 @@ impl<C: CurveTrait> Input<C> {
     }
 
     /// Compute the public key.
-    pub fn public_key(&self) -> Result<C::VK> {
+    pub fn public_key(&self) -> Result<C::VerifyingKey> {
         // Add up all the key shares
         let public_key_point = self
             .public_key_shares
             .iter()
             .fold(C::IDENTITY, |sum, share| sum + *share.as_ref());
 
-        C::VK::from_point(public_key_point)
+        C::VerifyingKey::from_point(public_key_point)
     }
 }
 
@@ -312,7 +312,7 @@ impl<C: CurveTrait + 'static> SignParticipant<C> {
         &self,
         public_key_shares: Vec<KeySharePublic<C>>,
         shift: C::Scalar,
-    ) -> Result<C::VK> {
+    ) -> Result<C::VerifyingKey> {
         // Add up all the key shares
         let public_key_point = public_key_shares
             .iter()
@@ -321,7 +321,7 @@ impl<C: CurveTrait + 'static> SignParticipant<C> {
         let shifted_point = C::GENERATOR.mul(&shift);
         let shifted_public_key_point = public_key_point + shifted_point;
 
-        C::VK::from_point(shifted_public_key_point)
+        C::VerifyingKey::from_point(shifted_public_key_point)
     }
 
     /// Handle a "Ready" message from ourselves.
@@ -362,8 +362,6 @@ impl<C: CurveTrait + 'static> SignParticipant<C> {
 
         // Interpret the message digest as an integer mod `q`. This matches the way that
         // the k256 library converts a digest to a scalar.
-        //let digest = <Scalar as
-        // Reduce<U256>>::reduce_bytes(&self.input.digest_hash());
         let digest_bytes = self.input.digest_hash();
         // Compute the digest as a C::Scalar
         let digest = C::Scalar::from_bytes(&digest_bytes).unwrap();
@@ -579,7 +577,8 @@ mod test {
         .unwrap();
 
         // These checks fail when the overall thing fails
-        let public_key: <TestCurve as CurveTrait>::VK = keygen_outputs[0].public_key().unwrap();
+        let public_key: <TestCurve as CurveTrait>::VerifyingKey =
+            keygen_outputs[0].public_key().unwrap();
 
         assert!(public_key
             .verify_signature(Keccak256::new_with_prefix(message), signature)
@@ -696,7 +695,7 @@ mod test {
         let recid =
             RecoveryId::trial_recovery_from_digest(public_key, digest.clone(), distributed_sig)
                 .expect("Failed to recover signature");
-        let recovered_pk = <TestCurve as CurveTrait>::VK::recover_from_digest(
+        let recovered_pk = <TestCurve as CurveTrait>::VerifyingKey::recover_from_digest(
             digest,
             distributed_sig,
             RecoveryId::from_byte(recid.into()).expect("Invalid recovery ID"),

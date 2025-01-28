@@ -46,7 +46,7 @@ pub trait CurveTrait:
     type Projective;
 
     /// The ECDSA Verifying Key
-    type VK: VerifyingKeyTrait<C = Self>;
+    type VerifyingKey: VerifyingKeyTrait<C = Self>;
 
     /// The ECDSA Signature type
     type ECDSASignature: SignatureTrait;
@@ -96,8 +96,8 @@ pub trait CurveTrait:
     fn random() -> Self;
 
     /// Convert to Verifying Key.
-    fn to_vk(&self) -> Result<Self::VK> {
-        Self::VK::from_point(*self)
+    fn to_vk(&self) -> Result<Self::VerifyingKey> {
+        Self::VerifyingKey::from_point(*self)
     }
 }
 
@@ -269,11 +269,9 @@ impl ScalarTrait for K256_Scalar {
 
 /// Default curve type.
 pub type TestCurve = K256;
-//pub type TestCurve = P256;
 
 /// Default scalar type.
 pub type TestScalar = K256_Scalar;
-//pub type TestScalar = P256_Scalar;
 
 /// Default signature type.
 pub type TestSignature = k256::ecdsa::Signature;
