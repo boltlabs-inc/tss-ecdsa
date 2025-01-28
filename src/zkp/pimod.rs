@@ -480,7 +480,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        curve::{TestCT as C, CT},
+        curve::{CurveTrait, TestCT as C},
         paillier::{prime_gen, DecryptionKey},
         parameters::SOUNDNESS_PARAMETER,
         utils::testing::init_testing,

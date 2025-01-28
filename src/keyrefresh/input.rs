@@ -10,7 +10,7 @@ use tracing::error;
 
 use crate::{
     auxinfo::{self, AuxInfoPrivate, AuxInfoPublic},
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, InternalError, Result},
     keygen::{self, KeySharePrivate, KeySharePublic},
     ParticipantConfig, ParticipantIdentifier,
@@ -19,14 +19,14 @@ use crate::{
 /// Input needed for a
 /// [`KeyrefreshParticipant`](crate::keyrefresh::KeyrefreshParticipant) to run.
 #[derive(Debug, Clone)]
-pub struct Input<C: CT> {
+pub struct Input<C: CurveTrait> {
     /// The key share material for the key that will be refreshed.
     keygen_output: keygen::Output<C>,
     /// The auxiliary info to encrypt/decrypt messages with other participants.
     auxinfo_output: auxinfo::Output,
 }
 
-impl<C: CT> Input<C> {
+impl<C: CurveTrait> Input<C> {
     /// Creates a new [`Input`] from the outputs of the
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.

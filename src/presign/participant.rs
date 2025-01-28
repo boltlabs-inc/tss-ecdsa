@@ -11,7 +11,7 @@
 use crate::{
     auxinfo::{AuxInfoPrivate, AuxInfoPublic},
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, InternalError, Result},
     keygen::{KeySharePrivate, KeySharePublic},
     local_storage::LocalStorage,
@@ -44,7 +44,7 @@ use tracing::{error, info, instrument};
 mod storage {
     use std::marker::PhantomData;
 
-    use crate::{curve::CT, local_storage::TypeTag};
+    use crate::{curve::CurveTrait, local_storage::TypeTag};
 
     pub(super) struct RoundOnePrivate;
     impl TypeTag for RoundOnePrivate {
@@ -67,11 +67,11 @@ mod storage {
         type Value = crate::presign::round_two::Public<C>;
     }
     pub(super) struct RoundThreePrivate<C>(PhantomData<C>);
-    impl<C: CT + Send + Sync + 'static> TypeTag for RoundThreePrivate<C> {
+    impl<C: CurveTrait + Send + Sync + 'static> TypeTag for RoundThreePrivate<C> {
         type Value = crate::presign::round_three::Private<C>;
     }
     pub(super) struct RoundThreePublic<C>(PhantomData<C>);
-    impl<C: CT + Send + Sync + 'static> TypeTag for RoundThreePublic<C> {
+    impl<C: CurveTrait + Send + Sync + 'static> TypeTag for RoundThreePublic<C> {
         type Value = crate::presign::round_three::Public<C>;
     }
 }
@@ -80,13 +80,13 @@ mod storage {
 /// and includes [`SharedContext`] and [`AuxInfoPublic`]s for all participants
 /// (including this participant).
 #[derive(Debug)]
-pub(crate) struct PresignContext<C: CT> {
+pub(crate) struct PresignContext<C: CurveTrait> {
     shared_context: SharedContext<C>,
     rid: [u8; 32],
     auxinfo_public: Vec<AuxInfoPublic>,
 }
 
-impl<C: CT> ProofContext for PresignContext<C> {
+impl<C: CurveTrait> ProofContext for PresignContext<C> {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
             self.shared_context.as_bytes()?,
@@ -98,7 +98,7 @@ impl<C: CT> ProofContext for PresignContext<C> {
     }
 }
 
-impl<C: CT + 'static> PresignContext<C> {
+impl<C: CurveTrait + 'static> PresignContext<C> {
     /// Build a [`PresignContext`] from a [`PresignParticipant`].
     pub(crate) fn collect(p: &PresignParticipant<C>) -> Self {
         let mut auxinfo_public = p.input().to_public_auxinfo();
@@ -118,12 +118,12 @@ impl<C: CT + 'static> PresignContext<C> {
     }
 }
 
-pub struct ParticipantPresignContext<C: CT> {
+pub struct ParticipantPresignContext<C: CurveTrait> {
     presign_context: PresignContext<C>,
     participant_id: ParticipantIdentifier,
 }
 
-impl<C: CT> ProofContext for ParticipantPresignContext<C> {
+impl<C: CurveTrait> ProofContext for ParticipantPresignContext<C> {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
             self.presign_context.as_bytes()?,
@@ -162,7 +162,7 @@ impl<C: CT> ProofContext for ParticipantPresignContext<C> {
 /// # 🔒 Lifetime requirement
 /// The [`PresignRecord`] output must only be used once and then discarded.
 #[derive(Debug)]
-pub struct PresignParticipant<C: CT> {
+pub struct PresignParticipant<C: CurveTrait> {
     /// The current session identifier.
     sid: Identifier,
     /// The current protocol input.
@@ -180,7 +180,7 @@ pub struct PresignParticipant<C: CT> {
     status: Status,
 }
 
-impl<C: CT + 'static> ProtocolParticipant for PresignParticipant<C> {
+impl<C: CurveTrait + 'static> ProtocolParticipant for PresignParticipant<C> {
     type Input = Input<C>;
     type Output = PresignRecord<C>;
 
@@ -298,7 +298,7 @@ impl<C: CT + 'static> ProtocolParticipant for PresignParticipant<C> {
     }
 }
 
-impl<C: CT + 'static> InnerProtocolParticipant for PresignParticipant<C> {
+impl<C: CurveTrait + 'static> InnerProtocolParticipant for PresignParticipant<C> {
     type Context = PresignContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
@@ -318,13 +318,13 @@ impl<C: CT + 'static> InnerProtocolParticipant for PresignParticipant<C> {
     }
 }
 
-impl<C: CT> Broadcast<C> for PresignParticipant<C> {
+impl<C: CurveTrait> Broadcast<C> for PresignParticipant<C> {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C> {
         &mut self.broadcast_participant
     }
 }
 
-impl<C: CT + 'static> PresignParticipant<C> {
+impl<C: CurveTrait + 'static> PresignParticipant<C> {
     fn input(&self) -> &Input<C> {
         &self.input
     }
@@ -838,7 +838,7 @@ pub(crate) struct PresignKeyShareAndInfo<C> {
     pub(crate) aux_info_public: AuxInfoPublic,
 }
 
-impl<C: CT + 'static> PresignKeyShareAndInfo<C> {
+impl<C: CurveTrait + 'static> PresignKeyShareAndInfo<C> {
     fn new(id: ParticipantIdentifier, input: &Input<C>) -> Result<Self> {
         Ok(Self {
             aux_info_private: input.private_auxinfo().clone(),
@@ -1162,7 +1162,7 @@ mod test {
 
     use crate::{
         auxinfo,
-        curve::{TestCT, CT, ST},
+        curve::{CurveTrait, ScalarTrait, TestCT},
         errors::Result,
         keygen,
         messages::{Message, MessageType, PresignMessageType},
@@ -1229,20 +1229,18 @@ mod test {
         let mask = records
             .iter()
             .map(|record| record.mask_share())
-            .fold(<TestCT as CT>::Scalar::zero(), |sum, mask_share| {
+            .fold(<TestCT as CurveTrait>::Scalar::zero(), |sum, mask_share| {
                 sum + mask_share
             });
-        let inverse: <TestCT as CT>::Scalar = Option::from(mask.invert()).unwrap();
+        let inverse: <TestCT as CurveTrait>::Scalar = Option::from(mask.invert()).unwrap();
         assert_eq!(mask_point, &TestCT::GENERATOR.multiply_by_scalar(&inverse));
 
         // The masked key `Chi` is correctly formed with respect to the mask `k` and
         // secret key `x`: `Chi = x * k (mod q)`
-        let masked_key = records
-            .iter()
-            .map(|record| record.masked_key_share())
-            .fold(<TestCT as CT>::Scalar::ZERO, |sum, masked_key_share| {
-                sum + masked_key_share
-            });
+        let masked_key = records.iter().map(|record| record.masked_key_share()).fold(
+            <TestCT as CurveTrait>::Scalar::ZERO,
+            |sum, masked_key_share| sum + masked_key_share,
+        );
         let secret_key = keygen_outputs
             .iter()
             .map(|output| output.private_key_share())

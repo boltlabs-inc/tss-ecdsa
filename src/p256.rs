@@ -1,7 +1,7 @@
 //! P256 functions
 
 use crate::{
-    curve::{Secp256r1, SignatureTrait, CT, ST, VKT},
+    curve::{CurveTrait, ScalarTrait, Secp256r1, SignatureTrait, VerifyingKeyTrait},
     errors::{
         CallerError,
         InternalError::{self, InternalInvariantFailed},
@@ -50,8 +50,8 @@ impl AsRef<P256> for P256 {
 
 /// ECDSA signature on a message.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CTSignatureP256<C: CT>(p256::ecdsa::Signature, std::marker::PhantomData<C>);
-impl<C: CT> CTSignatureP256<C> {
+pub struct CTSignatureP256<C: CurveTrait>(p256::ecdsa::Signature, std::marker::PhantomData<C>);
+impl<C: CurveTrait> CTSignatureP256<C> {
     #[allow(dead_code, unused_variables)]
     pub(crate) fn recovery_id(&self, _message: &[u8], _public_key: &VerifyingKey) -> Result<u8> {
         todo!()
@@ -77,7 +77,7 @@ impl P256 {
     /// converting it. This may be insecure if the point contains private
     /// data.
     pub(crate) fn multiply_by_bignum(&self, point: &BigNumber) -> Result<Self> {
-        let s = Zeroizing::new(<Secp256r1 as CT>::bn_to_scalar(point)?);
+        let s = Zeroizing::new(<Secp256r1 as CurveTrait>::bn_to_scalar(point)?);
         let p = self.multiply_by_scalar(&s);
         Ok(p)
     }
@@ -160,7 +160,7 @@ pub(crate) fn p256_order() -> BigNumber {
     BigNumber::from_slice(order_bytes)
 }
 
-impl CT for P256 {
+impl CurveTrait for P256 {
     const GENERATOR: Self = P256::GENERATOR;
     const IDENTITY: Self = P256::IDENTITY;
     type Scalar = P256_Scalar;
@@ -255,7 +255,7 @@ impl CT for P256 {
     }
 }
 
-impl ST for P256_Scalar {
+impl ScalarTrait for P256_Scalar {
     fn zero() -> Self {
         P256_Scalar::ZERO
     }
@@ -287,7 +287,7 @@ impl ST for P256_Scalar {
 
     fn mul_bignum(&self, other: &BigNumber) -> Self {
         // use bn_to_scalar to convert other to a scalar
-        let bn_scalar: Self = <P256 as CT>::bn_to_scalar(other).unwrap();
+        let bn_scalar: Self = <P256 as CurveTrait>::bn_to_scalar(other).unwrap();
         p256::Scalar::mul(self, &bn_scalar)
     }
 
@@ -323,8 +323,8 @@ impl ST for P256_Scalar {
 
 impl SignatureTrait for CTSignatureP256<P256> {
     fn from_scalars(r: &BigNumber, s: &BigNumber) -> Result<Self> {
-        let r_scalar = <P256 as CT>::bn_to_scalar(r)?;
-        let s_scalar = <P256 as CT>::bn_to_scalar(s)?;
+        let r_scalar = <P256 as CurveTrait>::bn_to_scalar(r)?;
+        let s_scalar = <P256 as CurveTrait>::bn_to_scalar(s)?;
         let sig = p256::ecdsa::Signature::from_scalars(r_scalar, s_scalar)
             .map_err(|_| InternalInvariantFailed)?;
         Ok(CTSignatureP256(sig, std::marker::PhantomData::<P256>))
@@ -339,7 +339,7 @@ impl Deref for CTSignatureP256<P256> {
     }
 }
 
-impl VKT for VerifyingKey {
+impl VerifyingKeyTrait for VerifyingKey {
     type C = P256;
 
     fn from_point(point: Self::C) -> Result<Self> {
@@ -349,7 +349,7 @@ impl VKT for VerifyingKey {
     fn verify_signature(
         &self,
         digest: Keccak256,
-        signature: <Self::C as CT>::ECDSASignature,
+        signature: <Self::C as CurveTrait>::ECDSASignature,
     ) -> Result<()> {
         self.verify_digest(digest, signature.deref())
             .map_err(|_| InternalInvariantFailed)
@@ -374,7 +374,7 @@ impl VKT for VerifyingKey {
 
 #[cfg(test)]
 mod curve_point_tests {
-    use crate::{curve::CT, p256::P256, utils::testing::init_testing};
+    use crate::{curve::CurveTrait, p256::P256, utils::testing::init_testing};
     use p256::elliptic_curve::Group;
 
     #[test]

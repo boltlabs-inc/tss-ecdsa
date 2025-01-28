@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve::{CT, ST},
+    curve::{CurveTrait, ScalarTrait},
     errors::{CallerError, InternalError, Result},
     keygen::KeySharePrivate,
     paillier::{Ciphertext, DecryptionKey, EncryptionKey},
@@ -26,7 +26,7 @@ pub struct EvalEncrypted {
 }
 
 impl EvalEncrypted {
-    pub fn encrypt<C: CT, R: RngCore + CryptoRng>(
+    pub fn encrypt<C: CurveTrait, R: RngCore + CryptoRng>(
         share_private: &EvalPrivate<C>,
         pk: &EncryptionKey,
         rng: &mut R,
@@ -43,7 +43,7 @@ impl EvalEncrypted {
         Ok(EvalEncrypted { ciphertext })
     }
 
-    pub fn decrypt<C: CT>(&self, dk: &DecryptionKey) -> Result<EvalPrivate<C>> {
+    pub fn decrypt<C: CurveTrait>(&self, dk: &DecryptionKey) -> Result<EvalPrivate<C>> {
         let x = dk.decrypt(&self.ciphertext).map_err(|_| {
             error!("EvalEncrypted decryption failed, ciphertext out of range",);
             CallerError::DeserializationFailed
@@ -61,21 +61,21 @@ impl EvalEncrypted {
 
 /// Private coefficient share corresponding to some `CoeffPublic`.
 #[derive(Clone, ZeroizeOnDrop, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CoeffPrivate<C: CT> {
+pub struct CoeffPrivate<C: CurveTrait> {
     /// A BigNumber element in the range [1, q) representing a polynomial
     /// coefficient
     pub x: C::Scalar,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct EvalPrivate<C: CT> {
+pub struct EvalPrivate<C: CurveTrait> {
     /// A BigNumber element in the range [1, q) representing a polynomial
     /// coefficient
     pub x: C::Scalar,
 }
 
 /// Implement addition operation for `EvalPrivate`.
-impl<C: CT> Add<&EvalPrivate<C>> for EvalPrivate<C> {
+impl<C: CurveTrait> Add<&EvalPrivate<C>> for EvalPrivate<C> {
     type Output = Self;
 
     fn add(self, rhs: &Self) -> Self::Output {
@@ -83,19 +83,19 @@ impl<C: CT> Add<&EvalPrivate<C>> for EvalPrivate<C> {
     }
 }
 
-impl<C: CT> EvalPrivate<C> {
+impl<C: CurveTrait> EvalPrivate<C> {
     pub fn new(x: C::Scalar) -> Self {
         EvalPrivate { x }
     }
 }
 
-impl<C: CT> Debug for CoeffPrivate<C> {
+impl<C: CurveTrait> Debug for CoeffPrivate<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("CoeffPrivate([redacted])")
     }
 }
 
-impl<C: CT> TryFrom<&KeySharePrivate<C>> for CoeffPrivate<C> {
+impl<C: CurveTrait> TryFrom<&KeySharePrivate<C>> for CoeffPrivate<C> {
     fn try_from(share: &KeySharePrivate<C>) -> Result<Self> {
         let x = C::bn_to_scalar(share.as_ref())?;
         Ok(CoeffPrivate::<C> { x })
@@ -108,7 +108,7 @@ impl<C: CT> TryFrom<&KeySharePrivate<C>> for CoeffPrivate<C> {
 /// Coefficients and Evaluations are represented as curve scalars.
 /// The input shares are interpreted as coefficients, while the output shares
 /// are interpreted as evaluations.
-impl<C: CT> CoeffPrivate<C> {
+impl<C: CurveTrait> CoeffPrivate<C> {
     /// Sample a private key share uniformly at random.
     pub(crate) fn random() -> Self {
         let random_bn = C::Scalar::random();
@@ -129,7 +129,7 @@ impl<C: CT> CoeffPrivate<C> {
 /// Coefficients and Evaluations are represented as curve scalars.
 /// The input shares are interpreted as coefficients, while the output shares
 /// are interpreted as evaluations.
-impl<C: CT> EvalPrivate<C> {
+impl<C: CurveTrait> EvalPrivate<C> {
     /// Sample a private key share uniformly at random.
     pub fn random() -> Self {
         let random_scalar = C::Scalar::random();
@@ -146,7 +146,7 @@ impl<C: CT> EvalPrivate<C> {
     }
 }
 
-impl<C: CT> AsRef<C::Scalar> for CoeffPrivate<C> {
+impl<C: CurveTrait> AsRef<C::Scalar> for CoeffPrivate<C> {
     /// Get the coeff as a number.
     fn as_ref(&self) -> &C::Scalar {
         &self.x
@@ -162,7 +162,7 @@ pub struct CoeffPublic<C> {
     X: C,
 }
 
-impl<C: CT> CoeffPublic<C> {
+impl<C: CurveTrait> CoeffPublic<C> {
     /// Wrap a curve point as a public coeff.
     pub(crate) fn new(X: C) -> Self {
         Self { X }
@@ -183,7 +183,7 @@ impl<C> AsRef<C> for CoeffPublic<C> {
     }
 }
 
-impl<C: CT> Add<&CoeffPublic<C>> for CoeffPublic<C> {
+impl<C: CurveTrait> Add<&CoeffPublic<C>> for CoeffPublic<C> {
     type Output = Self;
 
     fn add(self, rhs: &Self) -> Self::Output {
@@ -217,7 +217,7 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo,
-        curve::{TestCT as C, CT},
+        curve::{CurveTrait, TestCT as C},
         utils::testing::init_testing,
         ParticipantIdentifier,
     };

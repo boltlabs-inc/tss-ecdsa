@@ -11,7 +11,7 @@
 //! This module includes the main [`Participant`] driver.
 
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, InternalError, Result},
     messages::{Message, MessageType},
     participant::{InnerProtocolParticipant, ProtocolParticipant, Status},
@@ -483,7 +483,7 @@ pub(crate) struct SharedContext<C> {
     order: BigNumber,
 }
 
-impl<C: CT> ProofContext for SharedContext<C> {
+impl<C: CurveTrait> ProofContext for SharedContext<C> {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
             self.sid.0.to_be_bytes().into_iter().collect(),
@@ -499,7 +499,7 @@ impl<C: CT> ProofContext for SharedContext<C> {
     }
 }
 
-impl<C: CT> SharedContext<C> {
+impl<C: CurveTrait> SharedContext<C> {
     /// This function should not be used outside of the tests.
     #[cfg(test)]
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
@@ -654,7 +654,7 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo::{self, AuxInfoParticipant, AuxInfoPublic},
-        curve::{TestCT, TestST, ST, VKT},
+        curve::{ScalarTrait, TestCT, TestST, VerifyingKeyTrait},
         k256::K256,
         keygen::{KeySharePublic, KeygenParticipant},
         messages,
@@ -923,7 +923,7 @@ mod tests {
         assert!(full_noninteractive_threshold_signing_works(2, 3, 4, 42).is_err());
     }
 
-    struct AuxInfoHelperOutput<C: CT + 'static> {
+    struct AuxInfoHelperOutput<C: CurveTrait + 'static> {
         auxinfo_outputs:
             HashMap<ParticipantIdentifier, <AuxInfoParticipant<C> as ProtocolParticipant>::Output>,
         inboxes: HashMap<ParticipantIdentifier, Vec<Message>>,
@@ -931,7 +931,7 @@ mod tests {
 
     // Receive as input a vector of configs and return a struct containing
     // the auxinfo outputs and the inboxes
-    fn auxinfo_helper<C: CT>(
+    fn auxinfo_helper<C: CurveTrait>(
         configs: Vec<ParticipantConfig>,
         mut rng: StdRng,
     ) -> Result<AuxInfoHelperOutput<C>> {
@@ -988,14 +988,14 @@ mod tests {
         })
     }
 
-    struct KeygenHelperOutput<C: CT + 'static> {
+    struct KeygenHelperOutput<C: CurveTrait + 'static> {
         keygen_outputs:
             HashMap<ParticipantIdentifier, <KeygenParticipant<C> as ProtocolParticipant>::Output>,
     }
 
     // Receive as input a vector of configs and the inboxes from auxinfo_helper
     // It returns a struct containing and the keygen outputs
-    fn keygen_helper<C: CT>(
+    fn keygen_helper<C: CurveTrait>(
         configs: Vec<ParticipantConfig>,
         mut inboxes: HashMap<ParticipantIdentifier, Vec<Message>>,
         mut rng: StdRng,
@@ -1044,7 +1044,7 @@ mod tests {
         Ok(KeygenHelperOutput { keygen_outputs })
     }
 
-    struct TshareHelperOutput<C: CT + 'static> {
+    struct TshareHelperOutput<C: CurveTrait + 'static> {
         tshare_inputs: Vec<tshare::Input<C>>,
         tshare_outputs:
             HashMap<ParticipantIdentifier, <TshareParticipant<C> as ProtocolParticipant>::Output>,
@@ -1052,7 +1052,7 @@ mod tests {
     // Receive as input a vector of configs, the child_index, the auxinfo outputs
     // and the keygen outputs It returns a struct containing and the tshare
     // outputs.
-    fn tshare_helper<C: CT + 'static>(
+    fn tshare_helper<C: CurveTrait + 'static>(
         configs: Vec<ParticipantConfig>,
         auxinfo_outputs: HashMap<
             ParticipantIdentifier,
@@ -1128,7 +1128,7 @@ mod tests {
 
     // Receives as input the auxinfo outputs and the keygen outputs
     // Returns the presign outputs
-    fn presign_helper<C: CT + 'static>(
+    fn presign_helper<C: CurveTrait + 'static>(
         configs: Vec<ParticipantConfig>,
         mut auxinfo_outputs: HashMap<
             ParticipantIdentifier,
@@ -1200,7 +1200,7 @@ mod tests {
         Ok(presign_outputs)
     }
 
-    pub struct SignHelperInput<C: CT + 'static> {
+    pub struct SignHelperInput<C: CurveTrait + 'static> {
         chain_code: [u8; 32],
         presign_outputs:
             HashMap<ParticipantIdentifier, <PresignParticipant<C> as ProtocolParticipant>::Output>,
@@ -1214,7 +1214,7 @@ mod tests {
     // Sign helper receives as input the configs and a special struct containg
     // all the information needed for signature generation.
     // INFO: this function is used to test the full non-interactive signing protocol
-    fn sign_helper<C: CT>(
+    fn sign_helper<C: CurveTrait>(
         configs: Vec<ParticipantConfig>,
         sign_helper_input: SignHelperInput<C>,
         mut rng: StdRng,
@@ -1357,7 +1357,7 @@ mod tests {
 
         // get the first participant and then call shifted_public_key
         let first_participant = sign_quorum.first().unwrap();
-        let saved_shifted_public_key: <K256 as CT>::VK = first_participant
+        let saved_shifted_public_key: <K256 as CurveTrait>::VK = first_participant
             .participant
             .shifted_public_key(public_key_shares, shift_scalar)?;
         assert!(saved_shifted_public_key
@@ -1396,7 +1396,7 @@ mod tests {
         Ok(auxinfo_outputs_presign)
     }
 
-    fn basic_noninteractive_signing_works<C: CT + 'static>(
+    fn basic_noninteractive_signing_works<C: CurveTrait + 'static>(
         n: usize, // Total number of participants in the protocol
     ) -> Result<()> {
         let mut rng = init_testing();
@@ -1493,7 +1493,7 @@ mod tests {
         Ok(())
     }
 
-    fn basic_noninteractive_threshold_signing_works<C: CT + 'static>(
+    fn basic_noninteractive_threshold_signing_works<C: CurveTrait + 'static>(
         r: usize, // The real quorum size, which is the number of participants that will actually
         // participate in the protocol
         t: usize, // The minimum quorum allowed to complete the protocol

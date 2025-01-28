@@ -1,7 +1,7 @@
 //! Utilities for Child Key Derivation (CKD) according to SLIP-0010.
 
 use crate::{
-    curve::{CT, ST},
+    curve::{CurveTrait, ScalarTrait},
     errors::CallerError,
 };
 use generic_array::{
@@ -18,7 +18,7 @@ const CURVE_NAME: &str = "Bitcoin seed";
 
 /// Represents the input to the CKD function.
 #[derive(Debug, Clone)]
-pub struct CKDInput<C: CT> {
+pub struct CKDInput<C: CurveTrait> {
     private_key: Option<C::Scalar>,
     public_key: C,
     chain_code: [u8; 32],
@@ -27,7 +27,7 @@ pub struct CKDInput<C: CT> {
 
 /// Represents the output of the CKD function.
 #[derive(Debug, Clone)]
-pub struct CKDOutput<C: CT> {
+pub struct CKDOutput<C: CurveTrait> {
     /// The chain code, used to generate more child keys.
     pub chain_code: [u8; 32],
     /// If private_key for `CKDInput` is None, this is equal to a
@@ -60,7 +60,7 @@ impl MasterKeyInput {
     }
 
     /// Derive master key from seed.
-    pub fn derive_master_key<C: CT>(&self) -> CKDOutput<C> {
+    pub fn derive_master_key<C: CurveTrait>(&self) -> CKDOutput<C> {
         let hmac = HmacSha512::new_from_slice(self.curve.as_bytes())
             .expect("this never fails: hmac can handle keys of any size");
         let mut i = hmac
@@ -87,7 +87,7 @@ impl MasterKeyInput {
     }
 }
 
-impl<C: CT> CKDInput<C> {
+impl<C: CurveTrait> CKDInput<C> {
     /// Create a new CKDInput.
     /// If the purpose is non-threshold key generation, the private key
     /// should be provided. If the purpose is for threshold key generation,

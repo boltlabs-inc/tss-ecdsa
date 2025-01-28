@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, InternalError, Result},
     keygen::{KeySharePrivate, KeySharePublic},
     paillier::{Ciphertext, DecryptionKey, EncryptionKey},
@@ -22,12 +22,12 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Encrypted [`KeyUpdatePrivate`].
 #[derive(Clone, Serialize, Deserialize)]
-pub struct KeyUpdateEncrypted<C: CT> {
+pub struct KeyUpdateEncrypted<C: CurveTrait> {
     ciphertext: Ciphertext,
     phantom: PhantomData<C>,
 }
 
-impl<C: CT> KeyUpdateEncrypted<C> {
+impl<C: CurveTrait> KeyUpdateEncrypted<C> {
     pub fn encrypt<R: RngCore + CryptoRng>(
         update: &KeyUpdatePrivate<C>,
         pk: &EncryptionKey,
@@ -78,7 +78,7 @@ impl<C> Debug for KeyUpdatePrivate<C> {
     }
 }
 
-impl<C: CT> KeyUpdatePrivate<C> {
+impl<C: CurveTrait> KeyUpdatePrivate<C> {
     /// Sample a private key share uniformly at random.
     pub(crate) fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
         let random_bn = BigNumber::from_rng(&C::order(), rng);
@@ -140,7 +140,7 @@ pub struct KeyUpdatePublic<C> {
     X: C,
 }
 
-impl<C: CT> KeyUpdatePublic<C> {
+impl<C: CurveTrait> KeyUpdatePublic<C> {
     pub(crate) fn new(participant: ParticipantIdentifier, share: C) -> Self {
         Self {
             participant,

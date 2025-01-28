@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::{InternalError, Result},
     messages::{Message, MessageType, SignMessageType},
 };
@@ -16,15 +16,15 @@ use crate::{
 /// A single participant's share of the signature.
 #[allow(unused)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SignatureShare<C: CT>(pub C::Scalar);
+pub struct SignatureShare<C: CurveTrait>(pub C::Scalar);
 
-impl<C: CT> SignatureShare<C> {
+impl<C: CurveTrait> SignatureShare<C> {
     pub(super) fn new(share: C::Scalar) -> Self {
         Self(share)
     }
 }
 
-impl<C: CT> TryFrom<&Message> for SignatureShare<C> {
+impl<C: CurveTrait> TryFrom<&Message> for SignatureShare<C> {
     type Error = InternalError;
 
     fn try_from(message: &Message) -> Result<Self> {
@@ -36,7 +36,7 @@ impl<C: CT> TryFrom<&Message> for SignatureShare<C> {
     }
 }
 
-impl<C: CT> std::ops::Add<SignatureShare<C>> for SignatureShare<C> {
+impl<C: CurveTrait> std::ops::Add<SignatureShare<C>> for SignatureShare<C> {
     type Output = C::Scalar;
     fn add(self, rhs: SignatureShare<C>) -> Self::Output {
         self.0.add(rhs.0)

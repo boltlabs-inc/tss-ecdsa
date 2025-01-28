@@ -11,7 +11,7 @@
 
 use crate::{
     broadcast::participant::{BroadcastParticipant, BroadcastTag},
-    curve::CT,
+    curve::CurveTrait,
     errors::{InternalError, Result},
     local_storage::{storage as local_storage, LocalStorage, TypeTag},
     messages::{Message, MessageType},
@@ -401,7 +401,7 @@ pub(crate) trait InnerProtocolParticipant: ProtocolParticipant {
     fn status_mut(&mut self) -> &mut Status;
 }
 
-pub(crate) trait Broadcast<C: CT> {
+pub(crate) trait Broadcast<C: CurveTrait> {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C>;
     ///`sid` corresponds to a unique session identifier.
     fn broadcast<R: RngCore + CryptoRng>(

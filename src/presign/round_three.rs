@@ -8,7 +8,7 @@
 
 use crate::{
     auxinfo::AuxInfoPublic,
-    curve::{CT, ST},
+    curve::{CurveTrait, ScalarTrait},
     errors::{InternalError, Result},
     messages::{Message, MessageType, PresignMessageType},
     presign::{
@@ -29,7 +29,7 @@ use tracing::error;
 use zeroize::ZeroizeOnDrop;
 
 #[derive(Clone, ZeroizeOnDrop)]
-pub(crate) struct Private<C: CT> {
+pub(crate) struct Private<C: CurveTrait> {
     pub k: BigNumber,
     pub chi: C::Scalar,
     #[zeroize(skip)]
@@ -40,7 +40,7 @@ pub(crate) struct Private<C: CT> {
     pub Delta: C,
 }
 
-impl<C: CT + Debug> Debug for Private<C> {
+impl<C: CurveTrait + Debug> Debug for Private<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Note: delta, Gamma, and Delta are all sent over the network to other
         // parties so I assume they are not actually private data.
@@ -61,19 +61,19 @@ impl<C: CT + Debug> Debug for Private<C> {
 /// necessarily valid (i.e., that all the components are valid with respect to
 /// each other); use [`Public::verify`] to check this latter condition.
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct Public<C: CT> {
+pub(crate) struct Public<C: CurveTrait> {
     //#[serde(bound(deserialize = "C: CT"))]
     pub delta: C::Scalar,
-    #[serde(bound(deserialize = "C: CT"))]
+    #[serde(bound(deserialize = "C: CurveTrait"))]
     pub Delta: C,
-    #[serde(bound(deserialize = "C: CT"))]
+    #[serde(bound(deserialize = "C: CurveTrait"))]
     pub psi_double_prime: PiLogProof<C>,
     /// Gamma value included for convenience
-    #[serde(bound(deserialize = "C: CT"))]
+    #[serde(bound(deserialize = "C: CurveTrait"))]
     pub Gamma: C,
 }
 
-impl<C: CT + 'static> Public<C> {
+impl<C: CurveTrait + 'static> Public<C> {
     /// Verify the validity of [`Public`] against the prover's [`AuxInfoPublic`]
     /// and [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast)
     /// values.
@@ -99,7 +99,7 @@ impl<C: CT + 'static> Public<C> {
     }
 }
 
-impl<C: CT> TryFrom<&Message> for Public<C> {
+impl<C: CurveTrait> TryFrom<&Message> for Public<C> {
     type Error = InternalError;
 
     fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {

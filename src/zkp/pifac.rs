@@ -18,7 +18,7 @@
 //! [EPrint archive, 2021](https://eprint.iacr.org/archive/2021/060/1634824619.pdf).
 
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::*,
     parameters::{ELL, EPSILON},
     ring_pedersen::{Commitment, CommitmentRandomness, MaskedRandomness, VerifiedRingPedersen},
@@ -36,7 +36,7 @@ use tracing::error;
 /// Proof that the modulus `N` can be factored into two numbers greater than
 /// `2^ℓ` for a parameter `ℓ`.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct PiFacProof<C: CT> {
+pub(crate) struct PiFacProof<C: CurveTrait> {
     /// Commitment to the factor `p` (`P` in the paper).
     p_commitment: Commitment,
     /// Commitment to the factor `q` (`Q` in the paper).
@@ -117,7 +117,7 @@ impl<'a> ProverSecret<'a> {
     }
 }
 
-impl<C: CT> Proof for PiFacProof<C> {
+impl<C: CurveTrait> Proof for PiFacProof<C> {
     type CommonInput<'a> = CommonInput<'a>;
     type ProverSecret<'a> = ProverSecret<'a>;
 
@@ -294,7 +294,7 @@ impl<C: CT> Proof for PiFacProof<C> {
     }
 }
 
-impl<C: CT> PiFacProof<C> {
+impl<C: CurveTrait> PiFacProof<C> {
     #[allow(clippy::too_many_arguments)]
     fn fill_transcript(
         transcript: &mut Transcript,
@@ -336,7 +336,7 @@ fn sqrt(num: &BigNumber) -> BigNumber {
 #[cfg(test)]
 mod tests {
     use crate::{
-        curve::{TestCT, CT},
+        curve::{CurveTrait, TestCT},
         paillier::prime_gen,
         utils::{random_positive_bn, testing::init_testing},
         zkp::BadContext,

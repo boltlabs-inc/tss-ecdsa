@@ -1,6 +1,6 @@
 //! Module to export and import key shares, with encryption in transit.
 
-use crate::{curve::CT, errors::Result, keygen::KeySharePrivate};
+use crate::{curve::CurveTrait, errors::Result, keygen::KeySharePrivate};
 
 mod pke;
 pub use pke::Pke;
@@ -59,7 +59,7 @@ impl KeyShareEncrypted {
     ///
     /// assert_eq!(imported, key_share);
     /// ```
-    pub fn export_keyshare<T: Pke, C: CT>(
+    pub fn export_keyshare<T: Pke, C: CurveTrait>(
         key_share: &KeySharePrivate<C>,
         receiver_pk: &T::PublicKey,
         sender_sk: &T::SecretKey,
@@ -81,7 +81,7 @@ impl KeyShareEncrypted {
     /// # Returns
     ///
     /// A `KeySharePrivate` object.
-    pub fn import_keyshare<T: Pke, C: CT>(
+    pub fn import_keyshare<T: Pke, C: CurveTrait>(
         &self,
         sender_pk: &T::PublicKey,
         receiver_sk: &T::SecretKey,

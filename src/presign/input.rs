@@ -10,7 +10,7 @@ use tracing::error;
 
 use crate::{
     auxinfo::{self, AuxInfoPrivate, AuxInfoPublic},
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, InternalError, Result},
     keygen::{self, KeySharePrivate, KeySharePublic},
     ParticipantIdentifier,
@@ -26,7 +26,7 @@ pub struct Input<C> {
     auxinfo_output: auxinfo::Output,
 }
 
-impl<C: CT> Input<C> {
+impl<C: CurveTrait> Input<C> {
     /// Creates a new [`Input`] from the outputs of the
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.

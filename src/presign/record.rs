@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve::{CT, ST},
+    curve::{CurveTrait, ScalarTrait},
     errors::{
         CallerError,
         InternalError::{InternalInvariantFailed, ProtocolError},
@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use tracing::error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-pub(crate) struct RecordPair<C: CT> {
+pub(crate) struct RecordPair<C: CurveTrait> {
     pub(crate) private: RoundThreePrivate<C>,
     pub(crate) publics: Vec<RoundThreePublic<C>>,
 }
@@ -52,7 +52,7 @@ pub(crate) struct RecordPair<C: CT> {
 ///
 /// [^cite]: [Wikipedia](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm#Signature_generation_algorithm)
 #[derive(Zeroize, ZeroizeOnDrop, PartialEq, Eq)]
-pub struct PresignRecord<C: CT> {
+pub struct PresignRecord<C: CurveTrait> {
     R: C,
     k: C::Scalar,
     chi: C::Scalar,
@@ -60,7 +60,7 @@ pub struct PresignRecord<C: CT> {
 
 const RECORD_TAG: &[u8] = b"Presign Record";
 
-impl<C: CT> Debug for PresignRecord<C> {
+impl<C: CurveTrait> Debug for PresignRecord<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Redacting all the fields because I'm not sure how sensitive they are. If
         // later analysis suggests they're fine to print, please udpate
@@ -73,7 +73,7 @@ impl<C: CT> Debug for PresignRecord<C> {
     }
 }
 
-impl<C: CT> TryFrom<RecordPair<C>> for PresignRecord<C> {
+impl<C: CurveTrait> TryFrom<RecordPair<C>> for PresignRecord<C> {
     type Error = crate::errors::InternalError;
     fn try_from(RecordPair { private, publics }: RecordPair<C>) -> Result<Self> {
         let mut delta = private.delta;
@@ -103,7 +103,7 @@ impl<C: CT> TryFrom<RecordPair<C>> for PresignRecord<C> {
     }
 }
 
-impl<C: CT> PresignRecord<C> {
+impl<C: CurveTrait> PresignRecord<C> {
     /// Get the mask share (`k` in the paper) from the record.
     pub(crate) fn mask_share(&self) -> &C::Scalar {
         &self.k
@@ -247,7 +247,7 @@ mod tests {
     use rand::{CryptoRng, RngCore};
 
     use crate::{
-        curve::{TestCT, CT, ST},
+        curve::{CurveTrait, ScalarTrait, TestCT},
         keygen,
         presign::{participant::presign_record_set_is_valid, record::RECORD_TAG},
         utils::testing::init_testing,
@@ -263,9 +263,9 @@ mod tests {
         /// Simulate creation of a random presign record. Do not use outside of
         /// testing.
         pub(crate) fn simulate() -> PresignRecord {
-            let mask_point = <TestCT as CT>::random();
-            let mask_share = <TestCT as CT>::Scalar::random();
-            let masked_key_share = <TestCT as CT>::Scalar::random();
+            let mask_point = <TestCT as CurveTrait>::random();
+            let mask_share = <TestCT as CurveTrait>::Scalar::random();
+            let masked_key_share = <TestCT as CurveTrait>::Scalar::random();
 
             PresignRecord {
                 R: mask_point,
@@ -288,15 +288,16 @@ mod tests {
             // CT>::Scalar::generate_biased(rng)).take(keygen_outputs.len())
             //    .collect::<Vec<_>>();
             // TODO: use generate_biased when generalized
-            let mask_shares = std::iter::repeat_with(<TestCT as CT>::Scalar::random)
+            let mask_shares = std::iter::repeat_with(<TestCT as CurveTrait>::Scalar::random)
                 .take(keygen_outputs.len())
                 .collect::<Vec<_>>();
             let mask = mask_shares
                 .iter()
-                .fold(<TestCT as CT>::Scalar::zero(), |sum, mask_share| {
+                .fold(<TestCT as CurveTrait>::Scalar::zero(), |sum, mask_share| {
                     sum + mask_share
                 });
-            let mask_inversion = Option::<<TestCT as CT>::Scalar>::from(mask.invert()).unwrap();
+            let mask_inversion =
+                Option::<<TestCT as CurveTrait>::Scalar>::from(mask.invert()).unwrap();
             // `R` in the paper.
             let mask_point = TestCT::GENERATOR.multiply_by_scalar(&mask_inversion);
 

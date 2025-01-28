@@ -8,7 +8,7 @@
 
 use crate::{
     auxinfo::participant::AuxInfoParticipant,
-    curve::CT,
+    curve::CurveTrait,
     errors::Result,
     messages::{AuxinfoMessageType, Message, MessageType},
     participant::InnerProtocolParticipant,
@@ -27,15 +27,15 @@ use serde::{Deserialize, Serialize};
 ///
 /// This type includes proofs for `𝚷[fac]` and `𝚷[mod]`.
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct AuxInfoProof<C: CT> {
+pub(crate) struct AuxInfoProof<C: CurveTrait> {
     pimod: pimod::PiModProof,
-    #[serde(bound(deserialize = "C: CT"))]
+    #[serde(bound(deserialize = "C: CurveTrait"))]
     pifac: pifac::PiFacProof<C>,
 }
 
 /// Common input and setup parameters known to both the prover and the verifier.
 #[derive(Clone)]
-pub(crate) struct CommonInput<'a, C: CT + 'a + 'static> {
+pub(crate) struct CommonInput<'a, C: CurveTrait + 'a + 'static> {
     shared_context: &'a <AuxInfoParticipant<C> as InnerProtocolParticipant>::Context,
     sid: Identifier,
     rho: [u8; 32],
@@ -44,7 +44,7 @@ pub(crate) struct CommonInput<'a, C: CT + 'a + 'static> {
     modulus: &'a BigNumber,
 }
 
-impl<'a, C: CT> CommonInput<'a, C> {
+impl<'a, C: CurveTrait> CommonInput<'a, C> {
     /// Collect common parameters for proving or verifying a [`AuxInfoProof`]
     pub(crate) fn new(
         shared_context: &'a <AuxInfoParticipant<C> as InnerProtocolParticipant>::Context,
@@ -65,7 +65,7 @@ impl<'a, C: CT> CommonInput<'a, C> {
     }
 }
 
-impl<C: CT + 'static> AuxInfoProof<C> {
+impl<C: CurveTrait + 'static> AuxInfoProof<C> {
     /// Generate a fresh transcript to be used in [`AuxInfoProof`].
     fn new_transcript() -> Transcript {
         Transcript::new(b"AuxInfoProof")

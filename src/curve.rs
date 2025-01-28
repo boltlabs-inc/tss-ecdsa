@@ -13,7 +13,7 @@ use std::{fmt::Debug, ops::Add};
 use zeroize::Zeroize;
 
 /// Generic elliptic curve point.
-pub trait CT:
+pub trait CurveTrait:
     Clone
     + Copy
     + Debug
@@ -37,7 +37,7 @@ pub trait CT:
     const IDENTITY: Self;
 
     /// The type of scalars.
-    type Scalar: ST;
+    type Scalar: ScalarTrait;
 
     /// The encoded point type.
     type Encoded;
@@ -46,7 +46,7 @@ pub trait CT:
     type Projective;
 
     /// The ECDSA Verifying Key
-    type VK: VKT<C = Self>;
+    type VK: VerifyingKeyTrait<C = Self>;
 
     /// The ECDSA Signature type
     type ECDSASignature: SignatureTrait;
@@ -110,9 +110,9 @@ pub trait SignatureTrait: Clone + Copy + Debug + PartialEq {
 }
 
 /// Verifying Key trait
-pub trait VKT: Clone + Copy + Debug + Send + Sync + Eq + PartialEq {
+pub trait VerifyingKeyTrait: Clone + Copy + Debug + Send + Sync + Eq + PartialEq {
     /// The curve associated with this verifying key.
-    type C: CT;
+    type C: CurveTrait;
 
     /// Create a verifying key from a curve point.
     fn from_point(point: Self::C) -> Result<Self>;
@@ -121,7 +121,7 @@ pub trait VKT: Clone + Copy + Debug + Send + Sync + Eq + PartialEq {
     fn verify_signature(
         &self,
         digest: CoreWrapper<Keccak256Core>,
-        signature: <Self::C as CT>::ECDSASignature,
+        signature: <Self::C as CurveTrait>::ECDSASignature,
     ) -> Result<()>;
 
     /// Add two verifying keys.
@@ -129,7 +129,7 @@ pub trait VKT: Clone + Copy + Debug + Send + Sync + Eq + PartialEq {
 }
 
 /// Scalar trait.
-pub trait ST:
+pub trait ScalarTrait:
     Sync
     + Send
     + Clone
@@ -202,7 +202,7 @@ pub trait ST:
     fn invert(&self) -> Option<Self>;
 }
 
-impl ST for K256_Scalar {
+impl ScalarTrait for K256_Scalar {
     fn zero() -> Self {
         K256_Scalar::ZERO
     }
@@ -233,7 +233,7 @@ impl ST for K256_Scalar {
 
     fn mul_bignum(&self, other: &BigNumber) -> Self {
         // use bn_to_scalar to convert other to a scalar
-        let bn_scalar: Self = <K256 as CT>::bn_to_scalar(other).unwrap();
+        let bn_scalar: Self = <K256 as CurveTrait>::bn_to_scalar(other).unwrap();
         k256::Scalar::mul(self, &bn_scalar)
     }
 
@@ -289,7 +289,7 @@ mod tests {
     use libpaillier::unknown_order::BigNumber;
 
     use crate::{
-        curve::{TestCT, CT, ST},
+        curve::{CurveTrait, ScalarTrait, TestCT},
         utils::testing::init_testing,
     };
 
@@ -300,8 +300,8 @@ mod tests {
 
         let scalar = TestCT::bn_to_scalar(&neg1).unwrap();
         assert_eq!(
-            <TestCT as CT>::Scalar::zero(),
-            scalar.add(&<TestCT as CT>::Scalar::one())
+            <TestCT as CurveTrait>::Scalar::zero(),
+            scalar.add(&<TestCT as CurveTrait>::Scalar::one())
         );
     }
 }

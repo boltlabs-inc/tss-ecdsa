@@ -14,7 +14,7 @@ use tracing::{error, info};
 use zeroize::Zeroize;
 
 use crate::{
-    curve::{SignatureTrait, CT, ST, VKT},
+    curve::{CurveTrait, ScalarTrait, SignatureTrait, VerifyingKeyTrait},
     errors::{CallerError, InternalError, Result},
     keygen::KeySharePublic,
     local_storage::LocalStorage,
@@ -50,7 +50,7 @@ use crate::{
 /// The [`PresignRecord`] provided as input must be discarded; no copies should
 /// remain after use.
 #[derive(Debug)]
-pub struct SignParticipant<C: CT> {
+pub struct SignParticipant<C: CurveTrait> {
     sid: Identifier,
     storage: LocalStorage,
     input: Input<C>,
@@ -60,7 +60,7 @@ pub struct SignParticipant<C: CT> {
 
 /// Input for the non-interactive signing protocol.
 #[derive(Debug)]
-pub struct Input<C: CT> {
+pub struct Input<C: CurveTrait> {
     digest: Keccak256,
     presign_record: PresignRecord<C>,
     public_key_shares: Vec<KeySharePublic<C>>,
@@ -68,7 +68,7 @@ pub struct Input<C: CT> {
     shift: Option<C::Scalar>,
 }
 
-impl<C: CT> Input<C> {
+impl<C: CurveTrait> Input<C> {
     /// Construct a new input for signing.
     ///
     /// The `public_key_shares` should be the same ones used to generate the
@@ -143,12 +143,12 @@ impl<C: CT> Input<C> {
 /// Note that this is only used in the case of identifiable abort, which is not
 /// yet implemented. A correct execution of signing does not involve any ZK
 /// proofs.
-pub(crate) struct SignContext<C: CT> {
+pub(crate) struct SignContext<C: CurveTrait> {
     shared_context: SharedContext<C>,
     message_digest: [u8; 32],
 }
 
-impl<C: CT> ProofContext for SignContext<C> {
+impl<C: CurveTrait> ProofContext for SignContext<C> {
     fn as_bytes(&self) -> Result<Vec<u8>> {
         Ok([
             self.shared_context.as_bytes()?,
@@ -158,7 +158,7 @@ impl<C: CT> ProofContext for SignContext<C> {
     }
 }
 
-impl<C: CT + 'static> SignContext<C> {
+impl<C: CurveTrait + 'static> SignContext<C> {
     /// Build a [`SignContext`] from a [`SignParticipant`].
     pub(crate) fn collect(p: &SignParticipant<C>) -> Self {
         Self {
@@ -171,24 +171,25 @@ impl<C: CT + 'static> SignContext<C> {
 mod storage {
 
     use crate::{
-        curve::CT, local_storage::TypeTag, sign::non_interactive_sign::share::SignatureShare,
+        curve::CurveTrait, local_storage::TypeTag,
+        sign::non_interactive_sign::share::SignatureShare,
     };
-    pub(super) struct Share<C: CT> {
+    pub(super) struct Share<C: CurveTrait> {
         _c: std::marker::PhantomData<C>,
     }
-    impl<C: CT + 'static> TypeTag for Share<C> {
+    impl<C: CurveTrait + 'static> TypeTag for Share<C> {
         type Value = SignatureShare<C>;
     }
 
-    pub(super) struct XProj<C: CT> {
+    pub(super) struct XProj<C: CurveTrait> {
         _c: std::marker::PhantomData<C>,
     }
-    impl<C: CT + 'static> TypeTag for XProj<C> {
+    impl<C: CurveTrait + 'static> TypeTag for XProj<C> {
         type Value = C::Scalar;
     }
 }
 
-impl<C: CT + 'static> ProtocolParticipant for SignParticipant<C> {
+impl<C: CurveTrait + 'static> ProtocolParticipant for SignParticipant<C> {
     type Input = Input<C>;
     type Output = C::ECDSASignature;
 
@@ -285,7 +286,7 @@ impl<C: CT + 'static> ProtocolParticipant for SignParticipant<C> {
     }
 }
 
-impl<C: CT + 'static> InnerProtocolParticipant for SignParticipant<C> {
+impl<C: CurveTrait + 'static> InnerProtocolParticipant for SignParticipant<C> {
     type Context = SignContext<C>;
 
     fn retrieve_context(&self) -> Self::Context {
@@ -305,7 +306,7 @@ impl<C: CT + 'static> InnerProtocolParticipant for SignParticipant<C> {
     }
 }
 
-impl<C: CT + 'static> SignParticipant<C> {
+impl<C: CurveTrait + 'static> SignParticipant<C> {
     /// Compute the public key with the shift value applied.
     pub fn shifted_public_key(
         &self,
@@ -474,7 +475,7 @@ impl<C: CT + 'static> SignParticipant<C> {
 #[cfg(test)]
 mod test {
     use crate::{
-        curve::{SignatureTrait, TestCT, VKT},
+        curve::{SignatureTrait, TestCT, VerifyingKeyTrait},
         ParticipantIdentifier,
     };
     use std::{collections::HashMap, ops::Deref};
@@ -485,7 +486,7 @@ mod test {
     use tracing::debug;
 
     use crate::{
-        curve::{CT, ST},
+        curve::{CurveTrait, ScalarTrait},
         errors::Result,
         keygen,
         messages::{Message, MessageType},
@@ -506,7 +507,7 @@ mod test {
         rng: &mut R,
     ) -> Option<(
         &'a SignParticipant,
-        ProcessOutcome<<TestCT as CT>::ECDSASignature>,
+        ProcessOutcome<<TestCT as CurveTrait>::ECDSASignature>,
     )> {
         // Pick a random message to process
         if inbox.is_empty() {
@@ -544,35 +545,37 @@ mod test {
         message: &[u8],
         records: &[PresignRecord],
         keygen_outputs: &[keygen::Output<TestCT>],
-    ) -> <TestCT as CT>::ECDSASignature {
+    ) -> <TestCT as CurveTrait>::ECDSASignature {
         let k = records
             .iter()
             .map(|record| record.mask_share())
-            .fold(<TestCT as CT>::Scalar::zero(), |a, b| a + b);
+            .fold(<TestCT as CurveTrait>::Scalar::zero(), |a, b| a + b);
 
         let secret_key = keygen_outputs
             .iter()
             .map(|output| TestCT::bn_to_scalar(output.private_key_share().as_ref()).unwrap())
-            .fold(<TestCT as CT>::Scalar::zero(), |a, b| a + b);
+            .fold(<TestCT as CurveTrait>::Scalar::zero(), |a, b| a + b);
 
         let r = records[0].x_projection().unwrap();
 
-        let m = <<TestCT as CT>::Scalar as Reduce<U256>>::reduce_bytes(&Keccak256::digest(message));
+        let m = <<TestCT as CurveTrait>::Scalar as Reduce<U256>>::reduce_bytes(&Keccak256::digest(
+            message,
+        ));
 
-        let mut s: <TestCT as CT>::Scalar = k * (m + r * secret_key);
+        let mut s: <TestCT as CurveTrait>::Scalar = k * (m + r * secret_key);
 
         if s.is_high() {
             s = s.negate();
         }
 
-        let signature = <TestCT as CT>::ECDSASignature::from_scalars(
-            &<TestCT as CT>::scalar_to_bn(&r),
-            &<TestCT as CT>::scalar_to_bn(&s),
+        let signature = <TestCT as CurveTrait>::ECDSASignature::from_scalars(
+            &<TestCT as CurveTrait>::scalar_to_bn(&r),
+            &<TestCT as CurveTrait>::scalar_to_bn(&s),
         )
         .unwrap();
 
         // These checks fail when the overall thing fails
-        let public_key: <TestCT as CT>::VK = keygen_outputs[0].public_key().unwrap();
+        let public_key: <TestCT as CurveTrait>::VK = keygen_outputs[0].public_key().unwrap();
 
         assert!(public_key
             .verify_signature(Keccak256::new_with_prefix(message), signature)

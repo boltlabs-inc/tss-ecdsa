@@ -8,7 +8,7 @@
 
 use crate::{
     broadcast::data::BroadcastData,
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, InternalError, Result},
     local_storage::LocalStorage,
     messages::{BroadcastMessageType, Message, MessageType},
@@ -35,7 +35,7 @@ mod storage {
 }
 
 #[derive(Debug)]
-pub(crate) struct BroadcastParticipant<C: CT> {
+pub(crate) struct BroadcastParticipant<C: CurveTrait> {
     /// The current session identifier
     sid: Identifier,
     /// A unique identifier for this participant
@@ -87,7 +87,7 @@ impl BroadcastOutput {
     }
 }
 
-impl<C: CT> ProtocolParticipant for BroadcastParticipant<C> {
+impl<C: CurveTrait> ProtocolParticipant for BroadcastParticipant<C> {
     type Input = ();
     type Output = BroadcastOutput;
 
@@ -174,7 +174,7 @@ impl<C: CT> ProtocolParticipant for BroadcastParticipant<C> {
     }
 }
 
-impl<C: CT> InnerProtocolParticipant for BroadcastParticipant<C> {
+impl<C: CurveTrait> InnerProtocolParticipant for BroadcastParticipant<C> {
     type Context = SharedContext<C>;
 
     /// This method is never used.
@@ -195,7 +195,7 @@ impl<C: CT> InnerProtocolParticipant for BroadcastParticipant<C> {
     }
 }
 
-impl<C: CT> BroadcastParticipant<C> {
+impl<C: CurveTrait> BroadcastParticipant<C> {
     #[instrument(skip_all, err(Debug))]
     pub(crate) fn gen_round_one_msgs<R: RngCore + CryptoRng>(
         &mut self,

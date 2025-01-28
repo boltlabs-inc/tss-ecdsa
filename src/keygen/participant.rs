@@ -12,7 +12,7 @@ use std::marker::PhantomData;
 
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, InternalError, Result},
     keygen::{
         keygen_commit::{KeygenCommit, KeygenDecommit},
@@ -85,7 +85,7 @@ mod storage {
 /// The [private key share](KeySharePrivate) in the output requires secure
 /// persistent storage.
 #[derive(Debug)]
-pub struct KeygenParticipant<C: CT> {
+pub struct KeygenParticipant<C: CurveTrait> {
     /// The current session identifier
     sid: Identifier,
     /// A unique identifier for this participant.
@@ -101,7 +101,7 @@ pub struct KeygenParticipant<C: CT> {
     status: Status,
 }
 
-impl<C: CT + 'static> ProtocolParticipant for KeygenParticipant<C> {
+impl<C: CurveTrait + 'static> ProtocolParticipant for KeygenParticipant<C> {
     type Input = ();
     type Output = Output<C>;
 
@@ -196,7 +196,7 @@ impl<C: CT + 'static> ProtocolParticipant for KeygenParticipant<C> {
     }
 }
 
-impl<C: CT + 'static> InnerProtocolParticipant for KeygenParticipant<C> {
+impl<C: CurveTrait + 'static> InnerProtocolParticipant for KeygenParticipant<C> {
     type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
@@ -216,13 +216,13 @@ impl<C: CT + 'static> InnerProtocolParticipant for KeygenParticipant<C> {
     }
 }
 
-impl<C: CT> Broadcast<C> for KeygenParticipant<C> {
+impl<C: CurveTrait> Broadcast<C> for KeygenParticipant<C> {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C> {
         &mut self.broadcast_participant
     }
 }
 
-impl<C: CT + 'static> KeygenParticipant<C> {
+impl<C: CurveTrait + 'static> KeygenParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this

@@ -17,7 +17,7 @@ use crate::{
         Output,
     },
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, InternalError, Result},
     local_storage::LocalStorage,
     messages::{AuxinfoMessageType, Message, MessageType},
@@ -47,10 +47,10 @@ mod storage {
     impl TypeTag for Commit {
         type Value = Commitment;
     }
-    pub(super) struct Decommit<C: CT> {
+    pub(super) struct Decommit<C: CurveTrait> {
         _phantom: std::marker::PhantomData<C>,
     }
-    impl<C: CT + 'static> TypeTag for Decommit<C> {
+    impl<C: CurveTrait + 'static> TypeTag for Decommit<C> {
         type Value = CommitmentScheme<C>;
     }
     pub(super) struct GlobalRid;
@@ -79,7 +79,7 @@ mod storage {
 /// # 🔒 Storage requirements
 /// The [`AuxInfoPrivate`] output requires secure persistent storage.
 #[derive(Debug)]
-pub struct AuxInfoParticipant<C: CT> {
+pub struct AuxInfoParticipant<C: CurveTrait> {
     /// The current session identifier
     sid: Identifier,
     /// A unique identifier for this participant
@@ -95,7 +95,7 @@ pub struct AuxInfoParticipant<C: CT> {
     status: Status,
 }
 
-impl<C: CT + 'static> ProtocolParticipant for AuxInfoParticipant<C> {
+impl<C: CurveTrait + 'static> ProtocolParticipant for AuxInfoParticipant<C> {
     type Input = ();
     // The output type includes `AuxInfoPublic` material for all participants
     // (including ourselves) and `AuxInfoPrivate` for ourselves.
@@ -189,7 +189,7 @@ impl<C: CT + 'static> ProtocolParticipant for AuxInfoParticipant<C> {
     }
 }
 
-impl<C: CT + 'static> InnerProtocolParticipant for AuxInfoParticipant<C> {
+impl<C: CurveTrait + 'static> InnerProtocolParticipant for AuxInfoParticipant<C> {
     type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
@@ -209,13 +209,13 @@ impl<C: CT + 'static> InnerProtocolParticipant for AuxInfoParticipant<C> {
     }
 }
 
-impl<C: CT> Broadcast<C> for AuxInfoParticipant<C> {
+impl<C: CurveTrait> Broadcast<C> for AuxInfoParticipant<C> {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C> {
         &mut self.broadcast_participant
     }
 }
 
-impl<'a, C: CT + 'static> AuxInfoParticipant<C> {
+impl<'a, C: CurveTrait + 'static> AuxInfoParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this
@@ -607,7 +607,7 @@ mod tests {
     use std::collections::HashMap;
     type SharedContext = super::SharedContext<TestCT>;
 
-    impl<C: CT + 'static> AuxInfoParticipant<C> {
+    impl<C: CurveTrait + 'static> AuxInfoParticipant<C> {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             input: (),

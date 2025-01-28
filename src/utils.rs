@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, InternalError, Result},
 };
 use libpaillier::unknown_order::BigNumber;
@@ -146,7 +146,7 @@ pub(crate) fn random_plusminus_by_size_with_minimum<R: RngCore + CryptoRng>(
 
 /// Derive a deterministic pseudorandom value in `[-n, n]` from the
 /// [`Transcript`].
-pub(crate) fn plusminus_challenge_from_transcript<C: CT>(
+pub(crate) fn plusminus_challenge_from_transcript<C: CurveTrait>(
     transcript: &mut Transcript,
 ) -> Result<BigNumber> {
     let mut is_neg_byte = vec![0u8; 1];

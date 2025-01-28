@@ -16,7 +16,7 @@ use super::{
 };
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, InternalError, Result},
     keygen::{self, KeySharePrivate, KeySharePublic, KeygenParticipant},
     local_storage::LocalStorage,
@@ -31,7 +31,7 @@ use crate::{
     Identifier, ParticipantConfig,
 };
 
-use crate::curve::ST;
+use crate::curve::ScalarTrait;
 use merlin::Transcript;
 use rand::{CryptoRng, RngCore};
 use tracing::{error, info, instrument, warn};
@@ -65,7 +65,7 @@ mod storage {
         type Value = [u8; 32];
     }
     pub(super) struct PrivateCoeffs<C>(PhantomData<C>);
-    impl<C: CT + Send + Sync + 'static> TypeTag for PrivateCoeffs<C> {
+    impl<C: CurveTrait + Send + Sync + 'static> TypeTag for PrivateCoeffs<C> {
         type Value = Vec<super::CoeffPrivate<C>>;
     }
     pub(super) struct PublicCoeffs<C>(PhantomData<C>);
@@ -77,7 +77,7 @@ mod storage {
         type Value = EvalPublic<C>;
     }
     pub(super) struct ValidPrivateEval<C>(PhantomData<C>);
-    impl<C: CT + Send + Sync + 'static> TypeTag for ValidPrivateEval<C> {
+    impl<C: CurveTrait + Send + Sync + 'static> TypeTag for ValidPrivateEval<C> {
         type Value = super::EvalPrivate<C>;
     }
 }
@@ -102,7 +102,7 @@ from memory after it's securely stored. The public components (including the byt
 can be stored in the clear.
 **/
 #[derive(Debug)]
-pub struct TshareParticipant<C: CT> {
+pub struct TshareParticipant<C: CurveTrait> {
     /// The current session identifier
     sid: Identifier,
     /// The current protocol input.
@@ -129,7 +129,7 @@ pub struct ToutofTHelper<C> {
     pub chain_code: [u8; 32],
 }
 
-impl<C: CT + 'static> ProtocolParticipant for TshareParticipant<C> {
+impl<C: CurveTrait + 'static> ProtocolParticipant for TshareParticipant<C> {
     type Input = Input<C>;
     type Output = Output<C>;
 
@@ -225,7 +225,7 @@ impl<C: CT + 'static> ProtocolParticipant for TshareParticipant<C> {
     }
 }
 
-impl<C: CT + 'static> InnerProtocolParticipant for TshareParticipant<C> {
+impl<C: CurveTrait + 'static> InnerProtocolParticipant for TshareParticipant<C> {
     type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
@@ -245,13 +245,13 @@ impl<C: CT + 'static> InnerProtocolParticipant for TshareParticipant<C> {
     }
 }
 
-impl<C: CT> Broadcast<C> for TshareParticipant<C> {
+impl<C: CurveTrait> Broadcast<C> for TshareParticipant<C> {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C> {
         &mut self.broadcast_participant
     }
 }
 
-impl<C: CT + 'static> TshareParticipant<C> {
+impl<C: CurveTrait + 'static> TshareParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this
@@ -991,7 +991,7 @@ pub(crate) mod tests {
     use super::{super::input::Input, *};
     use crate::{
         auxinfo,
-        curve::{TestCT, CT},
+        curve::{CurveTrait, TestCT},
         utils::testing::init_testing,
         Identifier, ParticipantConfig,
     };
@@ -1010,7 +1010,7 @@ pub(crate) mod tests {
     /// participants.
     #[cfg(test)]
     #[allow(clippy::type_complexity)]
-    pub fn convert_to_t_out_of_t_shares<C: CT + 'static>(
+    pub fn convert_to_t_out_of_t_shares<C: CurveTrait + 'static>(
         tshares: HashMap<ParticipantIdentifier, Output<C>>,
         all_participants: Vec<ParticipantIdentifier>,
         rid: [u8; 32],
@@ -1082,7 +1082,7 @@ pub(crate) mod tests {
             .values()
             .map(|output| output.private_key_share().as_ref().clone())
             .fold(BigNumber::zero(), |acc, x| acc + x);
-        sum_toft_private_shares %= <C as CT>::order();
+        sum_toft_private_shares %= <C as CurveTrait>::order();
 
         // Check the sum is indeed the sum of original private keys used as input of
         // tshare reduced mod the order
@@ -1098,7 +1098,7 @@ pub(crate) mod tests {
         Ok(keygen_outputs)
     }
 
-    impl<C: CT + 'static> TshareParticipant<C> {
+    impl<C: CurveTrait + 'static> TshareParticipant<C> {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             quorum_size: usize,
@@ -1144,7 +1144,7 @@ pub(crate) mod tests {
         }
     }
 
-    fn is_tshare_done<C: CT + 'static>(quorum: &[TshareParticipant<C>]) -> bool {
+    fn is_tshare_done<C: CurveTrait + 'static>(quorum: &[TshareParticipant<C>]) -> bool {
         for participant in quorum {
             if *participant.status() != Status::TerminatedSuccessfully {
                 return false;
@@ -1154,7 +1154,7 @@ pub(crate) mod tests {
     }
 
     #[allow(clippy::type_complexity)]
-    fn process_messages<R: RngCore + CryptoRng, C: CT + 'static>(
+    fn process_messages<R: RngCore + CryptoRng, C: CurveTrait + 'static>(
         quorum: &mut [TshareParticipant<C>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,
@@ -1191,7 +1191,7 @@ pub(crate) mod tests {
         let mut rng = init_testing();
         let sid = Identifier::random(&mut rng);
         let test_share = Some(CoeffPrivate {
-            x: <TestCT as CT>::Scalar::convert_from_u128(42),
+            x: <TestCT as CurveTrait>::Scalar::convert_from_u128(42),
         });
         let mut quorum = TshareParticipant::new_quorum(sid, quorum_size, test_share, &mut rng)?;
         let mut inboxes = HashMap::new();
@@ -1301,28 +1301,30 @@ pub(crate) mod tests {
         Ok(())
     }
 
-    fn generate_polynomial(t: usize) -> Vec<<TestCT as CT>::Scalar> {
+    fn generate_polynomial(t: usize) -> Vec<<TestCT as CurveTrait>::Scalar> {
         let mut coefficients = Vec::with_capacity(t);
         for _ in 0..t {
-            coefficients.push(<TestCT as CT>::Scalar::random());
+            coefficients.push(<TestCT as CurveTrait>::Scalar::random());
         }
         coefficients
     }
 
     pub fn evaluate_polynomial(
-        coefficients: &[<TestCT as CT>::Scalar],
-        x: &<TestCT as CT>::Scalar,
-    ) -> <TestCT as CT>::Scalar {
+        coefficients: &[<TestCT as CurveTrait>::Scalar],
+        x: &<TestCT as CurveTrait>::Scalar,
+    ) -> <TestCT as CurveTrait>::Scalar {
         coefficients
             .iter()
             .rev()
-            .fold(<TestCT as CT>::Scalar::zero(), |acc, coef| acc * x + coef)
+            .fold(<TestCT as CurveTrait>::Scalar::zero(), |acc, coef| {
+                acc * x + coef
+            })
     }
 
     fn evaluate_at_points(
-        coefficients: &[<TestCT as CT>::Scalar],
-        points: &[<TestCT as CT>::Scalar],
-    ) -> Vec<<TestCT as CT>::Scalar> {
+        coefficients: &[<TestCT as CurveTrait>::Scalar],
+        points: &[<TestCT as CurveTrait>::Scalar],
+    ) -> Vec<<TestCT as CurveTrait>::Scalar> {
         points
             .iter()
             .map(|x| evaluate_polynomial(coefficients, x))
@@ -1337,12 +1339,12 @@ pub(crate) mod tests {
 
         // test that reconstruction works as long as we have enough points
         for n in t..n {
-            let points: Vec<<TestCT as CT>::Scalar> = (1..=n)
-                .map(|i: u128| <TestCT as CT>::Scalar::from_u128(i + 1))
+            let points: Vec<<TestCT as CurveTrait>::Scalar> = (1..=n)
+                .map(|i: u128| <TestCT as CurveTrait>::Scalar::from_u128(i + 1))
                 .collect();
             let values = evaluate_at_points(&coefficients, &points);
 
-            let zero = <TestCT as CT>::Scalar::zero();
+            let zero = <TestCT as CurveTrait>::Scalar::zero();
             let zero_value = evaluate_polynomial(&coefficients, &zero);
 
             let points: Vec<ParticipantIdentifier> = (1..=n)
@@ -1354,9 +1356,9 @@ pub(crate) mod tests {
                 .map(|(value, point)| {
                     *value
                         * TshareParticipant::<TestCT>::lagrange_coefficient_at_zero(point, &points)
-                            as <TestCT as CT>::Scalar
+                            as <TestCT as CurveTrait>::Scalar
                 })
-                .fold(<TestCT as CT>::Scalar::zero(), |acc, x| acc + x);
+                .fold(<TestCT as CurveTrait>::Scalar::zero(), |acc, x| acc + x);
 
             assert_eq!(zero_value, zero_value_reconstructed);
         }

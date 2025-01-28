@@ -8,7 +8,7 @@
 
 use super::participant::ParticipantPresignContext;
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::{InternalError, Result},
     messages::{Message, MessageType, PresignMessageType},
     paillier::{Ciphertext, EncryptionKey, Nonce},
@@ -57,12 +57,12 @@ impl Debug for Private {
 /// necessarily valid (i.e., that all the components are valid with respect to
 /// each other); use [`Public::verify`] to check this latter condition.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct Public<C: CT> {
-    #[serde(bound(deserialize = "C: CT"))]
+pub(crate) struct Public<C: CurveTrait> {
+    #[serde(bound(deserialize = "C: CurveTrait"))]
     proof: PiEncProof<C>,
 }
 
-impl<C: CT> From<PiEncProof<C>> for Public<C> {
+impl<C: CurveTrait> From<PiEncProof<C>> for Public<C> {
     fn from(proof: PiEncProof<C>) -> Self {
         Self { proof }
     }
@@ -75,7 +75,7 @@ pub(crate) struct PublicBroadcast {
     pub G: Ciphertext,
 }
 
-impl<C: CT> Public<C> {
+impl<C: CurveTrait> Public<C> {
     /// Verify the validity of [`Public`] against the prover's [`EncryptionKey`]
     /// and [`PublicBroadcast`] values.
     ///
@@ -94,7 +94,7 @@ impl<C: CT> Public<C> {
     }
 }
 
-impl<C: CT> TryFrom<&Message> for Public<C> {
+impl<C: CurveTrait> TryFrom<&Message> for Public<C> {
     type Error = InternalError;
 
     fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {

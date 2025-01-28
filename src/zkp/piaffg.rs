@@ -39,7 +39,7 @@
 //! 2021](https://eprint.iacr.org/archive/2021/060/1634824619.pdf).
 
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::*,
     paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce, PaillierError},
     parameters::{ELL, ELL_PRIME, EPSILON},
@@ -195,7 +195,7 @@ impl<'a> PiAffgSecret<'a> {
     }
 }
 
-impl<C: CT + 'static> Proof for PiAffgProof<C> {
+impl<C: CurveTrait + 'static> Proof for PiAffgProof<C> {
     type CommonInput<'a> = PiAffgInput<'a, C>;
     type ProverSecret<'b> = PiAffgSecret<'b>;
 
@@ -502,7 +502,7 @@ impl<C: CT + 'static> Proof for PiAffgProof<C> {
     }
 }
 
-impl<C: CT> PiAffgProof<C> {
+impl<C: CurveTrait> PiAffgProof<C> {
     #[allow(clippy::too_many_arguments)]
     fn generate_challenge(
         transcript: &mut Transcript,
@@ -546,7 +546,7 @@ impl<C: CT> PiAffgProof<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve::{TestCT as C, CT},
+        curve::{CurveTrait, TestCT as C},
         paillier::DecryptionKey,
         utils::{random_plusminus, random_plusminus_by_size_with_minimum, testing::init_testing},
         zkp::BadContext,

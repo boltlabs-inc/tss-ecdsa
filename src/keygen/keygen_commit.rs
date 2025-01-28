@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::{InternalError, Result},
     keygen::keyshare::KeySharePublic,
     messages::{KeygenMessageType, Message, MessageType},
@@ -43,7 +43,7 @@ pub(crate) struct KeygenDecommit<C> {
     pub A: C,
 }
 
-impl<C: CT> KeygenDecommit<C> {
+impl<C: CurveTrait> KeygenDecommit<C> {
     ///`sid` corresponds to a unique session identifier.
     pub(crate) fn new<R: RngCore + CryptoRng>(
         rng: &mut R,

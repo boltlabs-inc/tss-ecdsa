@@ -8,7 +8,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    curve::{CT, VKT},
+    curve::{CurveTrait, VerifyingKeyTrait},
     errors::{CallerError, Result},
     keygen::KeySharePublic,
 };
@@ -21,7 +21,7 @@ use super::CoeffPublic;
 /// this party's private key share, and the public commitment to the
 /// coefficients corresponding to the final shamir secret sharing.
 #[derive(Debug, Clone)]
-pub struct Output<C: CT> {
+pub struct Output<C: CurveTrait> {
     // Public coefficients for the polynomial
     public_coeffs: Vec<CoeffPublic<C>>,
     // Public keys for each participant
@@ -34,7 +34,7 @@ pub struct Output<C: CT> {
     rid: [u8; 32],
 }
 
-impl<C: CT> Output<C> {
+impl<C: CurveTrait> Output<C> {
     /// Construct the generated public key.
     pub fn public_key(&self) -> Result<C::VK> {
         // Add up all the key shares
@@ -147,7 +147,7 @@ impl<C: CT> Output<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve::{TestCT, CT},
+        curve::{CurveTrait, TestCT},
         tshare::{self, CoeffPublic, TshareParticipant},
         utils::testing::init_testing,
         ParticipantIdentifier,
@@ -159,7 +159,7 @@ mod tests {
     type Output<C> = super::Output<C>;
     type CoeffPrivate<C> = tshare::CoeffPrivate<C>;
 
-    impl<C: CT + 'static> Output<C> {
+    impl<C: CurveTrait + 'static> Output<C> {
         /// Simulate the valid output of a keygen run with the given
         /// participants.
         ///
@@ -242,7 +242,7 @@ mod tests {
             pids.iter()
                 .map(|&pid| {
                     // TODO #340: Replace with KeyShare methods once they exist.
-                    let secret = <TestCT as CT>::Scalar::random(&mut rng);
+                    let secret = <TestCT as CurveTrait>::Scalar::random(&mut rng);
                     let public = TestCT::GENERATOR.multiply_by_scalar(&secret);
                     (
                         secret,

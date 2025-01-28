@@ -18,7 +18,7 @@
 //! [EPrint archive, 2021](https://eprint.iacr.org/archive/2021/060/1634824619.pdf).
 
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::*,
     paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce},
     parameters::{ELL, EPSILON},
@@ -134,7 +134,7 @@ impl<'a> ProverSecret<'a> {
 
 /// Generates a challenge from a [`Transcript`] and the values generated in the
 /// proof.
-fn generate_challenge<C: CT>(
+fn generate_challenge<C: CurveTrait>(
     transcript: &mut Transcript,
     context: &dyn ProofContext,
     common_input: &CommonInput<C>,
@@ -161,7 +161,7 @@ fn generate_challenge<C: CT>(
     Ok(challenge)
 }
 
-impl<C: CT + 'static> Proof for PiLogProof<C> {
+impl<C: CurveTrait + 'static> Proof for PiLogProof<C> {
     type CommonInput<'a> = CommonInput<'a, C>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiLogProof"))]

@@ -38,7 +38,7 @@ use tracing::{debug, info, instrument, span, trace, Level};
 use tracing_subscriber::{self, EnvFilter};
 use tss_ecdsa::{
     auxinfo::{self, AuxInfoParticipant},
-    curve::{TestCT, CT},
+    curve::{CurveTrait, TestCT},
     keygen::{self, KeygenParticipant, Output},
     messages::Message,
     presign::{self, PresignParticipant},
@@ -331,7 +331,7 @@ fn threshold_participants(mut pids: Vec<ParticipantIdentifier>) -> Vec<Participa
 }
 
 /// Worker participating in tss-ecdsa protocols.
-struct Worker<C: CT + 'static> {
+struct Worker<C: CurveTrait + 'static> {
     /// Configuration for this participant.
     config: ParticipantConfig,
     /// Stored participants executed by this worker.
@@ -350,7 +350,7 @@ struct Worker<C: CT + 'static> {
     outgoing: Sender<MessageFromWorker>,
 }
 
-impl<C: CT> Worker<C> {
+impl<C: CurveTrait> Worker<C> {
     /// Create new worker.
     fn new(config: ParticipantConfig, outgoing: Sender<MessageFromWorker>) -> Self {
         Worker {
@@ -423,7 +423,7 @@ impl<C: CT> Worker<C> {
 
 /// Sub-protocol wrappers around `new_sub_protocol`.
 /// These functions fetch the required inputs from storage.
-impl<C: CT> Worker<C> {
+impl<C: CurveTrait> Worker<C> {
     fn new_keygen(&mut self, sid: SessionId, key_id: KeyId) -> anyhow::Result<()> {
         self.new_sub_protocol::<KeygenParticipant<C>>(self.config.clone(), sid, (), key_id)
     }
@@ -492,7 +492,7 @@ impl<C: CT> Worker<C> {
 }
 
 /// Sub-protocol wrappers around `process_message` method.
-impl<C: CT> Worker<C> {
+impl<C: CurveTrait> Worker<C> {
     fn process_keygen(&mut self, sid: SessionId, incoming: Message) -> anyhow::Result<()> {
         let (p, key_id) = self.participants.get_mut::<KeygenParticipant<C>>(&sid);
         Self::process_message(
@@ -534,7 +534,7 @@ impl<C: CT> Worker<C> {
 /// Function to drive work for the workers. These workers execute in their
 /// own thread.
 #[instrument(skip_all)]
-fn participant_worker<C: CT + 'static>(
+fn participant_worker<C: CurveTrait + 'static>(
     config: ParticipantConfig,
     from_coordinator: Receiver<MessageFromCoordinator>,
     outgoing: Sender<MessageFromWorker>,

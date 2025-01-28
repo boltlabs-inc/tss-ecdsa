@@ -8,7 +8,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    curve::{CT, VKT},
+    curve::{CurveTrait, VerifyingKeyTrait},
     errors::{CallerError, InternalError, Result},
     keygen::keyshare::{KeySharePrivate, KeySharePublic},
     ParticipantIdentifier,
@@ -26,7 +26,7 @@ pub struct Output<C> {
     chain_code: [u8; 32],
 }
 
-impl<C: CT> Output<C> {
+impl<C: CurveTrait> Output<C> {
     /// Construct the generated public key.
     pub fn public_key(&self) -> Result<C::VK> {
         // Add up all the key shares
@@ -159,7 +159,7 @@ mod tests {
     };
     use rand::{CryptoRng, Rng, RngCore};
 
-    impl<C: CT> Output<C> {
+    impl<C: CurveTrait> Output<C> {
         /// Simulate the valid output of a keygen run with the given
         /// participants.
         ///

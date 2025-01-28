@@ -8,7 +8,7 @@
 
 use crate::{
     auxinfo::{info::AuxInfoPublic, participant::AuxInfoParticipant},
-    curve::CT,
+    curve::CurveTrait,
     errors::{InternalError, Result},
     messages::{AuxinfoMessageType, Message, MessageType},
     parameters::PRIME_BITS,
@@ -43,7 +43,7 @@ impl Commitment {
 /// to send decommit to a validly produced [`Commitment`] one needs to send
 /// [`CommitmentScheme`] itself.
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct CommitmentScheme<C: CT> {
+pub(crate) struct CommitmentScheme<C: CurveTrait> {
     /// A unique session identifier (`ssid` in the paper).
     sid: Identifier,
     /// This participant's [`ParticipantIdentifier`] (`i` in the paper).
@@ -65,7 +65,7 @@ pub(crate) struct CommitmentScheme<C: CT> {
     _phantom: PhantomData<C>,
 }
 
-impl<C: CT> Debug for CommitmentScheme<C> {
+impl<C: CurveTrait> Debug for CommitmentScheme<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Redacting randomness and commit_randomness because I'm not sure how
         // sensitive they are. If later analysis suggests they're fine to print,
@@ -80,7 +80,7 @@ impl<C: CT> Debug for CommitmentScheme<C> {
     }
 }
 
-impl<C: CT + 'static> CommitmentScheme<C> {
+impl<C: CurveTrait + 'static> CommitmentScheme<C> {
     /// Construct a new [`CommitmentScheme`] using the provided unique session
     /// [`Identifier`], [`AuxInfoParticipant`], and [`AuxInfoPublic`].
     ///

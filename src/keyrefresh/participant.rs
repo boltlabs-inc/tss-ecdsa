@@ -10,7 +10,7 @@
 
 use crate::{
     broadcast::participant::{BroadcastOutput, BroadcastParticipant, BroadcastTag},
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, InternalError, Result},
     keyrefresh::{
         keyrefresh_commit::{KeyrefreshCommit, KeyrefreshDecommit},
@@ -88,7 +88,7 @@ The [private key share](crate::keygen::KeySharePrivate) in the output requires s
 persistent storage.
 **/
 #[derive(Debug)]
-pub struct KeyrefreshParticipant<C: CT> {
+pub struct KeyrefreshParticipant<C: CurveTrait> {
     /// The current session identifier
     sid: Identifier,
     /// The current protocol input.
@@ -106,7 +106,7 @@ pub struct KeyrefreshParticipant<C: CT> {
     status: Status,
 }
 
-impl<C: CT + 'static> ProtocolParticipant for KeyrefreshParticipant<C> {
+impl<C: CurveTrait + 'static> ProtocolParticipant for KeyrefreshParticipant<C> {
     type Input = Input<C>;
     type Output = Output<C>;
 
@@ -206,7 +206,7 @@ impl<C: CT + 'static> ProtocolParticipant for KeyrefreshParticipant<C> {
     }
 }
 
-impl<C: CT + 'static> InnerProtocolParticipant for KeyrefreshParticipant<C> {
+impl<C: CurveTrait + 'static> InnerProtocolParticipant for KeyrefreshParticipant<C> {
     type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
@@ -226,13 +226,13 @@ impl<C: CT + 'static> InnerProtocolParticipant for KeyrefreshParticipant<C> {
     }
 }
 
-impl<C: CT> Broadcast<C> for KeyrefreshParticipant<C> {
+impl<C: CurveTrait> Broadcast<C> for KeyrefreshParticipant<C> {
     fn broadcast_participant(&mut self) -> &mut BroadcastParticipant<C> {
         &mut self.broadcast_participant
     }
 }
 
-impl<C: CT + 'static> KeyrefreshParticipant<C> {
+impl<C: CurveTrait + 'static> KeyrefreshParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this
@@ -873,7 +873,7 @@ mod tests {
     };
     use tracing::debug;
 
-    impl<C: CT + 'static> KeyrefreshParticipant<C> {
+    impl<C: CurveTrait + 'static> KeyrefreshParticipant<C> {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             quorum_size: usize,

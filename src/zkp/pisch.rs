@@ -27,7 +27,7 @@
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
 //! [EPrint archive, 2021](https://eprint.iacr.org/archive/2021/060/1634824619.pdf).
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::*,
     messages::{KeygenMessageType, KeyrefreshMessageType, Message, MessageType, TshareMessageType},
     utils::{positive_challenge_from_transcript, random_positive_bn},
@@ -109,7 +109,7 @@ impl<'a> ProverSecret<'a> {
     }
 }
 
-impl<C: CT + 'static> Proof for PiSchProof<C> {
+impl<C: CurveTrait + 'static> Proof for PiSchProof<C> {
     type CommonInput<'a> = CommonInput<'a, C>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiSchProof"))]
@@ -157,7 +157,7 @@ impl<C: CT + 'static> Proof for PiSchProof<C> {
     }
 }
 
-impl<C: CT + 'static> PiSchProof<C> {
+impl<C: CurveTrait + 'static> PiSchProof<C> {
     /// "Commitment" phase of the PiSch proof.
     pub fn precommit<R: RngCore + CryptoRng>(rng: &mut R) -> Result<PiSchPrecommit<C>> {
         // Sample alpha from F_q

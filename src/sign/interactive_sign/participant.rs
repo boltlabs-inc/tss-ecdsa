@@ -11,7 +11,7 @@ use tracing::{error, info};
 
 use crate::{
     auxinfo,
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, InternalError, Result},
     keygen::{self, KeySharePublic},
     message_queue::MessageQueue,
@@ -60,7 +60,7 @@ use crate::{
 /// with Identifiable Aborts. [EPrint archive,
 /// 2021](https://eprint.iacr.org/2021/060.pdf).
 #[derive(Debug)]
-pub struct InteractiveSignParticipant<C: CT> {
+pub struct InteractiveSignParticipant<C: CurveTrait> {
     signing_material: SigningMaterial<C>,
     presigner: PresignParticipant<C>,
     signing_message_storage: MessageQueue,
@@ -71,7 +71,7 @@ pub struct InteractiveSignParticipant<C: CT> {
 /// Either we have not yet started the signing protocol, so we are only saving
 /// the input, or we are actively running signing.
 #[derive(Debug)]
-enum SigningMaterial<C: CT> {
+enum SigningMaterial<C: CurveTrait> {
     /// When we create the `signer`, we'll need to pass this input, plus the
     /// output of `presign`.
     PartialInput {
@@ -85,7 +85,7 @@ enum SigningMaterial<C: CT> {
     },
 }
 
-impl<C: CT + 'static> SigningMaterial<C> {
+impl<C: CurveTrait + 'static> SigningMaterial<C> {
     fn new_partial_input(digest: Keccak256, public_keys: Vec<KeySharePublic<C>>) -> Self {
         Self::PartialInput {
             digest: Box::new(digest),
@@ -152,7 +152,7 @@ pub struct Input<C> {
     presign_input: presign::Input<C>,
 }
 
-impl<C: CT> Input<C> {
+impl<C: CurveTrait> Input<C> {
     /// Construct a new input for interactive signing from the outputs of the
     /// [`auxinfo`](crate::auxinfo::AuxInfoParticipant) and
     /// [`keygen`](crate::keygen::KeygenParticipant) protocols.
@@ -178,7 +178,7 @@ impl<C: CT> Input<C> {
     }
 }
 
-impl<C: CT + 'static> ProtocolParticipant for InteractiveSignParticipant<C> {
+impl<C: CurveTrait + 'static> ProtocolParticipant for InteractiveSignParticipant<C> {
     type Input = Input<C>;
     type Output = C::ECDSASignature;
 
@@ -280,7 +280,7 @@ impl<C: CT + 'static> ProtocolParticipant for InteractiveSignParticipant<C> {
     }
 }
 
-impl<C: CT + 'static> InteractiveSignParticipant<C> {
+impl<C: CurveTrait + 'static> InteractiveSignParticipant<C> {
     fn handle_sign_message(
         &mut self,
         rng: &mut (impl CryptoRng + RngCore),
@@ -356,7 +356,7 @@ mod tests {
 
     use crate::{
         auxinfo,
-        curve::{TestCT, CT},
+        curve::{CurveTrait, TestCT},
         errors::Result,
         keygen,
         messages::{Message, MessageType},
@@ -387,7 +387,7 @@ mod tests {
         rng: &mut StdRng,
     ) -> (
         &'a InteractiveSignParticipant<TestCT>,
-        ProcessOutcome<<TestCT as CT>::ECDSASignature>,
+        ProcessOutcome<<TestCT as CurveTrait>::ECDSASignature>,
     ) {
         // Make sure test doesn't loop forever if we have a control flow problem
         if inbox.is_empty() {
@@ -506,7 +506,7 @@ mod tests {
 
         // Re-derive the public key from the recoverable ID and ensure it matches the
         // original public key.
-        let recovered_pk = <TestCT as CT>::VK::recover_from_digest(
+        let recovered_pk = <TestCT as CurveTrait>::VK::recover_from_digest(
             digest,
             distributed_sig,
             RecoveryId::from_byte(recovery_id).expect("Invalid recovery ID"),

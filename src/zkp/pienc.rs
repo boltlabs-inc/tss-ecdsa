@@ -26,7 +26,7 @@
 //! UC Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts.
 //! [EPrint archive, 2021](https://eprint.iacr.org/archive/2021/060/1634824619.pdf).
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::*,
     paillier::{Ciphertext, EncryptionKey, MaskedNonce, Nonce},
     parameters::{ELL, EPSILON},
@@ -44,7 +44,7 @@ use tracing::error;
 /// Proof of knowledge of the plaintext value of a ciphertext, where the value
 /// is within a desired range.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PiEncProof<C: CT> {
+pub(crate) struct PiEncProof<C: CurveTrait> {
     /// Commitment to the plaintext value of the ciphertext (`S` in the paper).
     plaintext_commit: Commitment,
     /// Masking ciphertext (`A` in the paper).
@@ -127,7 +127,7 @@ impl<'a> PiEncSecret<'a> {
     }
 }
 
-impl<C: CT> Proof for PiEncProof<C> {
+impl<C: CurveTrait> Proof for PiEncProof<C> {
     type CommonInput<'a> = PiEncInput<'a>;
     type ProverSecret<'b> = PiEncSecret<'b>;
     #[cfg_attr(feature = "flame_it", flame("PiEncProof"))]
@@ -267,7 +267,7 @@ impl<C: CT> Proof for PiEncProof<C> {
     }
 }
 
-impl<C: CT> PiEncProof<C> {
+impl<C: CurveTrait> PiEncProof<C> {
     /// Update the [`Transcript`] with all the commitment values used in the
     /// proof.
     fn fill_transcript(
@@ -297,7 +297,7 @@ impl<C: CT> PiEncProof<C> {
 mod tests {
     use super::*;
     use crate::{
-        curve::{TestCT, CT},
+        curve::{CurveTrait, TestCT},
         paillier::DecryptionKey,
         utils::{
             random_plusminus, random_plusminus_by_size_with_minimum, random_positive_bn,

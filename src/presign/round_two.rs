@@ -8,7 +8,7 @@
 
 use crate::{
     auxinfo::AuxInfoPublic,
-    curve::CT,
+    curve::CurveTrait,
     errors::{InternalError, Result},
     keygen::KeySharePublic,
     messages::{Message, MessageType, PresignMessageType},
@@ -62,7 +62,7 @@ pub(crate) struct Public<C> {
     pub psi_prime: PiLogProof<C>,
 }
 
-impl<C: CT + 'static> Public<C> {
+impl<C: CurveTrait + 'static> Public<C> {
     /// Verify the validity of [`Public`] against the sender's
     /// [`AuxInfoPublic`], [`KeySharePublic`], and
     /// [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast) values.
@@ -121,7 +121,7 @@ impl<C: CT + 'static> Public<C> {
     }
 }
 
-impl<C: CT> TryFrom<&Message> for Public<C> {
+impl<C: CurveTrait> TryFrom<&Message> for Public<C> {
     type Error = InternalError;
 
     fn try_from(message: &Message) -> std::result::Result<Self, Self::Error> {

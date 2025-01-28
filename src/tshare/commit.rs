@@ -10,7 +10,7 @@ use std::fmt::Debug;
 
 use super::share::CoeffPublic;
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::{InternalError, Result},
     messages::{Message, MessageType, TshareMessageType},
     protocol::{Identifier, ParticipantIdentifier},
@@ -45,7 +45,7 @@ pub(crate) struct TshareDecommit<C> {
     pub precom: C,
 }
 
-impl<C: CT> TshareDecommit<C> {
+impl<C: CurveTrait> TshareDecommit<C> {
     ///`sid` corresponds to a unique session identifier.
     pub(crate) fn new<R: RngCore + CryptoRng>(
         rng: &mut R,

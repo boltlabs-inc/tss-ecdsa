@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::{CallerError, Result},
     utils::ParseBytes,
     ParticipantIdentifier,
@@ -38,7 +38,7 @@ impl<C> Debug for KeySharePrivate<C> {
     }
 }
 
-impl<C: CT> KeySharePrivate<C> {
+impl<C: CurveTrait> KeySharePrivate<C> {
     /// Sample a private key share uniformly at random.
     pub fn random(rng: &mut (impl CryptoRng + RngCore)) -> Self {
         let random_bn = BigNumber::from_rng(&C::order(), rng);
@@ -174,7 +174,7 @@ impl<C> KeySharePublic<C> {
     }
 }
 
-impl<C: CT> KeySharePublic<C> {
+impl<C: CurveTrait> KeySharePublic<C> {
     /// Generate a new [`KeySharePrivate`] and [`KeySharePublic`].
     pub(crate) fn new_keyshare<R: RngCore + CryptoRng>(
         participant: ParticipantIdentifier,
@@ -200,7 +200,7 @@ impl<C> AsRef<C> for KeySharePublic<C> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        curve::{TestCT as C, CT},
+        curve::{CurveTrait, TestCT as C},
         keygen::keyshare::KEYSHARE_TAG,
         utils::testing::init_testing,
     };

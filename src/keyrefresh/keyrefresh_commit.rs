@@ -7,7 +7,7 @@
 // of this source tree.
 
 use crate::{
-    curve::CT,
+    curve::CurveTrait,
     errors::{InternalError, Result},
     keyrefresh::keyshare::KeyUpdatePublic,
     messages::{KeyrefreshMessageType, Message, MessageType},
@@ -42,7 +42,7 @@ pub(crate) struct KeyrefreshDecommit<C> {
     pub As: Vec<C>,
 }
 
-impl<C: CT> KeyrefreshDecommit<C> {
+impl<C: CurveTrait> KeyrefreshDecommit<C> {
     ///`sid` corresponds to a unique session identifier.
     pub(crate) fn new<R: RngCore + CryptoRng>(
         rng: &mut R,
