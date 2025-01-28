@@ -480,7 +480,11 @@ mod test {
     };
     use std::{collections::HashMap, ops::Deref};
 
-    use k256::{ecdsa::signature::DigestVerifier, elliptic_curve::ops::Reduce, U256};
+    use k256::{
+        ecdsa::{signature::DigestVerifier, RecoveryId},
+        elliptic_curve::ops::Reduce,
+        U256,
+    };
     use rand::{CryptoRng, Rng, RngCore};
     use sha3::{Digest, Keccak256};
     use tracing::debug;
@@ -689,24 +693,19 @@ mod test {
             .is_ok());
 
         // Check we are able to create a recoverable signature.
-        /* TODO: uncomment this when we finish generalization of RecoveryId
-        let recovery_id = distributed_sig
-            .recovery_id(message, public_key)
-            .expect("Recovery ID failed");
-
-        // Re-derive the public key from the recoverable ID and ensure it matches the
-        // original public key.
+        let recid =
+            RecoveryId::trial_recovery_from_digest(public_key, digest.clone(), distributed_sig)
+                .expect("Failed to recover signature");
         let recovered_pk = <TestCurve as CurveTrait>::VK::recover_from_digest(
             digest,
             distributed_sig,
-            RecoveryId::from_byte(recovery_id).expect("Invalid recovery ID"),
+            RecoveryId::from_byte(recid.into()).expect("Invalid recovery ID"),
         )
         .unwrap();
-
         assert_eq!(
             recovered_pk, *public_key,
             "Recovered public key does not match original one."
-        );*/
+        );
 
         Ok(())
     }
