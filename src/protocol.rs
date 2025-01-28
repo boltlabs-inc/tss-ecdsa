@@ -654,7 +654,7 @@ mod tests {
     use super::*;
     use crate::{
         auxinfo::{self, AuxInfoParticipant, AuxInfoPublic},
-        curve::{ScalarTrait, TestCurve, TestST, VerifyingKeyTrait},
+        curve::{ScalarTrait, TestCurve, TestScalar, VerifyingKeyTrait},
         k256::K256,
         keygen::{KeySharePublic, KeygenParticipant},
         messages,
@@ -1627,7 +1627,7 @@ mod tests {
         let sum_tshare_input = tshare_inputs
             .iter()
             .map(|input| input.share().unwrap().x)
-            .fold(TestST::ZERO, |acc, x| acc + x);
+            .fold(TestScalar::ZERO, |acc, x| acc + x);
 
         // t-out-of-t conversion
         let toft_keygen_outputs = convert_to_t_out_of_t_shares(

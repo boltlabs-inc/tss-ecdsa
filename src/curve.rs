@@ -272,7 +272,7 @@ pub type TestCurve = K256;
 //pub type TestCT = P256;
 
 /// Default scalar type.
-pub type TestST = K256_Scalar;
+pub type TestScalar = K256_Scalar;
 //pub type TestST = P256_Scalar;
 
 /// Default signature type.
