@@ -284,10 +284,6 @@ mod tests {
             _rng: &mut (impl CryptoRng + RngCore),
         ) -> Vec<Self> {
             // Note: using slightly-biased generation for faster tests
-            //let mask_shares = std::iter::repeat_with(|| <TestCurve as
-            // CurveTrait>::Scalar::generate_biased(rng)).take(keygen_outputs.len())
-            //    .collect::<Vec<_>>();
-            // TODO: use generate_biased when generalized
             let mask_shares = std::iter::repeat_with(<TestCurve as CurveTrait>::Scalar::random)
                 .take(keygen_outputs.len())
                 .collect::<Vec<_>>();
