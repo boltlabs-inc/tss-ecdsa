@@ -238,9 +238,9 @@ fn test_derive_child_key() {
     let master_key_output = MasterKeyInput::derive_master_key::<TestCurve>(&mk_input);
 
     // derive the child key
-    //let pk = TestCurve::GENERATOR.mul(&master_key_output.private_key);
-    //let private_key = master_key_output.private_key;
-    //let public_key_bytes: Vec<u8> = pk.to_bytes().to_vec();
+    let pk = TestCurve::GENERATOR.mul(&master_key_output.private_key);
+    let private_key = master_key_output.private_key;
+    let public_key_bytes: Vec<u8> = pk.to_bytes().to_vec();
 
     // The expected values are:
     // chain code: 60499f801b896d83179a4374aeb7822aaeaceaa0db1f85ee3e904c4defbd9689
@@ -267,7 +267,7 @@ fn test_derive_child_key() {
         .into()
     );
     // assert the public key (TODO: it only works for K256)
-    /*assert_eq!(
+    assert_eq!(
         public_key_bytes,
         [
             0x03, 0xcb, 0xca, 0xa9, 0xc9, 0x8c, 0x87, 0x7a, 0x26, 0x97, 0x7d, 0x00, 0x82, 0x5c,
@@ -293,9 +293,9 @@ fn test_derive_child_key() {
             0xd4, 0xdc, 0x53, 0xcd, 0x70, 0x9d, 0x5a, 0x5c, 0x2c, 0xac, 0x40, 0xe7, 0x41, 0x2f,
             0x23, 0x2f, 0x7c, 0x9c
         ]
-    );*/
+    );
     // assert the private key (TODO: it only works for K256)
-    /*let private_key: <TestCurve as CurveTrait>::Scalar = child_key_output.private_key;
+    let private_key: <TestCurve as CurveTrait>::Scalar = child_key_output.private_key;
     assert_eq!(
         private_key.to_bytes().as_slice(),
         [
@@ -303,5 +303,5 @@ fn test_derive_child_key() {
             0x0a, 0xb8, 0xaa, 0x1b, 0xd3, 0x78, 0x73, 0x99, 0x90, 0x41, 0x70, 0x3c, 0x74, 0x2f,
             0x15, 0xac, 0x7e, 0x1e
         ]
-    );*/
+    );
 }
