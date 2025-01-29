@@ -144,8 +144,8 @@ pub(crate) fn k256_order() -> BigNumber {
 
 /// ECDSA signature on a message.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CTSignatureK256<C: CurveTrait>(k256::ecdsa::Signature, std::marker::PhantomData<C>);
-impl<C: CurveTrait> CTSignatureK256<C> {
+pub struct SignatureK256<C: CurveTrait>(k256::ecdsa::Signature, std::marker::PhantomData<C>);
+impl<C: CurveTrait> SignatureK256<C> {
     #[allow(dead_code)]
     pub(crate) fn recovery_id(&self, message: &[u8], public_key: &VerifyingKey) -> Result<u8> {
         let digest = Keccak256::new_with_prefix(message);
@@ -159,17 +159,17 @@ impl<C: CurveTrait> CTSignatureK256<C> {
     }
 }
 
-impl SignatureTrait for CTSignatureK256<K256> {
+impl SignatureTrait for SignatureK256<K256> {
     fn from_scalars(r: &BigNumber, s: &BigNumber) -> Result<Self> {
         let r_scalar = <K256 as CurveTrait>::bn_to_scalar(r)?;
         let s_scalar = <K256 as CurveTrait>::bn_to_scalar(s)?;
         let sig = k256::ecdsa::Signature::from_scalars(r_scalar, s_scalar)
             .map_err(|_| InternalInvariantFailed)?;
-        Ok(CTSignatureK256(sig, std::marker::PhantomData::<K256>))
+        Ok(SignatureK256(sig, std::marker::PhantomData::<K256>))
     }
 }
 
-impl Deref for CTSignatureK256<K256> {
+impl Deref for SignatureK256<K256> {
     type Target = k256::ecdsa::Signature;
 
     fn deref(&self) -> &Self::Target {
@@ -184,7 +184,7 @@ impl CurveTrait for K256 {
     type Encoded = EncodedPoint;
     type Projective = ProjectivePoint;
     type VerifyingKey = VerifyingKey;
-    type ECDSASignature = CTSignatureK256<K256>;
+    type ECDSASignature = SignatureK256<K256>;
 
     fn order() -> BigNumber {
         k256_order()

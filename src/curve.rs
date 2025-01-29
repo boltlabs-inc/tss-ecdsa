@@ -1,7 +1,6 @@
 //! Elliptic Curve abstraction
 use crate::{errors::Result, k256::K256, p256::P256};
 use hmac::digest::core_api::CoreWrapper;
-use k256::FieldBytes;
 use libpaillier::unknown_order::BigNumber;
 use serde::{Deserialize, Serialize};
 use sha3::Keccak256Core;
@@ -140,7 +139,6 @@ pub trait ScalarTrait:
     + for<'de> Deserialize<'de>
     + Add<Output = Self>
     + AsRef<Self>
-    + Into<FieldBytes>
 {
     /// Return the zero scalar.
     fn zero() -> Self;
@@ -199,12 +197,12 @@ pub trait ScalarTrait:
 }
 
 /// Default curve type.
-//pub type TestCurve = K256;
-pub type TestCurve = P256;
+pub type TestCurve = K256;
+//pub type TestCurve = P256;
 
 /// Default scalar type.
-//pub type TestScalar = K256_Scalar;
-pub type TestScalar = p256::Scalar;
+pub type TestScalar = k256::Scalar;
+//pub type TestScalar = p256::Scalar;
 
 /// Default signature type.
 pub type TestSignature = k256::ecdsa::Signature;

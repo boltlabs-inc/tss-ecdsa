@@ -50,8 +50,8 @@ impl AsRef<P256> for P256 {
 
 /// ECDSA signature on a message.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CTSignatureP256<C: CurveTrait>(p256::ecdsa::Signature, std::marker::PhantomData<C>);
-impl<C: CurveTrait> CTSignatureP256<C> {
+pub struct SignatureP256<C: CurveTrait>(p256::ecdsa::Signature, std::marker::PhantomData<C>);
+impl<C: CurveTrait> SignatureP256<C> {
     #[allow(dead_code, unused_variables)]
     pub(crate) fn recovery_id(&self, _message: &[u8], _public_key: &VerifyingKey) -> Result<u8> {
         todo!()
@@ -162,7 +162,7 @@ impl CurveTrait for P256 {
     type Encoded = EncodedPoint;
     type Projective = ProjectivePoint;
     type VerifyingKey = VerifyingKey;
-    type ECDSASignature = CTSignatureP256<P256>;
+    type ECDSASignature = SignatureP256<P256>;
 
     fn order() -> BigNumber {
         p256_order()
@@ -316,17 +316,17 @@ impl ScalarTrait for P256_Scalar {
     }
 }
 
-impl SignatureTrait for CTSignatureP256<P256> {
+impl SignatureTrait for SignatureP256<P256> {
     fn from_scalars(r: &BigNumber, s: &BigNumber) -> Result<Self> {
         let r_scalar = <P256 as CurveTrait>::bn_to_scalar(r)?;
         let s_scalar = <P256 as CurveTrait>::bn_to_scalar(s)?;
         let sig = p256::ecdsa::Signature::from_scalars(r_scalar, s_scalar)
             .map_err(|_| InternalInvariantFailed)?;
-        Ok(CTSignatureP256(sig, std::marker::PhantomData::<P256>))
+        Ok(SignatureP256(sig, std::marker::PhantomData::<P256>))
     }
 }
 
-impl Deref for CTSignatureP256<P256> {
+impl Deref for SignatureP256<P256> {
     type Target = p256::ecdsa::Signature;
 
     fn deref(&self) -> &Self::Target {
