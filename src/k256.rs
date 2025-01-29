@@ -1,7 +1,7 @@
 //! K256 functions
 
 use crate::{
-    curve::{CurveTrait, Secp256k1, SignatureTrait, VerifyingKeyTrait},
+    curve::{CurveTrait, ScalarTrait, Secp256k1, SignatureTrait, VerifyingKeyTrait},
     errors::{
         CallerError,
         InternalError::{self, InternalInvariantFailed},
@@ -12,8 +12,8 @@ use generic_array::GenericArray;
 use k256::{
     ecdsa::{signature::DigestVerifier, VerifyingKey},
     elliptic_curve::{
-        bigint::Encoding, group::GroupEncoding, point::AffineCoordinates, sec1::FromEncodedPoint,
-        AffinePoint, Curve, CurveArithmetic, Group, PrimeField,
+        bigint::Encoding, group::GroupEncoding, point::AffineCoordinates, scalar::IsHigh,
+        sec1::FromEncodedPoint, AffinePoint, Curve, CurveArithmetic, Field, Group, PrimeField,
     },
     EncodedPoint, FieldBytes, ProjectivePoint, Scalar as K256_Scalar,
 };
@@ -270,6 +270,71 @@ impl CurveTrait for K256 {
         let mut rng = rand::thread_rng();
         let random_point = ProjectivePoint::random(&mut rng);
         K256(random_point)
+    }
+}
+
+impl ScalarTrait for K256_Scalar {
+    fn zero() -> Self {
+        K256_Scalar::ZERO
+    }
+
+    fn one() -> Self {
+        K256_Scalar::ONE
+    }
+
+    fn convert_from_u128(x: u128) -> Self {
+        K256_Scalar::from_u128(x)
+    }
+
+    fn add(&self, other: &Self) -> Self {
+        k256::Scalar::add(self, other)
+    }
+
+    fn sub(&self, other: &Self) -> Self {
+        k256::Scalar::sub(self, other)
+    }
+
+    fn negate(&self) -> Self {
+        k256::Scalar::negate(self)
+    }
+
+    fn mul(&self, other: &Self) -> Self {
+        k256::Scalar::mul(self, other)
+    }
+
+    fn mul_bignum(&self, other: &BigNumber) -> Self {
+        // use bn_to_scalar to convert other to a scalar
+        let bn_scalar: Self = <K256 as CurveTrait>::bn_to_scalar(other).unwrap();
+        k256::Scalar::mul(self, &bn_scalar)
+    }
+
+    fn is_high(&self) -> bool {
+        <k256::Scalar as IsHigh>::is_high(self).into()
+    }
+
+    fn random() -> Self {
+        let rng = rand::thread_rng();
+        <K256_Scalar as Field>::random(rng)
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        K256_Scalar::to_bytes(self).to_vec()
+    }
+
+    fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        <K256_Scalar as PrimeField>::from_repr(GenericArray::clone_from_slice(bytes)).into()
+    }
+
+    fn from_repr(bytes: Vec<u8>) -> Self {
+        <K256_Scalar as PrimeField>::from_repr(GenericArray::clone_from_slice(&bytes)).unwrap()
+    }
+
+    fn modulus(&self) -> BigNumber {
+        BigNumber::from_slice(<K256_Scalar as PrimeField>::MODULUS)
+    }
+
+    fn invert(&self) -> Option<Self> {
+        K256_Scalar::invert(self).into()
     }
 }
 
