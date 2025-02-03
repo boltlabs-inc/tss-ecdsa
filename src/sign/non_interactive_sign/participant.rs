@@ -364,7 +364,7 @@ impl<C: CurveTrait + 'static> SignParticipant<C> {
         // the k256 library converts a digest to a scalar.
         let digest_bytes = self.input.digest_hash();
         // Compute the digest as a C::Scalar
-        let digest = C::Scalar::from_bytes(&digest_bytes).unwrap();
+        let digest = C::Scalar::from_bytes(&digest_bytes)?.unwrap();
 
         // Compute the x-projection of `R` from the `PresignRecord`
         let x_projection = record.x_projection()?;

@@ -184,7 +184,7 @@ pub trait ScalarTrait:
     fn to_bytes(&self) -> Vec<u8>;
 
     /// Convert from bytes
-    fn from_bytes(bytes: &[u8]) -> Option<Self>;
+    fn from_bytes(bytes: &[u8]) -> Result<Option<Self>>;
 
     /// Convert from repr
     fn from_repr(bytes: Vec<u8>) -> Self;

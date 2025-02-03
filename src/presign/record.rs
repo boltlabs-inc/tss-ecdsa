@@ -195,10 +195,7 @@ impl<C: CurveTrait> PresignRecord<C> {
             let mut random_share_bytes: [u8; 32] = random_share_slice
                 .try_into()
                 .map_err(|_| CallerError::DeserializationFailed)?;
-            let random_share: Option<_> = Some(
-                C::Scalar::from_bytes(&random_share_bytes)
-                    .expect("Failed to parse scalar from bytes"),
-            );
+            let random_share: Option<_> = Some(C::Scalar::from_bytes(&random_share_bytes)?);
             random_share_bytes.zeroize();
 
             // Parse the chi share
@@ -217,7 +214,7 @@ impl<C: CurveTrait> PresignRecord<C> {
             // the k256::Scalar's parsing methods check this for us.
 
             match (random_share, chi_share) {
-                (Some(k), chi) => Ok(Self { R: point, k, chi }),
+                (Some(Some(k)), chi) => Ok(Self { R: point, k, chi }),
                 _ => Err(CallerError::DeserializationFailed)?,
             }
         };

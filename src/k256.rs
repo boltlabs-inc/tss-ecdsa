@@ -321,8 +321,8 @@ impl ScalarTrait for K256_Scalar {
         K256_Scalar::to_bytes(self).to_vec()
     }
 
-    fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        <K256_Scalar as PrimeField>::from_repr(GenericArray::clone_from_slice(bytes)).into()
+    fn from_bytes(bytes: &[u8]) -> Result<Option<Self>> {
+        Ok(<K256_Scalar as PrimeField>::from_repr(GenericArray::clone_from_slice(bytes)).into())
     }
 
     fn from_repr(bytes: Vec<u8>) -> Self {

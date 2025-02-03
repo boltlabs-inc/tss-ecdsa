@@ -300,12 +300,11 @@ impl<C: CurveTrait + 'static> InteractiveSignParticipant<C> {
 
     fn handle_presign_message<'a, 'b>(
         &mut self,
-        rng: &'b mut (impl CryptoRng + RngCore),
+        rng: &mut (impl CryptoRng + RngCore),
         message: &'a Message,
     ) -> Result<ProcessOutcome<<Self as ProtocolParticipant>::Output>>
     where
         C: 'a,
-        C: 'b,
     {
         // Process message and get the components of the outcome
         let outcome = self.presigner.process_message(rng, message)?;

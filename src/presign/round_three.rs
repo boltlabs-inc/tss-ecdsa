@@ -62,7 +62,6 @@ impl<C: CurveTrait + Debug> Debug for Private<C> {
 /// each other); use [`Public::verify`] to check this latter condition.
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct Public<C: CurveTrait> {
-    //#[serde(bound(deserialize = "C: CT"))]
     pub delta: C::Scalar,
     #[serde(bound(deserialize = "C: CurveTrait"))]
     pub Delta: C,
@@ -109,7 +108,7 @@ impl<C: CurveTrait> TryFrom<&Message> for Public<C> {
         // Normal `Scalar` deserialization doesn't check that the value is in range.
         // Here we convert to bytes and back, using the checked `from_repr` method to
         // make sure the value is a valid, canonical Scalar.
-        if C::Scalar::from_bytes(public.delta.to_bytes().as_slice()).is_none() {
+        if C::Scalar::from_bytes(public.delta.to_bytes().as_slice())?.is_none() {
             error!("Deserialized round 3 message `delta` field is out of range");
             Err(InternalError::ProtocolError(Some(message.from())))?
         }
