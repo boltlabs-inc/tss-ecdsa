@@ -1302,10 +1302,9 @@ mod tests {
         // if child_index is None, index is zero, otherwise it is child_index
         let index = child_index;
 
-        // TODO: try_from_bytes only works for K256, we need to make it work for P256
         let shift_input: CKDInput<K256> = slip0010::ckd::CKDInput::new(
             None,
-            K256::try_from_bytes_ct(&saved_public_key_bytes)?,
+            K256::try_from_bytes(&saved_public_key_bytes)?,
             chain_code,
             index,
         )?;

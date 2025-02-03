@@ -187,7 +187,7 @@ impl<C: CurveTrait> PresignRecord<C> {
             // Parse the curve point
             let point_len = parser.take_len()?;
             let point_bytes = parser.take_bytes(point_len)?;
-            let point = C::try_from_bytes_ct(point_bytes)?;
+            let point = C::try_from_bytes(point_bytes)?;
 
             // Parse the random share `k`
             let random_share_len = parser.take_len()?;

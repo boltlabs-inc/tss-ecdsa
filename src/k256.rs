@@ -218,7 +218,7 @@ impl CurveTrait for K256 {
         K256::to_bytes(self)
     }
 
-    fn try_from_bytes_ct(bytes: &[u8]) -> Result<Self> {
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
         K256::try_from_bytes(bytes)
     }
 

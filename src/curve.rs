@@ -71,7 +71,7 @@ pub trait CurveTrait:
     fn to_bytes(self) -> Vec<u8>;
 
     /// Deserialize a point from an affine-encoded byte array.
-    fn try_from_bytes_ct(bytes: &[u8]) -> Result<Self>;
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self>;
 
     /// Convert BigNumber to Scalar.
     fn bn_to_scalar(bn: &BigNumber) -> Result<Self::Scalar>;

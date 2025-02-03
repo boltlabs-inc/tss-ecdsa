@@ -196,7 +196,7 @@ impl CurveTrait for P256 {
         P256::to_bytes(self)
     }
 
-    fn try_from_bytes_ct(bytes: &[u8]) -> Result<Self> {
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
         P256::try_from_bytes(bytes)
     }
 
@@ -368,7 +368,7 @@ impl VerifyingKeyTrait for VerifyingKey {
 
 #[cfg(test)]
 mod curve_point_tests {
-    use crate::{curve::CurveTrait, p256::P256, utils::testing::init_testing};
+    use crate::{p256::P256, utils::testing::init_testing};
     use p256::elliptic_curve::Group;
 
     #[test]
@@ -376,7 +376,7 @@ mod curve_point_tests {
         let rng = &mut init_testing();
         let point = P256(p256::ProjectivePoint::random(rng));
         let bytes = point.to_bytes();
-        let reconstructed = P256::try_from_bytes_ct(&bytes).unwrap();
+        let reconstructed = P256::try_from_bytes(&bytes).unwrap();
         assert_eq!(point, reconstructed);
     }
 }
