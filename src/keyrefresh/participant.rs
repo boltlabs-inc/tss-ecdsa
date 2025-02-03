@@ -106,7 +106,7 @@ pub struct KeyrefreshParticipant<C: CurveTrait> {
     status: Status,
 }
 
-impl<C: CurveTrait + 'static> ProtocolParticipant for KeyrefreshParticipant<C> {
+impl<C: CurveTrait> ProtocolParticipant for KeyrefreshParticipant<C> {
     type Input = Input<C>;
     type Output = Output<C>;
 
@@ -206,7 +206,7 @@ impl<C: CurveTrait + 'static> ProtocolParticipant for KeyrefreshParticipant<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> InnerProtocolParticipant for KeyrefreshParticipant<C> {
+impl<C: CurveTrait> InnerProtocolParticipant for KeyrefreshParticipant<C> {
     type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
@@ -232,7 +232,7 @@ impl<C: CurveTrait> Broadcast<C> for KeyrefreshParticipant<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> KeyrefreshParticipant<C> {
+impl<C: CurveTrait> KeyrefreshParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this
@@ -873,7 +873,7 @@ mod tests {
     };
     use tracing::debug;
 
-    impl<C: CurveTrait + 'static> KeyrefreshParticipant<C> {
+    impl<C: CurveTrait> KeyrefreshParticipant<C> {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             quorum_size: usize,
