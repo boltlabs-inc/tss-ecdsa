@@ -29,13 +29,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct AuxInfoProof<C: CurveTrait> {
     pimod: pimod::PiModProof,
+    // The underlying implementation of CurveTrait offers a different deserialization method,
+    // which is less efficient, here we define which one we want to use.
     #[serde(bound(deserialize = "C: CurveTrait"))]
     pifac: pifac::PiFacProof<C>,
 }
 
 /// Common input and setup parameters known to both the prover and the verifier.
 #[derive(Clone)]
-pub(crate) struct CommonInput<'a, C: CurveTrait + 'a + 'static> {
+pub(crate) struct CommonInput<'a, C: CurveTrait + 'static> {
     shared_context: &'a <AuxInfoParticipant<C> as InnerProtocolParticipant>::Context,
     sid: Identifier,
     rho: [u8; 32],
