@@ -37,7 +37,7 @@ pub(crate) struct AuxInfoProof<C: CurveTrait> {
 
 /// Common input and setup parameters known to both the prover and the verifier.
 #[derive(Clone)]
-pub(crate) struct CommonInput<'a, C: CurveTrait + 'static> {
+pub(crate) struct CommonInput<'a, C: CurveTrait> {
     shared_context: &'a <AuxInfoParticipant<C> as InnerProtocolParticipant>::Context,
     sid: Identifier,
     rho: [u8; 32],

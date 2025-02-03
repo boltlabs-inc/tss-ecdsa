@@ -65,7 +65,7 @@ mod storage {
         type Value = [u8; 32];
     }
     pub(super) struct PrivateCoeffs<C>(PhantomData<C>);
-    impl<C: CurveTrait + Send + Sync + 'static> TypeTag for PrivateCoeffs<C> {
+    impl<C: CurveTrait + Send + Sync> TypeTag for PrivateCoeffs<C> {
         type Value = Vec<super::CoeffPrivate<C>>;
     }
     pub(super) struct PublicCoeffs<C>(PhantomData<C>);
@@ -77,7 +77,7 @@ mod storage {
         type Value = EvalPublic<C>;
     }
     pub(super) struct ValidPrivateEval<C>(PhantomData<C>);
-    impl<C: CurveTrait + Send + Sync + 'static> TypeTag for ValidPrivateEval<C> {
+    impl<C: CurveTrait + Send + Sync> TypeTag for ValidPrivateEval<C> {
         type Value = super::EvalPrivate<C>;
     }
 }
@@ -129,7 +129,7 @@ pub struct ToutofTHelper<C> {
     pub chain_code: [u8; 32],
 }
 
-impl<C: CurveTrait + 'static> ProtocolParticipant for TshareParticipant<C> {
+impl<C: CurveTrait> ProtocolParticipant for TshareParticipant<C> {
     type Input = Input<C>;
     type Output = Output<C>;
 
@@ -225,7 +225,7 @@ impl<C: CurveTrait + 'static> ProtocolParticipant for TshareParticipant<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> InnerProtocolParticipant for TshareParticipant<C> {
+impl<C: CurveTrait> InnerProtocolParticipant for TshareParticipant<C> {
     type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
@@ -251,7 +251,7 @@ impl<C: CurveTrait> Broadcast<C> for TshareParticipant<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> TshareParticipant<C> {
+impl<C: CurveTrait> TshareParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this
@@ -1007,7 +1007,7 @@ pub(crate) mod tests {
     /// participants.
     #[cfg(test)]
     #[allow(clippy::type_complexity)]
-    pub fn convert_to_t_out_of_t_shares<C: CurveTrait + 'static>(
+    pub fn convert_to_t_out_of_t_shares<C: CurveTrait>(
         tshares: HashMap<ParticipantIdentifier, Output<C>>,
         all_participants: Vec<ParticipantIdentifier>,
         rid: [u8; 32],
@@ -1095,7 +1095,7 @@ pub(crate) mod tests {
         Ok(keygen_outputs)
     }
 
-    impl<C: CurveTrait + 'static> TshareParticipant<C> {
+    impl<C: CurveTrait> TshareParticipant<C> {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             quorum_size: usize,
@@ -1141,7 +1141,7 @@ pub(crate) mod tests {
         }
     }
 
-    fn is_tshare_done<C: CurveTrait + 'static>(quorum: &[TshareParticipant<C>]) -> bool {
+    fn is_tshare_done<C: CurveTrait>(quorum: &[TshareParticipant<C>]) -> bool {
         for participant in quorum {
             if *participant.status() != Status::TerminatedSuccessfully {
                 return false;
@@ -1151,7 +1151,7 @@ pub(crate) mod tests {
     }
 
     #[allow(clippy::type_complexity)]
-    fn process_messages<R: RngCore + CryptoRng, C: CurveTrait + 'static>(
+    fn process_messages<R: RngCore + CryptoRng, C: CurveTrait>(
         quorum: &mut [TshareParticipant<C>],
         inboxes: &mut HashMap<ParticipantIdentifier, Vec<Message>>,
         rng: &mut R,

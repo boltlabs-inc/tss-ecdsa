@@ -101,7 +101,7 @@ pub struct KeygenParticipant<C: CurveTrait> {
     status: Status,
 }
 
-impl<C: CurveTrait + 'static> ProtocolParticipant for KeygenParticipant<C> {
+impl<C: CurveTrait> ProtocolParticipant for KeygenParticipant<C> {
     type Input = ();
     type Output = Output<C>;
 
@@ -196,7 +196,7 @@ impl<C: CurveTrait + 'static> ProtocolParticipant for KeygenParticipant<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> InnerProtocolParticipant for KeygenParticipant<C> {
+impl<C: CurveTrait> InnerProtocolParticipant for KeygenParticipant<C> {
     type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
@@ -222,7 +222,7 @@ impl<C: CurveTrait> Broadcast<C> for KeygenParticipant<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> KeygenParticipant<C> {
+impl<C: CurveTrait> KeygenParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this

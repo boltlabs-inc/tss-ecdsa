@@ -50,7 +50,7 @@ mod storage {
     pub(super) struct Decommit<C: CurveTrait> {
         _phantom: std::marker::PhantomData<C>,
     }
-    impl<C: CurveTrait + 'static> TypeTag for Decommit<C> {
+    impl<C: CurveTrait> TypeTag for Decommit<C> {
         type Value = CommitmentScheme<C>;
     }
     pub(super) struct GlobalRid;
@@ -95,7 +95,7 @@ pub struct AuxInfoParticipant<C: CurveTrait> {
     status: Status,
 }
 
-impl<C: CurveTrait + 'static> ProtocolParticipant for AuxInfoParticipant<C> {
+impl<C: CurveTrait> ProtocolParticipant for AuxInfoParticipant<C> {
     type Input = ();
     // The output type includes `AuxInfoPublic` material for all participants
     // (including ourselves) and `AuxInfoPrivate` for ourselves.
@@ -189,7 +189,7 @@ impl<C: CurveTrait + 'static> ProtocolParticipant for AuxInfoParticipant<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> InnerProtocolParticipant for AuxInfoParticipant<C> {
+impl<C: CurveTrait> InnerProtocolParticipant for AuxInfoParticipant<C> {
     type Context = SharedContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
@@ -215,7 +215,7 @@ impl<C: CurveTrait> Broadcast<C> for AuxInfoParticipant<C> {
     }
 }
 
-impl<'a, C: CurveTrait + 'static> AuxInfoParticipant<C> {
+impl<'a, C: CurveTrait> AuxInfoParticipant<C> {
     /// Handle "Ready" messages from the protocol participants.
     ///
     /// Once "Ready" messages have been received from all participants, this
@@ -607,7 +607,7 @@ mod tests {
     use std::collections::HashMap;
     type SharedContext = super::SharedContext<TestCurve>;
 
-    impl<C: CurveTrait + 'static> AuxInfoParticipant<C> {
+    impl<C: CurveTrait> AuxInfoParticipant<C> {
         pub fn new_quorum<R: RngCore + CryptoRng>(
             sid: Identifier,
             input: (),

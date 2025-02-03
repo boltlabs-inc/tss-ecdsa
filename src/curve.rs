@@ -9,7 +9,8 @@ use zeroize::Zeroize;
 
 /// Generic elliptic curve point.
 pub trait CurveTrait:
-    Clone
+    'static
+    + Clone
     + Copy
     + Debug
     + Send

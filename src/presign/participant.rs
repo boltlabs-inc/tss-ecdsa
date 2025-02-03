@@ -67,11 +67,11 @@ mod storage {
         type Value = crate::presign::round_two::Public<C>;
     }
     pub(super) struct RoundThreePrivate<C>(PhantomData<C>);
-    impl<C: CurveTrait + Send + Sync + 'static> TypeTag for RoundThreePrivate<C> {
+    impl<C: CurveTrait + Send + Sync> TypeTag for RoundThreePrivate<C> {
         type Value = crate::presign::round_three::Private<C>;
     }
     pub(super) struct RoundThreePublic<C>(PhantomData<C>);
-    impl<C: CurveTrait + Send + Sync + 'static> TypeTag for RoundThreePublic<C> {
+    impl<C: CurveTrait + Send + Sync> TypeTag for RoundThreePublic<C> {
         type Value = crate::presign::round_three::Public<C>;
     }
 }
@@ -98,7 +98,7 @@ impl<C: CurveTrait> ProofContext for PresignContext<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> PresignContext<C> {
+impl<C: CurveTrait> PresignContext<C> {
     /// Build a [`PresignContext`] from a [`PresignParticipant`].
     pub(crate) fn collect(p: &PresignParticipant<C>) -> Self {
         let mut auxinfo_public = p.input().to_public_auxinfo();
@@ -180,7 +180,7 @@ pub struct PresignParticipant<C: CurveTrait> {
     status: Status,
 }
 
-impl<C: CurveTrait + 'static> ProtocolParticipant for PresignParticipant<C> {
+impl<C: CurveTrait> ProtocolParticipant for PresignParticipant<C> {
     type Input = Input<C>;
     type Output = PresignRecord<C>;
 
@@ -298,7 +298,7 @@ impl<C: CurveTrait + 'static> ProtocolParticipant for PresignParticipant<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> InnerProtocolParticipant for PresignParticipant<C> {
+impl<C: CurveTrait> InnerProtocolParticipant for PresignParticipant<C> {
     type Context = PresignContext<C>;
 
     fn retrieve_context(&self) -> <Self as InnerProtocolParticipant>::Context {
@@ -324,7 +324,7 @@ impl<C: CurveTrait> Broadcast<C> for PresignParticipant<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> PresignParticipant<C> {
+impl<C: CurveTrait> PresignParticipant<C> {
     fn input(&self) -> &Input<C> {
         &self.input
     }
@@ -838,7 +838,7 @@ pub(crate) struct PresignKeyShareAndInfo<C> {
     pub(crate) aux_info_public: AuxInfoPublic,
 }
 
-impl<C: CurveTrait + 'static> PresignKeyShareAndInfo<C> {
+impl<C: CurveTrait> PresignKeyShareAndInfo<C> {
     fn new(id: ParticipantIdentifier, input: &Input<C>) -> Result<Self> {
         Ok(Self {
             aux_info_private: input.private_auxinfo().clone(),
