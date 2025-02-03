@@ -266,7 +266,7 @@ fn test_derive_child_key() {
         ]
         .into()
     );
-    // assert the public key (TODO: it only works for K256)
+    // assert the public key (it only works for K256)
     assert_eq!(
         public_key_bytes,
         [
@@ -285,7 +285,7 @@ fn test_derive_child_key() {
     )
     .unwrap();
     let child_key_output = ckd_input.derive_public_shift();
-    // assert the chain code (TODO: it only works for K256)
+    // assert the chain code (it only works for K256)
     assert_eq!(
         child_key_output.chain_code,
         [
@@ -294,7 +294,7 @@ fn test_derive_child_key() {
             0x23, 0x2f, 0x7c, 0x9c
         ]
     );
-    // assert the private key (TODO: it only works for K256)
+    // assert the private key (it only works for K256)
     let private_key: <TestCurve as CurveTrait>::Scalar = child_key_output.private_key;
     assert_eq!(
         private_key.to_bytes().as_slice(),
