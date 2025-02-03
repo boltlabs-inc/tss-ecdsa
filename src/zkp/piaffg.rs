@@ -195,7 +195,7 @@ impl<'a> PiAffgSecret<'a> {
     }
 }
 
-impl<C: CurveTrait + 'static> Proof for PiAffgProof<C> {
+impl<C: CurveTrait> Proof for PiAffgProof<C> {
     type CommonInput<'a> = PiAffgInput<'a, C>;
     type ProverSecret<'b> = PiAffgSecret<'b>;
 

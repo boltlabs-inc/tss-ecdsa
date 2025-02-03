@@ -67,7 +67,7 @@ impl<'a, C: CurveTrait> CommonInput<'a, C> {
     }
 }
 
-impl<C: CurveTrait + 'static> AuxInfoProof<C> {
+impl<C: CurveTrait> AuxInfoProof<C> {
     /// Generate a fresh transcript to be used in [`AuxInfoProof`].
     fn new_transcript() -> Transcript {
         Transcript::new(b"AuxInfoProof")

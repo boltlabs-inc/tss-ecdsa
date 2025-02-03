@@ -923,7 +923,7 @@ mod tests {
         assert!(full_noninteractive_threshold_signing_works(2, 3, 4, 42).is_err());
     }
 
-    struct AuxInfoHelperOutput<C: CurveTrait + 'static> {
+    struct AuxInfoHelperOutput<C: CurveTrait> {
         auxinfo_outputs:
             HashMap<ParticipantIdentifier, <AuxInfoParticipant<C> as ProtocolParticipant>::Output>,
         inboxes: HashMap<ParticipantIdentifier, Vec<Message>>,
@@ -988,7 +988,7 @@ mod tests {
         })
     }
 
-    struct KeygenHelperOutput<C: CurveTrait + 'static> {
+    struct KeygenHelperOutput<C: CurveTrait> {
         keygen_outputs:
             HashMap<ParticipantIdentifier, <KeygenParticipant<C> as ProtocolParticipant>::Output>,
     }
@@ -1044,7 +1044,7 @@ mod tests {
         Ok(KeygenHelperOutput { keygen_outputs })
     }
 
-    struct TshareHelperOutput<C: CurveTrait + 'static> {
+    struct TshareHelperOutput<C: CurveTrait> {
         tshare_inputs: Vec<tshare::Input<C>>,
         tshare_outputs:
             HashMap<ParticipantIdentifier, <TshareParticipant<C> as ProtocolParticipant>::Output>,
@@ -1052,7 +1052,7 @@ mod tests {
     // Receive as input a vector of configs, the child_index, the auxinfo outputs
     // and the keygen outputs It returns a struct containing and the tshare
     // outputs.
-    fn tshare_helper<C: CurveTrait + 'static>(
+    fn tshare_helper<C: CurveTrait>(
         configs: Vec<ParticipantConfig>,
         auxinfo_outputs: HashMap<
             ParticipantIdentifier,
@@ -1128,7 +1128,7 @@ mod tests {
 
     // Receives as input the auxinfo outputs and the keygen outputs
     // Returns the presign outputs
-    fn presign_helper<C: CurveTrait + 'static>(
+    fn presign_helper<C: CurveTrait>(
         configs: Vec<ParticipantConfig>,
         mut auxinfo_outputs: HashMap<
             ParticipantIdentifier,
@@ -1200,7 +1200,7 @@ mod tests {
         Ok(presign_outputs)
     }
 
-    pub struct SignHelperInput<C: CurveTrait + 'static> {
+    pub struct SignHelperInput<C: CurveTrait> {
         chain_code: [u8; 32],
         presign_outputs:
             HashMap<ParticipantIdentifier, <PresignParticipant<C> as ProtocolParticipant>::Output>,
@@ -1395,7 +1395,7 @@ mod tests {
         Ok(auxinfo_outputs_presign)
     }
 
-    fn basic_noninteractive_signing_works<C: CurveTrait + 'static>(
+    fn basic_noninteractive_signing_works<C: CurveTrait>(
         n: usize, // Total number of participants in the protocol
     ) -> Result<()> {
         let mut rng = init_testing();
@@ -1492,7 +1492,7 @@ mod tests {
         Ok(())
     }
 
-    fn basic_noninteractive_threshold_signing_works<C: CurveTrait + 'static>(
+    fn basic_noninteractive_threshold_signing_works<C: CurveTrait>(
         r: usize, // The real quorum size, which is the number of participants that will actually
         // participate in the protocol
         t: usize, // The minimum quorum allowed to complete the protocol

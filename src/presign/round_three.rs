@@ -72,7 +72,7 @@ pub(crate) struct Public<C: CurveTrait> {
     pub Gamma: C,
 }
 
-impl<C: CurveTrait + 'static> Public<C> {
+impl<C: CurveTrait> Public<C> {
     /// Verify the validity of [`Public`] against the prover's [`AuxInfoPublic`]
     /// and [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast)
     /// values.

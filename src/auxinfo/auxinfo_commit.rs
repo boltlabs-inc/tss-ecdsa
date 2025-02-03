@@ -80,7 +80,7 @@ impl<C: CurveTrait> Debug for CommitmentScheme<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> CommitmentScheme<C> {
+impl<C: CurveTrait> CommitmentScheme<C> {
     /// Construct a new [`CommitmentScheme`] using the provided unique session
     /// [`Identifier`], [`AuxInfoParticipant`], and [`AuxInfoPublic`].
     ///

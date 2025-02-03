@@ -85,7 +85,7 @@ enum SigningMaterial<C: CurveTrait> {
     },
 }
 
-impl<C: CurveTrait + 'static> SigningMaterial<C> {
+impl<C: CurveTrait> SigningMaterial<C> {
     fn new_partial_input(digest: Keccak256, public_keys: Vec<KeySharePublic<C>>) -> Self {
         Self::PartialInput {
             digest: Box::new(digest),
@@ -178,7 +178,7 @@ impl<C: CurveTrait> Input<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> ProtocolParticipant for InteractiveSignParticipant<C> {
+impl<C: CurveTrait> ProtocolParticipant for InteractiveSignParticipant<C> {
     type Input = Input<C>;
     type Output = C::ECDSASignature;
 
@@ -280,7 +280,7 @@ impl<C: CurveTrait + 'static> ProtocolParticipant for InteractiveSignParticipant
     }
 }
 
-impl<C: CurveTrait + 'static> InteractiveSignParticipant<C> {
+impl<C: CurveTrait> InteractiveSignParticipant<C> {
     fn handle_sign_message(
         &mut self,
         rng: &mut (impl CryptoRng + RngCore),

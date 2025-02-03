@@ -158,7 +158,7 @@ impl<C: CurveTrait> ProofContext for SignContext<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> SignContext<C> {
+impl<C: CurveTrait> SignContext<C> {
     /// Build a [`SignContext`] from a [`SignParticipant`].
     pub(crate) fn collect(p: &SignParticipant<C>) -> Self {
         Self {
@@ -177,19 +177,19 @@ mod storage {
     pub(super) struct Share<C: CurveTrait> {
         _c: std::marker::PhantomData<C>,
     }
-    impl<C: CurveTrait + 'static> TypeTag for Share<C> {
+    impl<C: CurveTrait> TypeTag for Share<C> {
         type Value = SignatureShare<C>;
     }
 
     pub(super) struct XProj<C: CurveTrait> {
         _c: std::marker::PhantomData<C>,
     }
-    impl<C: CurveTrait + 'static> TypeTag for XProj<C> {
+    impl<C: CurveTrait> TypeTag for XProj<C> {
         type Value = C::Scalar;
     }
 }
 
-impl<C: CurveTrait + 'static> ProtocolParticipant for SignParticipant<C> {
+impl<C: CurveTrait> ProtocolParticipant for SignParticipant<C> {
     type Input = Input<C>;
     type Output = C::ECDSASignature;
 
@@ -286,7 +286,7 @@ impl<C: CurveTrait + 'static> ProtocolParticipant for SignParticipant<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> InnerProtocolParticipant for SignParticipant<C> {
+impl<C: CurveTrait> InnerProtocolParticipant for SignParticipant<C> {
     type Context = SignContext<C>;
 
     fn retrieve_context(&self) -> Self::Context {
@@ -306,7 +306,7 @@ impl<C: CurveTrait + 'static> InnerProtocolParticipant for SignParticipant<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> SignParticipant<C> {
+impl<C: CurveTrait> SignParticipant<C> {
     /// Compute the public key with the shift value applied.
     pub fn shifted_public_key(
         &self,

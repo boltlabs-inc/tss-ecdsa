@@ -62,7 +62,7 @@ pub(crate) struct Public<C> {
     pub psi_prime: PiLogProof<C>,
 }
 
-impl<C: CurveTrait + 'static> Public<C> {
+impl<C: CurveTrait> Public<C> {
     /// Verify the validity of [`Public`] against the sender's
     /// [`AuxInfoPublic`], [`KeySharePublic`], and
     /// [`PublicBroadcast`](crate::presign::round_one::PublicBroadcast) values.

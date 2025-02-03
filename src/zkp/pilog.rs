@@ -161,7 +161,7 @@ fn generate_challenge<C: CurveTrait>(
     Ok(challenge)
 }
 
-impl<C: CurveTrait + 'static> Proof for PiLogProof<C> {
+impl<C: CurveTrait> Proof for PiLogProof<C> {
     type CommonInput<'a> = CommonInput<'a, C>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiLogProof"))]

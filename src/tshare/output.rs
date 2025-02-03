@@ -159,7 +159,7 @@ mod tests {
     type Output<C> = super::Output<C>;
     type CoeffPrivate<C> = tshare::CoeffPrivate<C>;
 
-    impl<C: CurveTrait + 'static> Output<C> {
+    impl<C: CurveTrait> Output<C> {
         /// Simulate the valid output of a keygen run with the given
         /// participants.
         ///

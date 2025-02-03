@@ -109,7 +109,7 @@ impl<'a> ProverSecret<'a> {
     }
 }
 
-impl<C: CurveTrait + 'static> Proof for PiSchProof<C> {
+impl<C: CurveTrait> Proof for PiSchProof<C> {
     type CommonInput<'a> = CommonInput<'a, C>;
     type ProverSecret<'a> = ProverSecret<'a>;
     #[cfg_attr(feature = "flame_it", flame("PiSchProof"))]
@@ -157,7 +157,7 @@ impl<C: CurveTrait + 'static> Proof for PiSchProof<C> {
     }
 }
 
-impl<C: CurveTrait + 'static> PiSchProof<C> {
+impl<C: CurveTrait> PiSchProof<C> {
     /// "Commitment" phase of the PiSch proof.
     pub fn precommit<R: RngCore + CryptoRng>(rng: &mut R) -> Result<PiSchPrecommit<C>> {
         // Sample alpha from F_q
